@@ -122,6 +122,25 @@ Scouthosting staff lives outside this model.
 - [ ] Youth Protection guardrails (parent linkage, minor flags)
 - [ ] SSO with Google / Apple / Microsoft
 
+## Backlog (added during build)
+
+Captured in-flight; sequenced into the right phase later.
+
+- **Activity feed (Facebook-like).** Subsume Announcements and Albums into
+  a unified `Post` model with optional photo attachments. Reverse-chronological
+  feed on the home page, comments scoped to the org's members. Public posts
+  on the public site, members-only posts in the member hub.
+- **Optional Facebook cross-post.** Per-org "publish to our Facebook page"
+  toggle on a post. OAuth into Meta's Page API; on publish, mirror the
+  post text + photos to the unit's Facebook page. Off by default — a unit
+  has to connect a page first. Same hook can later cross-post to Instagram.
+- **Communication preference per member** (`Member.commPreference`,
+  `smsOptIn`). Drives whether a broadcast goes via email, SMS, both, or
+  none. SMS provider (Twilio) lands with Phase 8 (email/messaging).
+- **Lucia migration / replacement.** Lucia 3 is deprecated; tagged
+  `[security]` to revisit when its successor stabilizes.
+- **Multer 2 LTS migration** if/when 2.x stabilizes broadly.
+
 ## Phase 3.5 — CMS (DONE in this commit)
 
 The first MVP-2 pillar. A leader can log in to `/admin` on their org

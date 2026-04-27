@@ -9,3 +9,6 @@ npm-debug.log*
 
 # Prisma
 prisma/migrations/dev.db*
+
+# Local uploads (per-org photo storage)
+var/

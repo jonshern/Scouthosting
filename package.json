@@ -23,9 +23,11 @@
     "@lucia-auth/adapter-prisma": "^4.0.1",
     "@node-rs/argon2": "^1.8.3",
     "@prisma/client": "^5.22.0",
+    "arctic": "^1.9.2",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "lucia": "^3.2.2",
+    "multer": "^2.0.0",
     "oslo": "^1.2.1"
   },
   "devDependencies": {

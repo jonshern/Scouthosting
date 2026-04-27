@@ -73,6 +73,7 @@ model Org {
   members     Member[]
   events      Event[]
   photos      Photo[]
+  albums      Album[]
   forms       Form[]
   page        Page?
   announcements Announcement[]
@@ -126,21 +127,28 @@ model Session {
 // ------------------------------------------------------------------
 
 model Member {
-  id           String   @id @default(cuid())
-  orgId        String
-  firstName    String
-  lastName     String
-  email        String?
-  phone        String?
-  patrol       String?
-  position     String?  // SPL, ASPL, Patrol Leader, Scoutmaster, etc.
-  joinedAt     DateTime @default(now())
-  birthdate    DateTime?
-  isYouth      Boolean  @default(true)
-  dietaryFlags String[] @default([]) // e.g. ["vegetarian", "gluten-free"]
-  notes        String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String   @id @default(cuid())
+  orgId          String
+  firstName      String
+  lastName       String
+  email          String?
+  phone          String?
+  // Drives which channel a broadcast targets this member on.
+  // email: send email only
+  // sms:   send SMS only (requires phone + smsOptIn)
+  // both:  send both
+  // none:  do not contact (still appears in the directory)
+  commPreference String   @default("email")
+  smsOptIn       Boolean  @default(false)
+  patrol         String?
+  position       String?  // SPL, ASPL, Patrol Leader, Scoutmaster, etc.
+  joinedAt       DateTime @default(now())
+  birthdate      DateTime?
+  isYouth        Boolean  @default(true)
+  dietaryFlags   String[] @default([]) // e.g. ["vegetarian", "gluten-free"]
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -172,18 +180,41 @@ model Event {
   @@index([orgId, startsAt])
 }
 
+model Album {
+  id          String    @id @default(cuid())
+  orgId       String
+  title       String
+  slug        String
+  description String?
+  visibility  String    @default("public") // public | members
+  takenAt     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  org    Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  photos Photo[]
+
+  @@unique([orgId, slug])
+  @@index([orgId, takenAt])
+}
+
 model Photo {
-  id        String   @id @default(cuid())
-  orgId     String
-  album     String?  // event name or arbitrary album label
-  url       String
-  caption   String?
-  takenAt   DateTime?
-  createdAt DateTime @default(now())
+  id           String    @id @default(cuid())
+  orgId        String
+  albumId      String
+  filename     String
+  originalName String?
+  mimeType     String
+  sizeBytes    Int
+  caption      String?
+  takenAt      DateTime?
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org   Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
 
-  @@index([orgId, album])
+  @@index([orgId, albumId, sortOrder])
 }
 
 model Form {

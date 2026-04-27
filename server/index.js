@@ -12,6 +12,7 @@ import {
 } from "./provision.js";
 import { renderSite } from "./render.js";
 import { adminRouter } from "./admin.js";
+import * as storage from "../lib/storage.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -183,6 +184,34 @@ app.use("/admin", (req, res, next) => {
   return adminRouter(req, res, next);
 });
 
+/* ------------------ Photo serving (org-scoped) -------------------- */
+
+// Photos live at /uploads/<filename>. Filename is a random cuid + extension
+// generated at upload time and stored on the Photo row. We resolve the
+// photo through Prisma to confirm:
+//   1. it belongs to the current req.org (no cross-org reads)
+//   2. it's still active (no deleted-but-orphaned files served)
+//   3. the album visibility allows the request (members-only requires login)
+app.get("/uploads/:filename", async (req, res) => {
+  if (!req.org) return res.status(404).send("Not found");
+  const { filename } = req.params;
+  if (!/^[a-z0-9._-]+$/i.test(filename)) return res.status(400).send("Bad request");
+
+  const photo = await prisma.photo.findFirst({
+    where: { orgId: req.org.id, filename },
+    include: { album: { select: { visibility: true } } },
+  });
+  if (!photo) return res.status(404).send("Not found");
+
+  if (photo.album.visibility === "members" && !req.user) {
+    return res.status(403).send("Members only");
+  }
+
+  res.set("Content-Type", photo.mimeType);
+  res.set("Cache-Control", "public, max-age=86400");
+  storage.readStream(req.org.id, photo.filename).pipe(res);
+});
+
 /* ------------------ Tenant site (subdomain) ----------------------- */
 
 app.get("*", async (req, res, next) => {
@@ -197,7 +226,7 @@ app.get("*", async (req, res, next) => {
   }
 
   // Pull CMS content alongside the org so a single render call has everything.
-  const [page, announcements] = await Promise.all([
+  const [page, announcements, albums] = await Promise.all([
     prisma.page.findUnique({ where: { orgId: req.org.id } }),
     prisma.announcement.findMany({
       where: {
@@ -207,9 +236,18 @@ app.get("*", async (req, res, next) => {
       orderBy: [{ pinned: "desc" }, { publishedAt: "desc" }],
       take: 5,
     }),
+    prisma.album.findMany({
+      where: { orgId: req.org.id, visibility: "public" },
+      orderBy: [{ takenAt: "desc" }, { createdAt: "desc" }],
+      take: 6,
+      include: {
+        photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+        _count: { select: { photos: true } },
+      },
+    }),
   ]);
 
-  const html = renderSite(req.org, { page, announcements });
+  const html = renderSite(req.org, { page, announcements, albums });
   res.set("Content-Type", "text/html; charset=utf-8").send(html);
 });
 

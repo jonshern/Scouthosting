@@ -44,6 +44,54 @@ function textToHtml(s) {
     .join("");
 }
 
+function renderGallery(albums) {
+  if (!albums || albums.length === 0) {
+    return `
+  <section id="gallery" class="section">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Photo gallery</h2>
+        <p>Albums from your unit's events show up here.</p>
+      </header>
+      <p class="muted">No albums yet.</p>
+    </div>
+  </section>`;
+  }
+
+  const tiles = albums
+    .map((a) => {
+      const cover = a.photos[0];
+      const thumb = cover
+        ? `style="background:center/cover url('/uploads/${escapeHtml(cover.filename)}')"`
+        : `style="background:linear-gradient(135deg,#1f3b22,#79a05a)"`;
+      const date = a.takenAt
+        ? a.takenAt.toLocaleDateString("en-US", { month: "short", year: "numeric" })
+        : "";
+      return `
+      <figure>
+        <div class="thumb" ${thumb}></div>
+        <figcaption>
+          <strong>${escapeHtml(a.title)}</strong>
+          <span>${a._count.photos} photo${a._count.photos === 1 ? "" : "s"}${
+            date ? ` · ${escapeHtml(date)}` : ""
+          }</span>
+        </figcaption>
+      </figure>`;
+    })
+    .join("");
+
+  return `
+  <section id="gallery" class="section">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Photo gallery</h2>
+        <p>Recent troop adventures.</p>
+      </header>
+      <div class="grid gallery">${tiles}</div>
+    </div>
+  </section>`;
+}
+
 function renderAnnouncements(list) {
   if (!list || list.length === 0) return "";
   const items = list
@@ -71,7 +119,7 @@ function renderAnnouncements(list) {
 }
 
 export function renderSite(org, extras = {}) {
-  const { page, announcements } = extras;
+  const { page, announcements, albums } = extras;
   const tpl = loadTemplate();
 
   const tagline =
@@ -120,6 +168,7 @@ export function renderSite(org, extras = {}) {
     JOIN_BODY: raw(textToHtml(joinBody)),
     CONTACT_NOTE: raw(page?.contactNote ? textToHtml(page.contactNote) : ""),
     ANNOUNCEMENTS: raw(renderAnnouncements(announcements)),
+    GALLERY: raw(renderGallery(albums)),
     DEMO_BANNER: org.isDemo
       ? raw(
           `<div class="demo-banner"><strong>Scouthosting demo site.</strong> ${escapeHtml(

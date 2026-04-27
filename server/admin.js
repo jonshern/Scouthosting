@@ -9,10 +9,46 @@
 // same-origin posts only.
 
 import express from "express";
+import multer from "multer";
+import path from "node:path";
+import crypto from "node:crypto";
 import { prisma } from "../lib/db.js";
 import { lucia, verifyPassword, roleInOrg } from "../lib/auth.js";
+import { moveFromTemp, remove as removeFile } from "../lib/storage.js";
 
 export const adminRouter = express.Router();
+
+/* ------------------------------------------------------------------ */
+/* Photo uploads                                                       */
+/* ------------------------------------------------------------------ */
+
+const ALLOWED_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "image/heic",
+  "image/heif",
+]);
+
+const upload = multer({
+  dest: path.resolve(process.env.UPLOAD_TMP || "/tmp/scouthosting-uploads"),
+  limits: { fileSize: 10 * 1024 * 1024, files: 20 }, // 10MB per file, 20 per request
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME.has(file.mimetype)) cb(null, true);
+    else cb(new Error(`Unsupported file type: ${file.mimetype}`));
+  },
+});
+
+function slugify(input) {
+  return String(input || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 60) || "album";
+}
 
 /* ------------------------------------------------------------------ */
 /* HTML helpers                                                        */
@@ -89,6 +125,7 @@ form.inline{display:inline}
     <a href="/admin">Dashboard</a>
     <a href="/admin/content">Page content</a>
     <a href="/admin/announcements">Announcements</a>
+    <a href="/admin/albums">Photos &amp; albums</a>
     <a href="/" target="_blank">View public site ↗</a>
   </nav>
   <div class="me">
@@ -228,11 +265,16 @@ adminRouter.get("/", requireLeader, async (req, res) => {
     </div>
 
     <div class="card">
+      <h2>Photos &amp; albums</h2>
+      <p class="muted small">Upload photos to a new album and they'll appear on your public gallery within seconds.</p>
+      <p><a class="btn btn-primary" href="/admin/albums">Manage albums</a></p>
+    </div>
+
+    <div class="card">
       <h2>Coming soon</h2>
       <ul class="muted small">
-        <li>Photos &amp; albums</li>
         <li>Calendar &amp; events with Google Calendar add-button and Maps directions</li>
-        <li>Member directory and group email</li>
+        <li>Member directory with text vs email preference, and group email</li>
       </ul>
     </div>
   `;
@@ -414,4 +456,259 @@ adminRouter.post("/announcements/:id/delete", requireLeader, async (req, res) =>
     where: { id: req.params.id, orgId: req.org.id },
   });
   res.redirect("/admin/announcements");
+});
+
+/* ------------------------------------------------------------------ */
+/* Albums + photos                                                     */
+/* ------------------------------------------------------------------ */
+
+adminRouter.get("/albums", requireLeader, async (req, res) => {
+  const albums = await prisma.album.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ takenAt: "desc" }, { createdAt: "desc" }],
+    include: {
+      photos: { take: 1, orderBy: { sortOrder: "asc" } },
+      _count: { select: { photos: true } },
+    },
+  });
+
+  const items = albums
+    .map(
+      (a) => `
+    <li>
+      <a href="/admin/albums/${escape(a.id)}" style="display:flex;gap:.85rem;align-items:center;text-decoration:none;color:inherit;flex:1">
+        <div style="width:64px;height:48px;border-radius:8px;background:${
+          a.photos[0]
+            ? `center/cover url('/uploads/${escape(a.photos[0].filename)}')`
+            : "linear-gradient(135deg,var(--g700),var(--gold))"
+        };flex-shrink:0"></div>
+        <div>
+          <h3>${escape(a.title)}</h3>
+          <p>${a._count.photos} photo${a._count.photos === 1 ? "" : "s"}${
+            a.takenAt ? ` · ${escape(a.takenAt.toISOString().slice(0, 10))}` : ""
+          }${a.visibility === "members" ? ' · <span class="tag">members only</span>' : ""}</p>
+        </div>
+      </a>
+      <form class="inline" method="post" action="/admin/albums/${escape(a.id)}/delete" onsubmit="return confirm('Delete this album and all its photos?')">
+        <button class="btn btn-danger small" type="submit">Delete</button>
+      </form>
+    </li>`
+    )
+    .join("");
+
+  const body = `
+    <h1>Photos &amp; albums</h1>
+    <p class="muted">Group photos by event or trip. Each album shows up on your public site automatically.</p>
+
+    <form class="card" method="post" action="/admin/albums">
+      <h2>New album</h2>
+      <label>Title<input name="title" type="text" required maxlength="120" placeholder="e.g. Spring Camporee"></label>
+      <label>Description (optional)<textarea name="description" rows="2" maxlength="500"></textarea></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Date taken (optional)<input name="takenAt" type="date"></label>
+        <label style="margin:0;flex:1">Visibility
+          <select name="visibility">
+            <option value="public" selected>Public</option>
+            <option value="members">Members only</option>
+          </select>
+        </label>
+      </div>
+      <button class="btn btn-primary" type="submit">Create album</button>
+    </form>
+
+    <h2 style="margin-top:1.5rem">Albums</h2>
+    ${albums.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No albums yet. Create your first one above.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Photos & albums", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/albums", requireLeader, async (req, res) => {
+  const { title, description, takenAt, visibility } = req.body || {};
+  if (!title?.trim()) return res.redirect("/admin/albums");
+
+  // Derive a unique slug per org.
+  const baseSlug = slugify(title);
+  let slug = baseSlug;
+  let n = 1;
+  while (await prisma.album.findUnique({ where: { orgId_slug: { orgId: req.org.id, slug } } })) {
+    n++;
+    slug = `${baseSlug}-${n}`;
+  }
+
+  const album = await prisma.album.create({
+    data: {
+      orgId: req.org.id,
+      title: title.trim(),
+      slug,
+      description: description?.trim() || null,
+      takenAt: takenAt ? new Date(takenAt) : null,
+      visibility: visibility === "members" ? "members" : "public",
+    },
+  });
+  res.redirect(`/admin/albums/${album.id}`);
+});
+
+adminRouter.get("/albums/:id", requireLeader, async (req, res) => {
+  const album = await prisma.album.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    include: {
+      photos: { orderBy: { sortOrder: "asc" } },
+    },
+  });
+  if (!album) return res.status(404).send("Not found");
+
+  const photos = album.photos
+    .map(
+      (p) => `
+    <figure style="margin:0;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden">
+      <img src="/uploads/${escape(p.filename)}" alt="${escape(p.caption ?? "")}" style="display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#eef0e7">
+      <figcaption style="padding:.55rem .7rem;font-size:.85rem;display:flex;justify-content:space-between;gap:.5rem;align-items:center">
+        <span>${escape(p.caption || p.originalName || "")}</span>
+        <form class="inline" method="post" action="/admin/photos/${escape(p.id)}/delete" onsubmit="return confirm('Delete this photo?')">
+          <button class="btn btn-danger small" type="submit">×</button>
+        </form>
+      </figcaption>
+    </figure>`
+    )
+    .join("");
+
+  const body = `
+    <h1>${escape(album.title)}</h1>
+    <p class="muted small">${album.photos.length} photo${album.photos.length === 1 ? "" : "s"} · ${
+      album.visibility === "members" ? "Members only" : "Public"
+    } · <a href="/admin/albums">All albums</a></p>
+
+    <form class="card" method="post" action="/admin/albums/${escape(album.id)}/photos" enctype="multipart/form-data">
+      <h2>Add photos</h2>
+      <label>Choose images (JPEG, PNG, WebP, HEIC; up to 10 MB each, 20 at a time)
+        <input name="files" type="file" accept="image/*" multiple required>
+      </label>
+      <button class="btn btn-primary" type="submit">Upload</button>
+    </form>
+
+    <h2 style="margin-top:1.5rem">Photos</h2>
+    ${album.photos.length
+      ? `<div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.75rem">${photos}</div>`
+      : `<div class="empty">No photos yet. Add some above.</div>`}
+
+    <h2 style="margin-top:2rem">Album settings</h2>
+    <form class="card" method="post" action="/admin/albums/${escape(album.id)}">
+      <label>Title<input name="title" type="text" required maxlength="120" value="${escape(album.title)}"></label>
+      <label>Description<textarea name="description" rows="2" maxlength="500">${escape(album.description ?? "")}</textarea></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Date taken<input name="takenAt" type="date" value="${
+          album.takenAt ? album.takenAt.toISOString().slice(0, 10) : ""
+        }"></label>
+        <label style="margin:0;flex:1">Visibility
+          <select name="visibility">
+            <option value="public"${album.visibility === "public" ? " selected" : ""}>Public</option>
+            <option value="members"${album.visibility === "members" ? " selected" : ""}>Members only</option>
+          </select>
+        </label>
+      </div>
+      <button class="btn btn-primary" type="submit">Save settings</button>
+    </form>
+  `;
+  res.type("html").send(layout({ title: album.title, org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/albums/:id", requireLeader, async (req, res) => {
+  const album = await prisma.album.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!album) return res.status(404).send("Not found");
+  const { title, description, takenAt, visibility } = req.body || {};
+  await prisma.album.update({
+    where: { id: album.id },
+    data: {
+      title: title?.trim() || "Untitled",
+      description: description?.trim() || null,
+      takenAt: takenAt ? new Date(takenAt) : null,
+      visibility: visibility === "members" ? "members" : "public",
+    },
+  });
+  res.redirect(`/admin/albums/${album.id}`);
+});
+
+adminRouter.post("/albums/:id/delete", requireLeader, async (req, res) => {
+  const album = await prisma.album.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    include: { photos: { select: { filename: true } } },
+  });
+  if (!album) return res.status(404).send("Not found");
+  // Remove files first, then DB rows (DB cascade handles Photo rows).
+  await Promise.all(album.photos.map((p) => removeFile(req.org.id, p.filename)));
+  await prisma.album.delete({ where: { id: album.id } });
+  res.redirect("/admin/albums");
+});
+
+adminRouter.post(
+  "/albums/:id/photos",
+  requireLeader,
+  upload.array("files", 20),
+  async (req, res) => {
+    const album = await prisma.album.findFirst({
+      where: { id: req.params.id, orgId: req.org.id },
+      select: { id: true },
+    });
+    if (!album) return res.status(404).send("Not found");
+
+    const files = req.files || [];
+    const lastOrder =
+      (await prisma.photo.findFirst({
+        where: { albumId: album.id },
+        orderBy: { sortOrder: "desc" },
+        select: { sortOrder: true },
+      }))?.sortOrder ?? 0;
+
+    let i = 1;
+    for (const f of files) {
+      const ext = (path.extname(f.originalname) || ".bin").toLowerCase().slice(0, 8);
+      const filename = `${crypto.randomBytes(12).toString("hex")}${ext}`;
+      await moveFromTemp(req.org.id, filename, f.path);
+      await prisma.photo.create({
+        data: {
+          orgId: req.org.id,
+          albumId: album.id,
+          filename,
+          originalName: f.originalname,
+          mimeType: f.mimetype,
+          sizeBytes: f.size,
+          sortOrder: lastOrder + i,
+        },
+      });
+      i++;
+    }
+    res.redirect(`/admin/albums/${album.id}`);
+  }
+);
+
+adminRouter.post("/photos/:id/delete", requireLeader, async (req, res) => {
+  const photo = await prisma.photo.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!photo) return res.status(404).send("Not found");
+  await removeFile(photo.orgId, photo.filename);
+  await prisma.photo.delete({ where: { id: photo.id } });
+  res.redirect(`/admin/albums/${photo.albumId}`);
+});
+
+/* ------------------------------------------------------------------ */
+/* Multer error handler — turns oversized/wrong-type into a flash      */
+/* ------------------------------------------------------------------ */
+
+adminRouter.use((err, req, res, _next) => {
+  if (err instanceof multer.MulterError || /Unsupported file type/.test(err.message)) {
+    const back = req.get("Referer") || "/admin/albums";
+    return res.status(400).type("html").send(
+      `<!doctype html><meta charset="utf-8"><title>Upload error</title>
+<style>body{font-family:system-ui;max-width:520px;margin:4rem auto;padding:0 1.25rem;color:#15181c}
+a{color:#1d6b39}</style>
+<h1>Upload error</h1>
+<p>${escape(err.message)}</p>
+<p><a href="${escape(back)}">← Back</a></p>`
+    );
+  }
+  throw err;
 });
