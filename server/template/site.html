@@ -53,8 +53,8 @@
   <section class="hero">
     <div class="hero-inner">
       <p class="eyebrow">{{CHARTER_ORG}} · {{COUNCIL}} · {{DISTRICT}}</p>
-      <h1>Adventure, leadership, and the outdoors — since {{FOUNDED}}.</h1>
-      <p class="lede">{{TAGLINE}}</p>
+      <h1>{{HERO_HEADLINE}}</h1>
+      <p class="lede">{{HERO_LEDE}}</p>
       <div class="hero-cta">
         <a class="btn primary" href="#join">Visit a meeting</a>
         <a class="btn ghost" href="#calendar">See what's coming up</a>
@@ -67,17 +67,13 @@
     </div>
   </section>
 
+  {{ANNOUNCEMENTS}}
+
   <section id="about" class="section">
     <div class="wrap two-col">
       <div>
         <h2>About our {{UNIT_TYPE}}</h2>
-        <p>{{DISPLAY_NAME}} is sponsored by {{CHARTER_ORG}} in {{CITY}}, {{STATE}}. We are part of {{DISTRICT}} in the {{COUNCIL}}.</p>
-        <ul class="checks">
-          <li><strong>High adventure every year.</strong> Rotating between national high‑adventure bases and major treks.</li>
-          <li><strong>Scouting belongs outside.</strong> At least one outdoor activity each month.</li>
-          <li><strong>Scout‑led.</strong> Adults guide and plan; Scouts run meetings and lead activities.</li>
-          <li><strong>Service first.</strong> Regular community service projects with local partners.</li>
-        </ul>
+        <div class="prose">{{ABOUT_BODY}}</div>
       </div>
       <aside class="card facts">
         <h3>Quick facts</h3>
@@ -162,7 +158,7 @@
     <div class="wrap join">
       <div>
         <h2>Curious? Come visit.</h2>
-        <p>Any Scout-aged youth is welcome to drop in on a {{MEETING_DAY}} meeting at {{MEETING_LOCATION}}.</p>
+        <div class="prose">{{JOIN_BODY}}</div>
         <p><a class="btn primary" href="#contact">Email the Scoutmaster</a></p>
       </div>
     </div>
@@ -171,6 +167,7 @@
   <section id="contact" class="section alt">
     <div class="wrap">
       <h2>Get in touch</h2>
+      <div class="prose">{{CONTACT_NOTE}}</div>
       <ul class="contact-list">
         <li><strong>Scoutmaster ({{SCOUTMASTER_NAME}}):</strong> <a href="mailto:{{SCOUTMASTER_EMAIL}}">{{SCOUTMASTER_EMAIL}}</a></li>
         <li><strong>Committee Chair:</strong> <a href="mailto:{{COMMITTEE_EMAIL}}">{{COMMITTEE_EMAIL}}</a></li>

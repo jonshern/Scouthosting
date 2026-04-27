@@ -34,6 +34,25 @@ async function main() {
     create: DEMO,
   });
   console.log(`✓ Seeded demo org: ${org.displayName} (${org.slug})`);
+
+  // Sample announcement, idempotent on title
+  const annTitle = "Welcome to our new website!";
+  const existingAnn = await prisma.announcement.findFirst({
+    where: { orgId: org.id, title: annTitle },
+  });
+  if (!existingAnn) {
+    await prisma.announcement.create({
+      data: {
+        orgId: org.id,
+        title: annTitle,
+        body:
+          "We've moved to Scouthosting — same troop, faster site, easier to update.\n\n" +
+          "Leaders can post announcements like this from the admin dashboard.",
+        pinned: true,
+      },
+    });
+    console.log(`✓ Seeded sample announcement`);
+  }
 }
 
 main()

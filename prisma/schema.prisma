@@ -74,6 +74,8 @@ model Org {
   events      Event[]
   photos      Photo[]
   forms       Form[]
+  page        Page?
+  announcements Announcement[]
 
   @@index([plan])
 }
@@ -89,6 +91,7 @@ model User {
 
   sessions    Session[]
   memberships OrgMembership[]
+  announcements Announcement[]
 }
 
 // A user can belong to many orgs (parent with kids in two units, leader
@@ -196,4 +199,39 @@ model Form {
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId, category])
+}
+
+// CMS: per-org editable home-page content. Single record per org for now;
+// later we can add slug + relax @unique to support multiple custom pages.
+model Page {
+  id           String   @id @default(cuid())
+  orgId        String   @unique
+  heroHeadline String?
+  heroLede     String?
+  aboutBody    String?
+  joinBody     String?
+  contactNote  String?
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model Announcement {
+  id          String    @id @default(cuid())
+  orgId       String
+  title       String
+  body        String
+  publishedAt DateTime  @default(now())
+  expiresAt   DateTime?
+  pinned      Boolean   @default(false)
+  authorId    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  org    Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, publishedAt])
+  @@index([orgId, pinned, publishedAt])
 }

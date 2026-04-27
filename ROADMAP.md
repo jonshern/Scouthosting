@@ -82,6 +82,20 @@ The core architecture: one server, many troop sites, isolated by subdomain.
 - [ ] `[infra]` Daily logical backups; per-org export-to-zip on demand
 - [ ] `[migration]` Importer that ingests TroopWebHost CSV/JSON exports
 
+## MVP-2 priority order
+
+Reordered after a focused conversation with the customer voice: the
+features Scout units actually touch every week are CMS, photos, calendar,
+and member email. Advancement / money / training / OA / equipment slide
+behind these.
+
+1. **CMS** — DONE. Per-org `/admin` with page content + announcements.
+2. **Photos & albums** — next.
+3. **Calendar & events** — Google Calendar add-button + per-event Maps,
+   Apple Maps, Waze directions.
+4. **Member directory + group email** — send to whole org / patrol /
+   subgroup.
+
 ## Phase 3 — Identity & auth (IN PROGRESS)
 
 A user account is global. Roles attach via `OrgMembership` (one user, many
@@ -99,6 +113,25 @@ Scouthosting staff lives outside this model.
 - [ ] Two-deep digital communication enforcement
 - [ ] Youth Protection guardrails (parent linkage, minor flags)
 - [ ] SSO with Google / Apple / Microsoft
+
+## Phase 3.5 — CMS (DONE in this commit)
+
+The first MVP-2 pillar. A leader can log in to `/admin` on their org
+subdomain and edit the public site without anyone redeploying.
+
+- [x] `Page` and `Announcement` Prisma models
+- [x] Per-org admin shell with sidebar and styled forms
+- [x] Auth-gated routes: only `leader` or `admin` membership can access
+- [x] Auto-linked admin grant when the founding leader signs up with the
+      same email used at provisioning
+- [x] Edit hero headline, hero lede, About body, Join body, Contact note
+- [x] Publish, edit, delete, pin, expire announcements
+- [x] Public site renders DB-stored content over the seeded defaults
+- [x] Announcements section with pinned-first ordering
+- [ ] Markdown / rich-text editing (currently plain text + `\n\n`)
+- [ ] Image insertion in body (waits on Phase 3.6)
+- [ ] Multi-page support (custom pages beyond the home page)
+- [ ] Audit log of who edited what (`[security]`)
 
 ## Phase 4 — Calendar & events
 

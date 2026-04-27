@@ -1,12 +1,12 @@
 /**
- * Render a tenant's site by injecting org data into the template.
+ * Render an org's site by injecting org + CMS data into the template.
  *
  * Tokens are HTML-escaped by default. Values wrapped with `raw(html)` are
- * inserted verbatim — used only for trusted server-built fragments.
+ * inserted verbatim — used only for trusted server-built fragments that
+ * may contain HTML (announcement list, demo banner, etc.).
  *
- * Future phases will pull dynamic content (events, members, photos) from
- * Prisma and render multiple routes; this file is the seam where that
- * happens.
+ * Future phases will pull more dynamic content (events, members, photos);
+ * this file is the seam where that happens.
  */
 
 import fs from "node:fs";
@@ -34,14 +34,74 @@ function escapeHtml(s) {
   }[c]));
 }
 
-export function renderSite(org) {
+// Plain-text → HTML: escape, preserve double-newlines as paragraph breaks
+// and single-newlines as <br>.
+function textToHtml(s) {
+  const escaped = escapeHtml(s ?? "");
+  return escaped
+    .split(/\n\n+/)
+    .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+function renderAnnouncements(list) {
+  if (!list || list.length === 0) return "";
+  const items = list
+    .map(
+      (a) => `
+    <li${a.pinned ? ' class="pinned"' : ""}>
+      ${a.pinned ? '<span class="badge">Pinned</span>' : ""}
+      <h3>${escapeHtml(a.title)}</h3>
+      <div class="ann-body">${textToHtml(a.body)}</div>
+      <time datetime="${escapeHtml(a.publishedAt.toISOString())}">${escapeHtml(
+        a.publishedAt.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+      )}</time>
+    </li>`
+    )
+    .join("");
+  return `
+  <section id="announcements" class="section">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Announcements</h2>
+      </header>
+      <ul class="announcements">${items}</ul>
+    </div>
+  </section>`;
+}
+
+export function renderSite(org, extras = {}) {
+  const { page, announcements } = extras;
   const tpl = loadTemplate();
+
+  const tagline =
+    page?.heroLede ||
+    org.tagline ||
+    `${org.unitType} ${org.unitNumber}, chartered to ${org.charterOrg}.`;
+
+  const heroHeadline =
+    page?.heroHeadline ||
+    `Adventure, leadership, and the outdoors — since ${org.founded || "now"}.`;
+
+  const aboutBody =
+    page?.aboutBody ||
+    `${org.displayName} is sponsored by ${org.charterOrg} in ${org.city}, ${org.state}. We are part of ${
+      org.district || "our district"
+    } in the ${org.council || "our council"}.`;
+
+  const joinBody =
+    page?.joinBody ||
+    `Any Scout-aged youth is welcome to drop in on a ${org.meetingDay} meeting at ${
+      org.meetingLocation || org.charterOrg
+    }.`;
+
   const ctx = {
     UNIT_TYPE: org.unitType,
     UNIT_NUMBER: org.unitNumber,
     DISPLAY_NAME: org.displayName,
     BRAND_MARK: org.unitNumber,
-    TAGLINE: org.tagline || `${org.unitType} ${org.unitNumber}, chartered to ${org.charterOrg}.`,
+    HERO_HEADLINE: heroHeadline,
+    HERO_LEDE: tagline,
     CHARTER_ORG: org.charterOrg,
     CITY: org.city,
     STATE: org.state,
@@ -56,9 +116,15 @@ export function renderSite(org) {
     COMMITTEE_EMAIL: org.committeeChairEmail || org.scoutmasterEmail,
     PRIMARY_COLOR: org.primaryColor,
     ACCENT_COLOR: org.accentColor,
+    ABOUT_BODY: raw(textToHtml(aboutBody)),
+    JOIN_BODY: raw(textToHtml(joinBody)),
+    CONTACT_NOTE: raw(page?.contactNote ? textToHtml(page.contactNote) : ""),
+    ANNOUNCEMENTS: raw(renderAnnouncements(announcements)),
     DEMO_BANNER: org.isDemo
       ? raw(
-          `<div class="demo-banner"><strong>Scouthosting demo site.</strong> ${escapeHtml(org.displayName)} is a fictional unit.</div>`
+          `<div class="demo-banner"><strong>Scouthosting demo site.</strong> ${escapeHtml(
+            org.displayName
+          )} is a fictional unit.</div>`
         )
       : "",
   };

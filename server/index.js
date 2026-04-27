@@ -11,6 +11,7 @@ import {
   validateProvisionInput,
 } from "./provision.js";
 import { renderSite } from "./render.js";
+import { adminRouter } from "./admin.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -115,17 +116,29 @@ app.post("/api/auth/signup", async (req, res) => {
   if (password.length < 12) {
     return res.status(400).json({ ok: false, error: "Password must be at least 12 characters" });
   }
-  const exists = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  const lowerEmail = email.toLowerCase();
+  const exists = await prisma.user.findUnique({ where: { email: lowerEmail } });
   if (exists) {
     return res.status(409).json({ ok: false, error: "Email already registered" });
   }
   const user = await prisma.user.create({
-    data: {
-      email: email.toLowerCase(),
-      displayName,
-      passwordHash: await hashPassword(password),
-    },
+    data: { email: lowerEmail, displayName, passwordHash: await hashPassword(password) },
   });
+
+  // Auto-grant admin membership for any org where this email is the
+  // founding leader. Lets the scoutmaster from the provisioning step claim
+  // their site by signing up with the same email.
+  const ownedOrgs = await prisma.org.findMany({
+    where: { scoutmasterEmail: lowerEmail },
+    select: { id: true },
+  });
+  if (ownedOrgs.length) {
+    await prisma.orgMembership.createMany({
+      data: ownedOrgs.map((o) => ({ userId: user.id, orgId: o.id, role: "admin" })),
+      skipDuplicates: true,
+    });
+  }
+
   const session = await lucia.createSession(user.id, {});
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
   res.status(201).json({ ok: true, user: { id: user.id, email: user.email, displayName: user.displayName } });
@@ -163,9 +176,16 @@ app.get("/api/auth/me", (req, res) => {
   });
 });
 
+/* ------------------ Admin (org subdomain only) -------------------- */
+
+app.use("/admin", (req, res, next) => {
+  if (!req.org) return res.status(404).send("Site not found");
+  return adminRouter(req, res, next);
+});
+
 /* ------------------ Tenant site (subdomain) ----------------------- */
 
-app.get("*", (req, res, next) => {
+app.get("*", async (req, res, next) => {
   if (!req.org) return next();
 
   // Static assets for the tenant come from /demo/ — same look, neutral content.
@@ -176,7 +196,20 @@ app.get("*", (req, res, next) => {
     return res.status(404).send("Not found");
   }
 
-  const html = renderSite(req.org);
+  // Pull CMS content alongside the org so a single render call has everything.
+  const [page, announcements] = await Promise.all([
+    prisma.page.findUnique({ where: { orgId: req.org.id } }),
+    prisma.announcement.findMany({
+      where: {
+        orgId: req.org.id,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      orderBy: [{ pinned: "desc" }, { publishedAt: "desc" }],
+      take: 5,
+    }),
+  ]);
+
+  const html = renderSite(req.org, { page, announcements });
   res.set("Content-Type", "text/html; charset=utf-8").send(html);
 });
 

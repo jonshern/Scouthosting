@@ -3,9 +3,10 @@
 A modern, multi-tenant website platform for Scouts BSA troops, Cub Scout
 packs, and Venturing crews — built as a direct alternative to TroopWebHost.
 
-> Status: **Phase 2 done.** Marketing site + signup + multi-tenant routing +
-> Postgres / Prisma + Lucia auth are wired together. Per-feature backends
-> (calendar, members, advancement, photos, email, money) are tracked in
+> Status: **Phase 2 + first slice of MVP-2 done.** Marketing site, signup,
+> multi-tenant routing, Postgres / Prisma, Lucia auth, and a per-org
+> CMS (`/admin` per subdomain — page content + announcements) are wired up.
+> Photos, calendar, and member email are tracked next in
 > [`ROADMAP.md`](ROADMAP.md). Deferred security work is captured under the
 > `[security]` tag in the same file.
 
@@ -124,6 +125,20 @@ automatically. If yours doesn't, add this to `/etc/hosts`:
 ```
 127.0.0.1  troop100.localhost
 ```
+
+### Sign in to the demo's admin
+
+Each org has its own admin at `/admin` on its subdomain. To log in to the
+seeded demo:
+
+1. Go to <http://localhost:3000/signup.html> and sign up with
+   `scoutmaster@example.invalid` (any password ≥ 12 characters).
+2. The signup auto-grants `admin` in any org whose `scoutmasterEmail`
+   matches your address — Sample Troop 100 in this case.
+3. Visit <http://troop100.localhost:3000/admin>. You're in.
+
+From there you can edit page copy, post announcements, and watch the public
+site update.
 
 ### Provision a new org
 
