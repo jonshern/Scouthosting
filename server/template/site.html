@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{DISPLAY_NAME}} — Scouts BSA, {{CITY}}, {{STATE}}</title>
+<meta name="description" content="{{DISPLAY_NAME}}, sponsored by {{CHARTER_ORG}} in {{CITY}}, {{STATE}}. {{COUNCIL}} · {{DISTRICT}}." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css" />
+<style>
+  :root { --green-700: {{PRIMARY_COLOR}}; --gold: {{ACCENT_COLOR}}; }
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+{{DEMO_BANNER}}
+
+<header class="site-header" id="top">
+  <div class="bar">
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true">{{BRAND_MARK}}</span>
+      <span class="brand-text">
+        <strong>{{DISPLAY_NAME}}</strong>
+        <small>Scouts BSA · {{CITY}}, {{STATE}}</small>
+      </span>
+    </a>
+
+    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
+
+    <nav id="nav" class="nav" aria-label="Primary">
+      <ul>
+        <li><a href="#about">About</a></li>
+        <li><a href="#calendar">Calendar</a></li>
+        <li><a href="#gallery">Photos</a></li>
+        <li><a href="#advancement">Advancement</a></li>
+        <li><a href="#resources">Resources</a></li>
+        <li><a href="#members">Members</a></li>
+        <li><a href="#contact">Contact</a></li>
+        <li><a class="cta" href="#join">Join</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="eyebrow">{{CHARTER_ORG}} · {{COUNCIL}} · {{DISTRICT}}</p>
+      <h1>Adventure, leadership, and the outdoors — since {{FOUNDED}}.</h1>
+      <p class="lede">{{TAGLINE}}</p>
+      <div class="hero-cta">
+        <a class="btn primary" href="#join">Visit a meeting</a>
+        <a class="btn ghost" href="#calendar">See what's coming up</a>
+      </div>
+      <dl class="stats">
+        <div><dt>Founded</dt><dd>{{FOUNDED}}</dd></div>
+        <div><dt>Meetings</dt><dd>{{MEETING_DAY}} · {{MEETING_TIME}}</dd></div>
+        <div><dt>Charter</dt><dd>{{CHARTER_ORG}}</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  <section id="about" class="section">
+    <div class="wrap two-col">
+      <div>
+        <h2>About our {{UNIT_TYPE}}</h2>
+        <p>{{DISPLAY_NAME}} is sponsored by {{CHARTER_ORG}} in {{CITY}}, {{STATE}}. We are part of {{DISTRICT}} in the {{COUNCIL}}.</p>
+        <ul class="checks">
+          <li><strong>High adventure every year.</strong> Rotating between national high‑adventure bases and major treks.</li>
+          <li><strong>Scouting belongs outside.</strong> At least one outdoor activity each month.</li>
+          <li><strong>Scout‑led.</strong> Adults guide and plan; Scouts run meetings and lead activities.</li>
+          <li><strong>Service first.</strong> Regular community service projects with local partners.</li>
+        </ul>
+      </div>
+      <aside class="card facts">
+        <h3>Quick facts</h3>
+        <dl>
+          <div><dt>Where we meet</dt><dd>{{MEETING_LOCATION}}</dd></div>
+          <div><dt>When</dt><dd>{{MEETING_DAY}}, {{MEETING_TIME}}</dd></div>
+          <div><dt>Who</dt><dd>Scouts ages 11–17 (5th grade and up)</dd></div>
+          <div><dt>Council</dt><dd>{{COUNCIL}}, {{DISTRICT}}</dd></div>
+        </dl>
+      </aside>
+    </div>
+  </section>
+
+  <section id="calendar" class="section alt">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Upcoming events</h2>
+        <p>Your unit's events appear here. Add the first one from the admin dashboard.</p>
+      </header>
+      <p class="muted">No events yet. Once you create events in the admin, they'll show up here automatically.</p>
+    </div>
+  </section>
+
+  <section id="gallery" class="section">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Photo gallery</h2>
+        <p>Drop in your unit's photos. Albums are organized by event.</p>
+      </header>
+      <p class="muted">No albums yet.</p>
+    </div>
+  </section>
+
+  <section id="advancement" class="section alt">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Advancement</h2>
+        <p>The trail from Scout to Eagle.</p>
+      </header>
+      <ol class="rank-trail">
+        <li><span>Scout</span></li>
+        <li><span>Tenderfoot</span></li>
+        <li><span>Second Class</span></li>
+        <li><span>First Class</span></li>
+        <li><span>Star</span></li>
+        <li><span>Life</span></li>
+        <li class="eagle"><span>Eagle</span></li>
+      </ol>
+    </div>
+  </section>
+
+  <section id="resources" class="section">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Forms &amp; resources</h2>
+        <p>Documents and links for your unit.</p>
+      </header>
+      <div class="grid two">
+        <article class="card">
+          <h3>Forms &amp; documents</h3>
+          <ul class="links"><li><a href="#">Add forms in the admin</a></li></ul>
+        </article>
+        <article class="card">
+          <h3>Resource links</h3>
+          <ul class="links"><li><a href="#">Add links in the admin</a></li></ul>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="members" class="section alt">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Members</h2>
+      </header>
+      <p>Sign in to view the family directory, contact info, and patrol rosters.</p>
+      <p><a class="btn ghost" href="/login">Sign in</a></p>
+    </div>
+  </section>
+
+  <section id="join" class="section">
+    <div class="wrap join">
+      <div>
+        <h2>Curious? Come visit.</h2>
+        <p>Any Scout-aged youth is welcome to drop in on a {{MEETING_DAY}} meeting at {{MEETING_LOCATION}}.</p>
+        <p><a class="btn primary" href="#contact">Email the Scoutmaster</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact" class="section alt">
+    <div class="wrap">
+      <h2>Get in touch</h2>
+      <ul class="contact-list">
+        <li><strong>Scoutmaster ({{SCOUTMASTER_NAME}}):</strong> <a href="mailto:{{SCOUTMASTER_EMAIL}}">{{SCOUTMASTER_EMAIL}}</a></li>
+        <li><strong>Committee Chair:</strong> <a href="mailto:{{COMMITTEE_EMAIL}}">{{COMMITTEE_EMAIL}}</a></li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap foot">
+    <div>
+      <strong>{{DISPLAY_NAME}}</strong><br/>
+      {{CHARTER_ORG}} · {{CITY}}, {{STATE}}<br/>
+      {{COUNCIL}} · {{DISTRICT}}
+    </div>
+    <small>Powered by <a href="https://scouthosting.com/">Scouthosting</a></small>
+  </div>
+</footer>
+
+<script src="/script.js"></script>
+</body>
+</html>
