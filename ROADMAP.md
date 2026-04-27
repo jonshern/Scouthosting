@@ -1,10 +1,18 @@
 # Scouthosting Roadmap
 
-A phased plan for building a direct competitor to TroopWebHost — a multi-tenant
-website platform for Scouts BSA troops, Cub Scout packs, and Venturing crews.
+**Scouthosting is the planning and communication hub for Scout units** —
+troops, Cub Scout packs, Venturing crews, Sea Scout ships. Each unit gets a
+modern, mobile-first website plus a private member hub: calendar, photos,
+forms, group email, trip & meal planning, and a CMS leaders can actually use.
 
-The goal is **feature parity with TroopWebHost** plus modern UX, mobile-first
-design, an open API, and a clean migration path off TroopWebHost.
+**Scoutbook handles advancement.** We don't compete with it; we deep-link
+into it and surface read-only summaries when BSA's API allows. That keeps
+leaders out of double-entry and lets us focus on what units complain
+about — the operational stuff Scoutbook doesn't cover.
+
+The product replaces TroopWebHost (and Patrol-style Google Sites duct tape)
+with one tool that's nice to use on a phone, fast to set up, and deliberately
+narrow on advancement.
 
 ---
 
@@ -182,15 +190,53 @@ Distinct from generic events: campouts and trips need provisioning logic.
 - [ ] Birthdays, join dates, tenure reports
 - [ ] Skills & interests per member
 
-## Phase 6 — Advancement
+## Positioning vs. Scoutbook
 
-- [ ] Rank progress with per-requirement sign-off
-- [ ] Merit Badge tracking, partials, counselors
-- [ ] Awards (religious, special, OA)
-- [ ] Eagle project workflow with workbook upload
-- [ ] Status reports (per-Scout, troop-wide)
-- [ ] Scoutbook import (initial bulk + ongoing sync)
-- [ ] Internet Advancement export
+**Scoutbook (scoutbook.scouting.org) is the official Scouting America system
+for advancement tracking — ranks, merit badges, partials, awards, and the
+companion Scouting mobile app for Scouts and parents.** Merit Badge Counselor
+data lives in the related Scoutbook Plus product. Both feed Internet
+Advancement, the registrar-of-record system used by councils.
+
+Scouthosting **does not** build a parallel advancement tracker. Anything we
+re-implement is double-entry for leaders and a losing fight against the
+official tool. Instead:
+
+- **Scoutbook is the system of record** for advancement. Scouthosting
+  deep-links to it from every Scout profile, the Eagle list, and the
+  advancement summary.
+- When BSA's API permits, we **read** advancement progress (ranks, MB
+  partials, who's close to completing what) and surface summary dashboards.
+  CSV import from Scoutbook reports is the fallback.
+- We **own the operations layer around** advancement: Eagle project
+  workflow, troop's preferred Merit Badge Counselor list, Court of Honor
+  ceremony planning, service-hour / camping-night / hiking-mile capture
+  from our calendar (which we then push to Scoutbook).
+
+This sharpens our positioning: Scouthosting is the troop's communication
+and operations hub. Scoutbook is the advancement source of truth.
+
+## Phase 6 — Scoutbook integration + ceremony tooling
+
+- [ ] Scoutbook deep-links from every Scout profile, the Eagle list, and
+      summary dashboards
+- [ ] CSV import from Scoutbook's report exports (rank progress, MB
+      partials, awards) — fallback before/until BSA's API access lands
+- [ ] When permitted: read-only Scoutbook API sync (rank, MB, awards)
+- [ ] Read-only summary dashboards: who's close to a rank, MB partials,
+      upcoming boards of review — built off the imported/synced data
+- [ ] Eagle project workflow (project management, not advancement records):
+      mentor assignment, beneficiary contacts, internal review checklist,
+      examples library, status (idea / proposal / approved / in progress /
+      complete)
+- [ ] Troop's preferred Merit Badge Counselor list (local, troop-curated,
+      separate from Scoutbook's national directory)
+- [ ] Court of Honor planning: ceremony program generator from a recent
+      advancement export, sign-up sheet, parent invitations
+- [ ] Service-hour / camping-night / hiking-mile capture from Scouthosting's
+      calendar, with a one-click "send to Scoutbook" CSV export for the
+      advancement chair
+- [ ] Push to Internet Advancement via the same CSV path
 
 ## Phase 7 — Photos & files
 
@@ -270,6 +316,8 @@ Distinct from generic events: campouts and trips need provisioning logic.
 
 - Phases 1–3 unblock everything else and should ship in the first 8 weeks.
 - Phases 4 (calendar) and 5 (membership) are the biggest day-1 value drivers.
-- Phase 6 (advancement) is what makes a unit migrate off TroopWebHost.
+- Phase 6 (Scoutbook integration + ceremony tooling) is small but
+  high-trust: getting "no double-entry with Scoutbook" right is what
+  earns leader migration off TroopWebHost.
 - Phases 7–10 round out feature parity.
 - Phases 11–14 are differentiators against TroopWebHost.

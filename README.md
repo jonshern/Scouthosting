@@ -1,7 +1,13 @@
 # Scouthosting
 
-A modern, multi-tenant website platform for Scouts BSA troops, Cub Scout
-packs, and Venturing crews — built as a direct alternative to TroopWebHost.
+**The planning and communication hub for Scout units** — troops, Cub Scout
+packs, Venturing crews, Sea Scout ships. Each unit gets a modern,
+mobile-first website plus a private member hub: calendar, photos, forms,
+group email, trip & meal planning, and a CMS leaders can actually use.
+
+Scoutbook (Scouting America's official tool) handles advancement.
+Scouthosting deep-links into it instead of competing with it, so leaders
+aren't entering the same data in two places.
 
 > Status: **Phase 2 + first slice of MVP-2 done.** Marketing site, signup,
 > multi-tenant routing, Postgres / Prisma, Lucia auth, and a per-org
