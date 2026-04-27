@@ -35,6 +35,49 @@ async function main() {
   });
   console.log(`✓ Seeded demo org: ${org.displayName} (${org.slug})`);
 
+  // Sample upcoming events, idempotent by (orgId, title, startsAt).
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
+  const sampleEvents = [
+    {
+      title: "PLC Meeting",
+      description: "Patrol Leaders' Council. Patrol leaders, the SPL/ASPLs, and the Scoutmaster.",
+      startsAt: new Date(now + 4 * day),
+      endsAt: new Date(now + 4 * day + 60 * 60 * 1000),
+      location: "Example Charter Organization",
+      locationAddress: "100 Sample Way, Anytown USA",
+      category: "PLC",
+    },
+    {
+      title: "May Court of Honor",
+      description: "Family ceremony recognizing recent ranks and merit badges. Light refreshments after.",
+      startsAt: new Date(now + 11 * day),
+      endsAt: new Date(now + 11 * day + 90 * 60 * 1000),
+      location: "Example Charter Organization",
+      locationAddress: "100 Sample Way, Anytown USA",
+      category: "Court of Honor",
+    },
+    {
+      title: "Spring Camporee",
+      description: "Weekend campout with cooking, scout skills, and a saturday-night campfire.",
+      startsAt: new Date(now + 18 * day + 16 * 60 * 60 * 1000),
+      endsAt: new Date(now + 20 * day + 12 * 60 * 60 * 1000),
+      location: "Sample Scout Reservation",
+      locationAddress: "1 Camporee Rd, Anytown USA",
+      cost: 35,
+      capacity: 40,
+      signupRequired: true,
+      category: "Campout",
+    },
+  ];
+  for (const e of sampleEvents) {
+    const exists = await prisma.event.findFirst({
+      where: { orgId: org.id, title: e.title, startsAt: e.startsAt },
+    });
+    if (!exists) await prisma.event.create({ data: { orgId: org.id, ...e } });
+  }
+  console.log(`✓ Seeded sample events`);
+
   // Sample announcement, idempotent on title
   const annTitle = "Welcome to our new website!";
   const existingAnn = await prisma.announcement.findFirst({

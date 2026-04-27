@@ -10,11 +10,12 @@ import {
   provisionOrg,
   validateProvisionInput,
 } from "./provision.js";
-import { renderSite } from "./render.js";
+import { renderSite, renderEventDetail, renderEventsList } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
 import { googleOAuth, googleConfigured, fetchGoogleProfile } from "../lib/oauth.js";
 import { generateState, generateCodeVerifier } from "arctic";
+import { icsFor, icsForOrg } from "../lib/calendar.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -326,6 +327,61 @@ app.use("/admin", (req, res, next) => {
   return adminRouter(req, res, next);
 });
 
+/* ------------------ Calendar feeds + event pages ------------------ */
+
+// Subscribable feed for the org. Calendar apps poll this; updates in our
+// admin show up automatically in the user's Google/Apple/Outlook calendar.
+app.get("/calendar.ics", async (req, res) => {
+  if (!req.org) return res.status(404).send("Not found");
+  const events = await prisma.event.findMany({
+    where: { orgId: req.org.id, startsAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30) } },
+    orderBy: { startsAt: "asc" },
+  });
+  res
+    .set("Content-Type", "text/calendar; charset=utf-8")
+    .set("Content-Disposition", `inline; filename="${req.org.slug}.ics"`)
+    .send(icsForOrg(events, { orgSlug: req.org.slug, displayName: req.org.displayName }));
+});
+
+// Per-event ICS download — used by the "Add to Apple Calendar" /
+// "Download .ics" buttons on the event detail page.
+app.get("/events/:id.ics", async (req, res) => {
+  if (!req.org) return res.status(404).send("Not found");
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+  res
+    .set("Content-Type", "text/calendar; charset=utf-8")
+    .set("Content-Disposition", `attachment; filename="event-${ev.id}.ics"`)
+    .send(icsFor(ev, { orgSlug: req.org.slug }));
+});
+
+// Public events list (full page).
+app.get("/events", async (req, res, next) => {
+  if (!req.org) return next();
+  const events = await prisma.event.findMany({
+    where: { orgId: req.org.id, startsAt: { gte: new Date() } },
+    orderBy: { startsAt: "asc" },
+    take: 50,
+  });
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderEventsList(req.org, events));
+});
+
+// Public event detail.
+app.get("/events/:id", async (req, res, next) => {
+  if (!req.org) return next();
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Event not found");
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderEventDetail(req.org, ev));
+});
+
 /* ------------------ Photo serving (org-scoped) -------------------- */
 
 // Photos live at /uploads/<filename>. Filename is a random cuid + extension
@@ -368,7 +424,7 @@ app.get("*", async (req, res, next) => {
   }
 
   // Pull CMS content alongside the org so a single render call has everything.
-  const [page, announcements, albums] = await Promise.all([
+  const [page, announcements, albums, events] = await Promise.all([
     prisma.page.findUnique({ where: { orgId: req.org.id } }),
     prisma.announcement.findMany({
       where: {
@@ -387,9 +443,14 @@ app.get("*", async (req, res, next) => {
         _count: { select: { photos: true } },
       },
     }),
+    prisma.event.findMany({
+      where: { orgId: req.org.id, startsAt: { gte: new Date() } },
+      orderBy: { startsAt: "asc" },
+      take: 8,
+    }),
   ]);
 
-  const html = renderSite(req.org, { page, announcements, albums });
+  const html = renderSite(req.org, { page, announcements, albums, events });
   res.set("Content-Type", "text/html; charset=utf-8").send(html);
 });
 

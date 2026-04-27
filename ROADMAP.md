@@ -164,16 +164,21 @@ subdomain and edit the public site without anyone redeploying.
 
 The most-used feature. Match TroopWebHost's coverage, then exceed it.
 
-- [ ] Event CRUD (recurring, all-day, multi-day, location, cost)
+- [x] Event CRUD (all-day, multi-day, location, cost, capacity, category)
+- [x] **One-click Google Calendar add** on every event; also Apple
+      Calendar (.ics) and Outlook (deep-link)
+- [x] **Subscribable ICS feed** per org at `/calendar.ics` so members
+      see every event in their personal calendar automatically
+- [x] **Directions for every event** — Google Maps, Apple Maps, Waze
+      links built from the event's address
+- [x] Public `/events` list + `/events/:id` detail page
+- [ ] Recurring events (RRULE)
 - [ ] Sign-up sheets (capacity, food choice, gear, slots)
 - [ ] RSVP tracking + reminders
-- [ ] ICS feed per tenant + per user
-- [ ] **One-click Google Calendar add** ("Add to my Google Calendar" button per
-      event); also Apple Calendar and Outlook
-- [ ] **Two-way Google Calendar sync** (per-user) so events appear and update
-      live in members' personal calendars
-- [ ] **Directions for every event** — auto-generated map link (Google Maps,
-      Apple Maps, Waze) from the event location, plus carpool sign-ups
+- [ ] Carpool sign-ups
+- [ ] **Two-way Google Calendar sync** (per-user) — additive; the ICS
+      feed already covers the read path. This adds writes from inside
+      the user's Google Calendar back to Scouthosting.
 - [ ] Service-hour, camping-night, hiking-mile auto-tracking from events
 - [ ] Event reports (attendance, hours, cost breakdown)
 

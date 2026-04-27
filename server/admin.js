@@ -126,6 +126,7 @@ form.inline{display:inline}
     <a href="/admin">Dashboard</a>
     <a href="/admin/content">Page content</a>
     <a href="/admin/announcements">Announcements</a>
+    <a href="/admin/events">Calendar</a>
     <a href="/admin/albums">Photos &amp; albums</a>
     <a href="/" target="_blank">View public site ↗</a>
   </nav>
@@ -290,6 +291,12 @@ adminRouter.get("/", requireLeader, async (req, res) => {
     </div>
 
     <div class="card">
+      <h2>Calendar</h2>
+      <p class="muted small">Add events with directions and a one-click "Add to Google Calendar" button. Members can subscribe the org feed once and get every event in their phone calendar.</p>
+      <p><a class="btn btn-primary" href="/admin/events">Manage events</a></p>
+    </div>
+
+    <div class="card">
       <h2>Photos &amp; albums</h2>
       <p class="muted small">Upload photos to a new album and they'll appear on your public gallery within seconds.</p>
       <p><a class="btn btn-primary" href="/admin/albums">Manage albums</a></p>
@@ -298,8 +305,8 @@ adminRouter.get("/", requireLeader, async (req, res) => {
     <div class="card">
       <h2>Coming soon</h2>
       <ul class="muted small">
-        <li>Calendar &amp; events with Google Calendar add-button and Maps directions</li>
         <li>Member directory with text vs email preference, and group email</li>
+        <li>Activity feed with optional Facebook cross-post</li>
       </ul>
     </div>
   `;
@@ -717,6 +724,184 @@ adminRouter.post("/photos/:id/delete", requireLeader, async (req, res) => {
   await removeFile(photo.orgId, photo.filename);
   await prisma.photo.delete({ where: { id: photo.id } });
   res.redirect(`/admin/albums/${photo.albumId}`);
+});
+
+/* ------------------------------------------------------------------ */
+/* Events                                                              */
+/* ------------------------------------------------------------------ */
+
+const EVENT_CATEGORIES = [
+  "Meeting",
+  "PLC",
+  "Committee",
+  "Campout",
+  "Service",
+  "Court of Honor",
+  "Trip",
+  "Training",
+  "Other",
+];
+
+function dtLocal(d) {
+  if (!d) return "";
+  const x = new Date(d);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${x.getFullYear()}-${pad(x.getMonth() + 1)}-${pad(x.getDate())}T${pad(
+    x.getHours()
+  )}:${pad(x.getMinutes())}`;
+}
+
+function parseDtLocal(s) {
+  return s ? new Date(s) : null;
+}
+
+function eventForm({ event, action, submitLabel }) {
+  const v = (k) => escape(event?.[k] ?? "");
+  const addr = escape(event?.locationAddress ?? "");
+  const startVal = escape(dtLocal(event?.startsAt));
+  const endVal = escape(dtLocal(event?.endsAt));
+  const cats = EVENT_CATEGORIES.map(
+    (c) =>
+      `<option value="${escape(c)}"${event?.category === c ? " selected" : ""}>${escape(c)}</option>`
+  ).join("");
+  return `
+    <form class="card" method="post" action="${escape(action)}">
+      <label>Title<input name="title" type="text" required maxlength="120" value="${v("title")}"></label>
+      <label>Description<textarea name="description" rows="4" placeholder="What is this, who's it for, what to bring.">${v("description")}</textarea></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Starts at<input name="startsAt" type="datetime-local" required value="${startVal}"></label>
+        <label style="margin:0;flex:1">Ends at (optional)<input name="endsAt" type="datetime-local" value="${endVal}"></label>
+      </div>
+      <label style="margin:0"><input name="allDay" type="checkbox" value="1"${event?.allDay ? " checked" : ""} style="width:auto;display:inline;margin-top:0;margin-right:.4rem">All-day event</label>
+      <label>Location name<input name="location" type="text" placeholder="e.g. Holy Nativity Lutheran Church" value="${v("location")}"></label>
+      <label>Address (used for directions)
+        <input name="locationAddress" type="text" placeholder="e.g. 123 Main St, Anytown MN 55400" value="${addr}">
+      </label>
+      <div class="row">
+        <label style="margin:0;flex:1">Category
+          <select name="category">
+            <option value="">—</option>
+            ${cats}
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Cost ($)<input name="cost" type="number" min="0" max="9999" value="${v("cost")}"></label>
+        <label style="margin:0;flex:1">Capacity<input name="capacity" type="number" min="0" max="9999" value="${v("capacity")}"></label>
+      </div>
+      <label style="margin:0"><input name="signupRequired" type="checkbox" value="1"${event?.signupRequired ? " checked" : ""} style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Sign-up required</label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">${escape(submitLabel)}</button>
+        <a class="btn btn-ghost" href="/admin/events">Cancel</a>
+      </div>
+    </form>`;
+}
+
+function eventDataFromBody(body) {
+  const cost = body?.cost ? parseInt(body.cost, 10) : null;
+  const capacity = body?.capacity ? parseInt(body.capacity, 10) : null;
+  return {
+    title: body?.title?.trim() || "Untitled",
+    description: body?.description?.trim() || null,
+    startsAt: parseDtLocal(body?.startsAt) || new Date(),
+    endsAt: parseDtLocal(body?.endsAt),
+    allDay: body?.allDay === "1",
+    location: body?.location?.trim() || null,
+    locationAddress: body?.locationAddress?.trim() || null,
+    cost: Number.isFinite(cost) ? cost : null,
+    capacity: Number.isFinite(capacity) ? capacity : null,
+    signupRequired: body?.signupRequired === "1",
+    category: body?.category?.trim() || null,
+  };
+}
+
+adminRouter.get("/events", requireLeader, async (req, res) => {
+  const upcoming = await prisma.event.findMany({
+    where: { orgId: req.org.id, startsAt: { gte: new Date() } },
+    orderBy: { startsAt: "asc" },
+  });
+  const past = await prisma.event.findMany({
+    where: { orgId: req.org.id, startsAt: { lt: new Date() } },
+    orderBy: { startsAt: "desc" },
+    take: 20,
+  });
+
+  const renderRow = (e) => `
+    <li>
+      <div>
+        <h3>${escape(e.title)}</h3>
+        <p>${escape(
+          e.startsAt.toLocaleString("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit",
+          })
+        )}${e.location ? ` · ${escape(e.location)}` : ""}${
+    e.category ? ` <span class="tag">${escape(e.category)}</span>` : ""
+  }</p>
+      </div>
+      <div class="row">
+        <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/edit">Edit</a>
+        <form class="inline" method="post" action="/admin/events/${escape(e.id)}/delete" onsubmit="return confirm('Delete this event?')">
+          <button class="btn btn-danger small" type="submit">Delete</button>
+        </form>
+      </div>
+    </li>`;
+
+  const body = `
+    <h1>Calendar</h1>
+    <p class="muted">Members can <strong>subscribe</strong> to your event feed and have it on their phone calendar automatically.</p>
+    <p class="muted small">Subscription URL: <code>${escape(`https://${req.org.slug}.${process.env.APEX_DOMAIN || "scouthosting.com"}/calendar.ics`)}</code></p>
+
+    <h2 style="margin-top:1.25rem">New event</h2>
+    ${eventForm({ event: null, action: "/admin/events", submitLabel: "Create event" })}
+
+    <h2 style="margin-top:1.5rem">Upcoming</h2>
+    ${upcoming.length ? `<ul class="items">${upcoming.map(renderRow).join("")}</ul>` : `<div class="empty">Nothing on the calendar yet.</div>`}
+
+    ${
+      past.length
+        ? `<h2 style="margin-top:2rem">Past (last 20)</h2><ul class="items">${past.map(renderRow).join("")}</ul>`
+        : ""
+    }
+  `;
+  res.type("html").send(layout({ title: "Calendar", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/events", requireLeader, async (req, res) => {
+  const data = eventDataFromBody(req.body || {});
+  await prisma.event.create({ data: { orgId: req.org.id, ...data } });
+  res.redirect("/admin/events");
+});
+
+adminRouter.get("/events/:id/edit", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+  const body = `
+    <h1>Edit event</h1>
+    ${eventForm({ event: ev, action: `/admin/events/${escape(ev.id)}`, submitLabel: "Save" })}
+  `;
+  res.type("html").send(layout({ title: "Edit event", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/events/:id", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!ev) return res.status(404).send("Not found");
+  const data = eventDataFromBody(req.body || {});
+  await prisma.event.update({ where: { id: ev.id }, data });
+  res.redirect("/admin/events");
+});
+
+adminRouter.post("/events/:id/delete", requireLeader, async (req, res) => {
+  await prisma.event.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  res.redirect("/admin/events");
 });
 
 /* ------------------------------------------------------------------ */
