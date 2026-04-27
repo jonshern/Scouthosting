@@ -15,6 +15,7 @@ import crypto from "node:crypto";
 import { prisma } from "../lib/db.js";
 import { lucia, verifyPassword, roleInOrg } from "../lib/auth.js";
 import { moveFromTemp, remove as removeFile } from "../lib/storage.js";
+import { googleConfigured } from "../lib/oauth.js";
 
 export const adminRouter = express.Router();
 
@@ -144,6 +145,23 @@ ${body}
 
 function loginPage({ org, error }) {
   const errHtml = error ? `<div class="flash flash-err">${escape(error)}</div>` : "";
+  const apex = escape(process.env.APEX_DOMAIN || "scouthosting.com");
+  // Google OAuth lives on the apex (single redirect URI). The callback sets
+  // a session cookie scoped to COOKIE_DOMAIN; in production that's
+  // `.scouthosting.com` so the cookie is valid on this org subdomain too.
+  const googleHtml = googleConfigured
+    ? `<a class="btn-google" href="https://${apex}/auth/google/start?next=${encodeURIComponent(`https://${org.slug}.${process.env.APEX_DOMAIN || "scouthosting.com"}/admin`)}">
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+    <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.49h4.84c-.21 1.13-.84 2.08-1.79 2.72v2.26h2.9c1.7-1.56 2.69-3.87 2.69-6.63z"/>
+    <path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.9-2.26c-.81.54-1.84.86-3.06.86-2.36 0-4.36-1.6-5.07-3.74H.96v2.34A9 9 0 0 0 9 18z"/>
+    <path fill="#FBBC05" d="M3.93 10.68A5.4 5.4 0 0 1 3.64 9c0-.58.1-1.15.29-1.68V4.98H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.02l2.97-2.34z"/>
+    <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A8.99 8.99 0 0 0 9 0 9 9 0 0 0 .96 4.98l2.97 2.34C4.64 5.18 6.64 3.58 9 3.58z"/>
+  </svg>
+  <span>Continue with Google</span>
+</a>
+<div class="divider"><span>or with email</span></div>`
+    : "";
+
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escape(org.displayName)} — Admin sign in</title>
@@ -157,19 +175,26 @@ p.lede{color:#6b7280;margin:0 0 1.5rem;font-size:.95rem}
 label{display:block;margin:0 0 1rem;font-size:.9rem;font-weight:500}
 input{display:block;width:100%;margin-top:.3rem;padding:.65rem .75rem;border:1px solid #c8ccd4;border-radius:8px;font:inherit}
 .btn{display:block;width:100%;padding:.75rem;border-radius:9px;border:0;background:${escape(org.primaryColor || "#1d6b39")};color:#fff;font-weight:600;cursor:pointer;font-size:.95rem;margin-top:.5rem}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;padding:.75rem;border-radius:9px;border:1px solid #c8ccd4;background:#fff;color:#15181c;text-decoration:none;font-weight:500;font-size:.95rem}
+.btn-google:hover{border-color:#15181c;background:#f7f8f3}
+.divider{display:flex;align-items:center;gap:.75rem;color:#6b7280;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;margin:1.1rem 0}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:#eef0e7}
 .flash-err{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:.65rem 1rem;border-radius:9px;margin-bottom:1rem;font-size:.92rem}
 small.help{display:block;color:#6b7280;margin-top:1rem;font-size:.85rem;text-align:center}
 small.help a{color:${escape(org.primaryColor || "#1d6b39")}}
 </style></head><body>
-<form class="card" method="post" action="/admin/login" autocomplete="on">
+<div class="card">
 <h1>${escape(org.displayName)}</h1>
 <p class="lede">Sign in to manage this site.</p>
 ${errHtml}
+${googleHtml}
+<form method="post" action="/admin/login" autocomplete="on">
 <label>Email<input name="email" type="email" required autocomplete="email"></label>
 <label>Password<input name="password" type="password" required autocomplete="current-password"></label>
 <button class="btn" type="submit">Sign in</button>
-<small class="help">Founding leader? <a href="https://${escape(process.env.APEX_DOMAIN || "scouthosting.com")}/signup.html">Claim your account</a></small>
-</form></body></html>`;
+</form>
+<small class="help">Founding leader? <a href="https://${apex}/signup.html">Claim your account</a></small>
+</div></body></html>`;
 }
 
 /* ------------------------------------------------------------------ */

@@ -19,6 +19,21 @@ if (toggle && nav) {
 const yr = document.getElementById("yr");
 if (yr) yr.textContent = new Date().getFullYear();
 
+// Hide the Google sign-in button if the server isn't configured for it.
+async function checkAuthProviders() {
+  const buttons = document.querySelectorAll("a.google-btn");
+  if (buttons.length === 0) return;
+  try {
+    const r = await fetch("/api/auth/providers");
+    if (!r.ok) return;
+    const { providers } = await r.json();
+    if (!providers?.google) buttons.forEach((b) => (b.style.display = "none"));
+  } catch {
+    // Fail open — leave the button; clicking it shows a friendly error page.
+  }
+}
+checkAuthProviders();
+
 // Signup form (signup.html) — POSTs to the provisioning endpoint.
 const signupForm = document.getElementById("signup-form");
 if (signupForm) {

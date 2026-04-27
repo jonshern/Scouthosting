@@ -93,6 +93,25 @@ model User {
   sessions    Session[]
   memberships OrgMembership[]
   announcements Announcement[]
+  oauthAccounts OAuthAccount[]
+}
+
+// External identity provider linkage. One User can have multiple
+// OAuthAccount rows (Google, Apple, Microsoft, …) but only one per
+// (provider, providerAccountId). Email collisions across providers are
+// resolved by the verified-email link at /auth/<provider>/callback.
+model OAuthAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String   // "google", "apple", ...
+  providerAccountId String   // provider's stable user id (e.g. Google `sub`)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 // A user can belong to many orgs (parent with kids in two units, leader

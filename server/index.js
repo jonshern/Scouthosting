@@ -13,6 +13,8 @@ import {
 import { renderSite } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
+import { googleOAuth, googleConfigured, fetchGoogleProfile } from "../lib/oauth.js";
+import { generateState, generateCodeVerifier } from "arctic";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -169,12 +171,152 @@ app.post("/api/auth/logout", async (req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/api/auth/providers", (_req, res) => {
+  res.json({ ok: true, providers: { google: googleConfigured } });
+});
+
 app.get("/api/auth/me", (req, res) => {
   if (!req.user) return res.status(401).json({ ok: false });
   res.json({
     ok: true,
     user: { id: req.user.id, email: req.user.email, displayName: req.user.displayName },
   });
+});
+
+/* ------------------ Google OAuth --------------------------------- */
+
+const OAUTH_STATE_COOKIE = "scouthosting_oauth_state";
+const OAUTH_VERIFIER_COOKIE = "scouthosting_oauth_verifier";
+const OAUTH_NEXT_COOKIE = "scouthosting_oauth_next";
+
+function setShortCookie(res, name, value) {
+  res.appendHeader(
+    "Set-Cookie",
+    `${name}=${value}; Path=/; HttpOnly; SameSite=Lax; Max-Age=600${
+      process.env.NODE_ENV === "production" ? "; Secure" : ""
+    }`
+  );
+}
+
+function clearShortCookie(res, name) {
+  res.appendHeader("Set-Cookie", `${name}=; Path=/; HttpOnly; Max-Age=0`);
+}
+
+function readCookie(req, name) {
+  const m = (req.headers.cookie || "").match(new RegExp(`(?:^|; )${name}=([^;]+)`));
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
+app.get("/auth/google/start", async (req, res) => {
+  if (!googleConfigured) {
+    return res
+      .status(503)
+      .type("html")
+      .send(
+        `<!doctype html><meta charset="utf-8"><title>Google sign-in not configured</title>
+         <body style="font-family:system-ui;max-width:520px;margin:4rem auto;padding:0 1.25rem">
+         <h1>Google sign-in isn't configured here.</h1>
+         <p>Set <code>GOOGLE_CLIENT_ID</code>, <code>GOOGLE_CLIENT_SECRET</code>,
+         and <code>GOOGLE_REDIRECT_URI</code> in your <code>.env</code> and restart.</p>
+         <p><a href="/login.html">← Back to sign in</a></p></body>`
+      );
+  }
+  const state = generateState();
+  const codeVerifier = generateCodeVerifier();
+  const url = await googleOAuth.createAuthorizationURL(state, codeVerifier, {
+    scopes: ["openid", "profile", "email"],
+  });
+
+  setShortCookie(res, OAUTH_STATE_COOKIE, state);
+  setShortCookie(res, OAUTH_VERIFIER_COOKIE, codeVerifier);
+
+  // Stash the post-login redirect target if provided. Only same-host paths or
+  // recognized scouthosting hosts are honored at callback time.
+  const next = String(req.query.next || "").slice(0, 500);
+  if (next) setShortCookie(res, OAUTH_NEXT_COOKIE, encodeURIComponent(next));
+
+  res.redirect(url.toString());
+});
+
+app.get("/auth/google/callback", async (req, res) => {
+  if (!googleConfigured) return res.status(503).send("Google OAuth not configured.");
+
+  const code = req.query.code;
+  const stateParam = req.query.state;
+  const storedState = readCookie(req, OAUTH_STATE_COOKIE);
+  const codeVerifier = readCookie(req, OAUTH_VERIFIER_COOKIE);
+
+  clearShortCookie(res, OAUTH_STATE_COOKIE);
+  clearShortCookie(res, OAUTH_VERIFIER_COOKIE);
+
+  if (!code || !stateParam || !storedState || stateParam !== storedState || !codeVerifier) {
+    return res.status(400).send("Invalid OAuth state.");
+  }
+
+  let tokens;
+  try {
+    tokens = await googleOAuth.validateAuthorizationCode(code, codeVerifier);
+  } catch {
+    return res.status(400).send("Token exchange failed.");
+  }
+
+  let profile;
+  try {
+    profile = await fetchGoogleProfile(tokens.accessToken);
+  } catch {
+    return res.status(502).send("Could not fetch Google profile.");
+  }
+
+  if (!profile.email || !profile.email_verified) {
+    return res
+      .status(400)
+      .send("Your Google account doesn't have a verified email — we can't link it.");
+  }
+
+  const email = profile.email.toLowerCase();
+  const sub = profile.sub;
+  const displayName = profile.name || email.split("@")[0];
+
+  // Try to find an existing OAuthAccount; otherwise link by verified email or create.
+  const existing = await prisma.oAuthAccount.findUnique({
+    where: { provider_providerAccountId: { provider: "google", providerAccountId: sub } },
+    include: { user: true },
+  });
+
+  let user;
+  if (existing) {
+    user = existing.user;
+  } else {
+    user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: { email, displayName, emailVerified: true },
+      });
+      // Same auto-link as password signup: founding leader claims their org.
+      const ownedOrgs = await prisma.org.findMany({
+        where: { scoutmasterEmail: email },
+        select: { id: true },
+      });
+      if (ownedOrgs.length) {
+        await prisma.orgMembership.createMany({
+          data: ownedOrgs.map((o) => ({ userId: user.id, orgId: o.id, role: "admin" })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    await prisma.oAuthAccount.create({
+      data: { userId: user.id, provider: "google", providerAccountId: sub },
+    });
+  }
+
+  const session = await lucia.createSession(user.id, {});
+  res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
+
+  // Redirect back to the requested path if same-host; else marketing root.
+  const next = readCookie(req, OAUTH_NEXT_COOKIE);
+  clearShortCookie(res, OAUTH_NEXT_COOKIE);
+  if (next && next.startsWith("/")) return res.redirect(decodeURIComponent(next));
+  res.redirect("/");
 });
 
 /* ------------------ Admin (org subdomain only) -------------------- */

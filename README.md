@@ -146,6 +146,26 @@ seeded demo:
 From there you can edit page copy, post announcements, and watch the public
 site update.
 
+### Sign in with Google (optional)
+
+To enable the "Continue with Google" button:
+
+1. Create OAuth credentials in
+   [Google Cloud Console](https://console.cloud.google.com/apis/credentials).
+2. Authorized redirect URI must be exactly:
+   `https://<APEX_DOMAIN>/auth/google/callback` (or
+   `http://localhost:3000/auth/google/callback` in dev).
+3. Set `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_REDIRECT_URI`
+   in `.env` and restart.
+
+The callback creates a `User` (or links by verified email if one exists),
+records an `OAuthAccount`, auto-grants admin in any org whose
+`scoutmasterEmail` matches, and redirects to `?next=<path>`.
+
+In production, set `COOKIE_DOMAIN=.scouthosting.com` so the session cookie
+set on the apex is valid on every org subdomain. (In dev, sign in directly
+on the org's `/admin/login` if needed.)
+
 ### Provision a new org
 
 Via the signup form: <http://localhost:3000/signup.html>.

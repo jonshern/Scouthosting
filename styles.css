@@ -342,6 +342,21 @@ form input:focus,form select:focus,form textarea:focus{
 .form-result strong{display:block;margin-bottom:.25rem}
 .form-result a{color:inherit;text-decoration:underline}
 
+.btn.google-btn{
+  background:#fff;color:var(--ink-900);border:1px solid var(--ink-300);
+  display:flex;align-items:center;justify-content:center;gap:.6rem;
+  padding:.75rem 1rem;font-weight:500;
+}
+.btn.google-btn:hover{background:#f7f8f3;border-color:var(--ink-900)}
+.btn.google-btn svg{flex-shrink:0}
+
+.divider{
+  display:flex;align-items:center;gap:.75rem;color:var(--ink-500);
+  font-size:.82rem;text-transform:uppercase;letter-spacing:.08em;
+  margin:1.25rem 0;
+}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:#eef0e7}
+
 /* Responsive */
 @media (max-width: 960px){
   .grid.features,.grid.three,.steps{grid-template-columns:repeat(2,minmax(0,1fr))}
