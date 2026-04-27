@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+
+project_id  = "scouthosting-prod"
+region      = "us-central1"
+env         = "prod"
+apex_domain = "scouthosting.com"
+
+# Image must already be pushed before `terraform apply`. See infra/README.md
+# for the build + push step.
+image = "us-central1-docker.pkg.dev/scouthosting-prod/scouthosting/app:latest"
+
+# Cloud SQL machine. db-f1-micro is the cheapest; bump up for prod.
+db_tier = "db-f1-micro"
+
+# Cloud Run scaling.
+min_instances = 0
+max_instances = 10

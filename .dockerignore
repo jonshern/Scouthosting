@@ -1,0 +1,12 @@
+node_modules
+.git
+.env
+.env.local
+var
+*.log
+prisma/dev.db*
+.DS_Store
+.vscode
+.idea
+infra
+ROADMAP.md
