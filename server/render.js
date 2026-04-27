@@ -541,6 +541,113 @@ export function renderEventsList(org, events) {
   return pageShell(org, "Events", body);
 }
 
+function renderPostCard(p, { showLink = true } = {}) {
+  const date = p.publishedAt
+    ? new Date(p.publishedAt).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "";
+  const photos = (p.photos || []).slice(0, 4);
+  const photoGrid = photos.length
+    ? `<div class="post-photos post-photos-${photos.length}">
+         ${photos
+           .map(
+             (ph) => `<a href="/uploads/${escapeHtml(ph.filename)}" target="_blank" rel="noopener"><img src="/uploads/${escapeHtml(
+               ph.filename
+             )}" alt="${escapeHtml(ph.caption ?? "")}" loading="lazy"></a>`
+           )
+           .join("")}
+       </div>`
+    : "";
+
+  const titleHtml = p.title
+    ? showLink
+      ? `<h3><a href="/posts/${escapeHtml(p.id)}" style="color:inherit;text-decoration:none">${escapeHtml(p.title)}</a></h3>`
+      : `<h3>${escapeHtml(p.title)}</h3>`
+    : "";
+
+  return `
+    <article class="post${p.pinned ? " post-pinned" : ""}">
+      ${p.pinned ? `<span class="badge">Pinned</span>` : ""}
+      ${titleHtml}
+      <div class="post-body">${textToHtml(p.body)}</div>
+      ${photoGrid}
+      <footer class="muted small">${escapeHtml(date)}${
+        p.author?.displayName ? ` · ${escapeHtml(p.author.displayName)}` : ""
+      }${
+        showLink && p.title
+          ? ` · <a href="/posts/${escapeHtml(p.id)}">Permalink</a>`
+          : ""
+      }</footer>
+    </article>`;
+}
+
+function renderFeed(posts) {
+  if (!posts || posts.length === 0) return "";
+  const items = posts.map((p) => renderPostCard(p)).join("");
+  return `
+  <section id="feed" class="section">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Latest from the troop</h2>
+      </header>
+      <div class="post-feed">${items}</div>
+      <p class="cta-row" style="margin-top:1rem">
+        <a class="btn ghost" href="/posts">All posts →</a>
+      </p>
+    </div>
+  </section>`;
+}
+
+export function renderPostsList(org, posts) {
+  const items = posts.length
+    ? posts.map((p) => renderPostCard(p)).join("")
+    : `<p class="muted">No posts yet.</p>`;
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/">← Home</a>
+      <h1>Posts</h1>
+      <p class="muted">Recent updates from ${escapeHtml(org.displayName)}.</p>
+      <div class="post-feed" style="margin-top:1.5rem">${items}</div>
+    </section>
+    <style>${POST_STYLES}</style>`;
+  return pageShell(org, "Posts", body);
+}
+
+export function renderPostDetail(org, post) {
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/posts">← All posts</a>
+      ${renderPostCard(post, { showLink: false })}
+    </section>
+    <style>${POST_STYLES}</style>`;
+  return pageShell(org, post.title || "Post", body);
+}
+
+const POST_STYLES = `
+.post-feed{display:grid;gap:1.25rem}
+.post{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1.25rem 1.4rem;box-shadow:0 1px 2px rgba(15,58,31,.06),0 8px 24px rgba(15,58,31,.06);position:relative}
+.post.post-pinned{border-color:var(--gold,#caa54a)}
+.post .badge{position:absolute;top:.85rem;right:.85rem;background:var(--gold,#caa54a);color:#15181c;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:5px;letter-spacing:.06em;text-transform:uppercase}
+.post h3{margin:0 0 .35rem;font-size:1.2rem}
+.post .post-body p{margin:0 0 .8em}
+.post .post-body p:last-child{margin-bottom:0}
+.post footer{margin-top:.75rem}
+.post-photos{display:grid;gap:.4rem;margin-top:.85rem;border-radius:10px;overflow:hidden}
+.post-photos img{display:block;width:100%;height:100%;object-fit:cover;background:#eef0e7}
+.post-photos-1{grid-template-columns:1fr}
+.post-photos-1 img{aspect-ratio:16/9}
+.post-photos-2{grid-template-columns:1fr 1fr}
+.post-photos-2 img{aspect-ratio:1/1}
+.post-photos-3{grid-template-columns:2fr 1fr;grid-template-rows:1fr 1fr;height:280px}
+.post-photos-3 a:first-child{grid-row:span 2}
+.post-photos-3 img{height:100%}
+.post-photos-4{grid-template-columns:1fr 1fr}
+.post-photos-4 img{aspect-ratio:1/1}
+`;
+
 function renderAnnouncements(list) {
   if (!list || list.length === 0) return "";
   const items = list
@@ -568,7 +675,7 @@ function renderAnnouncements(list) {
 }
 
 export function renderSite(org, extras = {}) {
-  const { page, announcements, albums } = extras;
+  const { page, announcements, albums, posts } = extras;
   const tpl = loadTemplate();
 
   const tagline =
@@ -617,6 +724,7 @@ export function renderSite(org, extras = {}) {
     JOIN_BODY: raw(textToHtml(joinBody)),
     CONTACT_NOTE: raw(page?.contactNote ? textToHtml(page.contactNote) : ""),
     ANNOUNCEMENTS: raw(renderAnnouncements(announcements)),
+    FEED: raw(renderFeed(posts)),
     EVENTS: raw(renderEvents(extras.events)),
     GALLERY: raw(renderGallery(albums)),
     DEMO_BANNER: org.isDemo

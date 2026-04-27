@@ -10,7 +10,14 @@ import {
   provisionOrg,
   validateProvisionInput,
 } from "./provision.js";
-import { renderSite, renderEventDetail, renderEventsList, renderDirectory } from "./render.js";
+import {
+  renderSite,
+  renderEventDetail,
+  renderEventsList,
+  renderDirectory,
+  renderPostsList,
+  renderPostDetail,
+} from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
 import { googleOAuth, googleConfigured, fetchGoogleProfile } from "../lib/oauth.js";
@@ -580,6 +587,45 @@ app.get("/events", async (req, res, next) => {
     .send(renderEventsList(req.org, events));
 });
 
+// Public posts archive (paginated by createdAt desc).
+app.get("/posts", async (req, res, next) => {
+  if (!req.org) return next();
+  const posts = await prisma.post.findMany({
+    where: { orgId: req.org.id, visibility: "public" },
+    orderBy: [{ pinned: "desc" }, { publishedAt: "desc" }],
+    take: 50,
+    include: {
+      photos: { orderBy: { sortOrder: "asc" } },
+      author: { select: { displayName: true } },
+    },
+  });
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderPostsList(req.org, posts));
+});
+
+app.get("/posts/:id", async (req, res, next) => {
+  if (!req.org) return next();
+  const post = await prisma.post.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    include: {
+      photos: { orderBy: { sortOrder: "asc" } },
+      author: { select: { displayName: true } },
+    },
+  });
+  if (!post) return res.status(404).send("Post not found");
+  if (post.visibility === "members") {
+    if (!req.user) {
+      return res.redirect(`/login?next=/posts/${post.id}`);
+    }
+    const role = await roleInOrg(req.user.id, req.org.id);
+    if (!role) return res.status(403).send("Members only");
+  }
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderPostDetail(req.org, post));
+});
+
 // Members-only directory. A signed-in user with any membership in this
 // org sees the roster; everyone else gets a sign-in prompt.
 app.get("/members", async (req, res, next) => {
@@ -896,7 +942,7 @@ app.get("*", async (req, res, next) => {
   }
 
   // Pull CMS content alongside the org so a single render call has everything.
-  const [page, announcements, albums, events] = await Promise.all([
+  const [page, announcements, albums, events, posts] = await Promise.all([
     prisma.page.findUnique({ where: { orgId: req.org.id } }),
     prisma.announcement.findMany({
       where: {
@@ -920,9 +966,18 @@ app.get("*", async (req, res, next) => {
       orderBy: { startsAt: "asc" },
       take: 8,
     }),
+    prisma.post.findMany({
+      where: { orgId: req.org.id, visibility: "public" },
+      orderBy: [{ pinned: "desc" }, { publishedAt: "desc" }],
+      take: 5,
+      include: {
+        photos: { orderBy: { sortOrder: "asc" }, take: 4 },
+        author: { select: { displayName: true } },
+      },
+    }),
   ]);
 
-  const html = renderSite(req.org, { page, announcements, albums, events });
+  const html = renderSite(req.org, { page, announcements, albums, events, posts });
   res.set("Content-Type", "text/html; charset=utf-8").send(html);
 });
 

@@ -126,6 +126,7 @@ form.inline{display:inline}
   </a>
   <nav>
     <a href="/admin">Dashboard</a>
+    <a href="/admin/posts">Activity feed</a>
     <a href="/admin/content">Page content</a>
     <a href="/admin/announcements">Announcements</a>
     <a href="/admin/events">Calendar</a>
@@ -281,6 +282,12 @@ adminRouter.get("/", requireLeader, async (req, res) => {
   const body = `
     <h1>Welcome back, ${escape(req.user.displayName)}.</h1>
     <p class="muted">You're an <strong>${escape(req.role)}</strong> of ${escape(req.org.displayName)}.</p>
+
+    <div class="card">
+      <h2>Activity feed</h2>
+      <p class="muted small">Post text + photos to your unit's home-page timeline.</p>
+      <p><a class="btn btn-primary" href="/admin/posts">Compose a post</a></p>
+    </div>
 
     <div class="card">
       <h2>Page content</h2>
@@ -1678,6 +1685,230 @@ adminRouter.get("/email/sent", requireLeader, async (req, res) => {
     <p style="margin-top:1.25rem"><a class="btn btn-ghost" href="/admin/email">← Compose</a></p>
   `;
   res.type("html").send(layout({ title: "Email history", org: req.org, user: req.user, body }));
+});
+
+/* ------------------------------------------------------------------ */
+/* Activity feed (Posts)                                               */
+/* ------------------------------------------------------------------ */
+
+adminRouter.get("/posts", requireLeader, async (req, res) => {
+  const posts = await prisma.post.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ pinned: "desc" }, { publishedAt: "desc" }],
+    take: 50,
+    include: {
+      photos: { orderBy: { sortOrder: "asc" }, take: 1 },
+      _count: { select: { photos: true } },
+      author: { select: { displayName: true } },
+    },
+  });
+
+  const items = posts
+    .map(
+      (p) => `
+    <li>
+      <div style="flex:1">
+        ${p.pinned ? `<span class="pinned">Pinned</span>` : ""}
+        <h3>${escape(p.title || p.body.slice(0, 60))}</h3>
+        <p class="muted small">
+          <span class="tag">${escape(p.visibility === "members" ? "Members only" : "Public")}</span>
+          <span class="tag">${p._count.photos} photo${p._count.photos === 1 ? "" : "s"}</span>
+          ${p.author ? `by ${escape(p.author.displayName)} · ` : ""}${escape(p.publishedAt.toLocaleDateString("en-US"))}
+        </p>
+      </div>
+      <div class="row">
+        <a class="btn btn-ghost small" href="/admin/posts/${escape(p.id)}/edit">Edit</a>
+        <form class="inline" method="post" action="/admin/posts/${escape(p.id)}/delete" onsubmit="return confirm('Delete this post?')">
+          <button class="btn btn-danger small" type="submit">Delete</button>
+        </form>
+      </div>
+    </li>`
+    )
+    .join("");
+
+  const body = `
+    <h1>Activity feed</h1>
+    <p class="muted">A timeline post can carry text, photos, or both. Posts show up on your public home page; older Announcements + Albums still render in their own sections.</p>
+
+    <form class="card" method="post" action="/admin/posts" enctype="multipart/form-data">
+      <h2 style="margin-top:0">New post</h2>
+      <label>Headline (optional)<input name="title" type="text" maxlength="120" placeholder="e.g. Camporee recap"></label>
+      <label>Body<textarea name="body" rows="4" required placeholder="What happened? Plain text — paragraphs preserved."></textarea></label>
+      <label>Photos (optional, JPEG/PNG/WebP up to 10 MB each)
+        <input name="files" type="file" accept="image/*" multiple>
+      </label>
+      <div class="row">
+        <label style="margin:0;flex:1">Visibility
+          <select name="visibility">
+            <option value="public">Public</option>
+            <option value="members">Members only</option>
+          </select>
+        </label>
+        <label style="margin:0"><input name="pinned" type="checkbox" value="1" style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Pin to the top</label>
+      </div>
+      <button class="btn btn-primary" type="submit">Publish</button>
+    </form>
+
+    <h2 style="margin-top:1.25rem">Published</h2>
+    ${posts.length ? `<ul class="items">${items}</ul>` : `<div class="empty">Nothing posted yet.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Activity feed", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/posts", requireLeader, upload.array("files", 12), async (req, res) => {
+  const { title, body, visibility, pinned } = req.body || {};
+  if (!body?.trim()) return res.redirect("/admin/posts");
+
+  const post = await prisma.post.create({
+    data: {
+      orgId: req.org.id,
+      authorId: req.user.id,
+      title: title?.trim() || null,
+      body: body.trim(),
+      visibility: visibility === "members" ? "members" : "public",
+      pinned: pinned === "1",
+    },
+  });
+
+  const files = req.files || [];
+  let i = 1;
+  for (const f of files) {
+    const ext = (path.extname(f.originalname) || ".bin").toLowerCase().slice(0, 8);
+    const filename = `${crypto.randomBytes(12).toString("hex")}${ext}`;
+    await moveFromTemp(req.org.id, filename, f.path);
+    await prisma.postPhoto.create({
+      data: {
+        orgId: req.org.id,
+        postId: post.id,
+        filename,
+        originalName: f.originalname,
+        mimeType: f.mimetype,
+        sizeBytes: f.size,
+        sortOrder: i,
+      },
+    });
+    i++;
+  }
+  res.redirect("/admin/posts");
+});
+
+adminRouter.get("/posts/:id/edit", requireLeader, async (req, res) => {
+  const post = await prisma.post.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    include: { photos: { orderBy: { sortOrder: "asc" } } },
+  });
+  if (!post) return res.status(404).send("Not found");
+  const v = (k) => escape(post[k] ?? "");
+  const checked = (cond) => (cond ? " checked" : "");
+
+  const photoTiles = post.photos
+    .map(
+      (ph) => `
+      <figure style="margin:0;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden">
+        <img src="/uploads/${escape(ph.filename)}" style="display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#eef0e7">
+        <figcaption style="padding:.5rem .65rem;font-size:.85rem;display:flex;justify-content:space-between;gap:.5rem;align-items:center">
+          <span class="muted small">${escape(ph.originalName ?? "")}</span>
+          <form class="inline" method="post" action="/admin/posts/${escape(post.id)}/photos/${escape(ph.id)}/delete" onsubmit="return confirm('Remove this photo?')">
+            <button class="btn btn-danger small" type="submit">×</button>
+          </form>
+        </figcaption>
+      </figure>`
+    )
+    .join("");
+
+  const body = `
+    <a class="back" href="/admin/posts" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Activity feed</a>
+    <h1>Edit post</h1>
+    <form class="card" method="post" action="/admin/posts/${escape(post.id)}" enctype="multipart/form-data">
+      <label>Headline<input name="title" type="text" maxlength="120" value="${v("title")}"></label>
+      <label>Body<textarea name="body" rows="6" required>${v("body")}</textarea></label>
+      <label>Add more photos<input name="files" type="file" accept="image/*" multiple></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Visibility
+          <select name="visibility">
+            <option value="public"${post.visibility === "public" ? " selected" : ""}>Public</option>
+            <option value="members"${post.visibility === "members" ? " selected" : ""}>Members only</option>
+          </select>
+        </label>
+        <label style="margin:0"><input name="pinned" type="checkbox" value="1"${checked(post.pinned)} style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Pin to the top</label>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/admin/posts">Cancel</a>
+      </div>
+    </form>
+
+    ${
+      post.photos.length
+        ? `<h2 style="margin-top:1.5rem">Attached photos</h2>
+           <div class="grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.75rem">${photoTiles}</div>`
+        : ""
+    }
+  `;
+  res.type("html").send(layout({ title: "Edit post", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/posts/:id", requireLeader, upload.array("files", 12), async (req, res) => {
+  const post = await prisma.post.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!post) return res.status(404).send("Not found");
+  const { title, body, visibility, pinned } = req.body || {};
+  await prisma.post.update({
+    where: { id: post.id },
+    data: {
+      title: title?.trim() || null,
+      body: body?.trim() || "",
+      visibility: visibility === "members" ? "members" : "public",
+      pinned: pinned === "1",
+    },
+  });
+
+  const last = await prisma.postPhoto.findFirst({
+    where: { postId: post.id },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  let i = (last?.sortOrder ?? 0) + 1;
+  for (const f of req.files || []) {
+    const ext = (path.extname(f.originalname) || ".bin").toLowerCase().slice(0, 8);
+    const filename = `${crypto.randomBytes(12).toString("hex")}${ext}`;
+    await moveFromTemp(req.org.id, filename, f.path);
+    await prisma.postPhoto.create({
+      data: {
+        orgId: req.org.id,
+        postId: post.id,
+        filename,
+        originalName: f.originalname,
+        mimeType: f.mimetype,
+        sizeBytes: f.size,
+        sortOrder: i++,
+      },
+    });
+  }
+  res.redirect("/admin/posts");
+});
+
+adminRouter.post("/posts/:id/photos/:photoId/delete", requireLeader, async (req, res) => {
+  const photo = await prisma.postPhoto.findFirst({
+    where: { id: req.params.photoId, orgId: req.org.id, postId: req.params.id },
+  });
+  if (!photo) return res.status(404).send("Not found");
+  await removeFile(photo.orgId, photo.filename);
+  await prisma.postPhoto.delete({ where: { id: photo.id } });
+  res.redirect(`/admin/posts/${req.params.id}/edit`);
+});
+
+adminRouter.post("/posts/:id/delete", requireLeader, async (req, res) => {
+  const post = await prisma.post.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    include: { photos: { select: { filename: true } } },
+  });
+  if (!post) return res.status(404).send("Not found");
+  await Promise.all(post.photos.map((p) => removeFile(req.org.id, p.filename)));
+  await prisma.post.delete({ where: { id: post.id } });
+  res.redirect("/admin/posts");
 });
 
 /* ------------------------------------------------------------------ */

@@ -126,13 +126,21 @@ Scouthosting staff lives outside this model.
 
 Captured in-flight; sequenced into the right phase later.
 
+- **Confirm product name & apex domain** before deploy. "Scouthosting" /
+  `scouthosting.com` is a placeholder used throughout marketing copy,
+  the ROADMAP, and the demo subdomain. The code uses `APEX_DOMAIN` as
+  an env var so renaming is cheap — find/replace marketing copy + flip
+  the env var. Decide before registering DNS so the value lands once.
+
 - ~~RSVP from inside the email.~~ DONE (admin Send-RSVP-reminder action,
   HMAC-signed `/rsvp/:token` endpoint).
 
-- **Activity feed (Facebook-like).** Subsume Announcements and Albums into
-  a unified `Post` model with optional photo attachments. Reverse-chronological
-  feed on the home page, comments scoped to the org's members. Public posts
-  on the public site, members-only posts in the member hub.
+- ~~Activity feed (Facebook-like).~~ DONE — Post + PostPhoto with
+  Facebook-style multi-photo grid (1/2/3/4-up), pin, public-vs-members
+  visibility, /posts archive + /posts/:id permalink. Existing Announcements
+  + Albums kept around so older content keeps rendering.
+- **Comments on posts** (members-only) — once we land it; the post detail
+  page is the natural place.
 - **Optional Facebook cross-post.** Per-org "publish to our Facebook page"
   toggle on a post. OAuth into Meta's Page API; on publish, mirror the
   post text + photos to the unit's Facebook page. Off by default — a unit

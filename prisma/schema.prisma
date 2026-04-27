@@ -77,6 +77,7 @@ model Org {
   forms       Form[]
   page        Page?
   announcements Announcement[]
+  posts         Post[]
   rsvps         Rsvp[]
   slots         SignupSlot[]
   slotAssignments SlotAssignment[]
@@ -96,6 +97,7 @@ model User {
   sessions    Session[]
   memberships OrgMembership[]
   announcements Announcement[]
+  posts         Post[]
   oauthAccounts OAuthAccount[]
   rsvps         Rsvp[]
   slotAssignments SlotAssignment[]
@@ -377,4 +379,45 @@ model Announcement {
 
   @@index([orgId, publishedAt])
   @@index([orgId, pinned, publishedAt])
+}
+
+// Activity feed: a generic timeline post that can carry text, attached
+// photos, or a referenced album. Subsumes "announcements + albums" into
+// a single chronological surface; existing Announcement/Album models are
+// kept around so older tenant content keeps rendering.
+model Post {
+  id          String      @id @default(cuid())
+  orgId       String
+  authorId    String?
+  title       String?
+  body        String
+  visibility  String      @default("public")  // public | members
+  pinned      Boolean     @default(false)
+  publishedAt DateTime    @default(now())
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  org     Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  author  User?       @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  photos  PostPhoto[]
+
+  @@index([orgId, publishedAt])
+  @@index([orgId, pinned, publishedAt])
+}
+
+model PostPhoto {
+  id           String   @id @default(cuid())
+  orgId        String
+  postId       String
+  filename     String
+  originalName String?
+  mimeType     String
+  sizeBytes    Int
+  caption      String?
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, postId, sortOrder])
 }
