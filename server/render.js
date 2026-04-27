@@ -267,6 +267,71 @@ export function renderEventDetail(org, e) {
   return pageShell(org, e.title, body);
 }
 
+export function renderDirectory(org, members, { needsSignIn, notAMember, role } = {}) {
+  if (needsSignIn) {
+    const body = `
+      <section class="event-list">
+        <a class="back" href="/">← Home</a>
+        <h1>Member directory</h1>
+        <p class="muted">Sign in to view the family directory, contact info, and patrol rosters.</p>
+        <p style="margin-top:1rem">
+          <a class="btn primary" href="/admin/login?next=/members">Sign in</a>
+        </p>
+      </section>`;
+    return pageShell(org, "Members", body);
+  }
+  if (notAMember) {
+    const body = `
+      <section class="event-list">
+        <a class="back" href="/">← Home</a>
+        <h1>Members only</h1>
+        <p class="muted">Your account isn't connected to ${escapeHtml(org.displayName)}. Contact a current admin to be added.</p>
+      </section>`;
+    return pageShell(org, "Members", body);
+  }
+
+  const youth = (members || []).filter((m) => m.isYouth);
+  const adults = (members || []).filter((m) => !m.isYouth);
+  const renderRow = (m) => `
+    <li>
+      <div>
+        <h3>${escapeHtml(m.firstName)} ${escapeHtml(m.lastName)}</h3>
+        <p class="muted small">${
+          m.position ? `${escapeHtml(m.position)} · ` : ""
+        }${m.patrol ? `${escapeHtml(m.patrol)} patrol` : ""}</p>
+      </div>
+      <div>
+        ${m.email ? `<a href="mailto:${escapeHtml(m.email)}">${escapeHtml(m.email)}</a><br>` : ""}
+        ${m.phone ? `<span class="muted small">${escapeHtml(m.phone)}</span>` : ""}
+      </div>
+    </li>`;
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/">← Home</a>
+      <h1>Member directory</h1>
+      <p class="muted">${(members || []).length} on the roster · visible to ${escapeHtml(role)}s of ${escapeHtml(org.displayName)}.</p>
+      ${
+        youth.length
+          ? `<h2 style="margin-top:1.5rem">Youth</h2><ul class="items">${youth.map(renderRow).join("")}</ul>`
+          : ""
+      }
+      ${
+        adults.length
+          ? `<h2 style="margin-top:1.5rem">Adults</h2><ul class="items">${adults.map(renderRow).join("")}</ul>`
+          : ""
+      }
+      ${(members || []).length === 0 ? `<p class="muted">No members yet.</p>` : ""}
+    </section>
+    <style>
+      .event-list ul.items{list-style:none;padding:0;margin:0;display:grid;gap:.6rem}
+      .event-list ul.items li{display:flex;gap:1.5rem;justify-content:space-between;align-items:flex-start;background:#fff;border:1px solid #eef0e7;border-radius:10px;padding:.85rem 1rem}
+      .event-list ul.items h3{margin:0 0 .15rem;font-size:1rem;font-family:Inter,sans-serif}
+      .event-list ul.items p{margin:0}
+      .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.1rem .45rem;border-radius:5px;font-size:.78rem;color:#6b7280;margin-right:.25rem}
+    </style>`;
+  return pageShell(org, "Members", body);
+}
+
 export function renderEventsList(org, events) {
   const items = events.length
     ? events

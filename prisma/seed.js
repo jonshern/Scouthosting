@@ -78,6 +78,22 @@ async function main() {
   }
   console.log(`✓ Seeded sample events`);
 
+  // Sample members (idempotent on (orgId, firstName, lastName))
+  const sampleMembers = [
+    { firstName: "Alex", lastName: "Park", email: "alex@example.invalid", patrol: "Eagles", position: "SPL", isYouth: true, commPreference: "both", smsOptIn: true },
+    { firstName: "Sam", lastName: "Lee", email: "sam@example.invalid", patrol: "Eagles", isYouth: true, commPreference: "email" },
+    { firstName: "Jordan", lastName: "Diaz", email: "jordan@example.invalid", patrol: "Foxes", position: "Patrol Leader", isYouth: true, commPreference: "email" },
+    { firstName: "Pat", lastName: "Adams", email: "pat@example.invalid", phone: "555-0142", position: "Scoutmaster", isYouth: false, commPreference: "both", smsOptIn: true },
+    { firstName: "Riley", lastName: "Khan", email: "riley@example.invalid", position: "Committee Chair", isYouth: false, commPreference: "email" },
+  ];
+  for (const m of sampleMembers) {
+    const exists = await prisma.member.findFirst({
+      where: { orgId: org.id, firstName: m.firstName, lastName: m.lastName },
+    });
+    if (!exists) await prisma.member.create({ data: { orgId: org.id, ...m } });
+  }
+  console.log(`✓ Seeded sample members`);
+
   // Sample announcement, idempotent on title
   const annTitle = "Welcome to our new website!";
   const existingAnn = await prisma.announcement.findFirst({

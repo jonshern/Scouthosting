@@ -251,6 +251,24 @@ model Form {
   @@index([orgId, category])
 }
 
+model MailLog {
+  id              String   @id @default(cuid())
+  orgId           String
+  authorId        String?
+  subject         String
+  body            String
+  channel         String   @default("email") // email | sms | both
+  audienceLabel   String   // "Everyone", "Adults", "Youth", "Patrol: Eagles", ...
+  recipientCount  Int      @default(0)
+  status          String   @default("sent")  // sent | failed | partial | dryrun
+  errors          String?
+  sentAt          DateTime @default(now())
+
+  // Recipient snapshot — JSON array of { name, email, phone, channel } so the
+  // history shows who got the message even if directory entries change later.
+  recipients      Json
+}
+
 // CMS: per-org editable home-page content. Single record per org for now;
 // later we can add slug + relax @unique to support multiple custom pages.
 model Page {

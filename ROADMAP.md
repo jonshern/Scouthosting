@@ -206,13 +206,18 @@ Distinct from generic events: campouts and trips need provisioning logic.
 
 ## Phase 5 — Membership
 
-- [ ] Member CRUD with families (parent ↔ scout linkage)
-- [ ] Patrols, Crews, Ships
+- [x] Member CRUD (admin)
+- [x] Patrol + position fields per member
+- [x] Per-member communication preference (email / sms / both / none)
+- [x] SMS opt-in flag
+- [x] CSV-paste bulk import
+- [x] Members-only public directory at /members (login + membership gated)
+- [ ] Family linkage (parent ↔ scout, parent ↔ multiple scouts)
 - [ ] Dynamic subgroups (rules-based, e.g. "Star+ scouts")
-- [ ] Position of Responsibility tracking with start/end dates
-- [ ] Troop directory (visibility-gated)
+- [ ] Position-of-Responsibility tracking with start/end dates
 - [ ] Birthdays, join dates, tenure reports
 - [ ] Skills & interests per member
+- [ ] CSV upload (file) in addition to CSV-paste
 
 ## Positioning vs. Scoutbook
 
@@ -270,13 +275,23 @@ and operations hub. Scoutbook is the advancement source of truth.
 - [ ] Forms & Documents library (versioned, role-gated)
 - [ ] Drag-and-drop upload, mobile capture
 
-## Phase 8 — E-mail
+## Phase 8 — E-mail / SMS
 
-- [ ] Transactional via SES/Mailgun, signed (DKIM, SPF, DMARC)
-- [ ] Group e-mail (whole troop, patrol, subgroup)
-- [ ] Inbox, Sent, Delivery Status (bounces, complaints)
-- [ ] Reply threading
+- [x] Mail provider abstraction (`lib/mail.js`) with console driver
+- [x] Group email broadcast: audience selector (everyone / adults / youth /
+      patrol), subject + body, audience preview before send
+- [x] `commPreference` filtering (only members with email + email/both
+      preference receive)
+- [x] MailLog history with recipient snapshot, status (sent/partial/failed)
+- [x] Send history view at /admin/email/sent
+- [ ] Real SMTP / Resend / SES drivers (the seam is in place)
+- [ ] DKIM, SPF, DMARC for the org's outbound domain
+- [ ] SMS via Twilio respecting `smsOptIn` (the schema and audience
+      filtering already handle this; just need the driver)
+- [ ] Inbox + per-member email thread view
+- [ ] Bounce + complaint webhooks
 - [ ] Throttling and abuse protection
+- [ ] One-click unsubscribe per recipient
 
 ## Phase 9 — Money
 

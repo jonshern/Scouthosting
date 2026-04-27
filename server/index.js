@@ -5,12 +5,12 @@ import { fileURLToPath } from "node:url";
 import "dotenv/config";
 
 import { prisma } from "../lib/db.js";
-import { lucia, attachSession, hashPassword, verifyPassword } from "../lib/auth.js";
+import { lucia, attachSession, hashPassword, verifyPassword, roleInOrg } from "../lib/auth.js";
 import {
   provisionOrg,
   validateProvisionInput,
 } from "./provision.js";
-import { renderSite, renderEventDetail, renderEventsList } from "./render.js";
+import { renderSite, renderEventDetail, renderEventsList, renderDirectory } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
 import { googleOAuth, googleConfigured, fetchGoogleProfile } from "../lib/oauth.js";
@@ -368,6 +368,32 @@ app.get("/events", async (req, res, next) => {
   res
     .set("Content-Type", "text/html; charset=utf-8")
     .send(renderEventsList(req.org, events));
+});
+
+// Members-only directory. A signed-in user with any membership in this
+// org sees the roster; everyone else gets a sign-in prompt.
+app.get("/members", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) {
+    return res
+      .status(401)
+      .type("html")
+      .send(renderDirectory(req.org, null, { needsSignIn: true }));
+  }
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (!role) {
+    return res
+      .status(403)
+      .type("html")
+      .send(renderDirectory(req.org, null, { notAMember: true }));
+  }
+  const members = await prisma.member.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ isYouth: "desc" }, { lastName: "asc" }, { firstName: "asc" }],
+  });
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderDirectory(req.org, members, { role }));
 });
 
 // Public event detail.

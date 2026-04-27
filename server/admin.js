@@ -16,6 +16,7 @@ import { prisma } from "../lib/db.js";
 import { lucia, verifyPassword, roleInOrg } from "../lib/auth.js";
 import { moveFromTemp, remove as removeFile } from "../lib/storage.js";
 import { googleConfigured } from "../lib/oauth.js";
+import { sendBatch, mailDriver } from "../lib/mail.js";
 
 export const adminRouter = express.Router();
 
@@ -128,6 +129,8 @@ form.inline{display:inline}
     <a href="/admin/announcements">Announcements</a>
     <a href="/admin/events">Calendar</a>
     <a href="/admin/albums">Photos &amp; albums</a>
+    <a href="/admin/members">Members</a>
+    <a href="/admin/email">Email broadcast</a>
     <a href="/" target="_blank">View public site ↗</a>
   </nav>
   <div class="me">
@@ -303,10 +306,20 @@ adminRouter.get("/", requireLeader, async (req, res) => {
     </div>
 
     <div class="card">
+      <h2>Members &amp; email</h2>
+      <p class="muted small">Maintain the directory and send group emails. Members can opt for email, SMS, both, or none.</p>
+      <p>
+        <a class="btn btn-primary" href="/admin/members">Manage members</a>
+        <a class="btn btn-ghost" href="/admin/email">Send broadcast</a>
+      </p>
+    </div>
+
+    <div class="card">
       <h2>Coming soon</h2>
       <ul class="muted small">
-        <li>Member directory with text vs email preference, and group email</li>
+        <li>SMS broadcasts (Twilio) using the smsOptIn / commPreference fields</li>
         <li>Activity feed with optional Facebook cross-post</li>
+        <li>RSVP / sign-up sheets on events</li>
       </ul>
     </div>
   `;
@@ -902,6 +915,438 @@ adminRouter.post("/events/:id/delete", requireLeader, async (req, res) => {
     where: { id: req.params.id, orgId: req.org.id },
   });
   res.redirect("/admin/events");
+});
+
+/* ------------------------------------------------------------------ */
+/* Members                                                             */
+/* ------------------------------------------------------------------ */
+
+const COMM_PREFS = [
+  { value: "email", label: "Email only" },
+  { value: "sms", label: "Text only" },
+  { value: "both", label: "Email and text" },
+  { value: "none", label: "Do not contact" },
+];
+
+function memberFromBody(body) {
+  return {
+    firstName: body?.firstName?.trim() || "",
+    lastName: body?.lastName?.trim() || "",
+    email: body?.email?.trim().toLowerCase() || null,
+    phone: body?.phone?.trim() || null,
+    patrol: body?.patrol?.trim() || null,
+    position: body?.position?.trim() || null,
+    isYouth: body?.isYouth === "1",
+    commPreference: ["email", "sms", "both", "none"].includes(body?.commPreference)
+      ? body.commPreference
+      : "email",
+    smsOptIn: body?.smsOptIn === "1",
+    notes: body?.notes?.trim() || null,
+  };
+}
+
+function memberForm({ member, action, submitLabel }) {
+  const v = (k) => escape(member?.[k] ?? "");
+  const checked = (cond) => (cond ? " checked" : "");
+  const sel = (cond) => (cond ? " selected" : "");
+  return `
+    <form class="card" method="post" action="${escape(action)}">
+      <div class="row">
+        <label style="margin:0;flex:1">First name<input name="firstName" type="text" required maxlength="60" value="${v("firstName")}"></label>
+        <label style="margin:0;flex:1">Last name<input name="lastName" type="text" required maxlength="60" value="${v("lastName")}"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Email<input name="email" type="email" maxlength="120" value="${v("email")}"></label>
+        <label style="margin:0;flex:1">Phone<input name="phone" type="tel" maxlength="40" value="${v("phone")}"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Patrol<input name="patrol" type="text" maxlength="40" value="${v("patrol")}"></label>
+        <label style="margin:0;flex:1">Position<input name="position" type="text" maxlength="60" placeholder="e.g. SPL, Scoutmaster" value="${v("position")}"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Communication preference
+          <select name="commPreference">
+            ${COMM_PREFS.map(
+              (o) =>
+                `<option value="${escape(o.value)}"${sel(member?.commPreference === o.value)}>${escape(o.label)}</option>`
+            ).join("")}
+          </select>
+        </label>
+        <label style="margin:0;flex:1;align-self:end">
+          <input name="smsOptIn" type="checkbox" value="1"${checked(member?.smsOptIn)} style="width:auto;display:inline;margin-top:0;margin-right:.4rem">SMS opt-in
+        </label>
+      </div>
+      <label style="margin:0"><input name="isYouth" type="checkbox" value="1"${checked(
+        member ? member.isYouth : true
+      )} style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Youth member (otherwise adult)</label>
+      <label>Notes<textarea name="notes" rows="2">${v("notes")}</textarea></label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">${escape(submitLabel)}</button>
+        <a class="btn btn-ghost" href="/admin/members">Cancel</a>
+      </div>
+    </form>`;
+}
+
+adminRouter.get("/members", requireLeader, async (req, res) => {
+  const members = await prisma.member.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ isYouth: "desc" }, { lastName: "asc" }, { firstName: "asc" }],
+  });
+  const youth = members.filter((m) => m.isYouth);
+  const adults = members.filter((m) => !m.isYouth);
+
+  const renderRow = (m) => `
+    <li>
+      <div>
+        <h3>${escape(m.firstName)} ${escape(m.lastName)}</h3>
+        <p>${m.patrol ? `<span class="tag">${escape(m.patrol)}</span>` : ""}${
+    m.position ? `<span class="tag">${escape(m.position)}</span>` : ""
+  } ${m.email ? `<span class="muted small">${escape(m.email)}</span>` : ""}${
+    m.phone ? ` <span class="muted small">· ${escape(m.phone)}</span>` : ""
+  }${m.commPreference !== "email" ? ` <span class="tag">${escape(m.commPreference)}</span>` : ""}</p>
+      </div>
+      <div class="row">
+        <a class="btn btn-ghost small" href="/admin/members/${escape(m.id)}/edit">Edit</a>
+        <form class="inline" method="post" action="/admin/members/${escape(m.id)}/delete" onsubmit="return confirm('Remove this member from the directory?')">
+          <button class="btn btn-danger small" type="submit">Remove</button>
+        </form>
+      </div>
+    </li>`;
+
+  const body = `
+    <h1>Members</h1>
+    <p class="muted">${members.length} on the roster · ${youth.length} youth · ${adults.length} adults</p>
+
+    <h2 style="margin-top:1rem">Add a member</h2>
+    ${memberForm({ member: null, action: "/admin/members", submitLabel: "Add member" })}
+
+    <p style="margin-top:1rem"><a class="btn btn-ghost" href="/admin/members/import">Bulk import from CSV →</a></p>
+
+    ${
+      youth.length
+        ? `<h2 style="margin-top:2rem">Youth</h2><ul class="items">${youth.map(renderRow).join("")}</ul>`
+        : ""
+    }
+    ${
+      adults.length
+        ? `<h2 style="margin-top:2rem">Adults</h2><ul class="items">${adults.map(renderRow).join("")}</ul>`
+        : ""
+    }
+    ${members.length === 0 ? `<div class="empty" style="margin-top:1rem">No members yet. Add one above or import a CSV.</div>` : ""}
+  `;
+  res.type("html").send(layout({ title: "Members", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/members", requireLeader, async (req, res) => {
+  const data = memberFromBody(req.body || {});
+  if (!data.firstName || !data.lastName) return res.redirect("/admin/members");
+  await prisma.member.create({ data: { orgId: req.org.id, ...data } });
+  res.redirect("/admin/members");
+});
+
+adminRouter.get("/members/import", requireLeader, async (req, res) => {
+  const body = `
+    <h1>Bulk import members</h1>
+    <p class="muted">Paste CSV with a header row. Recognized column names (case-insensitive):</p>
+    <p class="muted small"><code>firstName, lastName, email, phone, patrol, position, isYouth, commPreference, smsOptIn, notes</code></p>
+    <form class="card" method="post" action="/admin/members/import">
+      <label>CSV
+        <textarea name="csv" rows="10" required placeholder="firstName,lastName,email,patrol,isYouth&#10;Alex,Park,alex@example.com,Eagles,1&#10;Pat,Adams,pat@example.com,,0"></textarea>
+      </label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Import</button>
+        <a class="btn btn-ghost" href="/admin/members">Cancel</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "Import members", org: req.org, user: req.user, body }));
+});
+
+// Tiny CSV parser — handles quoted fields and embedded commas/quotes.
+function parseCsv(text) {
+  const rows = [];
+  let cur = [], field = "", inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else {
+      if (c === '"') inQuotes = true;
+      else if (c === ",") { cur.push(field); field = ""; }
+      else if (c === "\n") { cur.push(field); rows.push(cur); cur = []; field = ""; }
+      else if (c === "\r") { /* skip */ }
+      else field += c;
+    }
+  }
+  if (field.length > 0 || cur.length > 0) { cur.push(field); rows.push(cur); }
+  return rows.filter((r) => r.length > 1 || (r.length === 1 && r[0].trim() !== ""));
+}
+
+adminRouter.post("/members/import", requireLeader, async (req, res) => {
+  const text = String(req.body?.csv || "").trim();
+  if (!text) return res.redirect("/admin/members");
+  const rows = parseCsv(text);
+  if (rows.length < 2) return res.redirect("/admin/members");
+
+  const header = rows[0].map((h) => h.trim().toLowerCase());
+  const idx = (k) => header.indexOf(k.toLowerCase());
+  const truthy = (v) => /^(1|true|yes|y)$/i.test(String(v || "").trim());
+
+  const data = [];
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r];
+    const get = (k) => {
+      const i = idx(k);
+      return i >= 0 ? (row[i] ?? "").trim() : "";
+    };
+    const firstName = get("firstName") || get("first_name") || get("first");
+    const lastName = get("lastName") || get("last_name") || get("last");
+    if (!firstName || !lastName) continue;
+    const pref = get("commPreference") || get("comm") || "email";
+    data.push({
+      orgId: req.org.id,
+      firstName,
+      lastName,
+      email: (get("email") || "").toLowerCase() || null,
+      phone: get("phone") || null,
+      patrol: get("patrol") || null,
+      position: get("position") || null,
+      isYouth: get("isYouth") ? truthy(get("isYouth")) : true,
+      commPreference: ["email", "sms", "both", "none"].includes(pref.toLowerCase())
+        ? pref.toLowerCase()
+        : "email",
+      smsOptIn: truthy(get("smsOptIn") || get("sms_opt_in")),
+      notes: get("notes") || null,
+    });
+  }
+  if (data.length) {
+    await prisma.member.createMany({ data });
+  }
+  res.redirect("/admin/members");
+});
+
+adminRouter.get("/members/:id/edit", requireLeader, async (req, res) => {
+  const member = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!member) return res.status(404).send("Not found");
+  const body = `
+    <h1>Edit member</h1>
+    ${memberForm({ member, action: `/admin/members/${escape(member.id)}`, submitLabel: "Save" })}
+  `;
+  res.type("html").send(layout({ title: "Edit member", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/members/:id", requireLeader, async (req, res) => {
+  const member = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!member) return res.status(404).send("Not found");
+  const data = memberFromBody(req.body || {});
+  if (!data.firstName || !data.lastName) return res.redirect(`/admin/members/${member.id}/edit`);
+  await prisma.member.update({ where: { id: member.id }, data });
+  res.redirect("/admin/members");
+});
+
+adminRouter.post("/members/:id/delete", requireLeader, async (req, res) => {
+  await prisma.member.deleteMany({ where: { id: req.params.id, orgId: req.org.id } });
+  res.redirect("/admin/members");
+});
+
+/* ------------------------------------------------------------------ */
+/* Email broadcast                                                     */
+/* ------------------------------------------------------------------ */
+
+const AUDIENCES = [
+  { value: "everyone", label: "Everyone" },
+  { value: "adults", label: "Adults only" },
+  { value: "youth", label: "Youth only" },
+  { value: "patrol", label: "Specific patrol…" },
+];
+
+async function audienceFor(orgId, kind, patrol) {
+  const where = { orgId };
+  if (kind === "adults") where.isYouth = false;
+  else if (kind === "youth") where.isYouth = true;
+  else if (kind === "patrol" && patrol) where.patrol = patrol;
+  return prisma.member.findMany({ where });
+}
+
+adminRouter.get("/email", requireLeader, async (req, res) => {
+  const patrols = await prisma.member.findMany({
+    where: { orgId: req.org.id, patrol: { not: null } },
+    distinct: ["patrol"],
+    select: { patrol: true },
+    orderBy: { patrol: "asc" },
+  });
+  const patrolOptions = patrols
+    .map((p) => `<option value="${escape(p.patrol)}">${escape(p.patrol)}</option>`)
+    .join("");
+
+  const body = `
+    <h1>Send a broadcast</h1>
+    <p class="muted">Compose once and we'll fan out to every member based on their communication preference. SMS isn't wired yet — for now this sends email to anyone whose preference is <em>email</em> or <em>both</em>.</p>
+    <p class="muted small">Mail driver: <code>${escape(mailDriver)}</code>${
+    mailDriver === "console"
+      ? ` — sends are logged to the server console (no real email leaves your machine).`
+      : ""
+  }</p>
+
+    <form class="card" method="post" action="/admin/email">
+      <div class="row">
+        <label style="margin:0;flex:1">Audience
+          <select name="audience">
+            ${AUDIENCES.map(
+              (a) => `<option value="${escape(a.value)}">${escape(a.label)}</option>`
+            ).join("")}
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Patrol (if "Specific patrol")
+          <select name="patrol">
+            <option value="">—</option>
+            ${patrolOptions}
+          </select>
+        </label>
+      </div>
+      <label>Subject<input name="subject" type="text" required maxlength="200"></label>
+      <label>Body
+        <textarea name="body" rows="8" required placeholder="What you want to tell them. Plain text — paragraphs are preserved."></textarea>
+      </label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit" name="action" value="preview">Preview audience</button>
+        <button class="btn btn-primary" type="submit" name="action" value="send">Send now</button>
+        <a class="btn btn-ghost" href="/admin/email/sent" style="margin-left:auto">History →</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "Email broadcast", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/email", requireLeader, async (req, res) => {
+  const { audience, patrol, subject, body, action } = req.body || {};
+  const orgId = req.org.id;
+
+  const all = await audienceFor(orgId, audience, patrol);
+  // Filter by communication preference for the email channel.
+  const recipients = all.filter(
+    (m) => m.email && (m.commPreference === "email" || m.commPreference === "both")
+  );
+
+  if (action === "preview") {
+    const list = all
+      .map(
+        (m) =>
+          `<li>${escape(m.firstName)} ${escape(m.lastName)}${m.patrol ? ` <span class="tag">${escape(m.patrol)}</span>` : ""} <span class="muted small">${escape(m.email || "(no email)")} · pref:${escape(m.commPreference)}</span></li>`
+      )
+      .join("");
+    const willGetEmail = recipients.length;
+    const noEmailReachable =
+      all.length -
+      all.filter(
+        (m) => m.email && (m.commPreference === "email" || m.commPreference === "both")
+      ).length;
+
+    const previewBody = `
+      <h1>Audience preview</h1>
+      <p class="muted">${all.length} member${all.length === 1 ? "" : "s"} match. Of those, <strong>${willGetEmail}</strong> will receive this email — ${noEmailReachable} will be skipped (no email on file or pref disables it).</p>
+      <ul class="items">${list || `<li class="empty">Nobody matches this audience.</li>`}</ul>
+      <p style="margin-top:1.25rem"><a class="btn btn-ghost" href="/admin/email">← Back to compose</a></p>
+    `;
+    return res
+      .type("html")
+      .send(layout({ title: "Audience preview", org: req.org, user: req.user, body: previewBody }));
+  }
+
+  if (!subject?.trim() || !body?.trim()) return res.redirect("/admin/email");
+
+  const messages = recipients.map((m) => ({
+    to: m.email,
+    subject: subject.trim(),
+    text: body.trim(),
+    from: `${req.org.displayName} <noreply@${req.org.slug}.${process.env.APEX_DOMAIN || "scouthosting.com"}>`,
+    replyTo: req.user.email,
+  }));
+
+  const result = await sendBatch(messages);
+
+  const audienceLabel =
+    audience === "patrol"
+      ? `Patrol: ${patrol || "—"}`
+      : (AUDIENCES.find((a) => a.value === audience)?.label ?? "Everyone");
+
+  await prisma.mailLog.create({
+    data: {
+      orgId,
+      authorId: req.user.id,
+      subject: subject.trim(),
+      body: body.trim(),
+      channel: "email",
+      audienceLabel,
+      recipientCount: result.sent,
+      status: result.errors.length === 0 ? "sent" : result.sent > 0 ? "partial" : "failed",
+      errors: result.errors.length ? JSON.stringify(result.errors) : null,
+      recipients: recipients.map((m) => ({
+        name: `${m.firstName} ${m.lastName}`,
+        email: m.email,
+        channel: "email",
+      })),
+    },
+  });
+
+  const ack = `
+    <h1>Sent</h1>
+    <p>Delivered to <strong>${result.sent}</strong> recipient${result.sent === 1 ? "" : "s"}${
+    result.errors.length ? ` (${result.errors.length} failed)` : ""
+  }.</p>
+    ${
+      result.errors.length
+        ? `<details class="card"><summary>Errors</summary><pre>${escape(JSON.stringify(result.errors, null, 2))}</pre></details>`
+        : ""
+    }
+    <p style="margin-top:1.25rem">
+      <a class="btn btn-primary" href="/admin/email">Send another</a>
+      <a class="btn btn-ghost" href="/admin/email/sent">View history</a>
+    </p>
+  `;
+  res.type("html").send(layout({ title: "Sent", org: req.org, user: req.user, body: ack }));
+});
+
+adminRouter.get("/email/sent", requireLeader, async (req, res) => {
+  const log = await prisma.mailLog.findMany({
+    where: { orgId: req.org.id },
+    orderBy: { sentAt: "desc" },
+    take: 50,
+  });
+
+  const items = log
+    .map(
+      (m) => `
+    <li>
+      <div>
+        <h3>${escape(m.subject)}</h3>
+        <p>
+          <span class="tag">${escape(m.audienceLabel)}</span>
+          <span class="tag">${escape(m.channel)}</span>
+          <span class="tag">${escape(m.status)}</span>
+          <span class="muted small">${escape(m.sentAt.toLocaleString("en-US"))}</span>
+          <span class="muted small">· ${m.recipientCount} sent</span>
+        </p>
+      </div>
+    </li>`
+    )
+    .join("");
+
+  const body = `
+    <h1>Email history</h1>
+    <p class="muted">Last 50 broadcasts.</p>
+    ${log.length ? `<ul class="items">${items}</ul>` : `<div class="empty">Nothing has been sent yet.</div>`}
+    <p style="margin-top:1.25rem"><a class="btn btn-ghost" href="/admin/email">← Compose</a></p>
+  `;
+  res.type("html").send(layout({ title: "Email history", org: req.org, user: req.user, body }));
 });
 
 /* ------------------------------------------------------------------ */
