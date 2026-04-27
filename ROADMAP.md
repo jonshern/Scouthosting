@@ -187,8 +187,11 @@ The most-used feature. Match TroopWebHost's coverage, then exceed it.
 - [x] Public `/login` + `/signup` on every org subdomain (any user, not
       leader-only); auto-creates `OrgMembership(role=parent)`
 - [ ] Recurring events (RRULE)
-- [ ] Sign-up sheet **slots** (food, gear, "Bring drinks", "Drive 2 scouts")
-- [ ] Capacity enforcement at submit time + waitlist
+- [x] **Sign-up sheet slots** (food, gear, "Bring drinks", "Drive 2 scouts").
+      Per-slot capacity enforced inside a transaction so concurrent claims
+      can't oversubscribe. Anyone can claim — login optional. Idempotent
+      per (slot, user) for signed-in and (slot, email) for anonymous.
+- [ ] Waitlist when a slot fills
 - [ ] Carpool sign-ups
 - [ ] **Two-way Google Calendar sync** (per-user) — additive; the ICS
       feed already covers the read path. This adds writes from inside

@@ -194,6 +194,16 @@ function pageShell(org, title, body) {
 .rsvp-flash{padding:.55rem .85rem;border-radius:8px;margin-bottom:.8rem;font-size:.9rem}
 .rsvp-flash-ok{background:#eaf6ec;border:1px solid #b9dec1;color:#15532b}
 .rsvp-flash-err{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614}
+.slots-list{list-style:none;padding:0;margin:.5rem 0 0;display:grid;gap:.6rem}
+.slots-list li{background:#fbf8ee;border:1px solid #eef0e7;border-radius:10px;padding:.85rem 1rem;display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;flex-wrap:wrap}
+.slots-list h3{margin:0 0 .15rem;font-size:1rem;font-family:Inter,sans-serif}
+.slots-list p{margin:0;color:var(--ink-700);font-size:.92rem}
+.slots-list .slot-head{flex:1;min-width:220px}
+.slots-list .tag{display:inline-block;background:#fff;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.78rem;color:var(--ink-500);margin-left:.25rem}
+.slot-action{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.slot-action.slot-anon{flex-direction:column;align-items:stretch;gap:.4rem;min-width:240px}
+.slot-action.slot-anon input{padding:.45rem .6rem;border:1px solid var(--ink-300);border-radius:8px;font:inherit}
+.slot-action button{padding:.5rem .9rem !important;font-size:.9rem !important}
 .event-detail .map-actions{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
 .event-detail .map-actions a{font-size:.85rem;padding:.4rem .7rem}
 .event-detail .body{max-width:65ch;line-height:1.65}
@@ -224,6 +234,76 @@ function pageShell(org, title, body) {
 </html>`;
 }
 
+function renderSlotsBlock({ event, slots, user, flash }) {
+  if (!slots || slots.length === 0) return "";
+
+  const myMatch = (a) =>
+    (user && a.userId === user.id) ||
+    (user && a.email && a.email === user.email?.toLowerCase()) ||
+    false;
+
+  const flashHtml = flash
+    ? `<div class="rsvp-flash rsvp-flash-${escapeHtml(flash.type || "ok")}">${escapeHtml(flash.message)}</div>`
+    : "";
+
+  const items = slots
+    .map((s) => {
+      const filled = s.assignments.length;
+      const remaining = Math.max(0, s.capacity - filled);
+      const mine = s.assignments.find(myMatch) || null;
+      const namesHtml = s.assignments.length
+        ? `<p class="muted small">Signed up: ${s.assignments.map((a) => escapeHtml(a.name)).join(", ")}</p>`
+        : `<p class="muted small">No takers yet.</p>`;
+
+      let actionHtml;
+      if (mine) {
+        actionHtml = `
+          <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/release" class="slot-action">
+            ${user ? "" : `<input type="hidden" name="email" value="${escapeHtml(mine.email || "")}">`}
+            <button class="btn ghost" type="submit">Remove me</button>
+            <span class="muted small">You're signed up</span>
+          </form>`;
+      } else if (remaining === 0) {
+        actionHtml = `<p class="muted small"><strong>Filled.</strong> Thanks to those who signed up.</p>`;
+      } else if (user) {
+        actionHtml = `
+          <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/take" class="slot-action">
+            <button class="btn primary" type="submit">I'll do it</button>
+            <span class="muted small">${remaining} spot${remaining === 1 ? "" : "s"} left</span>
+          </form>`;
+      } else {
+        actionHtml = `
+          <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/take" class="slot-action slot-anon">
+            <input name="name" type="text" required maxlength="80" placeholder="Your name" autocomplete="name">
+            <input name="email" type="email" required maxlength="120" placeholder="you@example.com" autocomplete="email">
+            <button class="btn primary" type="submit">I'll do it</button>
+            <span class="muted small">${remaining} spot${remaining === 1 ? "" : "s"} left</span>
+          </form>`;
+      }
+
+      return `
+      <li>
+        <div class="slot-head">
+          <h3>${escapeHtml(s.title)}${
+            s.capacity > 1 ? ` <span class="tag">${filled}/${s.capacity}</span>` : ""
+          }</h3>
+          ${s.description ? `<p>${escapeHtml(s.description)}</p>` : ""}
+          ${namesHtml}
+        </div>
+        ${actionHtml}
+      </li>`;
+    })
+    .join("");
+
+  return `
+    <div class="rsvp-card">
+      <h2>Help wanted</h2>
+      ${flashHtml}
+      <p class="muted small" style="margin-top:0">Claim a slot — drivers, food, gear. No login required.</p>
+      <ul class="slots-list">${items}</ul>
+    </div>`;
+}
+
 export function renderEventDetail(org, e, ctx = {}) {
   const start = new Date(e.startsAt);
   const end = e.endsAt ? new Date(e.endsAt) : null;
@@ -252,6 +332,12 @@ export function renderEventDetail(org, e, ctx = {}) {
   const flash = ctx.flash || null;
 
   const rsvpBlock = renderRsvpBlock({ event: e, user, myRsvp, counts, flash });
+  const slotsBlock = renderSlotsBlock({
+    event: e,
+    slots: ctx.slots,
+    user,
+    flash: ctx.slotFlash,
+  });
 
   const body = `
   <section class="event-detail">
@@ -260,6 +346,7 @@ export function renderEventDetail(org, e, ctx = {}) {
     ${e.category ? `<p class="muted small" style="margin-top:-.4rem">${escapeHtml(e.category)}</p>` : ""}
 
     ${rsvpBlock}
+    ${slotsBlock}
 
     <div class="actions">
       <a class="btn primary" href="${escapeHtml(gcal)}" target="_blank" rel="noopener">Add to Google Calendar</a>

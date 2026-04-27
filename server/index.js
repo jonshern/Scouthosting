@@ -616,28 +616,54 @@ app.get("/events/:id", async (req, res, next) => {
 
   const ctx = await loadEventContext(ev, req.user);
   if (req.query.rsvp === "saved") ctx.flash = { type: "ok", message: "RSVP saved." };
+  switch (req.query.slot) {
+    case "taken":
+      ctx.slotFlash = { type: "ok", message: "You're signed up — thanks!" };
+      break;
+    case "released":
+      ctx.slotFlash = { type: "ok", message: "Slot released." };
+      break;
+    case "full":
+      ctx.slotFlash = { type: "err", message: "That slot just filled up — sorry." };
+      break;
+    case "dupe":
+      ctx.slotFlash = { type: "err", message: "You already signed up for that slot." };
+      break;
+    case "missing":
+      ctx.slotFlash = { type: "err", message: "We need your name and email." };
+      break;
+  }
   res
     .set("Content-Type", "text/html; charset=utf-8")
     .send(renderEventDetail(req.org, ev, ctx));
 });
 
 async function loadEventContext(ev, user) {
-  const grouped = await prisma.rsvp.groupBy({
-    by: ["response"],
-    where: { eventId: ev.id },
-    _count: { _all: true },
-    _sum: { guests: true },
-  });
+  const [grouped, myRsvp, slots] = await Promise.all([
+    prisma.rsvp.groupBy({
+      by: ["response"],
+      where: { eventId: ev.id },
+      _count: { _all: true },
+      _sum: { guests: true },
+    }),
+    user
+      ? prisma.rsvp.findUnique({
+          where: { eventId_userId: { eventId: ev.id, userId: user.id } },
+        })
+      : null,
+    prisma.signupSlot.findMany({
+      where: { eventId: ev.id },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      include: { assignments: { orderBy: { createdAt: "asc" } } },
+    }),
+  ]);
   const counts = { yes: 0, no: 0, maybe: 0, total: 0, totalGuests: 0 };
   for (const g of grouped) {
     counts[g.response] = g._count._all;
     counts.total += g._count._all;
     if (g.response === "yes") counts.totalGuests += g._sum.guests || 0;
   }
-  const myRsvp = user
-    ? await prisma.rsvp.findUnique({ where: { eventId_userId: { eventId: ev.id, userId: user.id } } })
-    : null;
-  return { counts, myRsvp, user };
+  return { counts, myRsvp, slots, user };
 }
 
 // RSVP submit.
@@ -698,6 +724,84 @@ app.post("/events/:id/rsvp", async (req, res, next) => {
     },
   });
   res.redirect(`/events/${ev.id}?rsvp=saved`);
+});
+
+// Take a sign-up slot (drivers, food, gear). Anyone can claim — login is
+// optional. Capacity enforced inside a transaction so two simultaneous
+// claims can't oversubscribe.
+app.post("/events/:id/slots/:slotId/take", async (req, res, next) => {
+  if (!req.org) return next();
+  const slot = await prisma.signupSlot.findFirst({
+    where: { id: req.params.slotId, orgId: req.org.id, eventId: req.params.id },
+  });
+  if (!slot) return res.status(404).send("Slot not found");
+
+  const name = req.user
+    ? req.user.displayName
+    : (req.body?.name || "").toString().trim();
+  const email = (req.user
+    ? req.user.email
+    : (req.body?.email || "").toString().trim().toLowerCase()) || null;
+  const notes = (req.body?.notes || "").toString().trim().slice(0, 200) || null;
+
+  if (!name) return res.redirect(`/events/${req.params.id}?slot=missing`);
+  if (!req.user && (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) {
+    return res.redirect(`/events/${req.params.id}?slot=missing`);
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const count = await tx.slotAssignment.count({ where: { slotId: slot.id } });
+      if (count >= slot.capacity) {
+        const err = new Error("FULL");
+        err.code = "FULL";
+        throw err;
+      }
+      await tx.slotAssignment.create({
+        data: {
+          orgId: req.org.id,
+          slotId: slot.id,
+          userId: req.user?.id ?? null,
+          name,
+          email,
+          notes,
+        },
+      });
+    });
+  } catch (e) {
+    if (e.code === "FULL") {
+      return res.redirect(`/events/${req.params.id}?slot=full`);
+    }
+    if (e.code === "P2002") {
+      // Unique constraint — already signed up for this slot.
+      return res.redirect(`/events/${req.params.id}?slot=dupe`);
+    }
+    throw e;
+  }
+
+  res.redirect(`/events/${req.params.id}?slot=taken`);
+});
+
+// Release a slot assignment. Only the user who claimed it (matching by
+// userId or email) can release; admins can manage from /admin.
+app.post("/events/:id/slots/:slotId/release", async (req, res, next) => {
+  if (!req.org) return next();
+  const slot = await prisma.signupSlot.findFirst({
+    where: { id: req.params.slotId, orgId: req.org.id, eventId: req.params.id },
+    select: { id: true },
+  });
+  if (!slot) return res.status(404).send("Slot not found");
+
+  const where = { slotId: slot.id };
+  if (req.user) {
+    where.userId = req.user.id;
+  } else {
+    const email = (req.body?.email || "").toString().trim().toLowerCase();
+    if (!email) return res.redirect(`/events/${req.params.id}?slot=missing`);
+    where.email = email;
+  }
+  await prisma.slotAssignment.deleteMany({ where });
+  res.redirect(`/events/${req.params.id}?slot=released`);
 });
 
 // Email-link RSVP. The token encodes (eventId, name, email) + response,

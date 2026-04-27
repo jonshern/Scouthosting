@@ -78,6 +78,8 @@ model Org {
   page        Page?
   announcements Announcement[]
   rsvps         Rsvp[]
+  slots         SignupSlot[]
+  slotAssignments SlotAssignment[]
 
   @@index([plan])
 }
@@ -96,6 +98,7 @@ model User {
   announcements Announcement[]
   oauthAccounts OAuthAccount[]
   rsvps         Rsvp[]
+  slotAssignments SlotAssignment[]
 }
 
 // External identity provider linkage. One User can have multiple
@@ -197,10 +200,52 @@ model Event {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org   Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
   rsvps Rsvp[]
+  slots SignupSlot[]
 
   @@index([orgId, startsAt])
+}
+
+// A sign-up "slot" is a discrete thing for an event that needs a person
+// (or N people): drivers, food items to bring, gear to provide. Unlike
+// RSVPs (one-per-person, yes/no/maybe), slots are tied to specific tasks.
+model SignupSlot {
+  id          String   @id @default(cuid())
+  orgId       String
+  eventId     String
+  title       String          // "Bring drinks for 30", "Drive 2 scouts"
+  description String?
+  capacity    Int      @default(1)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org         Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event       Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  assignments SlotAssignment[]
+
+  @@index([orgId, eventId, sortOrder])
+}
+
+model SlotAssignment {
+  id        String   @id @default(cuid())
+  orgId     String
+  slotId    String
+  userId    String?  // signed-in user (preferred path)
+  name      String
+  email     String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  org  Org        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  slot SignupSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  user User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Block dupes by signed-in user; (slot, email) handles the anon path.
+  @@unique([slotId, userId])
+  @@unique([slotId, email])
+  @@index([orgId, slotId])
 }
 
 model Rsvp {

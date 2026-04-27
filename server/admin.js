@@ -856,6 +856,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
       </div>
       <div class="row">
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rsvps">RSVPs</a>
+        <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/slots">Sign-up sheet</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/edit">Edit</a>
         <form class="inline" method="post" action="/admin/events/${escape(e.id)}/delete" onsubmit="return confirm('Delete this event?')">
           <button class="btn btn-danger small" type="submit">Delete</button>
@@ -1112,6 +1113,139 @@ adminRouter.get("/events/:id/rsvps.csv", requireLeader, async (req, res) => {
     .set("Content-Type", "text/csv; charset=utf-8")
     .set("Content-Disposition", `attachment; filename="rsvps-${safeTitle}.csv"`)
     .send(csv);
+});
+
+/* ------------------------------------------------------------------ */
+/* Sign-up slots (drivers, food, gear)                                 */
+/* ------------------------------------------------------------------ */
+
+adminRouter.get("/events/:id/slots", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const slots = await prisma.signupSlot.findMany({
+    where: { eventId: ev.id },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    include: { assignments: { orderBy: { createdAt: "asc" } } },
+  });
+
+  const renderSlot = (s) => `
+    <li>
+      <div style="flex:1">
+        <h3>${escape(s.title)}${
+          s.capacity > 1 ? ` <span class="tag">${s.assignments.length} of ${s.capacity}</span>` : ""
+        }${s.capacity === 1 && s.assignments.length === 1 ? ` <span class="tag">filled</span>` : ""}</h3>
+        ${s.description ? `<p class="muted small">${escape(s.description)}</p>` : ""}
+        ${
+          s.assignments.length
+            ? `<p class="muted small">${s.assignments
+                .map((a) => escape(a.name))
+                .join(", ")}</p>`
+            : `<p class="muted small">No takers yet.</p>`
+        }
+      </div>
+      <div class="row">
+        <a class="btn btn-ghost small" href="/admin/events/${escape(ev.id)}/slots/${escape(s.id)}/edit">Edit</a>
+        <form class="inline" method="post" action="/admin/events/${escape(ev.id)}/slots/${escape(s.id)}/delete" onsubmit="return confirm('Delete this slot?')">
+          <button class="btn btn-danger small" type="submit">Delete</button>
+        </form>
+      </div>
+    </li>`;
+
+  const body = `
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <h1>Sign-up sheet · ${escape(ev.title)}</h1>
+    <p class="muted">Add slots for what your unit needs covered: drivers, food items, gear. Anyone who can see the event can claim a slot — no login required.</p>
+
+    <h2 style="margin-top:1.25rem">Add a slot</h2>
+    <form class="card" method="post" action="/admin/events/${escape(ev.id)}/slots">
+      <label>Title<input name="title" type="text" required maxlength="120" placeholder="e.g. Drive 2 scouts, Bring drinks for 30"></label>
+      <label>Description (optional)<textarea name="description" rows="2" maxlength="500"></textarea></label>
+      <div class="row">
+        <label style="margin:0;flex:1">How many people needed
+          <input name="capacity" type="number" required min="1" max="50" value="1">
+        </label>
+      </div>
+      <button class="btn btn-primary" type="submit">Add slot</button>
+    </form>
+
+    <h2 style="margin-top:1.5rem">Slots</h2>
+    ${slots.length ? `<ul class="items">${slots.map(renderSlot).join("")}</ul>` : `<div class="empty">No slots yet. Add one above.</div>`}
+  `;
+  res.type("html").send(layout({ title: `Sign-up sheet · ${ev.title}`, org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/events/:id/slots", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const last = await prisma.signupSlot.findFirst({
+    where: { eventId: ev.id },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  await prisma.signupSlot.create({
+    data: {
+      orgId: req.org.id,
+      eventId: ev.id,
+      title: req.body?.title?.trim() || "Untitled",
+      description: req.body?.description?.trim() || null,
+      capacity: Math.max(1, Math.min(50, parseInt(req.body?.capacity, 10) || 1)),
+      sortOrder: (last?.sortOrder ?? 0) + 1,
+    },
+  });
+  res.redirect(`/admin/events/${ev.id}/slots`);
+});
+
+adminRouter.get("/events/:id/slots/:slotId/edit", requireLeader, async (req, res) => {
+  const slot = await prisma.signupSlot.findFirst({
+    where: { id: req.params.slotId, orgId: req.org.id, eventId: req.params.id },
+  });
+  if (!slot) return res.status(404).send("Not found");
+  const v = (k) => escape(slot[k] ?? "");
+  const body = `
+    <a class="back" href="/admin/events/${escape(req.params.id)}/slots" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Sign-up sheet</a>
+    <h1>Edit slot</h1>
+    <form class="card" method="post" action="/admin/events/${escape(req.params.id)}/slots/${escape(slot.id)}">
+      <label>Title<input name="title" type="text" required maxlength="120" value="${v("title")}"></label>
+      <label>Description<textarea name="description" rows="2" maxlength="500">${v("description")}</textarea></label>
+      <label>How many people needed<input name="capacity" type="number" required min="1" max="50" value="${v("capacity")}"></label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/admin/events/${escape(req.params.id)}/slots">Cancel</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "Edit slot", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/events/:id/slots/:slotId", requireLeader, async (req, res) => {
+  const slot = await prisma.signupSlot.findFirst({
+    where: { id: req.params.slotId, orgId: req.org.id, eventId: req.params.id },
+    select: { id: true },
+  });
+  if (!slot) return res.status(404).send("Not found");
+  await prisma.signupSlot.update({
+    where: { id: slot.id },
+    data: {
+      title: req.body?.title?.trim() || "Untitled",
+      description: req.body?.description?.trim() || null,
+      capacity: Math.max(1, Math.min(50, parseInt(req.body?.capacity, 10) || 1)),
+    },
+  });
+  res.redirect(`/admin/events/${req.params.id}/slots`);
+});
+
+adminRouter.post("/events/:id/slots/:slotId/delete", requireLeader, async (req, res) => {
+  await prisma.signupSlot.deleteMany({
+    where: { id: req.params.slotId, orgId: req.org.id, eventId: req.params.id },
+  });
+  res.redirect(`/admin/events/${req.params.id}/slots`);
 });
 
 /* ------------------------------------------------------------------ */
