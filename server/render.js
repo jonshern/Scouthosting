@@ -1,9 +1,11 @@
 /**
- * Render a tenant's site by injecting tenant data into the template.
+ * Render a tenant's site by injecting org data into the template.
  *
- * In Phase 1 the template is a single HTML file with {{placeholder}} tokens.
- * Later phases will pull dynamic content (events, members, photos) from the
- * database and render multiple routes; this file is the seam where that
+ * Tokens are HTML-escaped by default. Values wrapped with `raw(html)` are
+ * inserted verbatim — used only for trusted server-built fragments.
+ *
+ * Future phases will pull dynamic content (events, members, photos) from
+ * Prisma and render multiple routes; this file is the seam where that
  * happens.
  */
 
@@ -14,6 +16,9 @@ import { fileURLToPath } from "node:url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMPLATE_PATH = path.join(__dirname, "template", "site.html");
+
+const RAW = Symbol("raw");
+const raw = (html) => ({ [RAW]: html });
 
 let cachedTemplate = null;
 function loadTemplate() {
@@ -29,32 +34,38 @@ function escapeHtml(s) {
   }[c]));
 }
 
-export function renderSite(tenant) {
+export function renderSite(org) {
   const tpl = loadTemplate();
   const ctx = {
-    UNIT_TYPE: tenant.unitType,
-    UNIT_NUMBER: tenant.unitNumber,
-    DISPLAY_NAME: tenant.displayName,
-    BRAND_MARK: tenant.unitNumber,
-    TAGLINE: tenant.tagline || `${tenant.unitType} ${tenant.unitNumber}, chartered to ${tenant.charterOrg}.`,
-    CHARTER_ORG: tenant.charterOrg,
-    CITY: tenant.city,
-    STATE: tenant.state,
-    COUNCIL: tenant.council || "your council",
-    DISTRICT: tenant.district || "your district",
-    FOUNDED: tenant.founded || "—",
-    MEETING_DAY: tenant.meetingDay,
-    MEETING_TIME: tenant.meetingTime,
-    MEETING_LOCATION: tenant.meetingLocation,
-    SCOUTMASTER_NAME: tenant.scoutmasterName,
-    SCOUTMASTER_EMAIL: tenant.scoutmasterEmail,
-    COMMITTEE_EMAIL: tenant.committeeChairEmail || tenant.scoutmasterEmail,
-    PRIMARY_COLOR: tenant.primaryColor,
-    ACCENT_COLOR: tenant.accentColor,
-    DEMO_BANNER: tenant.isDemo
-      ? `<div class="demo-banner"><strong>Scouthosting demo site.</strong> ${escapeHtml(tenant.displayName)} is a fictional unit.</div>`
+    UNIT_TYPE: org.unitType,
+    UNIT_NUMBER: org.unitNumber,
+    DISPLAY_NAME: org.displayName,
+    BRAND_MARK: org.unitNumber,
+    TAGLINE: org.tagline || `${org.unitType} ${org.unitNumber}, chartered to ${org.charterOrg}.`,
+    CHARTER_ORG: org.charterOrg,
+    CITY: org.city,
+    STATE: org.state,
+    COUNCIL: org.council || "your council",
+    DISTRICT: org.district || "your district",
+    FOUNDED: org.founded || "—",
+    MEETING_DAY: org.meetingDay,
+    MEETING_TIME: org.meetingTime,
+    MEETING_LOCATION: org.meetingLocation || org.charterOrg,
+    SCOUTMASTER_NAME: org.scoutmasterName,
+    SCOUTMASTER_EMAIL: org.scoutmasterEmail,
+    COMMITTEE_EMAIL: org.committeeChairEmail || org.scoutmasterEmail,
+    PRIMARY_COLOR: org.primaryColor,
+    ACCENT_COLOR: org.accentColor,
+    DEMO_BANNER: org.isDemo
+      ? raw(
+          `<div class="demo-banner"><strong>Scouthosting demo site.</strong> ${escapeHtml(org.displayName)} is a fictional unit.</div>`
+        )
       : "",
   };
 
-  return tpl.replace(/\{\{(\w+)\}\}/g, (_, key) => escapeHtml(ctx[key] ?? ""));
+  return tpl.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    const v = ctx[key];
+    if (v && typeof v === "object" && v[RAW] !== undefined) return v[RAW];
+    return escapeHtml(v ?? "");
+  });
 }

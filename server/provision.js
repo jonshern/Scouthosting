@@ -1,23 +1,23 @@
 /**
- * Tenant provisioning.
+ * Org provisioning.
  *
- * Validates a signup payload, derives a slug, and inserts a new tenant
- * record into the tenants store. Returns the created tenant.
+ * Validates a signup payload, derives a slug, and inserts an Org row.
+ * Used by both the HTTP signup handler and a CLI for bulk provisioning.
  *
- * In Phase 3 this will move to a real database with side effects:
- *   - reserve a subdomain in DNS
- *   - request a TLS cert
- *   - seed per-tenant calendar / pages / starter content
- *   - send the founding-leader an invitation email
+ * Phase 4+ will extend this to:
+ *   - reserve a subdomain (DNS) and request a TLS cert
+ *   - send a setup email to the founding leader
+ *   - seed starter pages, calendar entries, and forms
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import "dotenv/config";
+
+import { prisma } from "../lib/db.js";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const TENANTS_FILE = path.join(__dirname, "tenants.json");
 
 const REQUIRED = [
   "unitType",
@@ -30,6 +30,13 @@ const REQUIRED = [
 ];
 
 const VALID_UNIT_TYPES = ["Troop", "Pack", "Crew", "Ship", "Post"];
+const VALID_PLANS = ["patrol", "troop", "council"];
+
+const RESERVED_SLUGS = new Set([
+  "www", "admin", "api", "app", "assets", "blog", "console",
+  "dashboard", "demo", "docs", "help", "login", "mail", "marketing",
+  "scouthosting", "signup", "static", "status", "support",
+]);
 
 export function validateProvisionInput(body = {}) {
   const errors = [];
@@ -47,6 +54,9 @@ export function validateProvisionInput(body = {}) {
   if (body.scoutmasterEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.scoutmasterEmail)) {
     errors.push("scoutmasterEmail must be a valid email address.");
   }
+  if (body.plan && !VALID_PLANS.includes(body.plan)) {
+    errors.push(`plan must be one of: ${VALID_PLANS.join(", ")}`);
+  }
   return errors;
 }
 
@@ -56,47 +66,55 @@ export function deriveSlug(unitType, unitNumber) {
   return `${t}${n}`;
 }
 
-export function provisionTenant(input, data) {
+/**
+ * Create an Org record. Throws if the slug is reserved or already in use.
+ * Caller is responsible for catching and translating to an HTTP error.
+ */
+export async function provisionOrg(input) {
   const slug = deriveSlug(input.unitType, input.unitNumber);
 
-  if (data.reservedSlugs?.includes(slug)) {
+  if (RESERVED_SLUGS.has(slug)) {
     throw new Error(`The slug "${slug}" is reserved. Please contact support.`);
   }
-  if (data.tenants[slug]) {
+
+  const existing = await prisma.org.findUnique({ where: { slug } });
+  if (existing) {
     throw new Error(`A site already exists at ${slug}.scouthosting.com.`);
   }
 
-  const tenant = {
-    slug,
-    unitType: input.unitType,
-    unitNumber: String(input.unitNumber),
-    displayName: `${input.unitType} ${input.unitNumber}`,
-    tagline: input.tagline?.trim() || "",
-    charterOrg: input.charterOrg.trim(),
-    city: input.city.trim(),
-    state: input.state.trim(),
-    council: input.council?.trim() || "",
-    district: input.district?.trim() || "",
-    founded: input.founded?.trim() || "",
-    meetingDay: input.meetingDay?.trim() || "Mondays",
-    meetingTime: input.meetingTime?.trim() || "7:00 PM",
-    meetingLocation: input.meetingLocation?.trim() || input.charterOrg.trim(),
-    scoutmasterName: input.scoutmasterName.trim(),
-    scoutmasterEmail: input.scoutmasterEmail.trim().toLowerCase(),
-    committeeChairEmail: input.committeeChairEmail?.trim().toLowerCase() || "",
-    primaryColor: input.primaryColor || "#1d6b39",
-    accentColor: input.accentColor || "#caa54a",
-    plan: input.plan || "patrol",
-    isDemo: false,
-    createdAt: new Date().toISOString(),
-  };
+  const charterOrg = input.charterOrg.trim();
 
-  data.tenants[slug] = tenant;
-  return tenant;
+  const org = await prisma.org.create({
+    data: {
+      slug,
+      unitType: input.unitType,
+      unitNumber: String(input.unitNumber),
+      displayName: `${input.unitType} ${input.unitNumber}`,
+      tagline: input.tagline?.trim() || null,
+      charterOrg,
+      city: input.city.trim(),
+      state: input.state.trim(),
+      council: input.council?.trim() || null,
+      district: input.district?.trim() || null,
+      founded: input.founded?.trim() || null,
+      meetingDay: input.meetingDay?.trim() || "Mondays",
+      meetingTime: input.meetingTime?.trim() || "7:00 PM",
+      meetingLocation: input.meetingLocation?.trim() || charterOrg,
+      scoutmasterName: input.scoutmasterName.trim(),
+      scoutmasterEmail: input.scoutmasterEmail.trim().toLowerCase(),
+      committeeChairEmail: input.committeeChairEmail?.trim().toLowerCase() || null,
+      primaryColor: input.primaryColor || "#1d6b39",
+      accentColor: input.accentColor || "#caa54a",
+      plan: input.plan || "patrol",
+      isDemo: !!input.isDemo,
+    },
+  });
+
+  return org;
 }
 
 /* ------------------------------------------------------------------ */
-/* CLI mode: `node server/provision.js path/to/config.json`            */
+/* CLI: `node server/provision.js path/to/config.json`                 */
 /* ------------------------------------------------------------------ */
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === __filename;
@@ -113,16 +131,16 @@ if (isMain) {
     for (const e of errors) console.error("  -", e);
     process.exit(2);
   }
-  const data = JSON.parse(fs.readFileSync(TENANTS_FILE, "utf8"));
   try {
-    const tenant = provisionTenant(input, data);
-    fs.writeFileSync(TENANTS_FILE, JSON.stringify(data, null, 2));
-    console.log(`✓ Provisioned ${tenant.displayName}`);
-    console.log(`  URL:    https://${tenant.slug}.scouthosting.com`);
-    console.log(`  Slug:   ${tenant.slug}`);
-    console.log(`  Plan:   ${tenant.plan}`);
+    const org = await provisionOrg(input);
+    console.log(`✓ Provisioned ${org.displayName}`);
+    console.log(`  URL:    https://${org.slug}.scouthosting.com`);
+    console.log(`  Slug:   ${org.slug}`);
+    console.log(`  Plan:   ${org.plan}`);
   } catch (err) {
     console.error(`✗ ${err.message}`);
     process.exit(3);
+  } finally {
+    await prisma.$disconnect();
   }
 }

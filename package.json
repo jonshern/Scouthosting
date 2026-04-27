@@ -1,18 +1,37 @@
 {
   "name": "scouthosting",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Multi-tenant website platform for Scout units. A modern alternative to TroopWebHost.",
   "type": "module",
   "scripts": {
     "start": "node server/index.js",
     "dev": "node --watch server/index.js",
-    "provision": "node server/provision.js"
+    "provision": "node server/provision.js",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:generate": "prisma generate",
+    "db:seed": "node prisma/seed.js",
+    "db:reset": "prisma migrate reset --force"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "@lucia-auth/adapter-prisma": "^4.0.1",
+    "@node-rs/argon2": "^1.8.3",
+    "@prisma/client": "^5.22.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "lucia": "^3.2.2",
+    "oslo": "^1.2.1"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
   }
 }

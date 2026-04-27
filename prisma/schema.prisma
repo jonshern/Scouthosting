@@ -1,0 +1,199 @@
+// Scouthosting database schema.
+//
+// Single Postgres database, single schema. Tenant isolation is enforced at
+// the application layer via the `orgId` column on every org-scoped table.
+//
+// Deferred (tracked as [security] items in ROADMAP.md):
+//   - Postgres Row-Level Security policies on org-scoped tables
+//   - Per-tenant encryption keys
+//   - Field-level encryption for sensitive PII (medical, contact info)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------
+// Control plane
+// ------------------------------------------------------------------
+
+enum UnitType {
+  Troop
+  Pack
+  Crew
+  Ship
+  Post
+}
+
+enum Plan {
+  patrol
+  troop
+  council
+}
+
+enum Role {
+  scout
+  parent
+  leader
+  admin
+}
+
+model Org {
+  id                  String   @id @default(cuid())
+  slug                String   @unique
+  unitType            UnitType
+  unitNumber          String
+  displayName         String
+  tagline             String?
+  charterOrg          String
+  city                String
+  state               String
+  council             String?
+  district            String?
+  founded             String?
+  meetingDay          String   @default("Mondays")
+  meetingTime         String   @default("7:00 PM")
+  meetingLocation     String?
+  scoutmasterName     String
+  scoutmasterEmail    String
+  committeeChairEmail String?
+  primaryColor        String   @default("#1d6b39")
+  accentColor         String   @default("#caa54a")
+  plan                Plan     @default(patrol)
+  isDemo              Boolean  @default(false)
+  customDomain        String?  @unique
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  memberships OrgMembership[]
+  members     Member[]
+  events      Event[]
+  photos      Photo[]
+  forms       Form[]
+
+  @@index([plan])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?
+  displayName  String
+  emailVerified Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions    Session[]
+  memberships OrgMembership[]
+}
+
+// A user can belong to many orgs (parent with kids in two units, leader
+// who serves at council level, etc.). Each membership has a role within
+// that org.
+model OrgMembership {
+  id        String   @id @default(cuid())
+  userId    String
+  orgId     String
+  role      Role     @default(parent)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------------------
+// Org-scoped data (every row carries orgId)
+// ------------------------------------------------------------------
+
+model Member {
+  id           String   @id @default(cuid())
+  orgId        String
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  patrol       String?
+  position     String?  // SPL, ASPL, Patrol Leader, Scoutmaster, etc.
+  joinedAt     DateTime @default(now())
+  birthdate    DateTime?
+  isYouth      Boolean  @default(true)
+  dietaryFlags String[] @default([]) // e.g. ["vegetarian", "gluten-free"]
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@index([orgId, lastName])
+}
+
+model Event {
+  id              String   @id @default(cuid())
+  orgId           String
+  title           String
+  description     String?
+  startsAt        DateTime
+  endsAt          DateTime?
+  allDay          Boolean  @default(false)
+  location        String?
+  // For map links: stored verbatim and used to build Google/Apple/Waze URLs
+  // at render time.
+  locationAddress String?
+  cost            Int?     // dollars
+  capacity        Int?
+  signupRequired  Boolean  @default(false)
+  category        String?  // meeting, campout, service, court-of-honor...
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, startsAt])
+}
+
+model Photo {
+  id        String   @id @default(cuid())
+  orgId     String
+  album     String?  // event name or arbitrary album label
+  url       String
+  caption   String?
+  takenAt   DateTime?
+  createdAt DateTime @default(now())
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, album])
+}
+
+model Form {
+  id        String   @id @default(cuid())
+  orgId     String
+  title     String
+  url       String
+  category  String?  // health, permission, bylaws, welcome, ...
+  visibility String  @default("members") // public | members | leaders
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, category])
+}

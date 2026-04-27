@@ -8,6 +8,44 @@ design, an open API, and a clean migration path off TroopWebHost.
 
 ---
 
+## Legend
+
+Items in this roadmap may be tagged:
+
+- `[security]` — defers a security hardening we'll come back to. Treat the
+  collection of `[security]` items as the security backlog.
+- `[infra]` — deployment / operational work, not user-facing.
+- `[migration]` — work that helps units move off TroopWebHost.
+
+## Security backlog (deferred — `[security]`)
+
+We picked the simplest tenancy model (shared Postgres tables with `orgId`
+columns and app-layer enforcement) so we can move fast. These items are the
+defense-in-depth we'll come back to before any paid customer onboards real
+member data:
+
+- [ ] `[security]` Postgres Row-Level Security (RLS) policies on every
+      org-scoped table. App sets `app.org_id` per-request; policies enforce
+      `org_id = current_setting('app.org_id')::uuid`. Removes the class of
+      "forgot to filter by orgId" bugs entirely.
+- [ ] `[security]` Per-tenant encryption keys, envelope-encrypted with a
+      KMS-managed root key. Each org gets its own data key; compromise of
+      one org's data doesn't compromise others.
+- [ ] `[security]` Field-level encryption for sensitive PII (medical forms,
+      birthdates, phone numbers) using each org's data key. Search by
+      blind-indexed hashes only.
+- [ ] `[security]` Encrypted backups with separate per-org export bundles
+      (single `pg_dump --table=... --where="org_id=..."`).
+- [ ] `[security]` Audit log of every read/write to youth records.
+- [ ] `[security]` 2FA for leader/admin roles (mandatory) and parent role
+      (optional).
+- [ ] `[security]` Rate limiting (login, signup, /api/provision) and bot
+      protection on signup.
+- [ ] `[security]` CSP, Trusted Types, strict CORS, signed cookies.
+- [ ] `[security]` SOC 2 Type 1 audit and independent youth-data review
+      (graduated up from Phase 14).
+- [ ] `[security]` Penetration test before first paid council customer.
+
 ## Phase 0 — Marketing & demo (DONE in this commit)
 
 - [x] Public marketing site (`index.html`) — pitch, features, pricing, FAQ
@@ -17,40 +55,50 @@ design, an open API, and a clean migration path off TroopWebHost.
 - [x] Signup form + login page stubs
 - [x] This roadmap
 
-## Phase 1 — Multi-tenant scaffold (IN PROGRESS)
+## Phase 1 — Multi-tenant scaffold (DONE)
 
 The core architecture: one server, many troop sites, isolated by subdomain.
 
-- [x] Express server with subdomain-based tenant routing
-- [x] JSON tenant store (`server/tenants.json`)
+- [x] Express server with subdomain-based org routing
 - [x] Site template with `{{placeholders}}`
 - [x] Provisioning: HTTP `POST /api/provision` and `node server/provision.js`
 - [x] Signup form posts to provisioning endpoint, returns new site URL
 - [x] Marketing site served on the apex / `www` host
-- [x] Demo tenant pre-seeded for `troop100.localhost`
-- [ ] Per-tenant theme (logo, color) injected into template
-- [ ] Reserved-subdomain list (no `www`, `admin`, `api`, etc.)
+- [x] Demo org pre-seeded for `troop100.localhost`
+- [x] Reserved-subdomain list (no `www`, `admin`, `api`, etc.)
+- [ ] Per-org theme (logo, color) injected into template
 
-## Phase 2 — Identity & auth
+## Phase 2 — Database (DONE in this commit)
 
-Per-tenant accounts. A user account belongs to one tenant. Roles:
-`scout`, `parent`, `leader`, `admin`, `super` (Scouthosting staff).
+- [x] Postgres 16 via docker-compose
+- [x] Prisma schema: `Org`, `User`, `Session`, `OrgMembership`, `Member`,
+      `Event`, `Photo`, `Form`
+- [x] Single shared schema; `orgId` discriminator on every org-scoped table
+- [x] App-layer enforcement of org boundaries
+- [x] Demo org seeded via `prisma/seed.js`
+- [x] Provisioning rewritten to write to Prisma
+- [x] Org resolution in the server reads from Prisma
+- [ ] `[security]` Row-Level Security policies (see backlog)
+- [ ] `[infra]` Daily logical backups; per-org export-to-zip on demand
+- [ ] `[migration]` Importer that ingests TroopWebHost CSV/JSON exports
 
-- [ ] Sign-up email verification per tenant
-- [ ] Sessions / JWT, secure cookies, CSRF
-- [ ] Password reset
+## Phase 3 — Identity & auth (IN PROGRESS)
+
+A user account is global. Roles attach via `OrgMembership` (one user, many
+orgs). Roles: `scout`, `parent`, `leader`, `admin`. A super-admin role for
+Scouthosting staff lives outside this model.
+
+- [x] Lucia auth on the control plane, sessions in `public.Session`
+- [x] argon2id password hashing (`@node-rs/argon2`)
+- [x] `/api/auth/signup`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`
+- [ ] Email verification on signup
+- [ ] Magic-link login (passwordless)
+- [ ] Password reset flow
+- [ ] `[security]` 2FA for leader/admin roles
+- [ ] `[security]` CSRF protection on state-changing routes
 - [ ] Two-deep digital communication enforcement
 - [ ] Youth Protection guardrails (parent linkage, minor flags)
 - [ ] SSO with Google / Apple / Microsoft
-
-## Phase 3 — Database (Postgres)
-
-Replace JSON store with a real DB. Two-pronged tenant isolation strategy:
-
-- **Schema-per-tenant** for primary tables (members, events, photos, …)
-- **Shared `tenants` and `users` tables** in `public` for routing/auth
-- Migration tool (Knex / Prisma)
-- Daily logical backups per tenant; export-to-zip on demand
 
 ## Phase 4 — Calendar & events
 
