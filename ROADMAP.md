@@ -211,23 +211,27 @@ The most-used feature. Match TroopWebHost's coverage, then exceed it.
 
 Distinct from generic events: campouts and trips need provisioning logic.
 
-- [ ] **Headcount roll-up** from RSVPs + late adds, by patrol
-- [ ] **Meal plan builder** — choose meals per day (breakfast / lunch / dinner /
-      snacks), pick from a recipe library or write custom recipes
-- [ ] **Recipe scaling** — recipes stored per 1 person, auto-scaled to actual
-      headcount (with patrol-level scaling for patrol cooking)
-- [ ] **Auto-generated shopping list** aggregated across the whole trip,
-      grouped by aisle (produce, dry goods, dairy, meat…), exportable to PDF
-      or shareable link a parent can take to the store
-- [ ] **Dietary flags per Scout** (vegetarian, gluten-free, allergies) carried
-      into the meal plan; warnings if a meal violates a flag
-- [ ] **Cost estimate** per meal and per Scout; reconciles to the event fee
+- [x] **Headcount roll-up** from RSVPs ("yes" count) with leader override
+- [x] **Meal plan builder** — meals per event, recipe name, sortable
+- [x] **Recipe scaling** — ingredients stored as `quantityPerPerson`,
+      auto-scaled to the live headcount on every render
+- [x] **Auto shopping list** aggregated across the whole trip, summed by
+      `(name, unit)` across meals, grouped by category (Produce / Meat /
+      Dairy / Pantry / Drinks / Frozen / Bakery / Other), printable from
+      the public view
+- [x] **Dietary flags surface** — `Member.dietaryFlags` listed on the
+      plan page so cooks see allergy/diet constraints
+- [ ] **Recipe-level dietary tags** + automatic warnings when a meal
+      violates a flagged member's diet
+- [ ] **Cost estimate** per meal and per Scout; reconciles to the event
+      fee. (Add `unitCost` to Ingredient.)
 - [ ] **Gear / equipment checklist** for the trip with check-out from the
-      Quartermaster's catalog (Phase 10)
+      Quartermaster's catalog
 - [ ] **Driver / carpool plan** with seats available, who-rides-with-whom
-- [ ] **Tour plan** auto-fill (BSA Activity Consent forms pre-filled from the
-      member roster)
-- [ ] Recipe library shared across all tenants (community contributions)
+      (or fold into the SignupSlot model)
+- [ ] **Tour plan** auto-fill (BSA Activity Consent forms pre-filled from
+      the member roster)
+- [ ] **Recipe library** shared across all tenants (community contributions)
 
 ## Phase 5 — Membership
 

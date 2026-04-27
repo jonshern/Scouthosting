@@ -17,6 +17,7 @@ import {
   renderDirectory,
   renderPostsList,
   renderPostDetail,
+  renderTripPlan,
 } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
@@ -585,6 +586,45 @@ app.get("/events", async (req, res, next) => {
   res
     .set("Content-Type", "text/html; charset=utf-8")
     .send(renderEventsList(req.org, events));
+});
+
+// Members-only trip plan view.
+app.get("/events/:id/plan", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) {
+    return res.redirect(`/login?next=/events/${req.params.id}/plan`);
+  }
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (!role) return res.status(403).send("Members only");
+
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Event not found");
+
+  const plan = await prisma.tripPlan.findUnique({
+    where: { eventId: ev.id },
+    include: {
+      meals: {
+        orderBy: { sortOrder: "asc" },
+        include: { ingredients: { orderBy: { name: "asc" } } },
+      },
+    },
+  });
+
+  const yesCount = await prisma.rsvp.count({
+    where: { eventId: ev.id, response: "yes" },
+  });
+  const headcount = plan?.headcountOverride ?? yesCount;
+
+  const flagged = await prisma.member.findMany({
+    where: { orgId: req.org.id, dietaryFlags: { isEmpty: false } },
+    select: { firstName: true, lastName: true, dietaryFlags: true },
+  });
+
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderTripPlan(req.org, ev, plan, headcount, flagged));
 });
 
 // Public posts archive (paginated by createdAt desc).

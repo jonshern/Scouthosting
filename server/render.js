@@ -13,6 +13,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gcalAddUrl, outlookAddUrl, mapUrls } from "../lib/calendar.js";
+import { buildShoppingList } from "../lib/shoppingList.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -370,6 +371,12 @@ export function renderEventDetail(org, e, ctx = {}) {
 
     ${e.description ? `<div class="body">${textToHtml(e.description)}</div>` : ""}
 
+    ${
+      ctx.user
+        ? `<p style="margin-top:1.25rem"><a class="btn ghost" href="/events/${escapeHtml(e.id)}/plan">View trip plan &amp; shopping list →</a></p>`
+        : ""
+    }
+
     <p class="muted small" style="margin-top:2rem">
       Want every event in your phone calendar? <a href="/calendar.ics">Subscribe to the troop's calendar feed</a>.
     </p>
@@ -599,6 +606,116 @@ function renderFeed(posts) {
       </p>
     </div>
   </section>`;
+}
+
+export function renderTripPlan(org, ev, plan, headcount, flagged) {
+  const meals = plan?.meals || [];
+  const list = buildShoppingList(meals, headcount);
+
+  const mealCards = meals.length
+    ? meals
+        .map(
+          (m) => `
+      <article class="trip-meal">
+        <header>
+          <h3>${escapeHtml(m.name)}</h3>
+          ${m.recipeName ? `<p class="muted small">Recipe: ${escapeHtml(m.recipeName)}</p>` : ""}
+        </header>
+        ${
+          m.ingredients.length
+            ? `<table>
+                <thead><tr><th>Ingredient</th><th class="num">Per person</th><th class="num">For ${escapeHtml(String(headcount))}</th><th>Unit</th></tr></thead>
+                <tbody>${m.ingredients
+                  .map(
+                    (i) => `<tr>
+                      <td>${escapeHtml(i.name)}</td>
+                      <td class="num">${escapeHtml(String(i.quantityPerPerson))}</td>
+                      <td class="num"><strong>${escapeHtml(String(Math.round(i.quantityPerPerson * headcount * 100) / 100))}</strong></td>
+                      <td>${escapeHtml(i.unit)}</td>
+                    </tr>`
+                  )
+                  .join("")}</tbody>
+              </table>`
+            : `<p class="muted small">No ingredients yet.</p>`
+        }
+      </article>`
+        )
+        .join("")
+    : `<p class="muted">No meals planned yet.</p>`;
+
+  const shoppingHtml = list.length
+    ? list
+        .map(
+          (g) => `
+      <h3 style="margin:1.25rem 0 .35rem">${escapeHtml(g.category)}</h3>
+      <table class="shopping">
+        <thead><tr><th>Item</th><th class="num">Total</th><th>Unit</th><th>For</th></tr></thead>
+        <tbody>${g.items
+          .map(
+            (i) => `<tr>
+              <td>${escapeHtml(i.name)}</td>
+              <td class="num"><strong>${escapeHtml(String(i.quantity))}</strong></td>
+              <td>${escapeHtml(i.unit)}</td>
+              <td class="muted small">${escapeHtml(i.fromMeals.join(", "))}</td>
+            </tr>`
+          )
+          .join("")}</tbody>
+      </table>`
+        )
+        .join("")
+    : `<p class="muted">Add ingredients to a meal to start the shopping list.</p>`;
+
+  const flagsHtml = (flagged || []).length
+    ? `<ul style="margin:0;padding-left:1.25rem">
+        ${flagged
+          .map(
+            (m) => `<li><strong>${escapeHtml(m.firstName)} ${escapeHtml(
+              m.lastName
+            )}</strong>: ${m.dietaryFlags
+              .map((f) => `<span class="tag">${escapeHtml(f)}</span>`)
+              .join(" ")}</li>`
+          )
+          .join("")}
+      </ul>`
+    : `<p class="muted small">No dietary flags on the roster.</p>`;
+
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/events/${escapeHtml(ev.id)}">← ${escapeHtml(ev.title)}</a>
+      <h1>Trip plan</h1>
+      <p class="muted">Cooking for <strong>${escapeHtml(String(headcount))}</strong> · ${escapeHtml(
+        new Date(ev.startsAt).toLocaleDateString("en-US", {
+          weekday: "long",
+          month: "long",
+          day: "numeric",
+        })
+      )}</p>
+
+      <div class="trip-actions"><button class="btn ghost" onclick="window.print()">Print</button></div>
+
+      <h2 style="margin-top:1.5rem">Meals</h2>
+      ${mealCards}
+
+      <h2 style="margin-top:2rem">Shopping list</h2>
+      <div class="trip-shop">${shoppingHtml}</div>
+
+      <h2 style="margin-top:2rem">Dietary flags on the roster</h2>
+      <div class="trip-shop">${flagsHtml}</div>
+    </section>
+    <style>
+      .trip-actions{margin:.6rem 0 1rem}
+      .trip-meal{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1rem 1.25rem;margin-bottom:1rem;box-shadow:0 1px 2px rgba(15,58,31,.06),0 6px 18px rgba(15,58,31,.04)}
+      .trip-meal h3{margin:0 0 .15rem;font-size:1.1rem;font-family:Inter,sans-serif}
+      .trip-meal table,.trip-shop table.shopping{width:100%;border-collapse:collapse;margin-top:.5rem;font-size:.93rem}
+      .trip-meal th,.trip-shop th{text-align:left;padding:.4rem .55rem;border-bottom:1px solid #eef0e7;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);font-weight:600}
+      .trip-meal td,.trip-shop td{padding:.4rem .55rem;border-bottom:1px solid #eef0e7}
+      .trip-meal tr:last-child td,.trip-shop tr:last-child td{border-bottom:0}
+      .trip-meal .num,.trip-shop .num{text-align:right;font-variant-numeric:tabular-nums}
+      .trip-shop{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1.25rem 1.5rem;box-shadow:0 1px 2px rgba(15,58,31,.06),0 6px 18px rgba(15,58,31,.04)}
+      .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.78rem;color:var(--ink-500);margin-right:.25rem}
+      @media print{.site-header,.back,.trip-actions{display:none}.event-list{padding:0}}
+    </style>`;
+  return pageShell(org, `Trip plan · ${ev.title}`, body);
 }
 
 export function renderPostsList(org, posts) {

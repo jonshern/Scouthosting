@@ -81,6 +81,9 @@ model Org {
   rsvps         Rsvp[]
   slots         SignupSlot[]
   slotAssignments SlotAssignment[]
+  tripPlans     TripPlan[]
+  meals         Meal[]
+  ingredients   Ingredient[]
 
   @@index([plan])
 }
@@ -205,6 +208,7 @@ model Event {
   org   Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
   rsvps Rsvp[]
   slots SignupSlot[]
+  plan  TripPlan?
 
   @@index([orgId, startsAt])
 }
@@ -420,4 +424,59 @@ model PostPhoto {
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@index([orgId, postId, sortOrder])
+}
+
+// Trip & meal planner. One plan per Event. Headcount can be overridden,
+// otherwise derived from the count of yes-RSVPs at render time.
+model TripPlan {
+  id              String   @id @default(cuid())
+  orgId           String
+  eventId         String   @unique
+  headcountOverride Int?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  meals Meal[]
+
+  @@index([orgId])
+}
+
+model Meal {
+  id         String   @id @default(cuid())
+  orgId      String
+  tripPlanId String
+  name       String   // "Saturday breakfast"
+  recipeName String?  // "Foil packets", "Mac and cheese"
+  notes      String?
+  sortOrder  Int      @default(0)
+  servesAt   DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  org         Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tripPlan    TripPlan    @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+  ingredients Ingredient[]
+
+  @@index([orgId, tripPlanId, sortOrder])
+}
+
+model Ingredient {
+  id                String   @id @default(cuid())
+  orgId             String
+  mealId            String
+  name              String   // "Ground beef"
+  quantityPerPerson Float    // e.g., 0.25
+  unit              String   // "lb", "oz", "ea", "cup", ...
+  category          String?  // "Meat", "Produce", "Dairy", "Pantry", "Drinks", "Other"
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  org  Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, mealId])
 }

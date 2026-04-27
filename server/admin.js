@@ -18,6 +18,7 @@ import { moveFromTemp, remove as removeFile } from "../lib/storage.js";
 import { googleConfigured } from "../lib/oauth.js";
 import { sendBatch, mailDriver } from "../lib/mail.js";
 import { makeRsvpToken } from "../lib/rsvpToken.js";
+import { buildShoppingList, CATEGORY_ORDER } from "../lib/shoppingList.js";
 
 export const adminRouter = express.Router();
 
@@ -864,6 +865,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
       <div class="row">
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rsvps">RSVPs</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/slots">Sign-up sheet</a>
+        <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/plan">Trip plan</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/edit">Edit</a>
         <form class="inline" method="post" action="/admin/events/${escape(e.id)}/delete" onsubmit="return confirm('Delete this event?')">
           <button class="btn btn-danger small" type="submit">Delete</button>
@@ -1253,6 +1255,269 @@ adminRouter.post("/events/:id/slots/:slotId/delete", requireLeader, async (req, 
     where: { id: req.params.slotId, orgId: req.org.id, eventId: req.params.id },
   });
   res.redirect(`/admin/events/${req.params.id}/slots`);
+});
+
+/* ------------------------------------------------------------------ */
+/* Trip & meal planner                                                 */
+/* ------------------------------------------------------------------ */
+
+const UNITS = ["lb", "oz", "ea", "cup", "qt", "gal", "pt", "tsp", "tbsp", "pkg", "ct"];
+
+async function loadOrCreatePlan(eventId, orgId) {
+  const existing = await prisma.tripPlan.findUnique({
+    where: { eventId },
+    include: {
+      meals: {
+        orderBy: { sortOrder: "asc" },
+        include: { ingredients: { orderBy: { name: "asc" } } },
+      },
+    },
+  });
+  if (existing) return existing;
+  await prisma.tripPlan.create({ data: { orgId, eventId } });
+  return prisma.tripPlan.findUnique({
+    where: { eventId },
+    include: {
+      meals: {
+        orderBy: { sortOrder: "asc" },
+        include: { ingredients: { orderBy: { name: "asc" } } },
+      },
+    },
+  });
+}
+
+async function rsvpYesCount(eventId) {
+  return prisma.rsvp.count({ where: { eventId, response: "yes" } });
+}
+
+adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const plan = await loadOrCreatePlan(ev.id, req.org.id);
+  const yesCount = await rsvpYesCount(ev.id);
+  const headcount = plan.headcountOverride ?? yesCount;
+  const list = buildShoppingList(plan.meals, headcount);
+
+  // Members with dietary flags — surface to the planner.
+  const flagged = await prisma.member.findMany({
+    where: { orgId: req.org.id, dietaryFlags: { isEmpty: false } },
+    select: { firstName: true, lastName: true, dietaryFlags: true },
+  });
+
+  const unitOpts = UNITS.map((u) => `<option value="${escape(u)}">${escape(u)}</option>`).join("");
+  const catOpts = CATEGORY_ORDER.map(
+    (c) => `<option value="${escape(c)}">${escape(c)}</option>`
+  ).join("");
+
+  const renderMeal = (m) => {
+    const ingRows = m.ingredients
+      .map(
+        (i) => `
+        <tr>
+          <td>${escape(i.name)}</td>
+          <td class="num">${escape(String(i.quantityPerPerson))}</td>
+          <td>${escape(i.unit)}</td>
+          <td>${escape(i.category || "—")}</td>
+          <td>
+            <form class="inline" method="post" action="/admin/events/${escape(ev.id)}/plan/ingredients/${escape(i.id)}/delete">
+              <button class="btn btn-danger small" type="submit">×</button>
+            </form>
+          </td>
+        </tr>`
+      )
+      .join("");
+
+    return `
+    <article class="card" style="margin-bottom:1rem">
+      <div class="row" style="align-items:flex-start">
+        <div style="flex:1">
+          <h3 style="margin:0 0 .15rem">${escape(m.name)}</h3>
+          ${m.recipeName ? `<p class="muted small">Recipe: ${escape(m.recipeName)}</p>` : ""}
+          ${m.notes ? `<p class="muted small">${escape(m.notes)}</p>` : ""}
+        </div>
+        <form class="inline" method="post" action="/admin/events/${escape(ev.id)}/plan/meals/${escape(m.id)}/delete" onsubmit="return confirm('Delete this meal and its ingredients?')">
+          <button class="btn btn-danger small" type="submit">Delete meal</button>
+        </form>
+      </div>
+
+      ${
+        m.ingredients.length
+          ? `<table class="ing-table">
+              <thead><tr><th>Ingredient</th><th class="num">Per person</th><th>Unit</th><th>Category</th><th></th></tr></thead>
+              <tbody>${ingRows}</tbody>
+            </table>`
+          : `<p class="muted small">No ingredients yet.</p>`
+      }
+
+      <form method="post" action="/admin/events/${escape(ev.id)}/plan/meals/${escape(m.id)}/ingredients" class="ing-add">
+        <input name="name" type="text" required placeholder="Ingredient (e.g. Ground beef)" maxlength="80">
+        <input name="quantityPerPerson" type="number" required step="0.01" min="0" placeholder="Per person" style="width:7rem">
+        <select name="unit" required>${unitOpts}</select>
+        <select name="category"><option value="">— category —</option>${catOpts}</select>
+        <button class="btn btn-primary small" type="submit">Add</button>
+      </form>
+    </article>`;
+  };
+
+  const renderShopping = () => {
+    if (!list.length) return `<p class="muted">Add ingredients to a meal to start the shopping list.</p>`;
+    return list
+      .map(
+        (g) => `
+      <h3 style="margin:1rem 0 .35rem">${escape(g.category)}</h3>
+      <table class="ing-table">
+        <thead><tr><th>Item</th><th class="num">Total</th><th>Unit</th><th>For</th></tr></thead>
+        <tbody>${g.items
+          .map(
+            (i) => `
+          <tr>
+            <td>${escape(i.name)}</td>
+            <td class="num"><strong>${escape(String(i.quantity))}</strong></td>
+            <td>${escape(i.unit)}</td>
+            <td class="muted small">${escape(i.fromMeals.join(", "))}</td>
+          </tr>`
+          )
+          .join("")}</tbody>
+      </table>`
+      )
+      .join("");
+  };
+
+  const flagsHtml = flagged.length
+    ? flagged
+        .map(
+          (m) =>
+            `<li><strong>${escape(m.firstName)} ${escape(m.lastName)}</strong>: ${m.dietaryFlags
+              .map((f) => `<span class="tag">${escape(f)}</span>`)
+              .join(" ")}</li>`
+        )
+        .join("")
+    : `<li class="muted small">Nobody on the roster has dietary flags set.</li>`;
+
+  const body = `
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <h1>Trip plan · ${escape(ev.title)}</h1>
+
+    <form class="card" method="post" action="/admin/events/${escape(ev.id)}/plan" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
+      <div>
+        <strong>Headcount</strong>
+        <p class="muted small" style="margin:0">RSVP "yes" count: ${yesCount}</p>
+      </div>
+      <label style="margin:0">Override
+        <input name="headcountOverride" type="number" min="0" max="999" value="${escape(String(plan.headcountOverride ?? ""))}" style="width:6rem">
+      </label>
+      <button class="btn btn-primary" type="submit">Save</button>
+      <span class="muted small" style="margin-left:auto">Using <strong>${headcount}</strong> for the shopping list.</span>
+    </form>
+
+    <h2 style="margin-top:1.5rem">Meals</h2>
+    ${plan.meals.map(renderMeal).join("")}
+
+    <form class="card" method="post" action="/admin/events/${escape(ev.id)}/plan/meals">
+      <h3 style="margin-top:0">Add a meal</h3>
+      <div class="row">
+        <label style="margin:0;flex:1">Name<input name="name" type="text" required maxlength="60" placeholder="e.g. Saturday breakfast"></label>
+        <label style="margin:0;flex:1">Recipe (optional)<input name="recipeName" type="text" maxlength="80" placeholder="e.g. Foil packets"></label>
+      </div>
+      <button class="btn btn-primary" type="submit">Add meal</button>
+    </form>
+
+    <h2 style="margin-top:1.5rem">Shopping list</h2>
+    <div class="card">${renderShopping()}</div>
+
+    <h2 style="margin-top:1.5rem">Dietary flags on the roster</h2>
+    <div class="card"><ul style="margin:0;padding-left:1.25rem">${flagsHtml}</ul></div>
+
+    <p class="muted small" style="margin-top:1rem">Members can see the meal plan + shopping list at <code>/events/${escape(ev.id)}/plan</code> when signed in.</p>
+
+    <style>
+      .ing-table{width:100%;border-collapse:collapse;font-size:.93rem}
+      .ing-table th{text-align:left;padding:.4rem .55rem;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);font-weight:600}
+      .ing-table td{padding:.45rem .55rem;border-bottom:1px solid var(--line)}
+      .ing-table tr:last-child td{border-bottom:0}
+      .ing-table .num{text-align:right;font-variant-numeric:tabular-nums}
+      .ing-add{display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap}
+      .ing-add input,.ing-add select{padding:.45rem .55rem;border:1px solid var(--ink-300);border-radius:6px;font:inherit;flex:1;min-width:0}
+    </style>
+  `;
+  res.type("html").send(layout({ title: `Trip plan · ${ev.title}`, org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/events/:id/plan", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!ev) return res.status(404).send("Not found");
+  const raw = req.body?.headcountOverride;
+  const override = raw === "" || raw == null ? null : Math.max(0, Math.min(999, parseInt(raw, 10)));
+  await prisma.tripPlan.upsert({
+    where: { eventId: ev.id },
+    update: { headcountOverride: override },
+    create: { orgId: req.org.id, eventId: ev.id, headcountOverride: override },
+  });
+  res.redirect(`/admin/events/${ev.id}/plan`);
+});
+
+adminRouter.post("/events/:id/plan/meals", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!ev) return res.status(404).send("Not found");
+  const plan = await loadOrCreatePlan(ev.id, req.org.id);
+  const last = await prisma.meal.findFirst({
+    where: { tripPlanId: plan.id },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  await prisma.meal.create({
+    data: {
+      orgId: req.org.id,
+      tripPlanId: plan.id,
+      name: req.body?.name?.trim() || "Untitled",
+      recipeName: req.body?.recipeName?.trim() || null,
+      sortOrder: (last?.sortOrder ?? 0) + 1,
+    },
+  });
+  res.redirect(`/admin/events/${ev.id}/plan`);
+});
+
+adminRouter.post("/events/:id/plan/meals/:mealId/delete", requireLeader, async (req, res) => {
+  await prisma.meal.deleteMany({
+    where: { id: req.params.mealId, orgId: req.org.id },
+  });
+  res.redirect(`/admin/events/${req.params.id}/plan`);
+});
+
+adminRouter.post("/events/:id/plan/meals/:mealId/ingredients", requireLeader, async (req, res) => {
+  const meal = await prisma.meal.findFirst({
+    where: { id: req.params.mealId, orgId: req.org.id },
+    select: { id: true, tripPlan: { select: { eventId: true } } },
+  });
+  if (!meal || meal.tripPlan.eventId !== req.params.id) return res.status(404).send("Not found");
+  const qty = parseFloat(req.body?.quantityPerPerson);
+  await prisma.ingredient.create({
+    data: {
+      orgId: req.org.id,
+      mealId: meal.id,
+      name: req.body?.name?.trim() || "Untitled",
+      quantityPerPerson: Number.isFinite(qty) && qty >= 0 ? qty : 0,
+      unit: req.body?.unit?.trim() || "ea",
+      category: req.body?.category?.trim() || null,
+    },
+  });
+  res.redirect(`/admin/events/${req.params.id}/plan`);
+});
+
+adminRouter.post("/events/:id/plan/ingredients/:ingId/delete", requireLeader, async (req, res) => {
+  await prisma.ingredient.deleteMany({
+    where: { id: req.params.ingId, orgId: req.org.id },
+  });
+  res.redirect(`/admin/events/${req.params.id}/plan`);
 });
 
 /* ------------------------------------------------------------------ */
