@@ -126,12 +126,8 @@ Scouthosting staff lives outside this model.
 
 Captured in-flight; sequenced into the right phase later.
 
-- **RSVP from inside the email.** Event-reminder broadcasts include
-  per-recipient Yes / No / Maybe buttons. Each button is an HMAC-signed
-  link (`/rsvp/:token?response=yes`) so one click from the inbox records
-  the response — no login, no extra steps. Token encodes
-  `{eventId, name, email}` with a short expiry; we don't need a token
-  table on disk.
+- ~~RSVP from inside the email.~~ DONE (admin Send-RSVP-reminder action,
+  HMAC-signed `/rsvp/:token` endpoint).
 
 - **Activity feed (Facebook-like).** Subsume Announcements and Albums into
   a unified `Post` model with optional photo attachments. Reverse-chronological
@@ -179,13 +175,17 @@ The most-used feature. Match TroopWebHost's coverage, then exceed it.
 - [x] **Directions for every event** — Google Maps, Apple Maps, Waze
       links built from the event's address
 - [x] Public `/events` list + `/events/:id` detail page
-- [x] **RSVP** tracking — sign-in required, idempotent on (event, user),
-      yes / maybe / no with guest count and notes; counts surfaced on the
-      public event page and admin list with CSV export
+- [x] **RSVP** tracking — yes / maybe / no with guest count and notes;
+      counts surfaced on the public event page and admin list with CSV
+      export. Idempotent on (event, user) for signed-in users and on
+      (event, email) for anonymous form submissions.
+- [x] **RSVP without signing in** — anonymous form on the event page
+      (name + email) and one-click HMAC-signed `/rsvp/:token` links so
+      members can respond directly from the inbox.
+- [x] **Send-RSVP-reminder admin action** that emails per-member
+      personalized Yes / Maybe / Can't-make-it links for an event.
 - [x] Public `/login` + `/signup` on every org subdomain (any user, not
       leader-only); auto-creates `OrgMembership(role=parent)`
-- [ ] **RSVP from inside the email** (HMAC-signed Yes/No/Maybe links — no
-      login needed for inbox click-through)
 - [ ] Recurring events (RRULE)
 - [ ] Sign-up sheet **slots** (food, gear, "Bring drinks", "Drive 2 scouts")
 - [ ] Capacity enforcement at submit time + waitlist

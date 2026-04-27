@@ -302,27 +302,30 @@ function renderRsvpBlock({ event, user, myRsvp, counts, flash }) {
     ? `<div class="rsvp-flash rsvp-flash-${escapeHtml(flash.type || "ok")}">${escapeHtml(flash.message)}</div>`
     : "";
 
-  if (!user) {
-    return `
-    <div class="rsvp-card">
-      <h2>RSVP</h2>
-      ${summary}
-      <p class="muted">Sign in to let leaders know you're coming.</p>
-      <p>
-        <a class="btn primary" href="/login?next=/events/${escapeHtml(event.id)}">Sign in to RSVP</a>
-        <a class="btn ghost" href="/signup?next=/events/${escapeHtml(event.id)}">Create an account</a>
-      </p>
-    </div>`;
-  }
-
   const cur = myRsvp?.response || "";
   const sel = (v) => (cur === v ? " selected" : "");
+  const nameValue = escapeHtml(myRsvp?.name ?? user?.displayName ?? "");
+  const emailValue = escapeHtml(myRsvp?.email ?? user?.email ?? "");
+  const guestsValue = escapeHtml(String(myRsvp?.guests ?? 0));
+  const notesValue = escapeHtml(myRsvp?.notes ?? "");
+
+  // Anon users see name + email fields. Signed-in users get those
+  // pre-filled (as hidden values; we read them server-side from req.user).
+  const identityFields = user
+    ? `<p class="muted small" style="margin:.2rem 0 .8rem">Signed in as <strong>${escapeHtml(user.displayName)}</strong> · <a href="/logout" onclick="event.preventDefault();fetch('/logout',{method:'POST'}).then(()=>location.reload())">sign out</a></p>`
+    : `<div class="rsvp-row">
+        <label>Your name<input name="name" type="text" required maxlength="80" value="${nameValue}" autocomplete="name"></label>
+        <label>Email<input name="email" type="email" required maxlength="120" value="${emailValue}" autocomplete="email"></label>
+      </div>
+      <p class="muted small" style="margin:-.2rem 0 .8rem">Have an account? <a href="/login?next=/events/${escapeHtml(event.id)}">Sign in</a> to skip this.</p>`;
+
   return `
     <div class="rsvp-card">
       <h2>RSVP</h2>
       ${flashHtml}
       ${summary}
       <form method="post" action="/events/${escapeHtml(event.id)}/rsvp">
+        ${identityFields}
         <div class="rsvp-row">
           <label>
             Your response
@@ -334,16 +337,15 @@ function renderRsvpBlock({ event, user, myRsvp, counts, flash }) {
           </label>
           <label>
             Guests
-            <input name="guests" type="number" min="0" max="20" value="${escapeHtml(String(myRsvp?.guests ?? 0))}">
+            <input name="guests" type="number" min="0" max="20" value="${guestsValue}">
           </label>
         </div>
         <label>
           Notes (dietary, what you're bringing, anything else)
-          <textarea name="notes" rows="2" maxlength="500">${escapeHtml(myRsvp?.notes ?? "")}</textarea>
+          <textarea name="notes" rows="2" maxlength="500">${notesValue}</textarea>
         </label>
         <div class="rsvp-actions">
           <button class="btn primary" type="submit">${myRsvp ? "Update RSVP" : "Submit RSVP"}</button>
-          <span class="muted small">Signed in as ${escapeHtml(user.displayName)}</span>
         </div>
       </form>
     </div>`;

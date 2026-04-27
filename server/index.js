@@ -16,6 +16,7 @@ import * as storage from "../lib/storage.js";
 import { googleOAuth, googleConfigured, fetchGoogleProfile } from "../lib/oauth.js";
 import { generateState, generateCodeVerifier } from "arctic";
 import { icsFor, icsForOrg } from "../lib/calendar.js";
+import { verifyRsvpToken } from "../lib/rsvpToken.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -327,6 +328,30 @@ app.use("/admin", (req, res, next) => {
   return adminRouter(req, res, next);
 });
 
+function rsvpAck(org, { ok, message, eventId }) {
+  const escape = (s) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  const back = eventId ? `<p style="margin-top:1rem"><a href="/events/${escape(eventId)}">View event details →</a></p>` : "";
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${ok ? "Thanks!" : "RSVP error"} — ${escape(org.displayName)}</title>
+<link rel="stylesheet" href="/styles.css">
+<style>
+body{display:grid;place-items:center;min-height:100vh;padding:2rem;background:#fbf8ee}
+.card{max-width:480px;background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:2rem;text-align:center;box-shadow:0 12px 30px rgba(0,0,0,.05)}
+.card h1{font-family:Fraunces,serif;font-size:1.6rem;margin-top:0;color:${ok ? escape(org.primaryColor || "#1d6b39") : "#7d2614"}}
+</style>
+</head><body>
+<div class="card">
+<h1>${ok ? "Thanks!" : "We couldn't record your RSVP"}</h1>
+<p>${escape(message)}</p>
+${back}
+<p class="muted small" style="margin-top:1.25rem"><a href="/">Back to ${escape(org.displayName)}</a></p>
+</div></body></html>`;
+}
+
 /* ------------------ Public org login / signup --------------------- */
 
 // Org subdomains expose /login and /signup for any user (not leader-gated
@@ -615,44 +640,114 @@ async function loadEventContext(ev, user) {
   return { counts, myRsvp, user };
 }
 
-// RSVP submit. Requires sign-in. Auto-creates an OrgMembership(parent)
-// if the user doesn't have one yet.
+// RSVP submit.
+// - Signed-in users: idempotent on (eventId, userId).
+// - Anonymous users: required name + email; idempotent on (eventId, email).
 app.post("/events/:id/rsvp", async (req, res, next) => {
   if (!req.org) return next();
-  if (!req.user) {
-    return res.redirect(`/login?next=${encodeURIComponent(`/events/${req.params.id}`)}`);
-  }
   const ev = await prisma.event.findFirst({
     where: { id: req.params.id, orgId: req.org.id },
   });
   if (!ev) return res.status(404).send("Event not found");
 
-  await prisma.orgMembership.upsert({
-    where: { userId_orgId: { userId: req.user.id, orgId: req.org.id } },
-    update: {},
-    create: { userId: req.user.id, orgId: req.org.id, role: "parent" },
-  });
-
   const response = ["yes", "no", "maybe"].includes(req.body?.response) ? req.body.response : "yes";
   const guests = Math.max(0, Math.min(20, parseInt(req.body?.guests, 10) || 0));
   const notes = (req.body?.notes || "").toString().trim().slice(0, 500) || null;
 
+  if (req.user) {
+    // Signed-in path.
+    await prisma.orgMembership.upsert({
+      where: { userId_orgId: { userId: req.user.id, orgId: req.org.id } },
+      update: {},
+      create: { userId: req.user.id, orgId: req.org.id, role: "parent" },
+    });
+    await prisma.rsvp.upsert({
+      where: { eventId_userId: { eventId: ev.id, userId: req.user.id } },
+      update: { response, guests, notes },
+      create: {
+        orgId: req.org.id,
+        eventId: ev.id,
+        userId: req.user.id,
+        name: req.user.displayName,
+        email: req.user.email,
+        response,
+        guests,
+        notes,
+      },
+    });
+    return res.redirect(`/events/${ev.id}?rsvp=saved`);
+  }
+
+  // Anonymous path.
+  const name = (req.body?.name || "").toString().trim();
+  const email = (req.body?.email || "").toString().trim().toLowerCase();
+  if (!name || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return res.redirect(`/events/${ev.id}?rsvp=missing`);
+  }
   await prisma.rsvp.upsert({
-    where: { eventId_userId: { eventId: ev.id, userId: req.user.id } },
-    update: { response, guests, notes },
+    where: { eventId_email: { eventId: ev.id, email } },
+    update: { response, guests, notes, name },
     create: {
       orgId: req.org.id,
       eventId: ev.id,
-      userId: req.user.id,
-      name: req.user.displayName,
-      email: req.user.email,
+      name,
+      email,
       response,
       guests,
       notes,
     },
   });
-
   res.redirect(`/events/${ev.id}?rsvp=saved`);
+});
+
+// Email-link RSVP. The token encodes (eventId, name, email) + response,
+// HMAC-signed with RSVP_SECRET. One click from the inbox records the
+// response — no login. Tokens are short-lived (default 60 days) and
+// scoped to a single event so a leaked token can't be reused elsewhere.
+app.get("/rsvp/:token", async (req, res, next) => {
+  if (!req.org) return next();
+  const claims = verifyRsvpToken(req.params.token);
+  if (!claims) {
+    return res
+      .status(400)
+      .type("html")
+      .send(rsvpAck(req.org, { ok: false, message: "This RSVP link is invalid or expired." }));
+  }
+  const ev = await prisma.event.findFirst({
+    where: { id: claims.eventId, orgId: req.org.id },
+    select: { id: true, title: true, startsAt: true },
+  });
+  if (!ev) {
+    return res
+      .status(404)
+      .type("html")
+      .send(rsvpAck(req.org, { ok: false, message: "That event no longer exists." }));
+  }
+
+  const requested = String(req.query.response || "").toLowerCase();
+  const response = ["yes", "no", "maybe"].includes(requested) ? requested : "yes";
+
+  await prisma.rsvp.upsert({
+    where: { eventId_email: { eventId: ev.id, email: claims.email } },
+    update: { response, name: claims.name },
+    create: {
+      orgId: req.org.id,
+      eventId: ev.id,
+      name: claims.name,
+      email: claims.email,
+      response,
+    },
+  });
+
+  res
+    .type("html")
+    .send(
+      rsvpAck(req.org, {
+        ok: true,
+        message: `Thanks, ${claims.name}. We've recorded "${response === "yes" ? "Going" : response === "no" ? "Can't make it" : "Maybe"}" for ${ev.title}.`,
+        eventId: ev.id,
+      })
+    );
 });
 
 /* ------------------ Photo serving (org-scoped) -------------------- */

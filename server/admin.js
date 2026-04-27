@@ -17,6 +17,7 @@ import { lucia, verifyPassword, roleInOrg } from "../lib/auth.js";
 import { moveFromTemp, remove as removeFile } from "../lib/storage.js";
 import { googleConfigured } from "../lib/oauth.js";
 import { sendBatch, mailDriver } from "../lib/mail.js";
+import { makeRsvpToken } from "../lib/rsvpToken.js";
 
 export const adminRouter = express.Router();
 
@@ -958,12 +959,33 @@ adminRouter.get("/events/:id/rsvps", requireLeader, async (req, res) => {
     <h1>RSVPs · ${escape(ev.title)}</h1>
     <p class="muted">${escape(ev.startsAt.toLocaleString("en-US"))}${ev.location ? ` · ${escape(ev.location)}` : ""}</p>
 
-    <div class="card" style="display:flex;gap:2rem;align-items:center;margin-top:1rem">
+    ${
+      req.query.reminder
+        ? `<div class="flash flash-ok">Reminder sent to ${escape(String(req.query.reminder))} member${req.query.reminder === "1" ? "" : "s"}.</div>`
+        : ""
+    }
+
+    <div class="card" style="display:flex;gap:2rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
       <div><strong style="font-size:1.5rem">${counts.yes}</strong> <span class="muted">going${counts.totalGuests ? ` (+${counts.totalGuests} guests)` : ""}</span></div>
       <div><strong style="font-size:1.5rem">${counts.maybe}</strong> <span class="muted">maybe</span></div>
       <div><strong style="font-size:1.5rem">${counts.no}</strong> <span class="muted">can't make it</span></div>
       <a class="btn btn-ghost small" style="margin-left:auto" href="/admin/events/${escape(ev.id)}/rsvps.csv">Export CSV</a>
     </div>
+
+    <form class="card" method="post" action="/admin/events/${escape(ev.id)}/reminder" style="margin-top:1rem">
+      <h2 style="margin-top:0">Send one-click RSVP reminder</h2>
+      <p class="muted small">Each recipient gets a personalized email with Yes / Maybe / Can't-make-it buttons that record their response in one click — no login.</p>
+      <div class="row">
+        <label style="margin:0;flex:1">Audience
+          <select name="audience">
+            <option value="everyone">Everyone</option>
+            <option value="adults">Adults only</option>
+            <option value="youth">Youth only</option>
+          </select>
+        </label>
+        <button class="btn btn-primary" type="submit">Send reminder</button>
+      </div>
+    </form>
 
     ${renderGroup("Going", rsvps.filter((r) => r.response === "yes"))}
     ${renderGroup("Maybe", rsvps.filter((r) => r.response === "maybe"))}
@@ -972,6 +994,98 @@ adminRouter.get("/events/:id/rsvps", requireLeader, async (req, res) => {
     ${rsvps.length === 0 ? `<div class="empty" style="margin-top:1rem">No responses yet.</div>` : ""}
   `;
   res.type("html").send(layout({ title: `RSVPs · ${ev.title}`, org: req.org, user: req.user, body }));
+});
+
+// Send a one-click-RSVP reminder for an event. Composes a personalized
+// email per member with HMAC-signed Yes/No/Maybe links so recipients can
+// respond directly from their inbox without logging in.
+adminRouter.post("/events/:id/reminder", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const audience = req.body?.audience || "everyone";
+  const where = { orgId: req.org.id, email: { not: null } };
+  if (audience === "adults") where.isYouth = false;
+  else if (audience === "youth") where.isYouth = true;
+  else if (audience === "patrol" && req.body?.patrol) where.patrol = req.body.patrol;
+
+  const all = await prisma.member.findMany({ where });
+  const recipients = all.filter(
+    (m) => m.email && (m.commPreference === "email" || m.commPreference === "both")
+  );
+
+  const apex = process.env.APEX_DOMAIN || "scouthosting.com";
+  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+  const base = `${protocol}://${req.org.slug}.${apex}${
+    process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : ""
+  }`;
+
+  const when = ev.startsAt.toLocaleString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const messages = recipients.map((m) => {
+    const name = `${m.firstName} ${m.lastName}`;
+    const token = makeRsvpToken({ eventId: ev.id, name, email: m.email });
+    const yesUrl = `${base}/rsvp/${token}?response=yes`;
+    const noUrl = `${base}/rsvp/${token}?response=no`;
+    const maybeUrl = `${base}/rsvp/${token}?response=maybe`;
+    const eventUrl = `${base}/events/${ev.id}`;
+    const text = `Hi ${m.firstName},
+
+Quick RSVP for ${ev.title} — ${when}${ev.location ? ` at ${ev.location}` : ""}.
+
+  Going:        ${yesUrl}
+  Maybe:        ${maybeUrl}
+  Can't make it: ${noUrl}
+
+Event details: ${eventUrl}
+
+— ${req.org.displayName}`;
+    return {
+      to: m.email,
+      subject: `RSVP: ${ev.title}`,
+      text,
+      from: `${req.org.displayName} <noreply@${req.org.slug}.${apex}>`,
+      replyTo: req.user.email,
+    };
+  });
+
+  const result = await sendBatch(messages);
+
+  await prisma.mailLog.create({
+    data: {
+      orgId: req.org.id,
+      authorId: req.user.id,
+      subject: `RSVP: ${ev.title}`,
+      body: `Reminder with one-click Yes/No/Maybe links for ${ev.title}.`,
+      channel: "email",
+      audienceLabel:
+        audience === "patrol"
+          ? `Patrol: ${req.body?.patrol || "—"}`
+          : audience === "adults"
+          ? "Adults only"
+          : audience === "youth"
+          ? "Youth only"
+          : "Everyone",
+      recipientCount: result.sent,
+      status: result.errors.length === 0 ? "sent" : result.sent > 0 ? "partial" : "failed",
+      errors: result.errors.length ? JSON.stringify(result.errors) : null,
+      recipients: recipients.map((m) => ({
+        name: `${m.firstName} ${m.lastName}`,
+        email: m.email,
+        channel: "email",
+      })),
+    },
+  });
+
+  res.redirect(`/admin/events/${ev.id}/rsvps?reminder=${result.sent}`);
 });
 
 adminRouter.get("/events/:id/rsvps.csv", requireLeader, async (req, res) => {
