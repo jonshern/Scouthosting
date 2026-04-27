@@ -126,6 +126,13 @@ Scouthosting staff lives outside this model.
 
 Captured in-flight; sequenced into the right phase later.
 
+- **RSVP from inside the email.** Event-reminder broadcasts include
+  per-recipient Yes / No / Maybe buttons. Each button is an HMAC-signed
+  link (`/rsvp/:token?response=yes`) so one click from the inbox records
+  the response — no login, no extra steps. Token encodes
+  `{eventId, name, email}` with a short expiry; we don't need a token
+  table on disk.
+
 - **Activity feed (Facebook-like).** Subsume Announcements and Albums into
   a unified `Post` model with optional photo attachments. Reverse-chronological
   feed on the home page, comments scoped to the org's members. Public posts
@@ -172,9 +179,16 @@ The most-used feature. Match TroopWebHost's coverage, then exceed it.
 - [x] **Directions for every event** — Google Maps, Apple Maps, Waze
       links built from the event's address
 - [x] Public `/events` list + `/events/:id` detail page
+- [x] **RSVP** tracking — sign-in required, idempotent on (event, user),
+      yes / maybe / no with guest count and notes; counts surfaced on the
+      public event page and admin list with CSV export
+- [x] Public `/login` + `/signup` on every org subdomain (any user, not
+      leader-only); auto-creates `OrgMembership(role=parent)`
+- [ ] **RSVP from inside the email** (HMAC-signed Yes/No/Maybe links — no
+      login needed for inbox click-through)
 - [ ] Recurring events (RRULE)
-- [ ] Sign-up sheets (capacity, food choice, gear, slots)
-- [ ] RSVP tracking + reminders
+- [ ] Sign-up sheet **slots** (food, gear, "Bring drinks", "Drive 2 scouts")
+- [ ] Capacity enforcement at submit time + waitlist
 - [ ] Carpool sign-ups
 - [ ] **Two-way Google Calendar sync** (per-user) — additive; the ICS
       feed already covers the read path. This adds writes from inside

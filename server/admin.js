@@ -854,6 +854,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
   }</p>
       </div>
       <div class="row">
+        <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rsvps">RSVPs</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/edit">Edit</a>
         <form class="inline" method="post" action="/admin/events/${escape(e.id)}/delete" onsubmit="return confirm('Delete this event?')">
           <button class="btn btn-danger small" type="submit">Delete</button>
@@ -915,6 +916,88 @@ adminRouter.post("/events/:id/delete", requireLeader, async (req, res) => {
     where: { id: req.params.id, orgId: req.org.id },
   });
   res.redirect("/admin/events");
+});
+
+adminRouter.get("/events/:id/rsvps", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const rsvps = await prisma.rsvp.findMany({
+    where: { eventId: ev.id },
+    orderBy: [{ response: "asc" }, { createdAt: "asc" }],
+    include: { user: { select: { displayName: true, email: true } } },
+  });
+
+  const counts = { yes: 0, no: 0, maybe: 0, totalGuests: 0 };
+  for (const r of rsvps) {
+    counts[r.response]++;
+    if (r.response === "yes") counts.totalGuests += r.guests || 0;
+  }
+
+  const renderGroup = (label, list) =>
+    list.length
+      ? `<h2 style="margin-top:1.5rem">${escape(label)} (${list.length})</h2>
+        <ul class="items">${list
+          .map(
+            (r) => `
+          <li>
+            <div>
+              <h3>${escape(r.name)}${r.guests ? ` <span class="tag">+${r.guests} guest${r.guests === 1 ? "" : "s"}</span>` : ""}</h3>
+              <p class="muted small">${escape(r.email || "")}${r.notes ? ` · ${escape(r.notes)}` : ""}</p>
+            </div>
+            <div class="muted small">${escape(r.createdAt.toLocaleDateString("en-US"))}</div>
+          </li>`
+          )
+          .join("")}</ul>`
+      : "";
+
+  const body = `
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <h1>RSVPs · ${escape(ev.title)}</h1>
+    <p class="muted">${escape(ev.startsAt.toLocaleString("en-US"))}${ev.location ? ` · ${escape(ev.location)}` : ""}</p>
+
+    <div class="card" style="display:flex;gap:2rem;align-items:center;margin-top:1rem">
+      <div><strong style="font-size:1.5rem">${counts.yes}</strong> <span class="muted">going${counts.totalGuests ? ` (+${counts.totalGuests} guests)` : ""}</span></div>
+      <div><strong style="font-size:1.5rem">${counts.maybe}</strong> <span class="muted">maybe</span></div>
+      <div><strong style="font-size:1.5rem">${counts.no}</strong> <span class="muted">can't make it</span></div>
+      <a class="btn btn-ghost small" style="margin-left:auto" href="/admin/events/${escape(ev.id)}/rsvps.csv">Export CSV</a>
+    </div>
+
+    ${renderGroup("Going", rsvps.filter((r) => r.response === "yes"))}
+    ${renderGroup("Maybe", rsvps.filter((r) => r.response === "maybe"))}
+    ${renderGroup("Can't make it", rsvps.filter((r) => r.response === "no"))}
+
+    ${rsvps.length === 0 ? `<div class="empty" style="margin-top:1rem">No responses yet.</div>` : ""}
+  `;
+  res.type("html").send(layout({ title: `RSVPs · ${ev.title}`, org: req.org, user: req.user, body }));
+});
+
+adminRouter.get("/events/:id/rsvps.csv", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, title: true },
+  });
+  if (!ev) return res.status(404).send("Not found");
+  const rsvps = await prisma.rsvp.findMany({
+    where: { eventId: ev.id },
+    orderBy: [{ response: "asc" }, { createdAt: "asc" }],
+  });
+  const csvEscape = (v) => {
+    const s = String(v ?? "");
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const rows = [["Name", "Email", "Response", "Guests", "Notes", "RSVP'd at"]];
+  for (const r of rsvps) {
+    rows.push([r.name, r.email || "", r.response, r.guests, r.notes || "", r.createdAt.toISOString()]);
+  }
+  const csv = rows.map((r) => r.map(csvEscape).join(",")).join("\r\n") + "\r\n";
+  const safeTitle = ev.title.replace(/[^a-z0-9-_]+/gi, "-").slice(0, 60);
+  res
+    .set("Content-Type", "text/csv; charset=utf-8")
+    .set("Content-Disposition", `attachment; filename="rsvps-${safeTitle}.csv"`)
+    .send(csv);
 });
 
 /* ------------------------------------------------------------------ */

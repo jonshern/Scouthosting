@@ -77,6 +77,7 @@ model Org {
   forms       Form[]
   page        Page?
   announcements Announcement[]
+  rsvps         Rsvp[]
 
   @@index([plan])
 }
@@ -94,6 +95,7 @@ model User {
   memberships OrgMembership[]
   announcements Announcement[]
   oauthAccounts OAuthAccount[]
+  rsvps         Rsvp[]
 }
 
 // External identity provider linkage. One User can have multiple
@@ -169,7 +171,8 @@ model Member {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rsvps Rsvp[]
 
   @@index([orgId])
   @@index([orgId, lastName])
@@ -194,9 +197,36 @@ model Event {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rsvps Rsvp[]
 
   @@index([orgId, startsAt])
+}
+
+model Rsvp {
+  id        String   @id @default(cuid())
+  orgId     String
+  eventId   String
+  userId    String?  // signed-in user (preferred path)
+  memberId  String?  // optional link to the directory entry
+  name      String
+  email     String?
+  response  String   @default("yes") // yes | no | maybe
+  guests    Int      @default(0)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org    Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  // Idempotent on (eventId, userId) when the user signed in, and on
+  // (eventId, lower(email)) for anonymous email-link RSVPs.
+  @@unique([eventId, userId])
+  @@unique([eventId, email])
+  @@index([orgId, eventId])
 }
 
 model Album {

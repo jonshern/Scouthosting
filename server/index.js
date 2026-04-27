@@ -327,6 +327,191 @@ app.use("/admin", (req, res, next) => {
   return adminRouter(req, res, next);
 });
 
+/* ------------------ Public org login / signup --------------------- */
+
+// Org subdomains expose /login and /signup for any user (not leader-gated
+// like /admin/login). Used by visitors who want to RSVP, view the
+// member directory, etc. Auto-creates an OrgMembership(role=parent) on
+// signup so the new user is associated with this org.
+
+function publicLoginPage(org, { error, next, googleConfigured: gc, mode = "login" }) {
+  const apex = (process.env.APEX_DOMAIN || "scouthosting.com").toLowerCase();
+  const escape = (s) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  const errHtml = error ? `<div class="flash-err">${escape(error)}</div>` : "";
+  const nextEnc = encodeURIComponent(next || "/");
+  const isLogin = mode === "login";
+  const otherMode = isLogin ? "signup" : "login";
+  const otherCopy = isLogin ? "Don't have an account? Sign up" : "Already have an account? Sign in";
+
+  const googleHtml = gc
+    ? `<a class="btn-google" href="https://${apex}/auth/google/start?next=${nextEnc.replace(/^\/?/, encodeURIComponent("https://" + (org.slug + "." + apex)))}">
+  <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+    <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.49h4.84c-.21 1.13-.84 2.08-1.79 2.72v2.26h2.9c1.7-1.56 2.69-3.87 2.69-6.63z"/>
+    <path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.9-2.26c-.81.54-1.84.86-3.06.86-2.36 0-4.36-1.6-5.07-3.74H.96v2.34A9 9 0 0 0 9 18z"/>
+    <path fill="#FBBC05" d="M3.93 10.68A5.4 5.4 0 0 1 3.64 9c0-.58.1-1.15.29-1.68V4.98H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.02l2.97-2.34z"/>
+    <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A8.99 8.99 0 0 0 9 0 9 9 0 0 0 .96 4.98l2.97 2.34C4.64 5.18 6.64 3.58 9 3.58z"/>
+  </svg>
+  <span>Continue with Google</span>
+</a>
+<div class="divider"><span>or with email</span></div>`
+    : "";
+
+  const nameField = isLogin
+    ? ""
+    : `<label>Your name<input name="displayName" type="text" required maxlength="80" autocomplete="name"></label>`;
+  const action = isLogin ? "/login" : "/signup";
+  const submit = isLogin ? "Sign in" : "Create account";
+
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escape(isLogin ? "Sign in" : "Sign up")} — ${escape(org.displayName)}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;color:#15181c;background:#fbf8ee;display:grid;place-items:center;min-height:100vh;padding:2rem}
+.card{max-width:420px;width:100%;background:#fff;border:1px solid #e6ebe2;border-radius:14px;padding:2rem;box-shadow:0 12px 30px rgba(0,0,0,.05)}
+h1{font-family:Fraunces,Georgia,serif;font-size:1.6rem;margin:0 0 .25rem}
+p.lede{color:#6b7280;margin:0 0 1.25rem;font-size:.95rem}
+label{display:block;margin:0 0 1rem;font-size:.9rem;font-weight:500}
+input{display:block;width:100%;margin-top:.3rem;padding:.65rem .75rem;border:1px solid #c8ccd4;border-radius:8px;font:inherit}
+.btn{display:block;width:100%;padding:.75rem;border-radius:9px;border:0;background:${escape(org.primaryColor || "#1d6b39")};color:#fff;font-weight:600;cursor:pointer;font-size:.95rem;margin-top:.5rem}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;padding:.75rem;border-radius:9px;border:1px solid #c8ccd4;background:#fff;color:#15181c;text-decoration:none;font-weight:500;font-size:.95rem}
+.btn-google:hover{border-color:#15181c;background:#f7f8f3}
+.divider{display:flex;align-items:center;gap:.75rem;color:#6b7280;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;margin:1.1rem 0}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:#eef0e7}
+.flash-err{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:.65rem 1rem;border-radius:9px;margin-bottom:1rem;font-size:.92rem}
+small.help{display:block;color:#6b7280;margin-top:1rem;font-size:.85rem;text-align:center}
+small.help a{color:${escape(org.primaryColor || "#1d6b39")}}
+</style></head><body>
+<div class="card">
+<h1>${escape(org.displayName)}</h1>
+<p class="lede">${escape(isLogin ? "Sign in to RSVP and view the directory." : "Create an account to RSVP for events.")}</p>
+${errHtml}
+${googleHtml}
+<form method="post" action="${escape(action)}?next=${escape(nextEnc)}" autocomplete="on">
+${nameField}
+<label>Email<input name="email" type="email" required autocomplete="email"></label>
+<label>Password<input name="password" type="password" required autocomplete="${isLogin ? "current-password" : "new-password"}" minlength="${isLogin ? "1" : "12"}"></label>
+<button class="btn" type="submit">${escape(submit)}</button>
+</form>
+<small class="help"><a href="/${escape(otherMode)}?next=${escape(nextEnc)}">${escape(otherCopy)}</a></small>
+</div></body></html>`;
+}
+
+async function ensureMembership(userId, orgId, defaultRole = "parent") {
+  await prisma.orgMembership.upsert({
+    where: { userId_orgId: { userId, orgId } },
+    update: {},
+    create: { userId, orgId, role: defaultRole },
+  });
+}
+
+function safeNext(nextRaw) {
+  const n = String(nextRaw || "/");
+  return n.startsWith("/") && !n.startsWith("//") ? n : "/";
+}
+
+app.get("/login", (req, res, next) => {
+  if (!req.org) return next();
+  if (req.user) return res.redirect(safeNext(req.query.next));
+  res.type("html").send(
+    publicLoginPage(req.org, {
+      next: req.query.next,
+      googleConfigured,
+      mode: "login",
+    })
+  );
+});
+
+app.post("/login", async (req, res, next) => {
+  if (!req.org) return next();
+  const { email, password } = req.body || {};
+  const nextUrl = safeNext(req.query.next);
+  if (!email || !password) {
+    return res.type("html").send(
+      publicLoginPage(req.org, { error: "Email and password required.", next: nextUrl, googleConfigured, mode: "login" })
+    );
+  }
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  if (!user || !user.passwordHash) {
+    return res.type("html").send(
+      publicLoginPage(req.org, { error: "Invalid credentials.", next: nextUrl, googleConfigured, mode: "login" })
+    );
+  }
+  if (!(await verifyPassword(user.passwordHash, password))) {
+    return res.type("html").send(
+      publicLoginPage(req.org, { error: "Invalid credentials.", next: nextUrl, googleConfigured, mode: "login" })
+    );
+  }
+  await ensureMembership(user.id, req.org.id, "parent");
+  const session = await lucia.createSession(user.id, {});
+  res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
+  res.redirect(nextUrl);
+});
+
+app.get("/signup", (req, res, next) => {
+  if (!req.org) return next();
+  if (req.user) return res.redirect(safeNext(req.query.next));
+  res.type("html").send(
+    publicLoginPage(req.org, {
+      next: req.query.next,
+      googleConfigured,
+      mode: "signup",
+    })
+  );
+});
+
+app.post("/signup", async (req, res, next) => {
+  if (!req.org) return next();
+  const { email, password, displayName } = req.body || {};
+  const nextUrl = safeNext(req.query.next);
+  if (!email || !password || !displayName) {
+    return res.type("html").send(
+      publicLoginPage(req.org, { error: "Name, email, and password required.", next: nextUrl, googleConfigured, mode: "signup" })
+    );
+  }
+  if (password.length < 12) {
+    return res.type("html").send(
+      publicLoginPage(req.org, { error: "Password must be at least 12 characters.", next: nextUrl, googleConfigured, mode: "signup" })
+    );
+  }
+  const lower = email.toLowerCase();
+  const existing = await prisma.user.findUnique({ where: { email: lower } });
+  if (existing) {
+    return res.type("html").send(
+      publicLoginPage(req.org, { error: "An account already exists for that email — sign in instead.", next: nextUrl, googleConfigured, mode: "login" })
+    );
+  }
+  const user = await prisma.user.create({
+    data: { email: lower, displayName, passwordHash: await hashPassword(password) },
+  });
+
+  // If this email matches an Org's scoutmasterEmail, grant admin in those
+  // orgs (founding-leader claim path); otherwise grant parent here.
+  const ownedOrgs = await prisma.org.findMany({ where: { scoutmasterEmail: lower }, select: { id: true } });
+  if (ownedOrgs.length) {
+    await prisma.orgMembership.createMany({
+      data: ownedOrgs.map((o) => ({ userId: user.id, orgId: o.id, role: "admin" })),
+      skipDuplicates: true,
+    });
+  }
+  await ensureMembership(user.id, req.org.id, ownedOrgs.some((o) => o.id === req.org.id) ? "admin" : "parent");
+
+  const session = await lucia.createSession(user.id, {});
+  res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
+  res.redirect(nextUrl);
+});
+
+app.post("/logout", async (req, res, next) => {
+  if (!req.org) return next();
+  if (req.session) await lucia.invalidateSession(req.session.id);
+  res.appendHeader("Set-Cookie", lucia.createBlankSessionCookie().serialize());
+  res.redirect("/");
+});
+
 /* ------------------ Calendar feeds + event pages ------------------ */
 
 // Subscribable feed for the org. Calendar apps poll this; updates in our
@@ -403,9 +588,71 @@ app.get("/events/:id", async (req, res, next) => {
     where: { id: req.params.id, orgId: req.org.id },
   });
   if (!ev) return res.status(404).send("Event not found");
+
+  const ctx = await loadEventContext(ev, req.user);
+  if (req.query.rsvp === "saved") ctx.flash = { type: "ok", message: "RSVP saved." };
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderEventDetail(req.org, ev));
+    .send(renderEventDetail(req.org, ev, ctx));
+});
+
+async function loadEventContext(ev, user) {
+  const grouped = await prisma.rsvp.groupBy({
+    by: ["response"],
+    where: { eventId: ev.id },
+    _count: { _all: true },
+    _sum: { guests: true },
+  });
+  const counts = { yes: 0, no: 0, maybe: 0, total: 0, totalGuests: 0 };
+  for (const g of grouped) {
+    counts[g.response] = g._count._all;
+    counts.total += g._count._all;
+    if (g.response === "yes") counts.totalGuests += g._sum.guests || 0;
+  }
+  const myRsvp = user
+    ? await prisma.rsvp.findUnique({ where: { eventId_userId: { eventId: ev.id, userId: user.id } } })
+    : null;
+  return { counts, myRsvp, user };
+}
+
+// RSVP submit. Requires sign-in. Auto-creates an OrgMembership(parent)
+// if the user doesn't have one yet.
+app.post("/events/:id/rsvp", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) {
+    return res.redirect(`/login?next=${encodeURIComponent(`/events/${req.params.id}`)}`);
+  }
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Event not found");
+
+  await prisma.orgMembership.upsert({
+    where: { userId_orgId: { userId: req.user.id, orgId: req.org.id } },
+    update: {},
+    create: { userId: req.user.id, orgId: req.org.id, role: "parent" },
+  });
+
+  const response = ["yes", "no", "maybe"].includes(req.body?.response) ? req.body.response : "yes";
+  const guests = Math.max(0, Math.min(20, parseInt(req.body?.guests, 10) || 0));
+  const notes = (req.body?.notes || "").toString().trim().slice(0, 500) || null;
+
+  await prisma.rsvp.upsert({
+    where: { eventId_userId: { eventId: ev.id, userId: req.user.id } },
+    update: { response, guests, notes },
+    create: {
+      orgId: req.org.id,
+      eventId: ev.id,
+      userId: req.user.id,
+      name: req.user.displayName,
+      email: req.user.email,
+      response,
+      guests,
+      notes,
+    },
+  });
+
+  res.redirect(`/events/${ev.id}?rsvp=saved`);
 });
 
 /* ------------------ Photo serving (org-scoped) -------------------- */

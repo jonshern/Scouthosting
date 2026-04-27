@@ -180,6 +180,20 @@ function pageShell(org, title, body) {
 .event-detail .meta dt{font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-500);font-weight:600}
 .event-detail .meta dd{margin:0;font-weight:500}
 .event-detail .actions{display:flex;gap:.5rem;flex-wrap:wrap;margin:1rem 0 2rem}
+.rsvp-card{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1.5rem;box-shadow:0 1px 2px rgba(15,58,31,.06),0 8px 24px rgba(15,58,31,.06);margin:1rem 0 2rem}
+.rsvp-card h2{margin-top:0;font-size:1.4rem}
+.rsvp-card form{margin-top:.75rem}
+.rsvp-row{display:flex;gap:1rem;margin-bottom:.6rem}
+.rsvp-row label{flex:1}
+.rsvp-card label{display:block;font-size:.88rem;font-weight:500;color:var(--ink-700);margin-bottom:.55rem}
+.rsvp-card input,.rsvp-card select,.rsvp-card textarea{display:block;width:100%;margin-top:.3rem;padding:.55rem .7rem;border:1px solid var(--ink-300);border-radius:8px;font:inherit;background:#fff;color:var(--ink-900)}
+.rsvp-card input:focus,.rsvp-card select:focus,.rsvp-card textarea:focus{outline:2px solid var(--green-700);outline-offset:1px;border-color:var(--green-700)}
+.rsvp-actions{display:flex;align-items:center;gap:.75rem;margin-top:.4rem}
+.rsvp-counts{display:flex;gap:1.5rem;margin:.4rem 0 .8rem;color:var(--ink-700);font-size:.95rem}
+.rsvp-counts strong{color:var(--ink-900)}
+.rsvp-flash{padding:.55rem .85rem;border-radius:8px;margin-bottom:.8rem;font-size:.9rem}
+.rsvp-flash-ok{background:#eaf6ec;border:1px solid #b9dec1;color:#15532b}
+.rsvp-flash-err{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614}
 .event-detail .map-actions{display:flex;gap:.4rem;flex-wrap:wrap;margin-top:.4rem}
 .event-detail .map-actions a{font-size:.85rem;padding:.4rem .7rem}
 .event-detail .body{max-width:65ch;line-height:1.65}
@@ -210,7 +224,7 @@ function pageShell(org, title, body) {
 </html>`;
 }
 
-export function renderEventDetail(org, e) {
+export function renderEventDetail(org, e, ctx = {}) {
   const start = new Date(e.startsAt);
   const end = e.endsAt ? new Date(e.endsAt) : null;
   const sameDay = end && start.toDateString() === end.toDateString();
@@ -232,11 +246,20 @@ export function renderEventDetail(org, e) {
       </div>`
     : "";
 
+  const counts = ctx.counts || { yes: 0, no: 0, maybe: 0, total: 0, totalGuests: 0 };
+  const myRsvp = ctx.myRsvp || null;
+  const user = ctx.user || null;
+  const flash = ctx.flash || null;
+
+  const rsvpBlock = renderRsvpBlock({ event: e, user, myRsvp, counts, flash });
+
   const body = `
   <section class="event-detail">
     <a class="back" href="/events">← All events</a>
     <h1>${escapeHtml(e.title)}</h1>
     ${e.category ? `<p class="muted small" style="margin-top:-.4rem">${escapeHtml(e.category)}</p>` : ""}
+
+    ${rsvpBlock}
 
     <div class="actions">
       <a class="btn primary" href="${escapeHtml(gcal)}" target="_blank" rel="noopener">Add to Google Calendar</a>
@@ -265,6 +288,65 @@ export function renderEventDetail(org, e) {
     </p>
   </section>`;
   return pageShell(org, e.title, body);
+}
+
+function renderRsvpBlock({ event, user, myRsvp, counts, flash }) {
+  const summary = `
+    <div class="rsvp-counts">
+      <span><strong>${counts.yes}</strong> going${counts.totalGuests ? ` (+${counts.totalGuests} guests)` : ""}</span>
+      <span><strong>${counts.maybe}</strong> maybe</span>
+      <span><strong>${counts.no}</strong> can't make it</span>
+    </div>`;
+
+  const flashHtml = flash
+    ? `<div class="rsvp-flash rsvp-flash-${escapeHtml(flash.type || "ok")}">${escapeHtml(flash.message)}</div>`
+    : "";
+
+  if (!user) {
+    return `
+    <div class="rsvp-card">
+      <h2>RSVP</h2>
+      ${summary}
+      <p class="muted">Sign in to let leaders know you're coming.</p>
+      <p>
+        <a class="btn primary" href="/login?next=/events/${escapeHtml(event.id)}">Sign in to RSVP</a>
+        <a class="btn ghost" href="/signup?next=/events/${escapeHtml(event.id)}">Create an account</a>
+      </p>
+    </div>`;
+  }
+
+  const cur = myRsvp?.response || "";
+  const sel = (v) => (cur === v ? " selected" : "");
+  return `
+    <div class="rsvp-card">
+      <h2>RSVP</h2>
+      ${flashHtml}
+      ${summary}
+      <form method="post" action="/events/${escapeHtml(event.id)}/rsvp">
+        <div class="rsvp-row">
+          <label>
+            Your response
+            <select name="response">
+              <option value="yes"${sel("yes")}>Going</option>
+              <option value="maybe"${sel("maybe")}>Maybe</option>
+              <option value="no"${sel("no")}>Can't make it</option>
+            </select>
+          </label>
+          <label>
+            Guests
+            <input name="guests" type="number" min="0" max="20" value="${escapeHtml(String(myRsvp?.guests ?? 0))}">
+          </label>
+        </div>
+        <label>
+          Notes (dietary, what you're bringing, anything else)
+          <textarea name="notes" rows="2" maxlength="500">${escapeHtml(myRsvp?.notes ?? "")}</textarea>
+        </label>
+        <div class="rsvp-actions">
+          <button class="btn primary" type="submit">${myRsvp ? "Update RSVP" : "Submit RSVP"}</button>
+          <span class="muted small">Signed in as ${escapeHtml(user.displayName)}</span>
+        </div>
+      </form>
+    </div>`;
 }
 
 export function renderDirectory(org, members, { needsSignIn, notAMember, role } = {}) {
