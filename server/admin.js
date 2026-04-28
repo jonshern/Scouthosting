@@ -166,6 +166,7 @@ form.inline{display:inline}
     <a href="/admin/forms">Forms &amp; documents</a>
     <a href="/admin/members">Members</a>
     <a href="/admin/equipment">Equipment</a>
+    <a href="/admin/eagle">Eagle Scouts</a>
     <a href="/admin/surveys">Surveys</a>
     <a href="/admin/email">Email broadcast</a>
     <a href="/" target="_blank">View public site ↗</a>
@@ -986,6 +987,11 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rsvps">RSVPs</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/slots">Sign-up sheet</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/plan">Trip plan</a>
+        ${
+          e.category === "Court of Honor"
+            ? `<a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/program">Program</a>`
+            : ""
+        }
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/edit">Edit</a>
         <form class="inline" method="post" action="/admin/events/${escape(e.id)}/delete" onsubmit="return confirm('Delete this event?')">
           <button class="btn btn-danger small" type="submit">Delete</button>
@@ -3177,6 +3183,376 @@ adminRouter.post("/equipment/:id/delete", requireLeader, async (req, res) => {
     where: { id: req.params.id, orgId: req.org.id },
   });
   res.redirect("/admin/equipment");
+});
+
+/* ------------------------------------------------------------------ */
+/* Eagle Scouts (public list) + Eagle project workflow                 */
+/* ------------------------------------------------------------------ */
+
+const PROJECT_STATUSES = ["idea", "proposal", "approved", "in-progress", "complete"];
+
+adminRouter.get("/eagle", requireLeader, async (req, res) => {
+  const [eagles, projects] = await Promise.all([
+    prisma.eagleScout.findMany({
+      where: { orgId: req.org.id },
+      orderBy: [{ earnedAt: "desc" }, { lastName: "asc" }],
+    }),
+    prisma.eagleProject.findMany({
+      where: { orgId: req.org.id },
+      orderBy: [{ status: "asc" }, { createdAt: "desc" }],
+    }),
+  ]);
+
+  const eagleRows = eagles
+    .map(
+      (e) => `
+      <li>
+        <div style="flex:1">
+          <h3>${escape(e.firstName)} ${escape(e.lastName)}</h3>
+          <p class="muted small">
+            <span class="tag">${escape(e.earnedAt.toISOString().slice(0, 10))}</span>
+            ${e.projectName ? `${escape(e.projectName)}` : ""}
+          </p>
+        </div>
+        <div class="row">
+          <a class="btn btn-ghost small" href="/admin/eagle/${escape(e.id)}/edit">Edit</a>
+          <form class="inline" method="post" action="/admin/eagle/${escape(e.id)}/delete" onsubmit="return confirm('Remove this Eagle from the public list?')">
+            <button class="btn btn-danger small" type="submit">Delete</button>
+          </form>
+        </div>
+      </li>`
+    )
+    .join("");
+
+  const projRows = projects
+    .map(
+      (p) => `
+      <li>
+        <div style="flex:1">
+          <h3>${escape(p.scoutName)}${p.beneficiary ? ` — ${escape(p.beneficiary)}` : ""}</h3>
+          <p class="muted small">
+            <span class="tag">${escape(p.status)}</span>
+            ${p.mentorName ? `mentor: ${escape(p.mentorName)} · ` : ""}
+            ${p.completedAt ? `completed ${escape(p.completedAt.toISOString().slice(0, 10))}` : p.startedAt ? `started ${escape(p.startedAt.toISOString().slice(0, 10))}` : ""}
+            ${p.workbookUrl ? ` · <a href="${escape(p.workbookUrl)}" target="_blank" rel="noopener">workbook ↗</a>` : ""}
+          </p>
+        </div>
+        <div class="row">
+          <a class="btn btn-ghost small" href="/admin/eagle/projects/${escape(p.id)}/edit">Edit</a>
+          <form class="inline" method="post" action="/admin/eagle/projects/${escape(p.id)}/delete" onsubmit="return confirm('Delete this project?')">
+            <button class="btn btn-danger small" type="submit">Delete</button>
+          </form>
+        </div>
+      </li>`
+    )
+    .join("");
+
+  const statusOpts = PROJECT_STATUSES.map(
+    (s) => `<option value="${escape(s)}">${escape(s)}</option>`
+  ).join("");
+
+  const body = `
+    <h1>Eagle Scouts</h1>
+    <p class="muted">Two surfaces: a public list of every Eagle from your unit, and an internal workflow tracker for in-progress projects. Advancement records still live in <strong>Scoutbook</strong> — this is just the project-management layer.</p>
+
+    <h2 style="margin-top:1.25rem">Public Eagle list</h2>
+    <p class="muted small">Shown at <a href="/eagles" target="_blank" rel="noopener">/eagles</a>.</p>
+
+    <form class="card" method="post" action="/admin/eagle">
+      <div class="row">
+        <label style="margin:0;flex:1">First name<input name="firstName" type="text" required maxlength="60"></label>
+        <label style="margin:0;flex:1">Last name<input name="lastName" type="text" required maxlength="60"></label>
+        <label style="margin:0;flex:1">Earned (date)<input name="earnedAt" type="date" required></label>
+      </div>
+      <label>Project (optional)<input name="projectName" type="text" maxlength="120" placeholder="e.g. Built a trail bench at the nature center"></label>
+      <button class="btn btn-primary" type="submit">Add Eagle</button>
+    </form>
+
+    ${eagles.length ? `<ul class="items">${eagleRows}</ul>` : `<div class="empty" style="margin-top:1rem">No Eagles on the list yet.</div>`}
+
+    <h2 style="margin-top:2rem">Project workflow</h2>
+    <p class="muted small">Idea → proposal → approved → in-progress → complete. Workbook stays in Scoutbook; we just track the conversation around it.</p>
+
+    <form class="card" method="post" action="/admin/eagle/projects">
+      <div class="row">
+        <label style="margin:0;flex:2">Scout name<input name="scoutName" type="text" required maxlength="80"></label>
+        <label style="margin:0;flex:1">Status
+          <select name="status">${statusOpts.replace('value="idea"', 'value="idea" selected')}</select>
+        </label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Beneficiary<input name="beneficiary" type="text" maxlength="80" placeholder="e.g. Anytown Nature Center"></label>
+        <label style="margin:0;flex:1">Mentor<input name="mentorName" type="text" maxlength="80"></label>
+      </div>
+      <label>Workbook URL<input name="workbookUrl" type="url" maxlength="500" placeholder="https://scoutbook.scouting.org/..."></label>
+      <button class="btn btn-primary" type="submit">Add project</button>
+    </form>
+
+    ${projects.length ? `<ul class="items">${projRows}</ul>` : `<div class="empty" style="margin-top:1rem">No projects in the queue.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Eagle Scouts", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/eagle", requireLeader, async (req, res) => {
+  const { firstName, lastName, earnedAt, projectName } = req.body || {};
+  if (!firstName?.trim() || !lastName?.trim() || !earnedAt) return res.redirect("/admin/eagle");
+  await prisma.eagleScout.create({
+    data: {
+      orgId: req.org.id,
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
+      earnedAt: new Date(earnedAt),
+      projectName: projectName?.trim() || null,
+    },
+  });
+  res.redirect("/admin/eagle");
+});
+
+// Eagle projects — defined BEFORE /eagle/:id routes so /eagle/projects
+// isn't shadowed by the :id parameter.
+adminRouter.post("/eagle/projects", requireLeader, async (req, res) => {
+  const { scoutName, status, beneficiary, mentorName, workbookUrl } = req.body || {};
+  if (!scoutName?.trim()) return res.redirect("/admin/eagle");
+  await prisma.eagleProject.create({
+    data: {
+      orgId: req.org.id,
+      scoutName: scoutName.trim(),
+      status: PROJECT_STATUSES.includes(status) ? status : "idea",
+      beneficiary: beneficiary?.trim() || null,
+      mentorName: mentorName?.trim() || null,
+      workbookUrl: workbookUrl?.trim() || null,
+      startedAt: status === "in-progress" || status === "complete" ? new Date() : null,
+      completedAt: status === "complete" ? new Date() : null,
+    },
+  });
+  res.redirect("/admin/eagle");
+});
+
+adminRouter.get("/eagle/projects/:id/edit", requireLeader, async (req, res) => {
+  const p = await prisma.eagleProject.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!p) return res.status(404).send("Not found");
+  const v = (k) => escape(p[k] ?? "");
+  const sel = (cond) => (cond ? " selected" : "");
+  const body = `
+    <a class="back" href="/admin/eagle" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Eagle Scouts</a>
+    <h1>Edit project</h1>
+    <form class="card" method="post" action="/admin/eagle/projects/${escape(p.id)}">
+      <div class="row">
+        <label style="margin:0;flex:2">Scout name<input name="scoutName" type="text" required maxlength="80" value="${v("scoutName")}"></label>
+        <label style="margin:0;flex:1">Status
+          <select name="status">${PROJECT_STATUSES.map(
+            (s) => `<option value="${escape(s)}"${sel(p.status === s)}>${escape(s)}</option>`
+          ).join("")}</select>
+        </label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Beneficiary<input name="beneficiary" type="text" maxlength="80" value="${v("beneficiary")}"></label>
+        <label style="margin:0;flex:1">Mentor<input name="mentorName" type="text" maxlength="80" value="${v("mentorName")}"></label>
+      </div>
+      <label>Workbook URL<input name="workbookUrl" type="url" maxlength="500" value="${v("workbookUrl")}"></label>
+      <label>Notes<textarea name="notes" rows="3">${v("notes")}</textarea></label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/admin/eagle">Cancel</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "Edit project", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/eagle/projects/:id", requireLeader, async (req, res) => {
+  const p = await prisma.eagleProject.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!p) return res.status(404).send("Not found");
+  const { scoutName, status, beneficiary, mentorName, workbookUrl, notes } = req.body || {};
+  const newStatus = PROJECT_STATUSES.includes(status) ? status : p.status;
+  const data = {
+    scoutName: scoutName?.trim() || p.scoutName,
+    status: newStatus,
+    beneficiary: beneficiary?.trim() || null,
+    mentorName: mentorName?.trim() || null,
+    workbookUrl: workbookUrl?.trim() || null,
+    notes: notes?.trim() || null,
+  };
+  // Stamp transitions automatically.
+  if (newStatus === "in-progress" && !p.startedAt) data.startedAt = new Date();
+  if (newStatus === "complete" && !p.completedAt) data.completedAt = new Date();
+  if (newStatus !== "complete" && p.completedAt) data.completedAt = null;
+  await prisma.eagleProject.update({ where: { id: p.id }, data });
+  res.redirect("/admin/eagle");
+});
+
+adminRouter.post("/eagle/projects/:id/delete", requireLeader, async (req, res) => {
+  await prisma.eagleProject.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  res.redirect("/admin/eagle");
+});
+
+// EagleScout edit/delete — kept AFTER /eagle/projects routes so the
+// :id parameter doesn't swallow the static "projects" path.
+adminRouter.get("/eagle/:id/edit", requireLeader, async (req, res) => {
+  const e = await prisma.eagleScout.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!e) return res.status(404).send("Not found");
+  const v = (k) => escape(e[k] ?? "");
+  const body = `
+    <a class="back" href="/admin/eagle" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Eagle Scouts</a>
+    <h1>Edit Eagle</h1>
+    <form class="card" method="post" action="/admin/eagle/${escape(e.id)}">
+      <div class="row">
+        <label style="margin:0;flex:1">First name<input name="firstName" type="text" required maxlength="60" value="${v("firstName")}"></label>
+        <label style="margin:0;flex:1">Last name<input name="lastName" type="text" required maxlength="60" value="${v("lastName")}"></label>
+        <label style="margin:0;flex:1">Earned<input name="earnedAt" type="date" required value="${e.earnedAt.toISOString().slice(0, 10)}"></label>
+      </div>
+      <label>Project<input name="projectName" type="text" maxlength="120" value="${v("projectName")}"></label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/admin/eagle">Cancel</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "Edit Eagle", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/eagle/:id", requireLeader, async (req, res) => {
+  const e = await prisma.eagleScout.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!e) return res.status(404).send("Not found");
+  const { firstName, lastName, earnedAt, projectName } = req.body || {};
+  await prisma.eagleScout.update({
+    where: { id: e.id },
+    data: {
+      firstName: firstName?.trim() || "",
+      lastName: lastName?.trim() || "",
+      earnedAt: earnedAt ? new Date(earnedAt) : new Date(),
+      projectName: projectName?.trim() || null,
+    },
+  });
+  res.redirect("/admin/eagle");
+});
+
+adminRouter.post("/eagle/:id/delete", requireLeader, async (req, res) => {
+  await prisma.eagleScout.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  res.redirect("/admin/eagle");
+});
+
+/* ------------------------------------------------------------------ */
+/* Court of Honor program builder                                       */
+/* ------------------------------------------------------------------ */
+
+const AWARD_CATEGORIES = ["Rank", "Merit Badge", "Award", "Recognition", "Other"];
+
+adminRouter.get("/events/:id/program", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const awards = await prisma.cohAward.findMany({
+    where: { eventId: ev.id },
+    orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { recipient: "asc" }],
+  });
+
+  const byCat = {};
+  for (const a of awards) {
+    const c = a.category || "Other";
+    if (!byCat[c]) byCat[c] = [];
+    byCat[c].push(a);
+  }
+  const groups = Object.keys(byCat)
+    .sort()
+    .map(
+      (cat) => `
+        <h3 style="margin-top:1rem">${escape(cat)}</h3>
+        <ul class="items">${byCat[cat]
+          .map(
+            (a) => `
+            <li>
+              <div style="flex:1">
+                <strong>${escape(a.recipient)}</strong>
+                <span class="muted"> — ${escape(a.award)}</span>
+                ${a.notes ? `<p class="muted small">${escape(a.notes)}</p>` : ""}
+              </div>
+              <form class="inline" method="post" action="/admin/events/${escape(ev.id)}/program/${escape(a.id)}/delete">
+                <button class="btn btn-danger small" type="submit">×</button>
+              </form>
+            </li>`
+          )
+          .join("")}</ul>`
+    )
+    .join("");
+
+  const catOpts = AWARD_CATEGORIES.map(
+    (c) => `<option value="${escape(c)}">${escape(c)}</option>`
+  ).join("");
+
+  const body = `
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <h1>Court of Honor program · ${escape(ev.title)}</h1>
+    <p class="muted">Build the printable ceremony program. Each row prints as a line on the program (printable view: <a href="/events/${escape(ev.id)}/program" target="_blank" rel="noopener">/events/${escape(ev.id)}/program</a>).</p>
+
+    <form class="card" method="post" action="/admin/events/${escape(ev.id)}/program">
+      <h2 style="margin-top:0">Add an award</h2>
+      <div class="row">
+        <label style="margin:0;flex:2">Recipient<input name="recipient" type="text" required maxlength="80" placeholder="Demo Scout 2"></label>
+        <label style="margin:0;flex:1">Category
+          <select name="category">${catOpts.replace('value="Rank"', 'value="Rank" selected')}</select>
+        </label>
+      </div>
+      <label>Award<input name="award" type="text" required maxlength="120" placeholder="Tenderfoot rank, First Aid merit badge, …"></label>
+      <label>Notes (optional)<input name="notes" type="text" maxlength="160"></label>
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+
+    ${awards.length ? groups : `<div class="empty" style="margin-top:1rem">No awards on the program yet.</div>`}
+
+    <p style="margin-top:1.5rem"><a class="btn btn-ghost" href="/events/${escape(ev.id)}/program" target="_blank" rel="noopener">Open printable program ↗</a></p>
+  `;
+  res.type("html").send(layout({ title: `Program · ${ev.title}`, org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/events/:id/program", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!ev) return res.status(404).send("Not found");
+  const { recipient, award, category, notes } = req.body || {};
+  if (!recipient?.trim() || !award?.trim()) return res.redirect(`/admin/events/${ev.id}/program`);
+
+  const last = await prisma.cohAward.findFirst({
+    where: { eventId: ev.id },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  await prisma.cohAward.create({
+    data: {
+      orgId: req.org.id,
+      eventId: ev.id,
+      recipient: recipient.trim(),
+      award: award.trim(),
+      category: AWARD_CATEGORIES.includes(category) ? category : null,
+      notes: notes?.trim() || null,
+      sortOrder: (last?.sortOrder ?? 0) + 1,
+    },
+  });
+  res.redirect(`/admin/events/${ev.id}/program`);
+});
+
+adminRouter.post("/events/:id/program/:awardId/delete", requireLeader, async (req, res) => {
+  await prisma.cohAward.deleteMany({
+    where: { id: req.params.awardId, orgId: req.org.id, eventId: req.params.id },
+  });
+  res.redirect(`/admin/events/${req.params.id}/program`);
 });
 
 /* ------------------------------------------------------------------ */
