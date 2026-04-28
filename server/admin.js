@@ -44,6 +44,30 @@ const upload = multer({
   },
 });
 
+const ALLOWED_DOC_MIME = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "text/plain",
+  "text/csv",
+  "image/jpeg",
+  "image/png",
+  "application/zip",
+]);
+
+const documentUpload = multer({
+  dest: path.resolve(process.env.UPLOAD_TMP || "/tmp/scouthosting-uploads"),
+  limits: { fileSize: 25 * 1024 * 1024, files: 1 }, // 25MB single document
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_DOC_MIME.has(file.mimetype)) cb(null, true);
+    else cb(new Error(`Unsupported document type: ${file.mimetype}`));
+  },
+});
+
 function slugify(input) {
   return String(input || "")
     .toLowerCase()
@@ -132,6 +156,7 @@ form.inline{display:inline}
     <a href="/admin/announcements">Announcements</a>
     <a href="/admin/events">Calendar</a>
     <a href="/admin/albums">Photos &amp; albums</a>
+    <a href="/admin/forms">Forms &amp; documents</a>
     <a href="/admin/members">Members</a>
     <a href="/admin/email">Email broadcast</a>
     <a href="/" target="_blank">View public site ↗</a>
@@ -1556,6 +1581,221 @@ adminRouter.post("/events/:id/plan/ingredients/:ingId/delete", requireLeader, as
     where: { id: req.params.ingId, orgId: req.org.id },
   });
   res.redirect(`/admin/events/${req.params.id}/plan`);
+});
+
+/* ------------------------------------------------------------------ */
+/* Forms & documents                                                   */
+/* ------------------------------------------------------------------ */
+
+const FORM_CATEGORIES = [
+  "Health forms",
+  "Permission slips",
+  "Bylaws & policies",
+  "Welcome packet",
+  "Reimbursement",
+  "Other",
+];
+
+adminRouter.get("/forms", requireLeader, async (req, res) => {
+  const forms = await prisma.form.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { title: "asc" }],
+  });
+
+  // Group by category for display.
+  const byCategory = {};
+  for (const f of forms) {
+    const c = f.category || "Other";
+    if (!byCategory[c]) byCategory[c] = [];
+    byCategory[c].push(f);
+  }
+
+  const renderRow = (f) => {
+    const target = f.filename ? `/uploads/${escape(f.filename)}` : escape(f.url || "");
+    const sizeKb = f.sizeBytes ? Math.round(f.sizeBytes / 1024) : null;
+    return `
+      <li>
+        <div style="flex:1">
+          <h3>${escape(f.title)}</h3>
+          <p class="muted small">
+            <span class="tag">${escape(f.visibility === "public" ? "Public" : f.visibility === "leaders" ? "Leaders only" : "Members only")}</span>
+            ${f.filename ? `<span class="tag">${escape((f.mimeType || "").split("/").pop().toUpperCase() || "FILE")}${sizeKb ? ` · ${sizeKb} KB` : ""}</span>` : `<span class="tag">link</span>`}
+            <a href="${target}" target="_blank" rel="noopener">${escape(f.filename ? f.originalName || f.filename : f.url)}</a>
+          </p>
+        </div>
+        <div class="row">
+          <a class="btn btn-ghost small" href="/admin/forms/${escape(f.id)}/edit">Edit</a>
+          <form class="inline" method="post" action="/admin/forms/${escape(f.id)}/delete" onsubmit="return confirm('Delete this document?')">
+            <button class="btn btn-danger small" type="submit">Delete</button>
+          </form>
+        </div>
+      </li>`;
+  };
+
+  const groups = Object.keys(byCategory)
+    .sort()
+    .map(
+      (cat) => `
+        <h2 style="margin-top:1.5rem">${escape(cat)}</h2>
+        <ul class="items">${byCategory[cat].map(renderRow).join("")}</ul>`
+    )
+    .join("");
+
+  const catOpts = FORM_CATEGORIES.map(
+    (c) => `<option value="${escape(c)}">${escape(c)}</option>`
+  ).join("");
+
+  const body = `
+    <h1>Forms &amp; documents</h1>
+    <p class="muted">Upload PDFs, Word/Excel files, or link to anything off-site. Members and the public see different things based on visibility.</p>
+
+    <form class="card" method="post" action="/admin/forms" enctype="multipart/form-data">
+      <h2 style="margin-top:0">Add a document</h2>
+      <label>Title<input name="title" type="text" required maxlength="120" placeholder="e.g. BSA Health & Medical Record A/B"></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Category
+          <select name="category">
+            <option value="">— pick —</option>
+            ${catOpts}
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Visibility
+          <select name="visibility">
+            <option value="members" selected>Members only</option>
+            <option value="public">Public</option>
+            <option value="leaders">Leaders only</option>
+          </select>
+        </label>
+      </div>
+      <label>Upload a file (PDF, Word, Excel — up to 25 MB)
+        <input name="file" type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,image/jpeg,image/png">
+      </label>
+      <label>…or paste an external URL
+        <input name="url" type="url" placeholder="https://example.com/form.pdf">
+      </label>
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+
+    ${forms.length ? groups : `<div class="empty" style="margin-top:1rem">No documents yet. Upload one above or add a link.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Forms & documents", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/forms", requireLeader, documentUpload.single("file"), async (req, res) => {
+  const title = req.body?.title?.trim();
+  if (!title) return res.redirect("/admin/forms");
+
+  const visibility = ["public", "members", "leaders"].includes(req.body?.visibility)
+    ? req.body.visibility
+    : "members";
+  const category = req.body?.category?.trim() || null;
+  const url = req.body?.url?.trim() || null;
+
+  const data = { orgId: req.org.id, title, category, visibility, url };
+
+  if (req.file) {
+    const ext = (path.extname(req.file.originalname) || ".bin").toLowerCase().slice(0, 8);
+    const filename = `${crypto.randomBytes(12).toString("hex")}${ext}`;
+    await moveFromTemp(req.org.id, filename, req.file.path);
+    data.filename = filename;
+    data.originalName = req.file.originalname;
+    data.mimeType = req.file.mimetype;
+    data.sizeBytes = req.file.size;
+    if (!data.url) data.url = null;
+  } else if (!url) {
+    return res.redirect("/admin/forms");
+  }
+
+  await prisma.form.create({ data });
+  res.redirect("/admin/forms");
+});
+
+adminRouter.get("/forms/:id/edit", requireLeader, async (req, res) => {
+  const form = await prisma.form.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!form) return res.status(404).send("Not found");
+  const v = (k) => escape(form[k] ?? "");
+  const sel = (cond) => (cond ? " selected" : "");
+  const catOpts = FORM_CATEGORIES.map(
+    (c) => `<option value="${escape(c)}"${sel(form.category === c)}>${escape(c)}</option>`
+  ).join("");
+  const body = `
+    <a class="back" href="/admin/forms" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Forms</a>
+    <h1>Edit document</h1>
+    <form class="card" method="post" action="/admin/forms/${escape(form.id)}" enctype="multipart/form-data">
+      <label>Title<input name="title" type="text" required maxlength="120" value="${v("title")}"></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Category
+          <select name="category">
+            <option value="">—</option>
+            ${catOpts}
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Visibility
+          <select name="visibility">
+            <option value="members"${sel(form.visibility === "members")}>Members only</option>
+            <option value="public"${sel(form.visibility === "public")}>Public</option>
+            <option value="leaders"${sel(form.visibility === "leaders")}>Leaders only</option>
+          </select>
+        </label>
+      </div>
+      <label>Replace file (optional)<input name="file" type="file"></label>
+      <label>External URL<input name="url" type="url" value="${v("url")}"></label>
+      <p class="muted small">Current: ${
+        form.filename
+          ? `<a href="/uploads/${escape(form.filename)}" target="_blank" rel="noopener">${escape(form.originalName || form.filename)}</a>`
+          : form.url
+          ? escape(form.url)
+          : "—"
+      }</p>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/admin/forms">Cancel</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "Edit document", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/forms/:id", requireLeader, documentUpload.single("file"), async (req, res) => {
+  const form = await prisma.form.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!form) return res.status(404).send("Not found");
+
+  const data = {
+    title: req.body?.title?.trim() || form.title,
+    category: req.body?.category?.trim() || null,
+    visibility: ["public", "members", "leaders"].includes(req.body?.visibility)
+      ? req.body.visibility
+      : "members",
+    url: req.body?.url?.trim() || null,
+  };
+
+  if (req.file) {
+    if (form.filename) await removeFile(req.org.id, form.filename);
+    const ext = (path.extname(req.file.originalname) || ".bin").toLowerCase().slice(0, 8);
+    const filename = `${crypto.randomBytes(12).toString("hex")}${ext}`;
+    await moveFromTemp(req.org.id, filename, req.file.path);
+    data.filename = filename;
+    data.originalName = req.file.originalname;
+    data.mimeType = req.file.mimetype;
+    data.sizeBytes = req.file.size;
+  }
+
+  await prisma.form.update({ where: { id: form.id }, data });
+  res.redirect("/admin/forms");
+});
+
+adminRouter.post("/forms/:id/delete", requireLeader, async (req, res) => {
+  const form = await prisma.form.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!form) return res.status(404).send("Not found");
+  if (form.filename) await removeFile(req.org.id, form.filename);
+  await prisma.form.delete({ where: { id: form.id } });
+  res.redirect("/admin/forms");
 });
 
 /* ------------------------------------------------------------------ */

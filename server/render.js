@@ -445,6 +445,58 @@ function renderRsvpBlock({ event, user, myRsvp, counts, flash }) {
     </div>`;
 }
 
+export function renderForms(org, forms, { user, role } = {}) {
+  const byCat = {};
+  for (const f of forms) {
+    const c = f.category || "Other";
+    if (!byCat[c]) byCat[c] = [];
+    byCat[c].push(f);
+  }
+  const groups = Object.keys(byCat)
+    .sort()
+    .map((cat) => {
+      const items = byCat[cat]
+        .map((f) => {
+          const target = f.filename ? `/uploads/${escapeHtml(f.filename)}` : escapeHtml(f.url || "#");
+          const sizeKb = f.sizeBytes ? Math.round(f.sizeBytes / 1024) : null;
+          const ext = (f.mimeType || "").split("/").pop().toUpperCase();
+          return `
+            <li>
+              <a href="${target}" target="_blank" rel="noopener">
+                <strong>${escapeHtml(f.title)}</strong>
+                ${f.visibility === "leaders" ? `<span class="tag">leaders</span>` : ""}
+              </a>
+              <span class="muted small">${
+                f.filename ? `${escapeHtml(ext || "FILE")}${sizeKb ? ` · ${sizeKb} KB` : ""}` : "External link"
+              }</span>
+            </li>`;
+        })
+        .join("");
+      return `<h2>${escapeHtml(cat)}</h2><ul class="forms-list">${items}</ul>`;
+    })
+    .join("");
+
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/">← Home</a>
+      <h1>Forms &amp; documents</h1>
+      <p class="muted">${
+        user && role
+          ? "Documents available to members of " + escapeHtml(org.displayName) + "."
+          : "Public documents only — sign in to see members-only files."
+      }</p>
+      ${forms.length ? groups : `<p class="muted">No documents yet.</p>`}
+    </section>
+    <style>
+      .forms-list{list-style:none;padding:0;margin:0 0 1.5rem;display:grid;gap:.5rem}
+      .forms-list li{background:#fff;border:1px solid #eef0e7;border-radius:10px;padding:.7rem 1rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
+      .forms-list a{text-decoration:none;color:inherit}
+      .forms-list a strong{color:var(--green-700)}
+      .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.75rem;color:#6b7280;margin-left:.4rem}
+    </style>`;
+  return pageShell(org, "Forms & documents", body);
+}
+
 export function renderDirectory(org, members, { needsSignIn, notAMember, role } = {}) {
   if (needsSignIn) {
     const body = `

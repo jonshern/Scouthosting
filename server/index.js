@@ -18,6 +18,7 @@ import {
   renderPostsList,
   renderPostDetail,
   renderTripPlan,
+  renderForms,
 } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
@@ -25,6 +26,8 @@ import { googleOAuth, googleConfigured, fetchGoogleProfile } from "../lib/oauth.
 import { generateState, generateCodeVerifier } from "arctic";
 import { icsFor, icsForOrg, expandOccurrences } from "../lib/calendar.js";
 import { verifyRsvpToken } from "../lib/rsvpToken.js";
+import { makeSignedToken, verifySignedToken } from "../lib/signedToken.js";
+import { send as sendMail } from "../lib/mail.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -430,7 +433,10 @@ ${nameField}
 <label>Password<input name="password" type="password" required autocomplete="${isLogin ? "current-password" : "new-password"}" minlength="${isLogin ? "1" : "12"}"></label>
 <button class="btn" type="submit">${escape(submit)}</button>
 </form>
-<small class="help"><a href="/${escape(otherMode)}?next=${escape(nextEnc)}">${escape(otherCopy)}</a></small>
+<small class="help">
+  <a href="/${escape(otherMode)}?next=${escape(nextEnc)}">${escape(otherCopy)}</a>
+  ${isLogin ? `<br><a href="/forgot">Forgot password?</a> · <a href="/magic">Sign in by email</a>` : ""}
+</small>
 </div></body></html>`;
 }
 
@@ -533,6 +539,9 @@ app.post("/signup", async (req, res, next) => {
   }
   await ensureMembership(user.id, req.org.id, ownedOrgs.some((o) => o.id === req.org.id) ? "admin" : "parent");
 
+  // Fire-and-forget verify email; failure shouldn't block signup.
+  sendVerifyEmail(req.org, user).catch((err) => console.warn("verify email failed:", err.message));
+
   const session = await lucia.createSession(user.id, {});
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
   res.redirect(nextUrl);
@@ -542,6 +551,261 @@ app.post("/logout", async (req, res, next) => {
   if (!req.org) return next();
   if (req.session) await lucia.invalidateSession(req.session.id);
   res.appendHeader("Set-Cookie", lucia.createBlankSessionCookie().serialize());
+  res.redirect("/");
+});
+
+/* ------------------ Password reset / magic link / verify ----------- */
+
+const AUTH_SECRET =
+  process.env.AUTH_TOKEN_SECRET ||
+  process.env.RSVP_SECRET ||
+  "dev-auth-token-secret-do-not-use-in-prod";
+
+function authPage(org, { title, message, fields = [], action, ok }) {
+  const escape = (s) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  const fieldHtml = fields
+    .map(
+      (f) => `<label>${escape(f.label)}<input name="${escape(f.name)}" type="${escape(f.type || "text")}" ${
+        f.required ? "required" : ""
+      } ${f.minlength ? `minlength="${f.minlength}"` : ""} autocomplete="${escape(f.autocomplete || "off")}"></label>`
+    )
+    .join("");
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${escape(title)} — ${escape(org.displayName)}</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;color:#15181c;background:#fbf8ee;display:grid;place-items:center;min-height:100vh;padding:2rem}
+.card{max-width:420px;width:100%;background:#fff;border:1px solid #e6ebe2;border-radius:14px;padding:2rem;box-shadow:0 12px 30px rgba(0,0,0,.05)}
+h1{font-family:Georgia,serif;font-size:1.5rem;margin:0 0 .35rem}
+p{color:#3a4049;font-size:.95rem;margin:0 0 1.25rem}
+label{display:block;margin:0 0 1rem;font-size:.9rem;font-weight:500}
+input{display:block;width:100%;margin-top:.3rem;padding:.65rem .75rem;border:1px solid #c8ccd4;border-radius:8px;font:inherit}
+.btn{display:block;width:100%;padding:.75rem;border-radius:9px;border:0;background:${escape(org.primaryColor || "#1d6b39")};color:#fff;font-weight:600;cursor:pointer;font-size:.95rem;margin-top:.5rem}
+.flash{background:#eaf6ec;border:1px solid #b9dec1;color:#15532b;padding:.65rem 1rem;border-radius:9px;margin-bottom:1rem;font-size:.92rem}
+.muted{color:#6b7280;font-size:.85rem;text-align:center;margin-top:1rem}
+.muted a{color:${escape(org.primaryColor || "#1d6b39")}}
+</style></head><body>
+<div class="card">
+<h1>${escape(title)}</h1>
+${ok ? `<div class="flash">${escape(ok)}</div>` : ""}
+<p>${escape(message)}</p>
+${
+  action
+    ? `<form method="post" action="${escape(action)}">${fieldHtml}<button class="btn" type="submit">Continue</button></form>`
+    : ""
+}
+<p class="muted"><a href="/login">← Back to sign in</a></p>
+</div></body></html>`;
+}
+
+// Send a verify-email link after signup or by request.
+async function sendVerifyEmail(org, user) {
+  const token = makeSignedToken(
+    { kind: "verify", uid: user.id, email: user.email },
+    { secret: AUTH_SECRET, ttlSeconds: 60 * 60 * 24 * 7 }
+  );
+  const apex = process.env.APEX_DOMAIN || "scouthosting.com";
+  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+  const port = process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : "";
+  const url = `${protocol}://${org.slug}.${apex}${port}/verify/${token}`;
+  await sendMail({
+    to: user.email,
+    subject: `Verify your email at ${org.displayName}`,
+    text: `Click to verify your email at ${org.displayName}:\n\n${url}\n\nLink expires in 7 days.`,
+  });
+}
+
+// Verify-email link handler. Idempotent — clicking twice is fine.
+app.get("/verify/:token", async (req, res, next) => {
+  if (!req.org) return next();
+  const claims = verifySignedToken(req.params.token, { secret: AUTH_SECRET });
+  if (!claims || claims.kind !== "verify") {
+    return res.status(400).type("html").send(
+      authPage(req.org, { title: "Verification link invalid", message: "This link is bad or expired." })
+    );
+  }
+  await prisma.user.updateMany({
+    where: { id: claims.uid, email: claims.email },
+    data: { emailVerified: true },
+  });
+  res
+    .type("html")
+    .send(authPage(req.org, { title: "Email verified", message: "Thanks — your email is verified.", ok: "Verified." }));
+});
+
+// Forgot-password.
+app.get("/forgot", (req, res, next) => {
+  if (!req.org) return next();
+  res.type("html").send(
+    authPage(req.org, {
+      title: "Reset your password",
+      message: "Enter your email; if it matches an account we'll send a reset link.",
+      fields: [{ label: "Email", name: "email", type: "email", required: true, autocomplete: "email" }],
+      action: "/forgot",
+    })
+  );
+});
+
+app.post("/forgot", async (req, res, next) => {
+  if (!req.org) return next();
+  const email = (req.body?.email || "").toString().trim().toLowerCase();
+  // Do the DB lookup whether or not we'll send, so timing leaks less.
+  const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
+  if (user) {
+    const token = makeSignedToken(
+      { kind: "reset", uid: user.id, email: user.email, h: user.passwordHash?.slice(-12) || "" },
+      { secret: AUTH_SECRET, ttlSeconds: 60 * 60 }
+    );
+    const apex = process.env.APEX_DOMAIN || "scouthosting.com";
+    const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+    const port =
+      process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : "";
+    const url = `${protocol}://${req.org.slug}.${apex}${port}/reset/${token}`;
+    await sendMail({
+      to: user.email,
+      subject: `Reset your password at ${req.org.displayName}`,
+      text: `A password reset was requested for ${req.org.displayName}.\n\n${url}\n\nLink expires in 1 hour. Ignore this email if it wasn't you.`,
+    });
+  }
+  // Always show the same response regardless.
+  res.type("html").send(
+    authPage(req.org, {
+      title: "Check your email",
+      message: "If that email matches an account, we've sent a reset link. The link expires in 1 hour.",
+      ok: "Sent.",
+    })
+  );
+});
+
+app.get("/reset/:token", (req, res, next) => {
+  if (!req.org) return next();
+  const claims = verifySignedToken(req.params.token, { secret: AUTH_SECRET });
+  if (!claims || claims.kind !== "reset") {
+    return res.status(400).type("html").send(
+      authPage(req.org, { title: "Reset link invalid", message: "This link is bad or expired. Request a new one." })
+    );
+  }
+  res.type("html").send(
+    authPage(req.org, {
+      title: "Pick a new password",
+      message: "Choose a new password (at least 12 characters).",
+      fields: [
+        { label: "New password", name: "password", type: "password", required: true, minlength: 12, autocomplete: "new-password" },
+      ],
+      action: `/reset/${req.params.token}`,
+    })
+  );
+});
+
+app.post("/reset/:token", async (req, res, next) => {
+  if (!req.org) return next();
+  const claims = verifySignedToken(req.params.token, { secret: AUTH_SECRET });
+  if (!claims || claims.kind !== "reset") {
+    return res.status(400).type("html").send(
+      authPage(req.org, { title: "Reset link invalid", message: "This link is bad or expired." })
+    );
+  }
+  const password = (req.body?.password || "").toString();
+  if (password.length < 12) {
+    return res.status(400).type("html").send(
+      authPage(req.org, {
+        title: "Pick a new password",
+        message: "Password must be at least 12 characters.",
+        fields: [{ label: "New password", name: "password", type: "password", required: true, minlength: 12, autocomplete: "new-password" }],
+        action: `/reset/${req.params.token}`,
+      })
+    );
+  }
+
+  // Bind token to the current passwordHash suffix — reusing an old reset
+  // token after the password has changed will fail because `h` won't match.
+  const user = await prisma.user.findUnique({ where: { id: claims.uid } });
+  if (!user || (user.passwordHash || "").slice(-12) !== (claims.h || "")) {
+    return res.status(400).type("html").send(
+      authPage(req.org, { title: "Reset link expired", message: "This reset link is no longer valid. Request a new one." })
+    );
+  }
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { passwordHash: await hashPassword(password) },
+  });
+  // Invalidate any existing sessions for safety.
+  await prisma.session.deleteMany({ where: { userId: user.id } });
+
+  // Sign them in and redirect.
+  const session = await lucia.createSession(user.id, {});
+  res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
+  res.redirect("/");
+});
+
+// Magic-link login — email a one-tap sign-in URL.
+app.get("/magic", (req, res, next) => {
+  if (!req.org) return next();
+  res.type("html").send(
+    authPage(req.org, {
+      title: "Sign in by email",
+      message: "We'll email you a link that signs you in. No password needed.",
+      fields: [{ label: "Email", name: "email", type: "email", required: true, autocomplete: "email" }],
+      action: "/magic",
+    })
+  );
+});
+
+app.post("/magic", async (req, res, next) => {
+  if (!req.org) return next();
+  const email = (req.body?.email || "").toString().trim().toLowerCase();
+  const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
+  if (user) {
+    const token = makeSignedToken(
+      { kind: "magic", uid: user.id, email: user.email },
+      { secret: AUTH_SECRET, ttlSeconds: 60 * 15 }
+    );
+    const apex = process.env.APEX_DOMAIN || "scouthosting.com";
+    const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+    const port =
+      process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : "";
+    const url = `${protocol}://${req.org.slug}.${apex}${port}/magic/${token}`;
+    await sendMail({
+      to: user.email,
+      subject: `Sign in to ${req.org.displayName}`,
+      text: `Click to sign in to ${req.org.displayName}:\n\n${url}\n\nLink expires in 15 minutes.`,
+    });
+  }
+  res.type("html").send(
+    authPage(req.org, {
+      title: "Check your email",
+      message: "If that email matches an account, we've sent a sign-in link. It expires in 15 minutes.",
+      ok: "Sent.",
+    })
+  );
+});
+
+app.get("/magic/:token", async (req, res, next) => {
+  if (!req.org) return next();
+  const claims = verifySignedToken(req.params.token, { secret: AUTH_SECRET });
+  if (!claims || claims.kind !== "magic") {
+    return res.status(400).type("html").send(
+      authPage(req.org, { title: "Sign-in link invalid", message: "This link is bad or expired." })
+    );
+  }
+  const user = await prisma.user.findUnique({ where: { id: claims.uid } });
+  if (!user) return res.status(404).send("Not found");
+
+  // First successful magic-link verifies the email at the same time.
+  if (!user.emailVerified) {
+    await prisma.user.update({ where: { id: user.id }, data: { emailVerified: true } });
+  }
+  await prisma.orgMembership.upsert({
+    where: { userId_orgId: { userId: user.id, orgId: req.org.id } },
+    update: {},
+    create: { userId: user.id, orgId: req.org.id, role: "parent" },
+  });
+  const session = await lucia.createSession(user.id, {});
+  res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
   res.redirect("/");
 });
 
@@ -760,6 +1024,24 @@ app.post("/posts/:id/comments/:cid/delete", async (req, res, next) => {
     where: { id: req.params.cid, orgId: req.org.id, postId: req.params.id },
   });
   res.redirect(`/posts/${req.params.id}`);
+});
+
+// Forms & documents — visibility filters by viewer role.
+app.get("/forms", async (req, res, next) => {
+  if (!req.org) return next();
+  const role = req.user ? await roleInOrg(req.user.id, req.org.id) : null;
+  const where = { orgId: req.org.id };
+  if (!role) where.visibility = "public";
+  else if (role === "parent" || role === "scout") where.visibility = { in: ["public", "members"] };
+  // leaders + admins see everything (no visibility filter).
+
+  const forms = await prisma.form.findMany({
+    where,
+    orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { title: "asc" }],
+  });
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderForms(req.org, forms, { user: req.user, role }));
 });
 
 // Members-only directory. A signed-in user with any membership in this
@@ -1049,19 +1331,56 @@ app.get("/uploads/:filename", async (req, res) => {
   const { filename } = req.params;
   if (!/^[a-z0-9._-]+$/i.test(filename)) return res.status(400).send("Bad request");
 
+  // Photos first.
   const photo = await prisma.photo.findFirst({
     where: { orgId: req.org.id, filename },
     include: { album: { select: { visibility: true } } },
   });
-  if (!photo) return res.status(404).send("Not found");
-
-  if (photo.album.visibility === "members" && !req.user) {
-    return res.status(403).send("Members only");
+  if (photo) {
+    if (photo.album.visibility === "members" && !req.user) {
+      return res.status(403).send("Members only");
+    }
+    res.set("Content-Type", photo.mimeType);
+    res.set("Cache-Control", "public, max-age=86400");
+    return storage.readStream(req.org.id, photo.filename).pipe(res);
   }
 
-  res.set("Content-Type", photo.mimeType);
-  res.set("Cache-Control", "public, max-age=86400");
-  storage.readStream(req.org.id, photo.filename).pipe(res);
+  // PostPhotos.
+  const postPhoto = await prisma.postPhoto.findFirst({
+    where: { orgId: req.org.id, filename },
+    include: { post: { select: { visibility: true } } },
+  });
+  if (postPhoto) {
+    if (postPhoto.post.visibility === "members" && !req.user) {
+      return res.status(403).send("Members only");
+    }
+    res.set("Content-Type", postPhoto.mimeType);
+    res.set("Cache-Control", "public, max-age=86400");
+    return storage.readStream(req.org.id, postPhoto.filename).pipe(res);
+  }
+
+  // Forms / documents — visibility-gated.
+  const form = await prisma.form.findFirst({
+    where: { orgId: req.org.id, filename },
+  });
+  if (form) {
+    if (form.visibility !== "public") {
+      if (!req.user) return res.redirect(`/login?next=/uploads/${filename}`);
+      const role = await roleInOrg(req.user.id, req.org.id);
+      if (!role) return res.status(403).send("Members only");
+      if (form.visibility === "leaders" && role !== "leader" && role !== "admin") {
+        return res.status(403).send("Leaders only");
+      }
+    }
+    res.set("Content-Type", form.mimeType || "application/octet-stream");
+    res.set(
+      "Content-Disposition",
+      `inline; filename="${(form.originalName || form.filename).replace(/[^\w.\-]/g, "_")}"`
+    );
+    return storage.readStream(req.org.id, form.filename).pipe(res);
+  }
+
+  res.status(404).send("Not found");
 });
 
 /* ------------------ Tenant site (subdomain) ----------------------- */

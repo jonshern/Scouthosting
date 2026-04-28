@@ -325,14 +325,21 @@ model Photo {
 }
 
 model Form {
-  id        String   @id @default(cuid())
-  orgId     String
-  title     String
-  url       String
-  category  String?  // health, permission, bylaws, welcome, ...
-  visibility String  @default("members") // public | members | leaders
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  orgId        String
+  title        String
+  // A form is either an uploaded file (filename) or an external link
+  // (url). At least one is required; the admin UI enforces it.
+  url          String?
+  filename     String?
+  originalName String?
+  mimeType     String?
+  sizeBytes    Int?
+  category     String?  // health, permission, bylaws, welcome, ...
+  visibility   String   @default("members") // public | members | leaders
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
