@@ -683,9 +683,9 @@ function renderPostCard(p, { showLink = true } = {}) {
     ? `<div class="post-photos post-photos-${photos.length}">
          ${photos
            .map(
-             (ph) => `<a href="/uploads/${escapeHtml(ph.filename)}" target="_blank" rel="noopener"><img src="/uploads/${escapeHtml(
+             (ph) => `<a href="/uploads/${escapeHtml(ph.filename)}" target="_blank" rel="noopener" aria-label="${escapeHtml(ph.caption || ph.originalName || "Open full-size photo")}"><img src="/uploads/${escapeHtml(
                ph.filename
-             )}" alt="${escapeHtml(ph.caption ?? "")}" loading="lazy"></a>`
+             )}" alt="${escapeHtml(ph.caption || "")}" loading="lazy"></a>`
            )
            .join("")}
        </div>`
@@ -920,19 +920,24 @@ function renderAnnouncements(list) {
     )
     .join("");
   return `
-  <section id="announcements" class="section">
+  <section id="announcements" class="section" aria-labelledby="ann-heading">
     <div class="wrap">
       <header class="section-head">
-        <h2>Announcements</h2>
+        <h2 id="ann-heading">Announcements</h2>
       </header>
-      <ul class="announcements">${items}</ul>
+      <ul class="announcements" role="list">${items}</ul>
     </div>
   </section>`;
 }
 
 export function renderSite(org, extras = {}) {
-  const { page, announcements, albums, posts } = extras;
+  const { page, announcements, albums, posts, user, role } = extras;
   const tpl = loadTemplate();
+  const navAuth = user
+    ? `${role === "admin" || role === "leader" ? `<li><a href="/admin">Admin</a></li>` : ""}
+       <li><a class="cta" href="/logout" onclick="event.preventDefault();fetch('/logout',{method:'POST'}).then(()=>location.href='/');">Sign out</a></li>`
+    : `<li><a href="/login">Sign in</a></li>
+       <li><a class="cta" href="#join">Join</a></li>`;
 
   const tagline =
     page?.heroLede ||
@@ -983,11 +988,12 @@ export function renderSite(org, extras = {}) {
     FEED: raw(renderFeed(posts)),
     EVENTS: raw(renderEvents(extras.events)),
     GALLERY: raw(renderGallery(albums)),
+    NAV_AUTH: raw(navAuth),
     DEMO_BANNER: org.isDemo
       ? raw(
-          `<div class="demo-banner"><strong>Scouthosting demo site.</strong> ${escapeHtml(
+          `<div class="demo-banner" role="note"><strong>Scouthosting demo site.</strong> ${escapeHtml(
             org.displayName
-          )} is a fictional unit.</div>`
+          )} is a fictional unit. <a href="https://${process.env.APEX_DOMAIN || "scouthosting.com"}/signup.html">Start one for your real troop →</a></div>`
         )
       : "",
   };

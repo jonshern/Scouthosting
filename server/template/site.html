@@ -36,13 +36,13 @@
     <nav id="nav" class="nav" aria-label="Primary">
       <ul>
         <li><a href="#about">About</a></li>
-        <li><a href="#calendar">Calendar</a></li>
+        <li><a href="/events">Calendar</a></li>
+        <li><a href="/posts">Posts</a></li>
         <li><a href="#gallery">Photos</a></li>
-        <li><a href="#advancement">Advancement</a></li>
-        <li><a href="#resources">Resources</a></li>
-        <li><a href="#members">Members</a></li>
+        <li><a href="/forms">Forms</a></li>
+        <li><a href="/members">Directory</a></li>
         <li><a href="#contact">Contact</a></li>
-        <li><a class="cta" href="#join">Join</a></li>
+        {{NAV_AUTH}}
       </ul>
     </nav>
   </div>
@@ -97,9 +97,9 @@
     <div class="wrap">
       <header class="section-head">
         <h2>Advancement</h2>
-        <p>The trail from Scout to Eagle.</p>
+        <p>Ranks, merit badges, and partials live in <strong>Scoutbook</strong> — the official Scouting America system. Your unit leader can help you get set up there.</p>
       </header>
-      <ol class="rank-trail">
+      <ol class="rank-trail" aria-label="Scouts BSA rank progression">
         <li><span>Scout</span></li>
         <li><span>Tenderfoot</span></li>
         <li><span>Second Class</span></li>
@@ -108,6 +108,7 @@
         <li><span>Life</span></li>
         <li class="eagle"><span>Eagle</span></li>
       </ol>
+      <p style="margin-top:1.25rem"><a class="btn ghost" href="https://scoutbook.scouting.org/" target="_blank" rel="noopener">Open Scoutbook ↗</a></p>
     </div>
   </section>
 
@@ -115,18 +116,9 @@
     <div class="wrap">
       <header class="section-head">
         <h2>Forms &amp; resources</h2>
-        <p>Documents and links for your unit.</p>
+        <p>Permission slips, medical forms, bylaws — everything a parent needs.</p>
       </header>
-      <div class="grid two">
-        <article class="card">
-          <h3>Forms &amp; documents</h3>
-          <ul class="links"><li><a href="#">Add forms in the admin</a></li></ul>
-        </article>
-        <article class="card">
-          <h3>Resource links</h3>
-          <ul class="links"><li><a href="#">Add links in the admin</a></li></ul>
-        </article>
-      </div>
+      <p><a class="btn ghost" href="/forms">Browse forms &amp; documents →</a></p>
     </div>
   </section>
 

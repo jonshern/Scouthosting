@@ -1450,7 +1450,16 @@ app.get("*", async (req, res, next) => {
     }),
   ]);
 
-  const html = renderSite(req.org, { page, announcements, albums, events, posts });
+  const role = req.user ? await roleInOrg(req.user.id, req.org.id) : null;
+  const html = renderSite(req.org, {
+    page,
+    announcements,
+    albums,
+    events,
+    posts,
+    user: req.user,
+    role,
+  });
   res.set("Content-Type", "text/html; charset=utf-8").send(html);
 });
 
