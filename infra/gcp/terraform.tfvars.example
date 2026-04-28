@@ -1,0 +1,40 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+
+project_id  = "scouthosting-prod"
+region      = "us-central1"
+env         = "prod"
+apex_domain = "scouthosting.com"
+
+# Image must already be pushed before `terraform apply`. See infra/README.md.
+# Subsequent deploys are handled by Cloud Build (cloudbuild.yaml).
+image = "us-central1-docker.pkg.dev/scouthosting-prod/scouthosting/app:latest"
+
+# Cloud SQL machine. db-f1-micro is the cheapest; bump for prod traffic.
+db_tier = "db-f1-micro"
+
+# Cloud Run scaling.
+min_instances = 0
+max_instances = 10
+
+# Mail (defaults to Resend; "console" disables real send for staging).
+# mail_driver = "resend"
+# mail_from   = "Scouthosting <noreply@scouthosting.com>"
+
+# ---------------------------------------------------------------------------
+# Cloudflare — replaces the GCP HTTPS load balancer, saves ~$36/mo
+# ---------------------------------------------------------------------------
+# 1. Add apex_domain to Cloudflare (creates the zone). Free plan is fine.
+# 2. Generate an API token: My Profile → API Tokens → Create
+#    Permissions: Zone.Zone Settings = Edit, Zone.DNS = Edit
+#    Zone Resources: Include → Specific zone → <apex_domain>
+# 3. Copy the zone ID from the Overview page of the zone in Cloudflare.
+
+cloudflare_api_token = "REPLACE_WITH_TOKEN"
+cloudflare_zone_id   = "REPLACE_WITH_ZONE_ID"
+
+# Email for uptime + budget alerts. Empty disables alerting.
+alert_email = ""
+
+# Budget — set billing_account to enable a monthly cap alert.
+billing_account     = ""
+monthly_budget_usd  = 100

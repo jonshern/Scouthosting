@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{DISPLAY_NAME}} — Scouts BSA, {{CITY}}, {{STATE}}</title>
+<meta name="description" content="{{DISPLAY_NAME}}, sponsored by {{CHARTER_ORG}} in {{CITY}}, {{STATE}}. {{COUNCIL}} · {{DISTRICT}}." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css" />
+<style>
+  :root { --green-700: {{PRIMARY_COLOR}}; --gold: {{ACCENT_COLOR}}; }
+</style>
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+{{DEMO_BANNER}}
+
+<header class="site-header" id="top">
+  <div class="bar">
+    <a class="brand" href="#top">
+      <span class="brand-mark" aria-hidden="true">{{BRAND_MARK}}</span>
+      <span class="brand-text">
+        <strong>{{DISPLAY_NAME}}</strong>
+        <small>Scouts BSA · {{CITY}}, {{STATE}}</small>
+      </span>
+    </a>
+
+    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Open menu">
+      <span></span><span></span><span></span>
+    </button>
+
+    <nav id="nav" class="nav" aria-label="Primary">
+      <ul>
+        <li><a href="#about">About</a></li>
+        <li><a href="/events">Calendar</a></li>
+        <li><a href="/posts">Posts</a></li>
+        <li><a href="#gallery">Photos</a></li>
+        <li><a href="/forms">Forms</a></li>
+        <li><a href="/members">Directory</a></li>
+        {{NAV_CUSTOM}}
+        <li><a href="#contact">Contact</a></li>
+        {{NAV_AUTH}}
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <section class="hero">
+    <div class="hero-inner">
+      <p class="eyebrow">{{CHARTER_ORG}} · {{COUNCIL}} · {{DISTRICT}}</p>
+      <h1>{{HERO_HEADLINE}}</h1>
+      <p class="lede">{{HERO_LEDE}}</p>
+      <div class="hero-cta">
+        <a class="btn primary" href="#join">Visit a meeting</a>
+        <a class="btn ghost" href="#calendar">See what's coming up</a>
+      </div>
+      <dl class="stats">
+        <div><dt>Founded</dt><dd>{{FOUNDED}}</dd></div>
+        <div><dt>Meetings</dt><dd>{{MEETING_DAY}} · {{MEETING_TIME}}</dd></div>
+        <div><dt>Charter</dt><dd>{{CHARTER_ORG}}</dd></div>
+      </dl>
+    </div>
+  </section>
+
+  {{ANNOUNCEMENTS}}
+
+  {{FEED}}
+
+  <section id="about" class="section">
+    <div class="wrap two-col">
+      <div>
+        <h2>About our {{UNIT_TYPE}}</h2>
+        <div class="prose">{{ABOUT_BODY}}</div>
+      </div>
+      <aside class="card facts">
+        <h3>Quick facts</h3>
+        <dl>
+          <div><dt>Where we meet</dt><dd>{{MEETING_LOCATION}}</dd></div>
+          <div><dt>When</dt><dd>{{MEETING_DAY}}, {{MEETING_TIME}}</dd></div>
+          <div><dt>Who</dt><dd>Scouts ages 11–17 (5th grade and up)</dd></div>
+          <div><dt>Council</dt><dd>{{COUNCIL}}, {{DISTRICT}}</dd></div>
+        </dl>
+      </aside>
+    </div>
+  </section>
+
+  {{EVENTS}}
+
+  {{GALLERY}}
+
+  <section id="advancement" class="section alt">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Advancement</h2>
+        <p>Ranks, merit badges, and partials live in <strong>Scoutbook</strong> — the official Scouting America system. Your unit leader can help you get set up there.</p>
+      </header>
+      <ol class="rank-trail" aria-label="Scouts BSA rank progression">
+        <li><span>Scout</span></li>
+        <li><span>Tenderfoot</span></li>
+        <li><span>Second Class</span></li>
+        <li><span>First Class</span></li>
+        <li><span>Star</span></li>
+        <li><span>Life</span></li>
+        <li class="eagle"><span>Eagle</span></li>
+      </ol>
+      <p style="margin-top:1.25rem"><a class="btn ghost" href="https://scoutbook.scouting.org/" target="_blank" rel="noopener">Open Scoutbook ↗</a></p>
+    </div>
+  </section>
+
+  <section id="resources" class="section">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Forms &amp; resources</h2>
+        <p>Permission slips, medical forms, bylaws — everything a parent needs.</p>
+      </header>
+      <p><a class="btn ghost" href="/forms">Browse forms &amp; documents →</a></p>
+    </div>
+  </section>
+
+  <section id="members" class="section alt">
+    <div class="wrap">
+      <header class="section-head">
+        <h2>Members</h2>
+      </header>
+      <p>Family directory, contact info, and patrol rosters — visible to signed-in members.</p>
+      <p><a class="btn ghost" href="/members">View directory</a></p>
+    </div>
+  </section>
+
+  <section id="join" class="section">
+    <div class="wrap join">
+      <div>
+        <h2>Curious? Come visit.</h2>
+        <div class="prose">{{JOIN_BODY}}</div>
+        <p><a class="btn primary" href="#contact">Email the Scoutmaster</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="contact" class="section alt">
+    <div class="wrap">
+      <h2>Get in touch</h2>
+      <div class="prose">{{CONTACT_NOTE}}</div>
+      <ul class="contact-list">
+        <li><strong>Scoutmaster ({{SCOUTMASTER_NAME}}):</strong> <a href="mailto:{{SCOUTMASTER_EMAIL}}">{{SCOUTMASTER_EMAIL}}</a></li>
+        <li><strong>Committee Chair:</strong> <a href="mailto:{{COMMITTEE_EMAIL}}">{{COMMITTEE_EMAIL}}</a></li>
+      </ul>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-footer">
+  <div class="wrap foot">
+    <div>
+      <strong>{{DISPLAY_NAME}}</strong><br/>
+      {{CHARTER_ORG}} · {{CITY}}, {{STATE}}<br/>
+      {{COUNCIL}} · {{DISTRICT}}
+    </div>
+    <small>Powered by <a href="https://scouthosting.com/">Scouthosting</a></small>
+  </div>
+</footer>
+
+<script src="/script.js"></script>
+</body>
+</html>

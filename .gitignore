@@ -1,0 +1,14 @@
+node_modules/
+.env
+.env.local
+.DS_Store
+*.log
+npm-debug.log*
+.vscode/
+.idea/
+
+# Prisma
+prisma/migrations/dev.db*
+
+# Local uploads (per-org photo storage)
+var/

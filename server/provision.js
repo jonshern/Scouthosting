@@ -1,0 +1,146 @@
+/**
+ * Org provisioning.
+ *
+ * Validates a signup payload, derives a slug, and inserts an Org row.
+ * Used by both the HTTP signup handler and a CLI for bulk provisioning.
+ *
+ * Phase 4+ will extend this to:
+ *   - reserve a subdomain (DNS) and request a TLS cert
+ *   - send a setup email to the founding leader
+ *   - seed starter pages, calendar entries, and forms
+ */
+
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import "dotenv/config";
+
+import { prisma } from "../lib/db.js";
+
+const __filename = fileURLToPath(import.meta.url);
+
+const REQUIRED = [
+  "unitType",
+  "unitNumber",
+  "charterOrg",
+  "city",
+  "state",
+  "scoutmasterName",
+  "scoutmasterEmail",
+];
+
+const VALID_UNIT_TYPES = ["Troop", "Pack", "Crew", "Ship", "Post"];
+const VALID_PLANS = ["patrol", "troop", "council"];
+
+const RESERVED_SLUGS = new Set([
+  "www", "admin", "api", "app", "assets", "blog", "console",
+  "dashboard", "demo", "docs", "help", "login", "mail", "marketing",
+  "scouthosting", "signup", "static", "status", "support",
+]);
+
+export function validateProvisionInput(body = {}) {
+  const errors = [];
+  for (const key of REQUIRED) {
+    if (!body[key] || String(body[key]).trim() === "") {
+      errors.push(`Missing required field: ${key}`);
+    }
+  }
+  if (body.unitType && !VALID_UNIT_TYPES.includes(body.unitType)) {
+    errors.push(`unitType must be one of: ${VALID_UNIT_TYPES.join(", ")}`);
+  }
+  if (body.unitNumber && !/^\d{1,5}[A-Z]?$/i.test(body.unitNumber)) {
+    errors.push("unitNumber must be 1–5 digits, optionally followed by a letter.");
+  }
+  if (body.scoutmasterEmail && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(body.scoutmasterEmail)) {
+    errors.push("scoutmasterEmail must be a valid email address.");
+  }
+  if (body.plan && !VALID_PLANS.includes(body.plan)) {
+    errors.push(`plan must be one of: ${VALID_PLANS.join(", ")}`);
+  }
+  return errors;
+}
+
+export function deriveSlug(unitType, unitNumber) {
+  const t = String(unitType).toLowerCase();
+  const n = String(unitNumber).toLowerCase().replace(/\s+/g, "");
+  return `${t}${n}`;
+}
+
+/**
+ * Create an Org record. Throws if the slug is reserved or already in use.
+ * Caller is responsible for catching and translating to an HTTP error.
+ */
+export async function provisionOrg(input) {
+  const slug = deriveSlug(input.unitType, input.unitNumber);
+
+  if (RESERVED_SLUGS.has(slug)) {
+    throw new Error(`The slug "${slug}" is reserved. Please contact support.`);
+  }
+
+  const existing = await prisma.org.findUnique({ where: { slug } });
+  if (existing) {
+    throw new Error(`A site already exists at ${slug}.scouthosting.com.`);
+  }
+
+  const charterOrg = input.charterOrg.trim();
+
+  const org = await prisma.org.create({
+    data: {
+      slug,
+      unitType: input.unitType,
+      unitNumber: String(input.unitNumber),
+      displayName: `${input.unitType} ${input.unitNumber}`,
+      tagline: input.tagline?.trim() || null,
+      charterOrg,
+      city: input.city.trim(),
+      state: input.state.trim(),
+      council: input.council?.trim() || null,
+      district: input.district?.trim() || null,
+      founded: input.founded?.trim() || null,
+      meetingDay: input.meetingDay?.trim() || "Mondays",
+      meetingTime: input.meetingTime?.trim() || "7:00 PM",
+      meetingLocation: input.meetingLocation?.trim() || charterOrg,
+      scoutmasterName: input.scoutmasterName.trim(),
+      scoutmasterEmail: input.scoutmasterEmail.trim().toLowerCase(),
+      committeeChairEmail: input.committeeChairEmail?.trim().toLowerCase() || null,
+      primaryColor: input.primaryColor || "#1d6b39",
+      accentColor: input.accentColor || "#caa54a",
+      plan: input.plan || "patrol",
+      isDemo: !!input.isDemo,
+    },
+  });
+
+  return org;
+}
+
+/* ------------------------------------------------------------------ */
+/* CLI: `node server/provision.js path/to/config.json`                 */
+/* ------------------------------------------------------------------ */
+
+const isMain = process.argv[1] && path.resolve(process.argv[1]) === __filename;
+if (isMain) {
+  const configPath = process.argv[2];
+  if (!configPath) {
+    console.error("usage: node server/provision.js <config.json>");
+    process.exit(1);
+  }
+  const input = JSON.parse(fs.readFileSync(configPath, "utf8"));
+  const errors = validateProvisionInput(input);
+  if (errors.length) {
+    console.error("Invalid config:");
+    for (const e of errors) console.error("  -", e);
+    process.exit(2);
+  }
+  try {
+    const org = await provisionOrg(input);
+    console.log(`✓ Provisioned ${org.displayName}`);
+    console.log(`  URL:    https://${org.slug}.scouthosting.com`);
+    console.log(`  Slug:   ${org.slug}`);
+    console.log(`  Plan:   ${org.plan}`);
+  } catch (err) {
+    console.error(`✗ ${err.message}`);
+    process.exit(3);
+  } finally {
+    await prisma.$disconnect();
+  }
+}

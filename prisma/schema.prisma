@@ -1,0 +1,599 @@
+// Scouthosting database schema.
+//
+// Single Postgres database, single schema. Tenant isolation is enforced at
+// the application layer via the `orgId` column on every org-scoped table.
+//
+// Deferred (tracked as [security] items in ROADMAP.md):
+//   - Postgres Row-Level Security policies on org-scoped tables
+//   - Per-tenant encryption keys
+//   - Field-level encryption for sensitive PII (medical, contact info)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------------
+// Control plane
+// ------------------------------------------------------------------
+
+enum UnitType {
+  Troop
+  Pack
+  Crew
+  Ship
+  Post
+}
+
+enum Plan {
+  patrol
+  troop
+  council
+}
+
+enum Role {
+  scout
+  parent
+  leader
+  admin
+}
+
+model Org {
+  id                  String   @id @default(cuid())
+  slug                String   @unique
+  unitType            UnitType
+  unitNumber          String
+  displayName         String
+  tagline             String?
+  charterOrg          String
+  city                String
+  state               String
+  council             String?
+  district            String?
+  founded             String?
+  meetingDay          String   @default("Mondays")
+  meetingTime         String   @default("7:00 PM")
+  meetingLocation     String?
+  scoutmasterName     String
+  scoutmasterEmail    String
+  committeeChairEmail String?
+  primaryColor        String   @default("#1d6b39")
+  accentColor         String   @default("#caa54a")
+  plan                Plan     @default(patrol)
+  isDemo              Boolean  @default(false)
+  customDomain        String?  @unique
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  memberships OrgMembership[]
+  members     Member[]
+  events      Event[]
+  photos      Photo[]
+  albums      Album[]
+  forms       Form[]
+  page        Page?
+  announcements Announcement[]
+  posts         Post[]
+  comments      Comment[]
+  rsvps         Rsvp[]
+  slots         SignupSlot[]
+  slotAssignments SlotAssignment[]
+  tripPlans     TripPlan[]
+  meals         Meal[]
+  ingredients   Ingredient[]
+  gear          GearItem[]
+  equipment     Equipment[]
+  customPages   CustomPage[]
+
+  @@index([plan])
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?
+  displayName  String
+  emailVerified Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  sessions    Session[]
+  memberships OrgMembership[]
+  announcements Announcement[]
+  posts         Post[]
+  comments      Comment[]
+  oauthAccounts OAuthAccount[]
+  rsvps         Rsvp[]
+  slotAssignments SlotAssignment[]
+}
+
+// External identity provider linkage. One User can have multiple
+// OAuthAccount rows (Google, Apple, Microsoft, …) but only one per
+// (provider, providerAccountId). Email collisions across providers are
+// resolved by the verified-email link at /auth/<provider>/callback.
+model OAuthAccount {
+  id                String   @id @default(cuid())
+  userId            String
+  provider          String   // "google", "apple", ...
+  providerAccountId String   // provider's stable user id (e.g. Google `sub`)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+// A user can belong to many orgs (parent with kids in two units, leader
+// who serves at council level, etc.). Each membership has a role within
+// that org.
+model OrgMembership {
+  id        String   @id @default(cuid())
+  userId    String
+  orgId     String
+  role      Role     @default(parent)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------------------
+// Org-scoped data (every row carries orgId)
+// ------------------------------------------------------------------
+
+model Member {
+  id             String   @id @default(cuid())
+  orgId          String
+  firstName      String
+  lastName       String
+  email          String?
+  phone          String?
+  // Drives which channel a broadcast targets this member on.
+  // email: send email only
+  // sms:   send SMS only (requires phone + smsOptIn)
+  // both:  send both
+  // none:  do not contact (still appears in the directory)
+  commPreference String   @default("email")
+  smsOptIn       Boolean  @default(false)
+  patrol         String?
+  position       String?  // SPL, ASPL, Patrol Leader, Scoutmaster, etc.
+  joinedAt       DateTime @default(now())
+  birthdate      DateTime?
+  isYouth        Boolean  @default(true)
+  dietaryFlags   String[] @default([]) // e.g. ["vegetarian", "gluten-free"]
+  notes          String?
+  // Scoutbook link — Scoutbook user id lets admins jump from the
+  // member directory to that Scout's Scoutbook record. We don't store
+  // any advancement data; that lives in Scoutbook.
+  scoutbookUserId String?
+  // Family linkage. Each row points to its parent Members (typically the
+  // youth's mom/dad/guardian); the inverse relation gives parents their
+  // children. Postgres array of Member IDs keeps schema simple — no join
+  // table needed for v1. Filter at query time.
+  parentIds      String[] @default([])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rsvps Rsvp[]
+
+  @@index([orgId])
+  @@index([orgId, lastName])
+}
+
+model Event {
+  id              String   @id @default(cuid())
+  orgId           String
+  title           String
+  description     String?
+  startsAt        DateTime
+  endsAt          DateTime?
+  allDay          Boolean  @default(false)
+  location        String?
+  // For map links: stored verbatim and used to build Google/Apple/Waze URLs
+  // at render time.
+  locationAddress String?
+  cost            Int?     // dollars
+  capacity        Int?
+  signupRequired  Boolean  @default(false)
+  category        String?  // meeting, campout, service, court-of-honor...
+  // RFC 5545 RRULE without the leading "RRULE:" prefix. Null = single
+  // occurrence. Examples: "FREQ=WEEKLY;BYDAY=MO" (every Monday),
+  // "FREQ=MONTHLY;BYDAY=1TU" (first Tuesday of every month).
+  rrule           String?
+  recurrenceUntil DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  org   Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rsvps Rsvp[]
+  slots SignupSlot[]
+  plan  TripPlan?
+
+  @@index([orgId, startsAt])
+}
+
+// A sign-up "slot" is a discrete thing for an event that needs a person
+// (or N people): drivers, food items to bring, gear to provide. Unlike
+// RSVPs (one-per-person, yes/no/maybe), slots are tied to specific tasks.
+model SignupSlot {
+  id          String   @id @default(cuid())
+  orgId       String
+  eventId     String
+  title       String          // "Bring drinks for 30", "Drive 2 scouts"
+  description String?
+  capacity    Int      @default(1)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org         Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event       Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  assignments SlotAssignment[]
+
+  @@index([orgId, eventId, sortOrder])
+}
+
+model SlotAssignment {
+  id        String   @id @default(cuid())
+  orgId     String
+  slotId    String
+  userId    String?  // signed-in user (preferred path)
+  name      String
+  email     String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  org  Org        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  slot SignupSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  user User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // Block dupes by signed-in user; (slot, email) handles the anon path.
+  @@unique([slotId, userId])
+  @@unique([slotId, email])
+  @@index([orgId, slotId])
+}
+
+model Rsvp {
+  id        String   @id @default(cuid())
+  orgId     String
+  eventId   String
+  userId    String?  // signed-in user (preferred path)
+  memberId  String?  // optional link to the directory entry
+  name      String
+  email     String?
+  response  String   @default("yes") // yes | no | maybe
+  guests    Int      @default(0)
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org    Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  // Idempotent on (eventId, userId) when the user signed in, and on
+  // (eventId, lower(email)) for anonymous email-link RSVPs.
+  @@unique([eventId, userId])
+  @@unique([eventId, email])
+  @@index([orgId, eventId])
+}
+
+model Album {
+  id          String    @id @default(cuid())
+  orgId       String
+  title       String
+  slug        String
+  description String?
+  visibility  String    @default("public") // public | members
+  takenAt     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  org    Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  photos Photo[]
+
+  @@unique([orgId, slug])
+  @@index([orgId, takenAt])
+}
+
+model Photo {
+  id           String    @id @default(cuid())
+  orgId        String
+  albumId      String
+  filename     String
+  originalName String?
+  mimeType     String
+  sizeBytes    Int
+  caption      String?
+  takenAt      DateTime?
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  org   Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, albumId, sortOrder])
+}
+
+model Form {
+  id           String   @id @default(cuid())
+  orgId        String
+  title        String
+  // A form is either an uploaded file (filename) or an external link
+  // (url). At least one is required; the admin UI enforces it.
+  url          String?
+  filename     String?
+  originalName String?
+  mimeType     String?
+  sizeBytes    Int?
+  category     String?  // health, permission, bylaws, welcome, ...
+  visibility   String   @default("members") // public | members | leaders
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, category])
+}
+
+model MailLog {
+  id              String   @id @default(cuid())
+  orgId           String
+  authorId        String?
+  subject         String
+  body            String
+  channel         String   @default("email") // email | sms | both
+  audienceLabel   String   // "Everyone", "Adults", "Youth", "Patrol: Eagles", ...
+  recipientCount  Int      @default(0)
+  status          String   @default("sent")  // sent | failed | partial | dryrun
+  errors          String?
+  sentAt          DateTime @default(now())
+
+  // Recipient snapshot — JSON array of { name, email, phone, channel } so the
+  // history shows who got the message even if directory entries change later.
+  recipients      Json
+}
+
+// CMS: per-org editable home-page content. Single record per org for now;
+// later we can add slug + relax @unique to support multiple custom pages.
+model Page {
+  id           String   @id @default(cuid())
+  orgId        String   @unique
+  heroHeadline String?
+  heroLede     String?
+  aboutBody    String?
+  joinBody     String?
+  contactNote  String?
+  updatedAt    DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model Announcement {
+  id          String    @id @default(cuid())
+  orgId       String
+  title       String
+  body        String
+  publishedAt DateTime  @default(now())
+  expiresAt   DateTime?
+  pinned      Boolean   @default(false)
+  authorId    String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  org    Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, publishedAt])
+  @@index([orgId, pinned, publishedAt])
+}
+
+// Activity feed: a generic timeline post that can carry text, attached
+// photos, or a referenced album. Subsumes "announcements + albums" into
+// a single chronological surface; existing Announcement/Album models are
+// kept around so older tenant content keeps rendering.
+model Post {
+  id          String      @id @default(cuid())
+  orgId       String
+  authorId    String?
+  title       String?
+  body        String
+  visibility  String      @default("public")  // public | members
+  pinned      Boolean     @default(false)
+  publishedAt DateTime    @default(now())
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  org     Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  author  User?       @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  photos  PostPhoto[]
+  comments Comment[]
+
+  @@index([orgId, publishedAt])
+  @@index([orgId, pinned, publishedAt])
+}
+
+model PostPhoto {
+  id           String   @id @default(cuid())
+  orgId        String
+  postId       String
+  filename     String
+  originalName String?
+  mimeType     String
+  sizeBytes    Int
+  caption      String?
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, postId, sortOrder])
+}
+
+// Trip & meal planner. One plan per Event. Headcount can be overridden,
+// otherwise derived from the count of yes-RSVPs at render time.
+model TripPlan {
+  id              String   @id @default(cuid())
+  orgId           String
+  eventId         String   @unique
+  headcountOverride Int?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  meals Meal[]
+  gear  GearItem[]
+
+  @@index([orgId])
+}
+
+model Meal {
+  id         String   @id @default(cuid())
+  orgId      String
+  tripPlanId String
+  name       String   // "Saturday breakfast"
+  recipeName String?  // "Foil packets", "Mac and cheese"
+  notes      String?
+  sortOrder  Int      @default(0)
+  servesAt   DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  org         Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tripPlan    TripPlan    @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+  ingredients Ingredient[]
+
+  @@index([orgId, tripPlanId, sortOrder])
+}
+
+model Ingredient {
+  id                String   @id @default(cuid())
+  orgId             String
+  mealId            String
+  name              String   // "Ground beef"
+  quantityPerPerson Float    // e.g., 0.25
+  unit              String   // "lb", "oz", "ea", "cup", ...
+  category          String?  // "Meat", "Produce", "Dairy", "Pantry", "Drinks", "Other"
+  // Optional cost per `unit` (e.g. $5 per lb). When set, the trip plan
+  // sums quantityPerPerson * unitCost across meals to surface a
+  // cost-per-Scout estimate.
+  unitCost          Float?
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  org  Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, mealId])
+}
+
+// Gear / equipment checklist for a trip. Items can be assigned to a
+// Member (the Quartermaster, a parent volunteer) or left unassigned.
+model GearItem {
+  id          String   @id @default(cuid())
+  orgId       String
+  tripPlanId  String
+  name        String   // "Patrol box", "Propane stove"
+  quantity    Int      @default(1)
+  assignedTo  String?  // free-form name; future: link to Member
+  notes       String?
+  packed      Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org      Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tripPlan TripPlan @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, tripPlanId, sortOrder])
+}
+
+// Comments on Posts. Members-only by definition (visibility lives on the
+// parent Post; non-members can't even see the post). Authored by a User.
+model Comment {
+  id        String   @id @default(cuid())
+  orgId     String
+  postId    String
+  authorId  String?
+  body      String
+  hidden    Boolean  @default(false)  // soft-moderation by admin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org    Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  post   Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, postId, createdAt])
+}
+
+// Permanent troop equipment catalog. Distinct from GearItem (which is
+// a per-trip packing list). Tracks what the troop owns: patrol boxes,
+// stoves, lanterns, propane tanks, the trailer itself, etc.
+model Equipment {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String           // "Patrol box #1", "Coleman 2-burner stove"
+  category    String?          // "Patrol box", "Cooking", "Shelter", "Tools", ...
+  serialOrTag String?          // serial number or asset tag
+  location    String?          // "Trailer", "Storage closet", "Loaned: Smith family"
+  condition   String   @default("good")  // good | fair | needs-repair | retired
+  quantity    Int      @default(1)
+  acquiredAt  DateTime?
+  notes       String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, category])
+  @@index([orgId, location])
+}
+
+// Custom page — extra content pages beyond the home page (e.g. History,
+// Bylaws summary, Eagle list, FAQ). Distinct from the Page model
+// which holds editable home-page slots.
+model CustomPage {
+  id          String   @id @default(cuid())
+  orgId       String
+  slug        String   // URL slug, lowercased, kebab-case
+  title       String
+  body        String   // markdown-ish; rendered with paragraph + line-break preservation
+  visibility  String   @default("public") // public | members
+  sortOrder   Int      @default(0)
+  showInNav   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, slug])
+  @@index([orgId, sortOrder])
+}
