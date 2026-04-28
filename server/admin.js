@@ -141,6 +141,11 @@ ul.items p{margin:0;color:var(--mute);font-size:.92rem;white-space:pre-wrap}
 .tag{display:inline-block;background:var(--bg);border:1px solid var(--line);padding:.1rem .45rem;border-radius:5px;font-size:.78rem;color:var(--mute);margin-right:.25rem}
 form.inline{display:inline}
 .empty{padding:2rem;text-align:center;color:var(--mute);background:#fff;border:1px dashed var(--line);border-radius:12px}
+.diet-grid{display:flex;flex-wrap:wrap;gap:.4rem;margin-bottom:.4rem}
+.diet-chip{display:inline-flex;align-items:center;gap:.4rem;background:#fff;border:1px solid var(--ink-300,#c8ccd4);border-radius:999px;padding:.3rem .7rem;font-size:.85rem;font-weight:400;cursor:pointer;margin:0}
+.diet-chip:hover{border-color:var(--g700)}
+.diet-chip input{margin:0;width:auto}
+.diet-chip:has(input:checked){background:var(--g700);color:#fff;border-color:var(--g700)}
 @media (max-width:780px){.shell{grid-template-columns:1fr}.side{border-right:0;border-bottom:1px solid var(--line)}.main{padding:1.25rem}}
 </style></head>
 <body>
@@ -1817,6 +1822,27 @@ function memberFromBody(body) {
   if (!Array.isArray(parentIds)) parentIds = [];
   parentIds = parentIds.filter((s) => typeof s === "string" && s.length > 0);
 
+  // dietaryFlags: union of (a) preset checkboxes (array via name="dietaryFlag")
+  // and (b) a free-form comma-separated input ("Other"). Lower-case for
+  // dedupe but display preserves the user's casing on first use.
+  let presets = body?.dietaryFlag;
+  if (typeof presets === "string") presets = [presets];
+  if (!Array.isArray(presets)) presets = [];
+  const freeform = (body?.dietaryFlagsOther || "")
+    .toString()
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const dietaryFlags = [];
+  const seen = new Set();
+  for (const f of [...presets, ...freeform]) {
+    const k = f.toLowerCase();
+    if (!seen.has(k)) {
+      seen.add(k);
+      dietaryFlags.push(f);
+    }
+  }
+
   return {
     firstName: body?.firstName?.trim() || "",
     lastName: body?.lastName?.trim() || "",
@@ -1831,9 +1857,22 @@ function memberFromBody(body) {
     smsOptIn: body?.smsOptIn === "1",
     scoutbookUserId: body?.scoutbookUserId?.trim() || null,
     parentIds,
+    dietaryFlags,
     notes: body?.notes?.trim() || null,
   };
 }
+
+const DIETARY_PRESETS = [
+  "Vegetarian",
+  "Vegan",
+  "Gluten-free",
+  "Dairy-free",
+  "Nut allergy",
+  "Shellfish allergy",
+  "Egg allergy",
+  "Halal",
+  "Kosher",
+];
 
 async function memberForm({ member, action, submitLabel, orgId }) {
   const v = (k) => escape(member?.[k] ?? "");
@@ -1890,6 +1929,24 @@ async function memberForm({ member, action, submitLabel, orgId }) {
       <label style="margin:0"><input name="isYouth" type="checkbox" value="1"${checked(
         member ? member.isYouth : true
       )} style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Youth member (otherwise adult)</label>
+
+      <label style="margin-bottom:.4rem">Dietary flags &amp; allergies</label>
+      <div class="diet-grid">
+        ${DIETARY_PRESETS.map((p) => {
+          const isSet = (member?.dietaryFlags || []).some((f) => f.toLowerCase() === p.toLowerCase());
+          return `<label class="diet-chip"><input type="checkbox" name="dietaryFlag" value="${escape(
+            p
+          )}"${isSet ? " checked" : ""}> ${escape(p)}</label>`;
+        }).join("")}
+      </div>
+      <label style="margin-top:.4rem">Other (comma-separated)
+        <input name="dietaryFlagsOther" type="text" maxlength="200" placeholder="e.g. lactose intolerant, soy allergy" value="${escape(
+          (member?.dietaryFlags || [])
+            .filter((f) => !DIETARY_PRESETS.some((p) => p.toLowerCase() === f.toLowerCase()))
+            .join(", ")
+        )}">
+      </label>
+
       <label>Parents / guardians (for youth — pick the adults already on the roster)
         <select name="parentIds" multiple size="${Math.min(6, Math.max(2, possibleParents.length))}">${parentOpts}</select>
       </label>
@@ -1920,7 +1977,11 @@ adminRouter.get("/members", requireLeader, async (req, res) => {
     m.position ? `<span class="tag">${escape(m.position)}</span>` : ""
   } ${m.email ? `<span class="muted small">${escape(m.email)}</span>` : ""}${
     m.phone ? ` <span class="muted small">· ${escape(m.phone)}</span>` : ""
-  }${m.commPreference !== "email" ? ` <span class="tag">${escape(m.commPreference)}</span>` : ""}</p>
+  }${m.commPreference !== "email" ? ` <span class="tag">${escape(m.commPreference)}</span>` : ""}${
+    (m.dietaryFlags || []).length
+      ? ` <span class="tag" title="${escape(m.dietaryFlags.join(", "))}">⚠ ${m.dietaryFlags.length} dietary</span>`
+      : ""
+  }</p>
       </div>
       <div class="row">
         ${

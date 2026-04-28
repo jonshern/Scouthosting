@@ -544,6 +544,13 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
         }${m.patrol ? `${escapeHtml(m.patrol)} patrol` : ""}${
           m.scoutbookUserId ? ` · <a href="https://scoutbook.scouting.org/" target="_blank" rel="noopener">Scoutbook ↗</a>` : ""
         }</p>
+        ${
+          (m.dietaryFlags || []).length
+            ? `<p class="diet-flags">${m.dietaryFlags
+                .map((f) => `<span class="tag tag-diet">${escapeHtml(f)}</span>`)
+                .join("")}</p>`
+            : ""
+        }
       </div>
       <div>
         ${m.email ? `<a href="mailto:${escapeHtml(m.email)}">${escapeHtml(m.email)}</a><br>` : ""}
@@ -583,6 +590,8 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
       .event-list ul.items h3{margin:0 0 .15rem;font-size:1rem;font-family:Inter,sans-serif}
       .event-list ul.items p{margin:0}
       .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.1rem .45rem;border-radius:5px;font-size:.78rem;color:#6b7280;margin-right:.25rem}
+      .tag-diet{background:#fff7e6;border-color:#ecd87a;color:#7d5a00}
+      .diet-flags{margin:.3rem 0 0 !important}
     </style>`;
   return pageShell(org, "Members", body);
 }
