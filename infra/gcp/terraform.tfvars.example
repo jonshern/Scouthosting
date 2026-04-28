@@ -5,13 +5,29 @@ region      = "us-central1"
 env         = "prod"
 apex_domain = "scouthosting.com"
 
-# Image must already be pushed before `terraform apply`. See infra/README.md
-# for the build + push step.
+# Image must already be pushed before `terraform apply`. See infra/README.md.
+# Subsequent deploys are handled by Cloud Build (cloudbuild.yaml).
 image = "us-central1-docker.pkg.dev/scouthosting-prod/scouthosting/app:latest"
 
-# Cloud SQL machine. db-f1-micro is the cheapest; bump up for prod.
+# Cloud SQL machine. db-f1-micro is the cheapest; bump for prod traffic.
 db_tier = "db-f1-micro"
 
 # Cloud Run scaling.
 min_instances = 0
 max_instances = 10
+
+# Mail (defaults to Resend; "console" disables real send for staging).
+# mail_driver = "resend"
+# mail_from   = "Scouthosting <noreply@scouthosting.com>"
+
+# Cloud DNS — let Terraform own the zone + apex/wildcard A records?
+# Set to false if your domain is managed elsewhere; you'll create the
+# A records manually using the load_balancer_ip output.
+manage_dns = false
+
+# Email for uptime + budget alerts. Empty disables alerting.
+alert_email = ""
+
+# Budget — set billing_account to enable a monthly cap alert.
+billing_account     = ""
+monthly_budget_usd  = 100

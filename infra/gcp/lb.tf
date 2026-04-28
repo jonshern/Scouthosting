@@ -18,6 +18,7 @@ resource "google_compute_backend_service" "app" {
   port_name             = "http"
   timeout_sec           = 60
   load_balancing_scheme = "EXTERNAL_MANAGED"
+  security_policy       = google_compute_security_policy.edge.id
 
   backend {
     group = google_compute_region_network_endpoint_group.run.id

@@ -144,18 +144,100 @@ curl -s -o /dev/null -w '%{http_code}\n' https://troop100.<apex>/   # if you've 
 
 ## Subsequent deploys
 
-```bash
-TAG=$(git rev-parse --short HEAD)
-IMAGE="us-central1-docker.pkg.dev/scouthosting-prod/scouthosting/app:$TAG"
-docker build -t "$IMAGE" . && docker push "$IMAGE"
+Two paths.
 
-cd infra/gcp
-terraform apply -var "image=$IMAGE"
+### Manual one-off
+
+From the repo root:
+
+```bash
+scripts/deploy.sh                         # uses git short SHA as the tag
+scripts/deploy.sh v2026-04-28             # explicit tag
 ```
 
-Migrations run on container boot (`prisma migrate deploy`) — they're
-idempotent, so multiple Cloud Run instances coming up at the same time
-won't conflict.
+The script builds the Dockerfile, pushes to Artifact Registry, and
+runs `gcloud run deploy` against the existing service.
+
+### Automatic on every commit (Cloud Build)
+
+The repo includes a [`cloudbuild.yaml`](../cloudbuild.yaml). Wire a
+trigger once, then every push builds + deploys:
+
+```bash
+gcloud builds triggers create github \
+  --repo-name=scouthosting \
+  --repo-owner=<your-github-org> \
+  --branch-pattern="^main$" \
+  --build-config=cloudbuild.yaml \
+  --name=scouthosting-main \
+  --region=us-central1
+```
+
+Migrations run on container boot (`prisma migrate deploy`) — idempotent
+so multiple Cloud Run instances coming up at the same time won't fight.
+
+## Optional Terraform features
+
+Off by default; enable in `terraform.tfvars` when you want them.
+
+### Manage DNS in Terraform (`manage_dns = true`)
+
+Creates a Cloud DNS managed zone for `apex_domain` and writes the apex
++ `*.apex` A records. After `terraform apply`, point your registrar's
+NS records at the `dns_name_servers` output.
+
+If you keep DNS at your registrar instead, leave `manage_dns = false`
+and set the A records by hand to the `load_balancer_ip` output.
+
+### Uptime monitoring + alert (`alert_email`)
+
+Set `alert_email` to receive a notification when an HTTPS uptime check
+on the apex fails for 2 minutes. Creates a Cloud Monitoring uptime
+check, an email channel, and an alert policy.
+
+### Budget alert (`billing_account` + `monthly_budget_usd`)
+
+Creates a billing budget at 50% / 90% / 100% of the monthly spend cap.
+If `alert_email` is set, the budget overage notifies that channel too.
+
+### Cloud Armor
+
+Enabled automatically. The default policy:
+
+- Allow everything by default
+- Per-IP rate limit on auth + provisioning endpoints (60 req/min;
+  ban for 5 minutes after 300 req/min sustained)
+- Drop common scanner paths (`/wp-admin`, `/.env`, `/.git/`, …)
+- Adaptive Layer 7 DDoS protection enabled
+
+Edit `infra/gcp/security.tf` to tighten further.
+
+## Production readiness checklist
+
+Before pointing real Scout-unit traffic at this:
+
+- [ ] Domain registered, `apex_domain` set, DNS records pointing at
+      `load_balancer_ip` (or `manage_dns = true` and registrar's NS
+      pointing at Cloud DNS)
+- [ ] `RESEND_API_KEY` (or SMTP) verified with a test broadcast
+- [ ] `MAIL_FROM` domain verified in Resend (DKIM + SPF passing)
+- [ ] `RSVP_SECRET` and `AUTH_TOKEN_SECRET` set to fresh `openssl rand`
+      values; **not** the dev defaults
+- [ ] `GOOGLE_CLIENT_ID/SECRET` set with the production redirect URI
+      (`https://<apex>/auth/google/callback`)
+- [ ] `COOKIE_DOMAIN=.<apex_domain>` so apex sessions span subdomains
+- [ ] `db_tier` upgraded from `db-f1-micro` to at least
+      `db-custom-2-7680`, `availability_type = REGIONAL`
+- [ ] `alert_email` set; verify the uptime alert by stopping Cloud Run
+      briefly
+- [ ] `billing_account` set and `monthly_budget_usd` capped
+- [ ] Terraform state in a remote GCS backend (versioned + uniform
+      access) rather than local
+- [ ] Cloud Build trigger wired so deploys go through CI, not the local
+      `scripts/deploy.sh`
+- [ ] First scrape of the public site through SSL Labs ≥ A grade
+- [ ] Per-org backups verified by exporting the demo org via
+      `pg_dump --table=... --where="orgId=..."`
 
 ## State backend
 

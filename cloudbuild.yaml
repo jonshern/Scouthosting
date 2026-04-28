@@ -1,0 +1,65 @@
+# Cloud Build configuration.
+#
+# Triggered on every push to main (set up the trigger in Cloud Build UI
+# or via Terraform). Builds the Dockerfile, tags with the commit SHA +
+# "latest", pushes to Artifact Registry, then deploys the new revision
+# to Cloud Run.
+#
+# Variables (substitution):
+#   _REGION   — e.g. us-central1 (defaults below)
+#   _REPO     — Artifact Registry repo name; default "scouthosting"
+#   _SERVICE  — Cloud Run service name; default "scouthosting-prod-app"
+
+substitutions:
+  _REGION: us-central1
+  _REPO: scouthosting
+  _SERVICE: scouthosting-prod-app
+
+steps:
+  # 1. Build the image, tagged with commit SHA + "latest".
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:$SHORT_SHA
+      - -t
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:latest
+      - .
+
+  # 2. Push both tags.
+  - id: push-sha
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:$SHORT_SHA
+
+  - id: push-latest
+    name: gcr.io/cloud-builders/docker
+    args:
+      - push
+      - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:latest
+
+  # 3. Deploy the new image to Cloud Run. Migrations run in the container's
+  #    CMD ("prisma migrate deploy && node server/index.js") — idempotent,
+  #    so a multi-revision rollout doesn't fight itself.
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:$SHORT_SHA
+      - --region=${_REGION}
+      - --quiet
+
+images:
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:$SHORT_SHA
+  - ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/app:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+timeout: 1200s
