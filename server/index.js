@@ -21,6 +21,8 @@ import {
   renderPostDetail,
   renderTripPlan,
   renderForms,
+  renderSurvey,
+  renderSurveyAck,
 } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
@@ -1034,6 +1036,78 @@ app.post("/posts/:id/comments/:cid/delete", csrfProtect, async (req, res, next) 
     where: { id: req.params.cid, orgId: req.org.id, postId: req.params.id },
   });
   res.redirect(`/posts/${req.params.id}`);
+});
+
+// Public survey form.
+app.get("/surveys/:slug", async (req, res, next) => {
+  if (!req.org) return next();
+  const slug = req.params.slug;
+  if (!/^[a-z0-9-]+$/.test(slug)) return res.status(404).send("Not found");
+  const survey = await prisma.survey.findUnique({
+    where: { orgId_slug: { orgId: req.org.id, slug } },
+  });
+  if (!survey) return res.status(404).send("Survey not found");
+  if (survey.audience === "members" && !req.user) {
+    return res.redirect(`/login?next=/surveys/${slug}`);
+  }
+  res.set("Content-Type", "text/html; charset=utf-8").send(
+    renderSurvey(req.org, survey, { user: req.user })
+  );
+});
+
+// Submit a survey response. Audience determines login requirement.
+// CSRF-protected because GET issues the cookie + injects the form token.
+app.post("/surveys/:slug", csrfProtect, async (req, res, next) => {
+  if (!req.org) return next();
+  const survey = await prisma.survey.findUnique({
+    where: { orgId_slug: { orgId: req.org.id, slug: req.params.slug } },
+  });
+  if (!survey) return res.status(404).send("Not found");
+  if (survey.closesAt && new Date(survey.closesAt) < new Date()) {
+    return res.status(410).send("Survey is closed.");
+  }
+  if (survey.audience === "members" && !req.user) {
+    return res.redirect(`/login?next=/surveys/${req.params.slug}`);
+  }
+
+  const name = req.user
+    ? req.user.displayName
+    : (req.body?.name || "").toString().trim();
+  const email = req.user
+    ? req.user.email
+    : (req.body?.email || "").toString().trim().toLowerCase();
+  if (!name || (!req.user && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email))) {
+    return res.redirect(`/surveys/${survey.slug}`);
+  }
+
+  // Pluck answers by question id from body.
+  const questions = Array.isArray(survey.questions) ? survey.questions : [];
+  const answers = {};
+  for (const q of questions) {
+    let v = req.body?.[q.id];
+    if (q.type === "yesno") v = v === "yes" ? true : v === "no" ? false : null;
+    else if (q.type === "scale") v = v ? parseInt(v, 10) : null;
+    else if (q.type === "multi") {
+      v = Array.isArray(v) ? v : v ? [v] : [];
+    } else if (typeof v === "string") {
+      v = v.slice(0, 2000);
+    }
+    if (v === undefined) v = null;
+    answers[q.id] = v;
+  }
+
+  await prisma.surveyResponse.create({
+    data: {
+      orgId: req.org.id,
+      surveyId: survey.id,
+      userId: req.user?.id ?? null,
+      name,
+      email: email || null,
+      answers,
+    },
+  });
+
+  res.set("Content-Type", "text/html; charset=utf-8").send(renderSurveyAck(req.org, survey));
 });
 
 // Custom page by slug.

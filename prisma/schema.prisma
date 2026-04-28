@@ -88,6 +88,7 @@ model Org {
   gear          GearItem[]
   equipment     Equipment[]
   customPages   CustomPage[]
+  surveys       Survey[]
 
   @@index([plan])
 }
@@ -596,4 +597,54 @@ model CustomPage {
 
   @@unique([orgId, slug])
   @@index([orgId, sortOrder])
+}
+
+// Surveys: leader-composed question sets that members (or anyone, if
+// the survey is set to allow it) can fill out. Questions stored as
+// JSON so we can support text / select / scale / yes-no without a
+// table per question type. Responses likewise — answers keyed by
+// question id.
+model Survey {
+  id            String   @id @default(cuid())
+  orgId         String
+  slug          String
+  title         String
+  description   String?
+  // Array of { id, type, label, options?, required } objects. Types:
+  //   "text"   — short free-form
+  //   "long"   — paragraph
+  //   "yesno"  — boolean
+  //   "select" — pick one of options[]
+  //   "multi"  — pick any of options[]
+  //   "scale"  — 1–5
+  questions     Json     @default("[]")
+  // who can respond:
+  //   "anyone"  — anonymous form, name + email required
+  //   "members" — sign-in required
+  audience      String   @default("anyone")
+  closesAt      DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  org       Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  responses SurveyResponse[]
+
+  @@unique([orgId, slug])
+  @@index([orgId, createdAt])
+}
+
+model SurveyResponse {
+  id          String   @id @default(cuid())
+  orgId       String
+  surveyId    String
+  userId      String?  // signed-in path
+  name        String
+  email       String?
+  // Map of questionId → answer (string | boolean | number | string[])
+  answers     Json
+  createdAt   DateTime @default(now())
+
+  survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, surveyId])
 }
