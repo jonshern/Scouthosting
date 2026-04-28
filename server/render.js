@@ -749,6 +749,102 @@ export function renderCustomPage(org, page) {
   return pageShell(org, page.title, body);
 }
 
+export function renderSurvey(org, survey, { user, flash } = {}) {
+  const closed = survey.closesAt && new Date(survey.closesAt) < new Date();
+  const questions = Array.isArray(survey.questions) ? survey.questions : [];
+
+  const fieldFor = (q) => {
+    const reqd = q.required ? " required" : "";
+    switch (q.type) {
+      case "long":
+        return `<textarea name="${escapeHtml(q.id)}" rows="3" maxlength="2000"${reqd}></textarea>`;
+      case "yesno":
+        return `<select name="${escapeHtml(q.id)}"${reqd}><option value="">—</option><option value="yes">Yes</option><option value="no">No</option></select>`;
+      case "select":
+        return `<select name="${escapeHtml(q.id)}"${reqd}><option value="">—</option>${(q.options || [])
+          .map((o) => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`)
+          .join("")}</select>`;
+      case "multi":
+        return `<div class="survey-multi">${(q.options || [])
+          .map(
+            (o) =>
+              `<label class="survey-multi-opt"><input type="checkbox" name="${escapeHtml(q.id)}" value="${escapeHtml(o)}"> ${escapeHtml(o)}</label>`
+          )
+          .join("")}</div>`;
+      case "scale":
+        return `<div class="survey-scale">${[1, 2, 3, 4, 5]
+          .map(
+            (n) =>
+              `<label><input type="radio" name="${escapeHtml(q.id)}" value="${n}"${reqd && n === 1 ? " required" : ""}> ${n}</label>`
+          )
+          .join("")}</div>`;
+      default:
+        return `<input type="text" name="${escapeHtml(q.id)}" maxlength="500"${reqd}>`;
+    }
+  };
+
+  const fields = questions
+    .map(
+      (q) => `
+    <div class="survey-q">
+      <label class="survey-q-label">
+        <span>${escapeHtml(q.label)}${q.required ? ' <span class="muted">(required)</span>' : ""}</span>
+        ${fieldFor(q)}
+      </label>
+    </div>`
+    )
+    .join("");
+
+  const identity = user
+    ? `<p class="muted small">Signed in as <strong>${escapeHtml(user.displayName)}</strong>. Your name + email are recorded with your response.</p>`
+    : `<div class="rsvp-row">
+        <label>Your name<input name="name" type="text" required maxlength="80" autocomplete="name"></label>
+        <label>Email<input name="email" type="email" required maxlength="120" autocomplete="email"></label>
+      </div>`;
+
+  const flashHtml = flash
+    ? `<div class="rsvp-flash rsvp-flash-${escapeHtml(flash.type || "ok")}">${escapeHtml(flash.message)}</div>`
+    : "";
+
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/">← Home</a>
+      <h1>${escapeHtml(survey.title)}</h1>
+      ${survey.description ? `<p class="muted">${escapeHtml(survey.description)}</p>` : ""}
+      ${flashHtml}
+      ${
+        closed
+          ? `<div class="rsvp-flash rsvp-flash-err">This survey closed on ${escapeHtml(new Date(survey.closesAt).toLocaleDateString("en-US"))}.</div>`
+          : `<form method="post" action="/surveys/${escapeHtml(survey.slug)}" class="rsvp-card" style="margin-top:1rem">
+              ${identity}
+              ${fields}
+              <button class="btn primary" type="submit" style="margin-top:.5rem">Submit response</button>
+            </form>`
+      }
+    </section>
+    <style>
+      .survey-q{margin-bottom:1rem}
+      .survey-q input[type=text],.survey-q input[type=email],.survey-q select,.survey-q textarea{margin-top:.3rem;padding:.55rem .7rem;border:1px solid var(--ink-300,#c8ccd4);border-radius:8px;font:inherit;width:100%}
+      .survey-q-label > span{display:block;font-weight:500;margin-bottom:.25rem}
+      .survey-multi{display:grid;gap:.3rem;margin-top:.3rem}
+      .survey-multi-opt{display:flex;align-items:center;gap:.45rem;font-weight:400}
+      .survey-multi-opt input{width:auto}
+      .survey-scale{display:flex;gap:1rem;margin-top:.3rem}
+      .survey-scale label{font-weight:400;display:inline-flex;align-items:center;gap:.3rem}
+    </style>`;
+  return pageShell(org, survey.title, body);
+}
+
+export function renderSurveyAck(org, survey) {
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/">← Home</a>
+      <h1>Thanks!</h1>
+      <p>We've recorded your response to <strong>${escapeHtml(survey.title)}</strong>.</p>
+    </section>`;
+  return pageShell(org, "Thanks", body);
+}
+
 export function renderTripPlan(org, ev, plan, headcount, flagged) {
   const meals = plan?.meals || [];
   const gear = plan?.gear || [];

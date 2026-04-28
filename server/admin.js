@@ -166,6 +166,7 @@ form.inline{display:inline}
     <a href="/admin/forms">Forms &amp; documents</a>
     <a href="/admin/members">Members</a>
     <a href="/admin/equipment">Equipment</a>
+    <a href="/admin/surveys">Surveys</a>
     <a href="/admin/email">Email broadcast</a>
     <a href="/" target="_blank">View public site ↗</a>
   </nav>
@@ -3176,6 +3177,319 @@ adminRouter.post("/equipment/:id/delete", requireLeader, async (req, res) => {
     where: { id: req.params.id, orgId: req.org.id },
   });
   res.redirect("/admin/equipment");
+});
+
+/* ------------------------------------------------------------------ */
+/* Surveys                                                             */
+/* ------------------------------------------------------------------ */
+
+const QUESTION_TYPES = [
+  { value: "text", label: "Short text" },
+  { value: "long", label: "Paragraph" },
+  { value: "yesno", label: "Yes / No" },
+  { value: "select", label: "Pick one" },
+  { value: "multi", label: "Pick any" },
+  { value: "scale", label: "1–5 scale" },
+];
+
+function questionsFromBody(body) {
+  // Form fields arrive as parallel arrays: q_label[], q_type[], q_options[], q_required[].
+  const labels = Array.isArray(body?.q_label) ? body.q_label : body?.q_label ? [body.q_label] : [];
+  const types = Array.isArray(body?.q_type) ? body.q_type : body?.q_type ? [body.q_type] : [];
+  const options = Array.isArray(body?.q_options) ? body.q_options : body?.q_options ? [body.q_options] : [];
+  const required = Array.isArray(body?.q_required) ? body.q_required : body?.q_required ? [body.q_required] : [];
+
+  const out = [];
+  for (let i = 0; i < labels.length; i++) {
+    const label = (labels[i] || "").trim();
+    if (!label) continue;
+    const type = QUESTION_TYPES.some((t) => t.value === types[i]) ? types[i] : "text";
+    const opts = (options[i] || "")
+      .split(/\n|,/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    out.push({
+      id: `q${i}_${Math.random().toString(36).slice(2, 8)}`,
+      label,
+      type,
+      ...(type === "select" || type === "multi" ? { options: opts } : {}),
+      required: required[i] === "1",
+    });
+  }
+  return out;
+}
+
+function renderQuestionEditor(questions = []) {
+  const rows = questions.length ? questions : [{ label: "", type: "text", options: [], required: false }];
+  const types = (selected) =>
+    QUESTION_TYPES.map(
+      (t) => `<option value="${escape(t.value)}"${t.value === selected ? " selected" : ""}>${escape(t.label)}</option>`
+    ).join("");
+  return `
+    <div id="q-list">
+      ${rows
+        .map(
+          (q) => `
+      <div class="q-row" style="border:1px solid var(--line);border-radius:10px;padding:.75rem;margin-bottom:.5rem">
+        <div class="row">
+          <label style="margin:0;flex:2">Question<input name="q_label" type="text" value="${escape(q.label || "")}" placeholder="e.g. How was the camporee?"></label>
+          <label style="margin:0;flex:1">Type<select name="q_type">${types(q.type || "text")}</select></label>
+          <label style="margin:0;align-self:end"><input type="checkbox" name="q_required" value="1"${q.required ? " checked" : ""} style="width:auto;display:inline;margin-right:.4rem">Required</label>
+        </div>
+        <label>Options (for "Pick one" / "Pick any" — comma- or newline-separated)
+          <input name="q_options" type="text" value="${escape(((q.options || []).join(", ")))}" placeholder="Option A, Option B, Option C">
+        </label>
+      </div>`
+        )
+        .join("")}
+    </div>
+    <p><button type="button" class="btn btn-ghost small" onclick="(function(){const tpl=document.querySelector('.q-row').cloneNode(true);tpl.querySelectorAll('input').forEach(i=>i.value='');tpl.querySelectorAll('input[type=checkbox]').forEach(i=>i.checked=false);document.getElementById('q-list').appendChild(tpl);})()">+ Add another question</button></p>
+  `;
+}
+
+adminRouter.get("/surveys", requireLeader, async (req, res) => {
+  const surveys = await prisma.survey.findMany({
+    where: { orgId: req.org.id },
+    orderBy: { createdAt: "desc" },
+    include: { _count: { select: { responses: true } } },
+  });
+  const items = surveys
+    .map(
+      (s) => `
+    <li>
+      <div style="flex:1">
+        <h3>${escape(s.title)}</h3>
+        <p class="muted small">
+          <a href="/surveys/${escape(s.slug)}" target="_blank" rel="noopener">/surveys/${escape(s.slug)}</a>
+          <span class="tag">${escape(s.audience)}</span>
+          <span class="tag">${s._count.responses} response${s._count.responses === 1 ? "" : "s"}</span>
+          ${s.closesAt ? `<span class="tag">closes ${escape(s.closesAt.toISOString().slice(0, 10))}</span>` : ""}
+        </p>
+      </div>
+      <div class="row">
+        <a class="btn btn-ghost small" href="/admin/surveys/${escape(s.id)}/responses">Responses</a>
+        <a class="btn btn-ghost small" href="/admin/surveys/${escape(s.id)}/edit">Edit</a>
+        <form class="inline" method="post" action="/admin/surveys/${escape(s.id)}/delete" onsubmit="return confirm('Delete this survey and all responses?')">
+          <button class="btn btn-danger small" type="submit">Delete</button>
+        </form>
+      </div>
+    </li>`
+    )
+    .join("");
+
+  const body = `
+    <h1>Surveys</h1>
+    <p class="muted">Quick polls and feedback forms. Surveys live at <code>/surveys/&lt;slug&gt;</code>; share the link in a broadcast.</p>
+
+    <form class="card" method="post" action="/admin/surveys">
+      <h2 style="margin-top:0">New survey</h2>
+      <label>Title<input name="title" type="text" required maxlength="120" placeholder="e.g. Camporee feedback"></label>
+      <label>Description (optional)<textarea name="description" rows="2" maxlength="500"></textarea></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Who can respond
+          <select name="audience">
+            <option value="anyone">Anyone (anonymous OK — name + email required)</option>
+            <option value="members">Signed-in members only</option>
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Closes (optional)<input name="closesAt" type="date"></label>
+      </div>
+
+      <h3 style="margin-top:1rem">Questions</h3>
+      ${renderQuestionEditor()}
+
+      <button class="btn btn-primary" type="submit">Create</button>
+    </form>
+
+    <h2 style="margin-top:1.25rem">Surveys</h2>
+    ${surveys.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No surveys yet.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Surveys", org: req.org, user: req.user, body }));
+});
+
+function slugifySurvey(title) {
+  return String(title || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 60) || "survey";
+}
+
+async function pickUniqueSurveySlug(orgId, base, excludeId) {
+  let slug = slugifySurvey(base);
+  let n = 1;
+  while (true) {
+    const existing = await prisma.survey.findUnique({
+      where: { orgId_slug: { orgId, slug } },
+    });
+    if (!existing || existing.id === excludeId) return slug;
+    n++;
+    slug = `${slugifySurvey(base)}-${n}`;
+  }
+}
+
+adminRouter.post("/surveys", requireLeader, async (req, res) => {
+  const title = req.body?.title?.trim();
+  if (!title) return res.redirect("/admin/surveys");
+  const slug = await pickUniqueSurveySlug(req.org.id, title);
+  await prisma.survey.create({
+    data: {
+      orgId: req.org.id,
+      slug,
+      title,
+      description: req.body?.description?.trim() || null,
+      audience: req.body?.audience === "members" ? "members" : "anyone",
+      closesAt: req.body?.closesAt ? new Date(req.body.closesAt) : null,
+      questions: questionsFromBody(req.body),
+    },
+  });
+  res.redirect("/admin/surveys");
+});
+
+adminRouter.get("/surveys/:id/edit", requireLeader, async (req, res) => {
+  const s = await prisma.survey.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!s) return res.status(404).send("Not found");
+  const sel = (cond) => (cond ? " selected" : "");
+  const body = `
+    <a class="back" href="/admin/surveys" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Surveys</a>
+    <h1>Edit survey</h1>
+    <form class="card" method="post" action="/admin/surveys/${escape(s.id)}">
+      <label>Title<input name="title" type="text" required maxlength="120" value="${escape(s.title)}"></label>
+      <label>Description<textarea name="description" rows="2" maxlength="500">${escape(s.description ?? "")}</textarea></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Audience
+          <select name="audience">
+            <option value="anyone"${sel(s.audience === "anyone")}>Anyone (anonymous OK)</option>
+            <option value="members"${sel(s.audience === "members")}>Members only</option>
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Closes<input name="closesAt" type="date" value="${s.closesAt ? s.closesAt.toISOString().slice(0, 10) : ""}"></label>
+      </div>
+
+      <h3 style="margin-top:1rem">Questions</h3>
+      ${renderQuestionEditor(Array.isArray(s.questions) ? s.questions : [])}
+
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/admin/surveys">Cancel</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "Edit survey", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/surveys/:id", requireLeader, async (req, res) => {
+  const s = await prisma.survey.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!s) return res.status(404).send("Not found");
+  await prisma.survey.update({
+    where: { id: s.id },
+    data: {
+      title: req.body?.title?.trim() || s.title,
+      description: req.body?.description?.trim() || null,
+      audience: req.body?.audience === "members" ? "members" : "anyone",
+      closesAt: req.body?.closesAt ? new Date(req.body.closesAt) : null,
+      questions: questionsFromBody(req.body),
+    },
+  });
+  res.redirect("/admin/surveys");
+});
+
+adminRouter.post("/surveys/:id/delete", requireLeader, async (req, res) => {
+  await prisma.survey.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  res.redirect("/admin/surveys");
+});
+
+adminRouter.get("/surveys/:id/responses", requireLeader, async (req, res) => {
+  const s = await prisma.survey.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    include: { responses: { orderBy: { createdAt: "asc" } } },
+  });
+  if (!s) return res.status(404).send("Not found");
+
+  const questions = Array.isArray(s.questions) ? s.questions : [];
+
+  const cell = (q, ans) => {
+    const v = ans?.[q.id];
+    if (v == null || v === "") return "<td class='muted small'>—</td>";
+    if (Array.isArray(v)) return `<td>${v.map((x) => escape(String(x))).join(", ")}</td>`;
+    if (typeof v === "boolean") return `<td>${v ? "Yes" : "No"}</td>`;
+    return `<td>${escape(String(v))}</td>`;
+  };
+
+  const headerRow = `<tr><th>Respondent</th><th>When</th>${questions
+    .map((q) => `<th>${escape(q.label)}</th>`)
+    .join("")}</tr>`;
+  const rows = s.responses
+    .map(
+      (r) => `<tr>
+        <td>${escape(r.name)}${r.email ? ` <span class="muted small">${escape(r.email)}</span>` : ""}</td>
+        <td class="muted small">${escape(r.createdAt.toLocaleString("en-US"))}</td>
+        ${questions.map((q) => cell(q, r.answers || {})).join("")}
+      </tr>`
+    )
+    .join("");
+
+  const body = `
+    <a class="back" href="/admin/surveys" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Surveys</a>
+    <h1>${escape(s.title)} — responses</h1>
+    <p class="muted">${s.responses.length} response${s.responses.length === 1 ? "" : "s"} ·
+      <a href="/surveys/${escape(s.slug)}" target="_blank" rel="noopener">/surveys/${escape(s.slug)}</a> ·
+      <a href="/admin/surveys/${escape(s.id)}/responses.csv">Export CSV</a>
+    </p>
+
+    ${
+      s.responses.length
+        ? `<div class="card" style="overflow-x:auto"><table class="ing-table">
+            <thead>${headerRow}</thead>
+            <tbody>${rows}</tbody>
+          </table></div>`
+        : `<div class="empty" style="margin-top:1rem">No responses yet. Share <a href="/surveys/${escape(s.slug)}">the link</a> in a broadcast.</div>`
+    }
+  `;
+  res.type("html").send(layout({ title: `Responses · ${s.title}`, org: req.org, user: req.user, body }));
+});
+
+adminRouter.get("/surveys/:id/responses.csv", requireLeader, async (req, res) => {
+  const s = await prisma.survey.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    include: { responses: { orderBy: { createdAt: "asc" } } },
+  });
+  if (!s) return res.status(404).send("Not found");
+  const questions = Array.isArray(s.questions) ? s.questions : [];
+  const csvEscape = (v) => {
+    const x = String(v ?? "");
+    return /[",\n\r]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x;
+  };
+  const header = ["Name", "Email", "Submitted at", ...questions.map((q) => q.label)];
+  const rows = [header];
+  for (const r of s.responses) {
+    const ans = r.answers || {};
+    rows.push([
+      r.name,
+      r.email || "",
+      r.createdAt.toISOString(),
+      ...questions.map((q) => {
+        const v = ans[q.id];
+        if (Array.isArray(v)) return v.join("; ");
+        if (typeof v === "boolean") return v ? "Yes" : "No";
+        return v ?? "";
+      }),
+    ]);
+  }
+  const csv = rows.map((r) => r.map(csvEscape).join(",")).join("\r\n") + "\r\n";
+  const safe = s.slug.replace(/[^a-z0-9-_]+/gi, "-");
+  res
+    .set("Content-Type", "text/csv; charset=utf-8")
+    .set("Content-Disposition", `attachment; filename="survey-${safe}.csv"`)
+    .send(csv);
 });
 
 /* ------------------------------------------------------------------ */
