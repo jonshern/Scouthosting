@@ -73,3 +73,18 @@ variable "mail_from" {
   type        = string
   default     = "Scouthosting <noreply@scouthosting.com>"
 }
+
+# ---------------------------------------------------------------------------
+# Cloudflare — replaces the GCP HTTPS load balancer
+# ---------------------------------------------------------------------------
+
+variable "cloudflare_api_token" {
+  description = "Cloudflare API token (Edit zone DNS + Edit zone settings on the apex zone)."
+  type        = string
+  sensitive   = true
+}
+
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID for apex_domain. Find it on the Overview page of the zone."
+  type        = string
+}

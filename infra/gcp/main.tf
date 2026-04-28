@@ -11,8 +11,6 @@ resource "google_project_service" "apis" {
     "run.googleapis.com",
     "sqladmin.googleapis.com",
     "secretmanager.googleapis.com",
-    "compute.googleapis.com",
-    "dns.googleapis.com",
     "vpcaccess.googleapis.com",
     "artifactregistry.googleapis.com",
     "cloudbuild.googleapis.com",

@@ -119,6 +119,15 @@ resource "google_cloud_run_v2_service" "app" {
           }
         }
       }
+      env {
+        name = "ORIGIN_AUTH_SECRET"
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.origin_auth.secret_id
+            version = "latest"
+          }
+        }
+      }
 
       startup_probe {
         http_get {

@@ -20,10 +20,17 @@ max_instances = 10
 # mail_driver = "resend"
 # mail_from   = "Scouthosting <noreply@scouthosting.com>"
 
-# Cloud DNS — let Terraform own the zone + apex/wildcard A records?
-# Set to false if your domain is managed elsewhere; you'll create the
-# A records manually using the load_balancer_ip output.
-manage_dns = false
+# ---------------------------------------------------------------------------
+# Cloudflare — replaces the GCP HTTPS load balancer, saves ~$36/mo
+# ---------------------------------------------------------------------------
+# 1. Add apex_domain to Cloudflare (creates the zone). Free plan is fine.
+# 2. Generate an API token: My Profile → API Tokens → Create
+#    Permissions: Zone.Zone Settings = Edit, Zone.DNS = Edit
+#    Zone Resources: Include → Specific zone → <apex_domain>
+# 3. Copy the zone ID from the Overview page of the zone in Cloudflare.
+
+cloudflare_api_token = "REPLACE_WITH_TOKEN"
+cloudflare_zone_id   = "REPLACE_WITH_ZONE_ID"
 
 # Email for uptime + budget alerts. Empty disables alerting.
 alert_email = ""

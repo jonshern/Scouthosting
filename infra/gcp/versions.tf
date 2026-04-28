@@ -10,6 +10,10 @@ terraform {
       source  = "hashicorp/google-beta"
       version = "~> 6.0"
     }
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 4.40"
+    }
     random = {
       source  = "hashicorp/random"
       version = "~> 3.6"
@@ -32,4 +36,8 @@ provider "google" {
 provider "google-beta" {
   project = var.project_id
   region  = var.region
+}
+
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
 }

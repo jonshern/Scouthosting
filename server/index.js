@@ -6,6 +6,7 @@ import "dotenv/config";
 
 import { prisma } from "../lib/db.js";
 import { lucia, attachSession, hashPassword, verifyPassword, roleInOrg } from "../lib/auth.js";
+import { originAuth } from "../lib/originAuth.js";
 import {
   provisionOrg,
   validateProvisionInput,
@@ -60,6 +61,7 @@ function slugFromHost(host) {
 /* ------------------------------------------------------------------ */
 
 const app = express();
+app.use(originAuth);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(attachSession);
