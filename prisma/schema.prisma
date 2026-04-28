@@ -89,6 +89,9 @@ model Org {
   equipment     Equipment[]
   customPages   CustomPage[]
   surveys       Survey[]
+  eagleScouts   EagleScout[]
+  eagleProjects EagleProject[]
+  cohAwards     CohAward[]
 
   @@index([plan])
 }
@@ -225,10 +228,11 @@ model Event {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  org   Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  rsvps Rsvp[]
-  slots SignupSlot[]
-  plan  TripPlan?
+  org       Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rsvps     Rsvp[]
+  slots     SignupSlot[]
+  plan      TripPlan?
+  cohAwards CohAward[]
 
   @@index([orgId, startsAt])
 }
@@ -647,4 +651,70 @@ model SurveyResponse {
   survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
 
   @@index([orgId, surveyId])
+}
+
+// Eagle Scout — public list of the troop's Eagles. Distinct from
+// EagleProject (the workflow). Just names + dates for the public page.
+model EagleScout {
+  id          String   @id @default(cuid())
+  orgId       String
+  firstName   String
+  lastName    String
+  // ECOH date — when they earned Eagle.
+  earnedAt    DateTime
+  projectName String?
+  // Optional link to a Member record (if still on the roster).
+  memberId    String?
+  notes       String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, earnedAt])
+}
+
+// Eagle project workflow — internal tracker for in-progress and
+// completed Eagle projects. Lives in Scouthosting (we're the
+// communication / planning layer); the workbook itself lives in
+// Scoutbook (advancement system of record).
+model EagleProject {
+  id            String   @id @default(cuid())
+  orgId         String
+  scoutName     String   // typed; we don't enforce a Member link
+  beneficiary   String?  // who the project serves
+  mentorName    String?
+  status        String   @default("idea")  // idea | proposal | approved | in-progress | complete
+  workbookUrl   String?  // link to the BSA workbook (uploaded elsewhere)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, status])
+}
+
+// Court of Honor program — list of awards / recognitions for a CoH
+// event. Each row prints as a line item on the printable program.
+// Tied to an Event (typically with category = "Court of Honor").
+model CohAward {
+  id          String   @id @default(cuid())
+  orgId       String
+  eventId     String
+  recipient   String   // "Demo Scout 2"
+  award       String   // "Tenderfoot rank", "First Aid merit badge", "Mile-Swim award"
+  category    String?  // "Rank", "Merit Badge", "Award", "Recognition"
+  notes       String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org   Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, eventId, sortOrder])
 }

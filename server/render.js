@@ -749,6 +749,86 @@ export function renderCustomPage(org, page) {
   return pageShell(org, page.title, body);
 }
 
+export function renderEagleList(org, eagles) {
+  const items = eagles.length
+    ? `<ul class="eagle-list">${eagles
+        .map(
+          (e) => `
+        <li>
+          <strong>${escapeHtml(e.firstName)} ${escapeHtml(e.lastName)}</strong>
+          <span class="muted small"> · ${escapeHtml(
+            new Date(e.earnedAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })
+          )}</span>
+          ${e.projectName ? `<p class="muted small">${escapeHtml(e.projectName)}</p>` : ""}
+        </li>`
+        )
+        .join("")}</ul>`
+    : `<p class="muted">No Eagles on the list yet.</p>`;
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/">← Home</a>
+      <h1>Eagle Scouts of ${escapeHtml(org.displayName)}</h1>
+      <p class="muted">${eagles.length} Eagle${eagles.length === 1 ? "" : "s"} since ${escapeHtml(org.founded || "the troop's founding")}.</p>
+      ${items}
+    </section>
+    <style>
+      .eagle-list{list-style:none;padding:0;margin:1.5rem 0;display:grid;gap:.5rem}
+      .eagle-list li{background:#fff;border:1px solid #eef0e7;border-radius:10px;padding:.75rem 1rem}
+      .eagle-list li p{margin:.2rem 0 0}
+    </style>`;
+  return pageShell(org, "Eagle Scouts", body);
+}
+
+export function renderCohProgram(org, ev, awards) {
+  const byCat = {};
+  for (const a of awards) {
+    const c = a.category || "Other";
+    if (!byCat[c]) byCat[c] = [];
+    byCat[c].push(a);
+  }
+  const groups = Object.keys(byCat)
+    .sort()
+    .map(
+      (cat) => `
+      <h2>${escapeHtml(cat)}</h2>
+      <ul class="awards">${byCat[cat]
+        .map(
+          (a) =>
+            `<li><strong>${escapeHtml(a.recipient)}</strong> — ${escapeHtml(a.award)}${
+              a.notes ? `<br><span class="muted small">${escapeHtml(a.notes)}</span>` : ""
+            }</li>`
+        )
+        .join("")}</ul>`
+    )
+    .join("");
+
+  const body = `
+    <section class="event-list program">
+      <a class="back no-print" href="/events/${escapeHtml(ev.id)}">← Back to event</a>
+      <header class="program-head">
+        <p class="eyebrow">Court of Honor · ${escapeHtml(
+          new Date(ev.startsAt).toLocaleDateString("en-US", { dateStyle: "long" })
+        )}</p>
+        <h1>${escapeHtml(org.displayName)}</h1>
+        ${ev.location ? `<p class="muted">${escapeHtml(ev.location)}</p>` : ""}
+      </header>
+      ${awards.length ? groups : `<p class="muted">No awards on the program yet.</p>`}
+      <p class="no-print" style="margin-top:1.5rem"><button class="btn ghost" onclick="window.print()">Print program</button></p>
+    </section>
+    <style>
+      .program{max-width:60ch}
+      .program-head{text-align:center;margin:2rem 0}
+      .program-head h1{margin:0;font-size:2rem}
+      .program-head .eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:.78rem;color:var(--ink-500,#6b7280);margin:0 0 .4rem}
+      .program h2{margin:1.5rem 0 .5rem;text-align:center}
+      .awards{list-style:none;padding:0;margin:0;display:grid;gap:.5rem}
+      .awards li{padding:.6rem 0;border-bottom:1px dotted #d4d8c8;text-align:center}
+      .awards li:last-child{border-bottom:0}
+      @media print{.site-header,.no-print{display:none}.program{padding:0}body{background:#fff}}
+    </style>`;
+  return pageShell(org, `Program — ${ev.title}`, body);
+}
+
 export function renderSurvey(org, survey, { user, flash } = {}) {
   const closed = survey.closesAt && new Date(survey.closesAt) < new Date();
   const questions = Array.isArray(survey.questions) ? survey.questions : [];

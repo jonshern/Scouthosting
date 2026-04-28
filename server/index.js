@@ -23,6 +23,8 @@ import {
   renderForms,
   renderSurvey,
   renderSurveyAck,
+  renderEagleList,
+  renderCohProgram,
 } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
@@ -1036,6 +1038,34 @@ app.post("/posts/:id/comments/:cid/delete", csrfProtect, async (req, res, next) 
     where: { id: req.params.cid, orgId: req.org.id, postId: req.params.id },
   });
   res.redirect(`/posts/${req.params.id}`);
+});
+
+// Public Eagle list — every Eagle Scout on the troop's roster.
+app.get("/eagles", async (req, res, next) => {
+  if (!req.org) return next();
+  const eagles = await prisma.eagleScout.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ earnedAt: "desc" }, { lastName: "asc" }],
+  });
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderEagleList(req.org, eagles));
+});
+
+// Printable Court of Honor program for a specific event.
+app.get("/events/:id/program", async (req, res, next) => {
+  if (!req.org) return next();
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Event not found");
+  const awards = await prisma.cohAward.findMany({
+    where: { eventId: ev.id },
+    orderBy: [{ category: "asc" }, { sortOrder: "asc" }, { recipient: "asc" }],
+  });
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderCohProgram(req.org, ev, awards));
 });
 
 // Public survey form.
