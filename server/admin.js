@@ -164,6 +164,7 @@ form.inline{display:inline}
     <a href="/admin/albums">Photos &amp; albums</a>
     <a href="/admin/forms">Forms &amp; documents</a>
     <a href="/admin/members">Members</a>
+    <a href="/admin/equipment">Equipment</a>
     <a href="/admin/email">Email broadcast</a>
     <a href="/" target="_blank">View public site ↗</a>
   </nav>
@@ -398,6 +399,33 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
         ${page ? `<a class="btn btn-ghost" style="margin-left:auto" href="/admin/content/reset" onclick="return confirm('Reset to defaults?')">Reset to defaults</a>` : ""}
       </div>
     </form>
+
+    <h2 style="margin-top:1.5rem">Theme</h2>
+    <p class="muted small">Pick the colors that show up on your unit's public site, the admin sidebar, and event date badges.</p>
+    <form class="card" method="post" action="/admin/theme">
+      <div class="row">
+        <label style="margin:0;flex:1">Primary color
+          <input name="primaryColor" type="color" value="${escape(req.org.primaryColor || "#1d6b39")}">
+          <span class="muted small">${escape(req.org.primaryColor || "#1d6b39")}</span>
+        </label>
+        <label style="margin:0;flex:1">Accent color
+          <input name="accentColor" type="color" value="${escape(req.org.accentColor || "#caa54a")}">
+          <span class="muted small">${escape(req.org.accentColor || "#caa54a")}</span>
+        </label>
+      </div>
+      <div class="theme-preview">
+        <span class="theme-chip" style="background:${escape(req.org.primaryColor || "#1d6b39")}">Primary</span>
+        <span class="theme-chip" style="background:${escape(req.org.accentColor || "#caa54a")};color:#15181c">Accent</span>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save theme</button>
+        <a class="btn btn-ghost" style="margin-left:auto" href="/admin/theme/reset" onclick="return confirm('Reset to the default Scouthosting green + gold?')">Reset to defaults</a>
+      </div>
+    </form>
+    <style>
+      .theme-preview{display:flex;gap:.6rem;margin:.6rem 0}
+      .theme-chip{display:inline-block;padding:.3rem .8rem;border-radius:6px;color:#fff;font-size:.85rem;font-weight:600}
+    </style>
   `;
   res.type("html").send(layout({ title: "Page content", org: req.org, user: req.user, body }));
 });
@@ -419,6 +447,27 @@ adminRouter.post("/content", requireLeader, async (req, res) => {
 
 adminRouter.get("/content/reset", requireLeader, async (req, res) => {
   await prisma.page.deleteMany({ where: { orgId: req.org.id } });
+  res.redirect("/admin/content");
+});
+
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+adminRouter.post("/theme", requireLeader, async (req, res) => {
+  const primary = (req.body?.primaryColor || "").toString().trim();
+  const accent = (req.body?.accentColor || "").toString().trim();
+  const data = {};
+  if (HEX_COLOR.test(primary)) data.primaryColor = primary;
+  if (HEX_COLOR.test(accent)) data.accentColor = accent;
+  if (Object.keys(data).length) {
+    await prisma.org.update({ where: { id: req.org.id }, data });
+  }
+  res.redirect("/admin/content");
+});
+
+adminRouter.get("/theme/reset", requireLeader, async (req, res) => {
+  await prisma.org.update({
+    where: { id: req.org.id },
+    data: { primaryColor: "#1d6b39", accentColor: "#caa54a" },
+  });
   res.redirect("/admin/content");
 });
 
@@ -1333,26 +1382,31 @@ adminRouter.post("/events/:id/slots/:slotId/delete", requireLeader, async (req, 
 const UNITS = ["lb", "oz", "ea", "cup", "qt", "gal", "pt", "tsp", "tbsp", "pkg", "ct"];
 
 async function loadOrCreatePlan(eventId, orgId) {
+  const includes = {
+    meals: {
+      orderBy: { sortOrder: "asc" },
+      include: { ingredients: { orderBy: { name: "asc" } } },
+    },
+    gear: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+  };
   const existing = await prisma.tripPlan.findUnique({
     where: { eventId },
-    include: {
-      meals: {
-        orderBy: { sortOrder: "asc" },
-        include: { ingredients: { orderBy: { name: "asc" } } },
-      },
-    },
+    include: includes,
   });
   if (existing) return existing;
   await prisma.tripPlan.create({ data: { orgId, eventId } });
-  return prisma.tripPlan.findUnique({
-    where: { eventId },
-    include: {
-      meals: {
-        orderBy: { sortOrder: "asc" },
-        include: { ingredients: { orderBy: { name: "asc" } } },
-      },
-    },
-  });
+  return prisma.tripPlan.findUnique({ where: { eventId }, include: includes });
+}
+
+function totalCostPerPerson(meals) {
+  let total = 0;
+  for (const m of meals || []) {
+    for (const i of m.ingredients || []) {
+      if (i.unitCost == null) continue;
+      total += (i.quantityPerPerson || 0) * (i.unitCost || 0);
+    }
+  }
+  return Math.round(total * 100) / 100;
 }
 
 async function rsvpYesCount(eventId) {
@@ -1389,6 +1443,7 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
           <td>${escape(i.name)}</td>
           <td class="num">${escape(String(i.quantityPerPerson))}</td>
           <td>${escape(i.unit)}</td>
+          <td class="num">${i.unitCost != null ? `$${escape(String(i.unitCost.toFixed(2)))}` : "—"}</td>
           <td>${escape(i.category || "—")}</td>
           <td>
             <form class="inline" method="post" action="/admin/events/${escape(ev.id)}/plan/ingredients/${escape(i.id)}/delete">
@@ -1415,7 +1470,7 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
       ${
         m.ingredients.length
           ? `<table class="ing-table">
-              <thead><tr><th>Ingredient</th><th class="num">Per person</th><th>Unit</th><th>Category</th><th></th></tr></thead>
+              <thead><tr><th>Ingredient</th><th class="num">Per person</th><th>Unit</th><th class="num">$/unit</th><th>Category</th><th></th></tr></thead>
               <tbody>${ingRows}</tbody>
             </table>`
           : `<p class="muted small">No ingredients yet.</p>`
@@ -1423,8 +1478,9 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
 
       <form method="post" action="/admin/events/${escape(ev.id)}/plan/meals/${escape(m.id)}/ingredients" class="ing-add">
         <input name="name" type="text" required placeholder="Ingredient (e.g. Ground beef)" maxlength="80">
-        <input name="quantityPerPerson" type="number" required step="0.01" min="0" placeholder="Per person" style="width:7rem">
+        <input name="quantityPerPerson" type="number" required step="0.01" min="0" placeholder="Per person" style="width:6rem">
         <select name="unit" required>${unitOpts}</select>
+        <input name="unitCost" type="number" step="0.01" min="0" placeholder="$/unit" style="width:5rem" title="Cost per unit (optional)">
         <select name="category"><option value="">— category —</option>${catOpts}</select>
         <button class="btn btn-primary small" type="submit">Add</button>
       </form>
@@ -1466,6 +1522,35 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
         .join("")
     : `<li class="muted small">Nobody on the roster has dietary flags set.</li>`;
 
+  const costPerPerson = totalCostPerPerson(plan.meals);
+  const totalCost = Math.round(costPerPerson * headcount * 100) / 100;
+  const renderGear = () => {
+    if (!plan.gear?.length) return `<p class="muted small">No gear yet — add a packing line below.</p>`;
+    return `<table class="ing-table">
+      <thead><tr><th></th><th>Item</th><th class="num">Qty</th><th>Assigned to</th><th></th></tr></thead>
+      <tbody>${plan.gear
+        .map(
+          (g) => `
+        <tr style="${g.packed ? "opacity:.55" : ""}">
+          <td>
+            <form class="inline" method="post" action="/admin/events/${escape(ev.id)}/plan/gear/${escape(g.id)}/toggle">
+              <button class="link-btn" type="submit" title="${g.packed ? "Unpack" : "Mark packed"}">${g.packed ? "☑" : "☐"}</button>
+            </form>
+          </td>
+          <td>${escape(g.name)}${g.notes ? ` <span class="muted small">${escape(g.notes)}</span>` : ""}</td>
+          <td class="num">${escape(String(g.quantity))}</td>
+          <td>${escape(g.assignedTo || "—")}</td>
+          <td>
+            <form class="inline" method="post" action="/admin/events/${escape(ev.id)}/plan/gear/${escape(g.id)}/delete">
+              <button class="btn btn-danger small" type="submit">×</button>
+            </form>
+          </td>
+        </tr>`
+        )
+        .join("")}</tbody>
+    </table>`;
+  };
+
   const body = `
     <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
     <h1>Trip plan · ${escape(ev.title)}</h1>
@@ -1496,6 +1581,27 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
 
     <h2 style="margin-top:1.5rem">Shopping list</h2>
     <div class="card">${renderShopping()}</div>
+
+    ${
+      costPerPerson > 0
+        ? `<div class="card" style="margin-top:1rem;display:flex;align-items:center;gap:1.5rem;flex-wrap:wrap">
+             <div><strong style="font-size:1.4rem">$${costPerPerson.toFixed(2)}</strong> <span class="muted">per person</span></div>
+             <div><strong style="font-size:1.4rem">$${totalCost.toFixed(2)}</strong> <span class="muted">for ${headcount}</span></div>
+             <p class="muted small" style="margin:0">Estimate based on ingredients with a $/unit set. Set the event fee accordingly.</p>
+           </div>`
+        : `<p class="muted small" style="margin-top:.5rem">Add a $/unit to ingredients and the per-person cost will appear here.</p>`
+    }
+
+    <h2 style="margin-top:1.5rem">Gear / packing list</h2>
+    <div class="card">
+      ${renderGear()}
+      <form method="post" action="/admin/events/${escape(ev.id)}/plan/gear" class="ing-add" style="margin-top:.6rem">
+        <input name="name" type="text" required placeholder="e.g. Patrol box, Propane tank" maxlength="80">
+        <input name="quantity" type="number" min="1" max="99" value="1" style="width:5rem">
+        <input name="assignedTo" type="text" placeholder="Assigned to (optional)" style="flex:1">
+        <button class="btn btn-primary small" type="submit">Add gear</button>
+      </form>
+    </div>
 
     <h2 style="margin-top:1.5rem">Dietary flags on the roster</h2>
     <div class="card"><ul style="margin:0;padding-left:1.25rem">${flagsHtml}</ul></div>
@@ -1569,6 +1675,7 @@ adminRouter.post("/events/:id/plan/meals/:mealId/ingredients", requireLeader, as
   });
   if (!meal || meal.tripPlan.eventId !== req.params.id) return res.status(404).send("Not found");
   const qty = parseFloat(req.body?.quantityPerPerson);
+  const cost = parseFloat(req.body?.unitCost);
   await prisma.ingredient.create({
     data: {
       orgId: req.org.id,
@@ -1576,8 +1683,48 @@ adminRouter.post("/events/:id/plan/meals/:mealId/ingredients", requireLeader, as
       name: req.body?.name?.trim() || "Untitled",
       quantityPerPerson: Number.isFinite(qty) && qty >= 0 ? qty : 0,
       unit: req.body?.unit?.trim() || "ea",
+      unitCost: Number.isFinite(cost) && cost >= 0 ? cost : null,
       category: req.body?.category?.trim() || null,
     },
+  });
+  res.redirect(`/admin/events/${req.params.id}/plan`);
+});
+
+adminRouter.post("/events/:id/plan/gear", requireLeader, async (req, res) => {
+  const plan = await loadOrCreatePlan(req.params.id, req.org.id);
+  const last = await prisma.gearItem.findFirst({
+    where: { tripPlanId: plan.id },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  const qty = parseInt(req.body?.quantity, 10);
+  await prisma.gearItem.create({
+    data: {
+      orgId: req.org.id,
+      tripPlanId: plan.id,
+      name: req.body?.name?.trim() || "Untitled",
+      quantity: Number.isFinite(qty) && qty >= 1 ? Math.min(99, qty) : 1,
+      assignedTo: req.body?.assignedTo?.trim() || null,
+      sortOrder: (last?.sortOrder ?? 0) + 1,
+    },
+  });
+  res.redirect(`/admin/events/${req.params.id}/plan`);
+});
+
+adminRouter.post("/events/:id/plan/gear/:gearId/toggle", requireLeader, async (req, res) => {
+  const g = await prisma.gearItem.findFirst({
+    where: { id: req.params.gearId, orgId: req.org.id },
+    select: { id: true, packed: true },
+  });
+  if (g) {
+    await prisma.gearItem.update({ where: { id: g.id }, data: { packed: !g.packed } });
+  }
+  res.redirect(`/admin/events/${req.params.id}/plan`);
+});
+
+adminRouter.post("/events/:id/plan/gear/:gearId/delete", requireLeader, async (req, res) => {
+  await prisma.gearItem.deleteMany({
+    where: { id: req.params.gearId, orgId: req.org.id },
   });
   res.redirect(`/admin/events/${req.params.id}/plan`);
 });
@@ -2571,6 +2718,177 @@ adminRouter.post("/posts/:id/delete", requireLeader, async (req, res) => {
   await Promise.all(post.photos.map((p) => removeFile(req.org.id, p.filename)));
   await prisma.post.delete({ where: { id: post.id } });
   res.redirect("/admin/posts");
+});
+
+/* ------------------------------------------------------------------ */
+/* Equipment / trailer inventory                                       */
+/* ------------------------------------------------------------------ */
+
+const EQUIP_CATEGORIES = [
+  "Trailer",
+  "Patrol box",
+  "Cooking",
+  "Shelter",
+  "Tools",
+  "First aid",
+  "Lanterns / lights",
+  "Other",
+];
+const EQUIP_CONDITIONS = ["good", "fair", "needs-repair", "retired"];
+
+adminRouter.get("/equipment", requireLeader, async (req, res) => {
+  const items = await prisma.equipment.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ category: "asc" }, { name: "asc" }],
+  });
+  const byCat = {};
+  for (const it of items) {
+    const c = it.category || "Other";
+    if (!byCat[c]) byCat[c] = [];
+    byCat[c].push(it);
+  }
+  const conditionTag = (c) =>
+    c === "needs-repair"
+      ? `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">needs repair</span>`
+      : c === "retired"
+      ? `<span class="tag" style="opacity:.6">retired</span>`
+      : c === "fair"
+      ? `<span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">fair</span>`
+      : "";
+
+  const renderRow = (it) => `
+    <li>
+      <div style="flex:1">
+        <h3>${escape(it.name)}${
+    it.quantity > 1 ? ` <span class="tag">×${it.quantity}</span>` : ""
+  } ${conditionTag(it.condition)}</h3>
+        <p class="muted small">
+          ${it.location ? `<span class="tag">${escape(it.location)}</span>` : ""}
+          ${it.serialOrTag ? `<span class="tag">${escape(it.serialOrTag)}</span>` : ""}
+          ${it.notes ? escape(it.notes) : ""}
+        </p>
+      </div>
+      <div class="row">
+        <a class="btn btn-ghost small" href="/admin/equipment/${escape(it.id)}/edit">Edit</a>
+        <form class="inline" method="post" action="/admin/equipment/${escape(it.id)}/delete" onsubmit="return confirm('Delete this item from the catalog?')">
+          <button class="btn btn-danger small" type="submit">Delete</button>
+        </form>
+      </div>
+    </li>`;
+
+  const groups = Object.keys(byCat)
+    .sort()
+    .map(
+      (cat) => `
+        <h2 style="margin-top:1.5rem">${escape(cat)} <span class="muted small" style="font-weight:400">(${byCat[cat].length})</span></h2>
+        <ul class="items">${byCat[cat].map(renderRow).join("")}</ul>`
+    )
+    .join("");
+
+  const catOpts = EQUIP_CATEGORIES.map(
+    (c) => `<option value="${escape(c)}">${escape(c)}</option>`
+  ).join("");
+
+  const body = `
+    <h1>Equipment</h1>
+    <p class="muted">Permanent troop inventory — what's in the trailer, who's borrowed what, and what needs repair. Distinct from the per-trip packing list on each Trip plan.</p>
+
+    <form class="card" method="post" action="/admin/equipment">
+      <h2 style="margin-top:0">Add an item</h2>
+      <label>Name<input name="name" type="text" required maxlength="120" placeholder="e.g. Patrol box #1, Coleman 2-burner stove"></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Category<select name="category"><option value="">— pick —</option>${catOpts}</select></label>
+        <label style="margin:0;flex:1">Condition
+          <select name="condition">
+            ${EQUIP_CONDITIONS.map(
+              (c) => `<option value="${escape(c)}"${c === "good" ? " selected" : ""}>${escape(c)}</option>`
+            ).join("")}
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Quantity<input name="quantity" type="number" min="1" max="999" value="1"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Location<input name="location" type="text" maxlength="80" placeholder="Trailer / Closet / Loaned: Smith family"></label>
+        <label style="margin:0;flex:1">Serial / asset tag<input name="serialOrTag" type="text" maxlength="40"></label>
+      </div>
+      <label>Notes<textarea name="notes" rows="2"></textarea></label>
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
+
+    ${items.length ? groups : `<div class="empty" style="margin-top:1rem">Nothing in the catalog yet. Add your first item above — start with the trailer itself.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Equipment", org: req.org, user: req.user, body }));
+});
+
+function equipmentFromBody(body) {
+  return {
+    name: body?.name?.trim() || "Untitled",
+    category: body?.category?.trim() || null,
+    serialOrTag: body?.serialOrTag?.trim() || null,
+    location: body?.location?.trim() || null,
+    condition: EQUIP_CONDITIONS.includes(body?.condition) ? body.condition : "good",
+    quantity: Math.max(1, Math.min(999, parseInt(body?.quantity, 10) || 1)),
+    notes: body?.notes?.trim() || null,
+  };
+}
+
+adminRouter.post("/equipment", requireLeader, async (req, res) => {
+  await prisma.equipment.create({ data: { orgId: req.org.id, ...equipmentFromBody(req.body) } });
+  res.redirect("/admin/equipment");
+});
+
+adminRouter.get("/equipment/:id/edit", requireLeader, async (req, res) => {
+  const it = await prisma.equipment.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!it) return res.status(404).send("Not found");
+  const v = (k) => escape(it[k] ?? "");
+  const sel = (cond) => (cond ? " selected" : "");
+  const catOpts = EQUIP_CATEGORIES.map(
+    (c) => `<option value="${escape(c)}"${sel(it.category === c)}>${escape(c)}</option>`
+  ).join("");
+  const condOpts = EQUIP_CONDITIONS.map(
+    (c) => `<option value="${escape(c)}"${sel(it.condition === c)}>${escape(c)}</option>`
+  ).join("");
+  const body = `
+    <a class="back" href="/admin/equipment" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Equipment</a>
+    <h1>Edit equipment</h1>
+    <form class="card" method="post" action="/admin/equipment/${escape(it.id)}">
+      <label>Name<input name="name" type="text" required maxlength="120" value="${v("name")}"></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Category<select name="category"><option value="">—</option>${catOpts}</select></label>
+        <label style="margin:0;flex:1">Condition<select name="condition">${condOpts}</select></label>
+        <label style="margin:0;flex:1">Quantity<input name="quantity" type="number" min="1" max="999" value="${v("quantity")}"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Location<input name="location" type="text" maxlength="80" value="${v("location")}"></label>
+        <label style="margin:0;flex:1">Serial / tag<input name="serialOrTag" type="text" maxlength="40" value="${v("serialOrTag")}"></label>
+      </div>
+      <label>Notes<textarea name="notes" rows="2">${v("notes")}</textarea></label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/admin/equipment">Cancel</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "Edit equipment", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/equipment/:id", requireLeader, async (req, res) => {
+  const it = await prisma.equipment.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!it) return res.status(404).send("Not found");
+  await prisma.equipment.update({ where: { id: it.id }, data: equipmentFromBody(req.body) });
+  res.redirect("/admin/equipment");
+});
+
+adminRouter.post("/equipment/:id/delete", requireLeader, async (req, res) => {
+  await prisma.equipment.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  res.redirect("/admin/equipment");
 });
 
 /* ------------------------------------------------------------------ */

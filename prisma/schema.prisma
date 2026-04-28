@@ -85,6 +85,8 @@ model Org {
   tripPlans     TripPlan[]
   meals         Meal[]
   ingredients   Ingredient[]
+  gear          GearItem[]
+  equipment     Equipment[]
 
   @@index([plan])
 }
@@ -464,6 +466,7 @@ model TripPlan {
   org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
   meals Meal[]
+  gear  GearItem[]
 
   @@index([orgId])
 }
@@ -495,6 +498,10 @@ model Ingredient {
   quantityPerPerson Float    // e.g., 0.25
   unit              String   // "lb", "oz", "ea", "cup", ...
   category          String?  // "Meat", "Produce", "Dairy", "Pantry", "Drinks", "Other"
+  // Optional cost per `unit` (e.g. $5 per lb). When set, the trip plan
+  // sums quantityPerPerson * unitCost across meals to surface a
+  // cost-per-Scout estimate.
+  unitCost          Float?
   notes             String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
@@ -503,6 +510,27 @@ model Ingredient {
   meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
 
   @@index([orgId, mealId])
+}
+
+// Gear / equipment checklist for a trip. Items can be assigned to a
+// Member (the Quartermaster, a parent volunteer) or left unassigned.
+model GearItem {
+  id          String   @id @default(cuid())
+  orgId       String
+  tripPlanId  String
+  name        String   // "Patrol box", "Propane stove"
+  quantity    Int      @default(1)
+  assignedTo  String?  // free-form name; future: link to Member
+  notes       String?
+  packed      Boolean  @default(false)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org      Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tripPlan TripPlan @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, tripPlanId, sortOrder])
 }
 
 // Comments on Posts. Members-only by definition (visibility lives on the
@@ -522,4 +550,28 @@ model Comment {
   author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
 
   @@index([orgId, postId, createdAt])
+}
+
+// Permanent troop equipment catalog. Distinct from GearItem (which is
+// a per-trip packing list). Tracks what the troop owns: patrol boxes,
+// stoves, lanterns, propane tanks, the trailer itself, etc.
+model Equipment {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String           // "Patrol box #1", "Coleman 2-burner stove"
+  category    String?          // "Patrol box", "Cooking", "Shelter", "Tools", ...
+  serialOrTag String?          // serial number or asset tag
+  location    String?          // "Trailer", "Storage closet", "Loaned: Smith family"
+  condition   String   @default("good")  // good | fair | needs-repair | retired
+  quantity    Int      @default(1)
+  acquiredAt  DateTime?
+  notes       String?
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, category])
+  @@index([orgId, location])
 }

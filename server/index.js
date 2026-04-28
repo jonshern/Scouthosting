@@ -886,6 +886,7 @@ app.get("/events/:id/plan", async (req, res, next) => {
         orderBy: { sortOrder: "asc" },
         include: { ingredients: { orderBy: { name: "asc" } } },
       },
+      gear: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
     },
   });
 

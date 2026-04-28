@@ -741,7 +741,18 @@ function renderFeed(posts) {
 
 export function renderTripPlan(org, ev, plan, headcount, flagged) {
   const meals = plan?.meals || [];
+  const gear = plan?.gear || [];
   const list = buildShoppingList(meals, headcount);
+
+  let costPerPerson = 0;
+  for (const m of meals) {
+    for (const i of m.ingredients || []) {
+      if (i.unitCost == null) continue;
+      costPerPerson += (i.quantityPerPerson || 0) * (i.unitCost || 0);
+    }
+  }
+  costPerPerson = Math.round(costPerPerson * 100) / 100;
+  const totalCost = Math.round(costPerPerson * headcount * 100) / 100;
 
   const mealCards = meals.length
     ? meals
@@ -829,6 +840,37 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
 
       <h2 style="margin-top:2rem">Shopping list</h2>
       <div class="trip-shop">${shoppingHtml}</div>
+
+      ${
+        costPerPerson > 0
+          ? `<h2 style="margin-top:2rem">Estimated cost</h2>
+             <div class="trip-shop" style="display:flex;gap:2rem;flex-wrap:wrap">
+               <div><strong style="font-size:1.5rem">$${costPerPerson.toFixed(2)}</strong> <span class="muted">per person</span></div>
+               <div><strong style="font-size:1.5rem">$${totalCost.toFixed(2)}</strong> <span class="muted">for ${headcount}</span></div>
+             </div>`
+          : ""
+      }
+
+      ${
+        gear.length
+          ? `<h2 style="margin-top:2rem">Gear / packing list</h2>
+             <div class="trip-shop">
+               <table class="shopping">
+                 <thead><tr><th></th><th>Item</th><th class="num">Qty</th><th>Assigned to</th></tr></thead>
+                 <tbody>${gear
+                   .map(
+                     (g) => `<tr style="${g.packed ? "opacity:.55" : ""}">
+                       <td>${g.packed ? "☑" : "☐"}</td>
+                       <td>${escapeHtml(g.name)}${g.notes ? ` <span class="muted small">${escapeHtml(g.notes)}</span>` : ""}</td>
+                       <td class="num">${escapeHtml(String(g.quantity))}</td>
+                       <td>${escapeHtml(g.assignedTo || "—")}</td>
+                     </tr>`
+                   )
+                   .join("")}</tbody>
+               </table>
+             </div>`
+          : ""
+      }
 
       <h2 style="margin-top:2rem">Dietary flags on the roster</h2>
       <div class="trip-shop">${flagsHtml}</div>
