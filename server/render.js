@@ -739,6 +739,16 @@ function renderFeed(posts) {
   </section>`;
 }
 
+export function renderCustomPage(org, page) {
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/">← Home</a>
+      <h1>${escapeHtml(page.title)}</h1>
+      <div class="prose" style="max-width:65ch;line-height:1.65">${textToHtml(page.body)}</div>
+    </section>`;
+  return pageShell(org, page.title, body);
+}
+
 export function renderTripPlan(org, ev, plan, headcount, flagged) {
   const meals = plan?.meals || [];
   const gear = plan?.gear || [];
@@ -982,13 +992,17 @@ function renderAnnouncements(list) {
 }
 
 export function renderSite(org, extras = {}) {
-  const { page, announcements, albums, posts, user, role } = extras;
+  const { page, announcements, albums, posts, user, role, customPages } = extras;
   const tpl = loadTemplate();
   const navAuth = user
     ? `${role === "admin" || role === "leader" ? `<li><a href="/admin">Admin</a></li>` : ""}
        <li><a class="cta" href="/logout" onclick="event.preventDefault();fetch('/logout',{method:'POST'}).then(()=>location.href='/');">Sign out</a></li>`
     : `<li><a href="/login">Sign in</a></li>
        <li><a class="cta" href="#join">Join</a></li>`;
+  const navCustom = (customPages || [])
+    .filter((p) => p.showInNav)
+    .map((p) => `<li><a href="/p/${escapeHtml(p.slug)}">${escapeHtml(p.title)}</a></li>`)
+    .join("");
 
   const tagline =
     page?.heroLede ||
@@ -1040,6 +1054,7 @@ export function renderSite(org, extras = {}) {
     EVENTS: raw(renderEvents(extras.events)),
     GALLERY: raw(renderGallery(albums)),
     NAV_AUTH: raw(navAuth),
+    NAV_CUSTOM: raw(navCustom),
     DEMO_BANNER: org.isDemo
       ? raw(
           `<div class="demo-banner" role="note"><strong>Scouthosting demo site.</strong> ${escapeHtml(

@@ -1029,6 +1029,28 @@ app.post("/posts/:id/comments/:cid/delete", async (req, res, next) => {
   res.redirect(`/posts/${req.params.id}`);
 });
 
+// Custom page by slug.
+app.get("/p/:slug", async (req, res, next) => {
+  if (!req.org) return next();
+  const slug = req.params.slug;
+  if (!/^[a-z0-9-]+$/.test(slug)) return res.status(404).send("Not found");
+  const page = await prisma.customPage.findUnique({
+    where: { orgId_slug: { orgId: req.org.id, slug } },
+  });
+  if (!page) return res.status(404).send("Page not found");
+
+  if (page.visibility === "members") {
+    if (!req.user) return res.redirect(`/login?next=/p/${page.slug}`);
+    const role = await roleInOrg(req.user.id, req.org.id);
+    if (!role) return res.status(403).send("Members only");
+  }
+
+  const { renderCustomPage } = await import("./render.js");
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderCustomPage(req.org, page));
+});
+
 // Forms & documents — visibility filters by viewer role.
 app.get("/forms", async (req, res, next) => {
   if (!req.org) return next();
@@ -1400,7 +1422,7 @@ app.get("*", async (req, res, next) => {
   }
 
   // Pull CMS content alongside the org so a single render call has everything.
-  const [page, announcements, albums, events, posts] = await Promise.all([
+  const [page, announcements, albums, events, posts, customPages] = await Promise.all([
     prisma.page.findUnique({ where: { orgId: req.org.id } }),
     prisma.announcement.findMany({
       where: {
@@ -1451,6 +1473,11 @@ app.get("*", async (req, res, next) => {
         author: { select: { displayName: true } },
       },
     }),
+    prisma.customPage.findMany({
+      where: { orgId: req.org.id, showInNav: true, visibility: "public" },
+      orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
+      select: { slug: true, title: true, showInNav: true },
+    }),
   ]);
 
   const role = req.user ? await roleInOrg(req.user.id, req.org.id) : null;
@@ -1460,6 +1487,7 @@ app.get("*", async (req, res, next) => {
     albums,
     events,
     posts,
+    customPages,
     user: req.user,
     role,
   });

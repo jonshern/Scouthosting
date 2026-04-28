@@ -78,13 +78,14 @@ async function main() {
   }
   console.log(`✓ Seeded sample events`);
 
-  // Sample members (idempotent on (orgId, firstName, lastName))
+  // Sample members — obviously fake names so nobody confuses them with
+  // real scouts. Idempotent on (orgId, firstName, lastName).
   const sampleMembers = [
-    { firstName: "Alex", lastName: "Park", email: "alex@example.invalid", patrol: "Eagles", position: "SPL", isYouth: true, commPreference: "both", smsOptIn: true },
-    { firstName: "Sam", lastName: "Lee", email: "sam@example.invalid", patrol: "Eagles", isYouth: true, commPreference: "email" },
-    { firstName: "Jordan", lastName: "Diaz", email: "jordan@example.invalid", patrol: "Foxes", position: "Patrol Leader", isYouth: true, commPreference: "email" },
-    { firstName: "Pat", lastName: "Adams", email: "pat@example.invalid", phone: "555-0142", position: "Scoutmaster", isYouth: false, commPreference: "both", smsOptIn: true },
-    { firstName: "Riley", lastName: "Khan", email: "riley@example.invalid", position: "Committee Chair", isYouth: false, commPreference: "email" },
+    { firstName: "Demo", lastName: "Scout 1", email: "demo-scout-1@example.invalid", patrol: "Eagles", position: "SPL", isYouth: true, commPreference: "both", smsOptIn: true },
+    { firstName: "Demo", lastName: "Scout 2", email: "demo-scout-2@example.invalid", patrol: "Eagles", isYouth: true, commPreference: "email" },
+    { firstName: "Demo", lastName: "Scout 3", email: "demo-scout-3@example.invalid", patrol: "Foxes", position: "Patrol Leader", isYouth: true, commPreference: "email" },
+    { firstName: "Demo", lastName: "Scoutmaster", email: "demo-scoutmaster@example.invalid", phone: "555-0142", position: "Scoutmaster", isYouth: false, commPreference: "both", smsOptIn: true },
+    { firstName: "Demo", lastName: "Committee Chair", email: "demo-committee@example.invalid", position: "Committee Chair", isYouth: false, commPreference: "email" },
   ];
   for (const m of sampleMembers) {
     const exists = await prisma.member.findFirst({

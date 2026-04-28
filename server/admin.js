@@ -159,6 +159,7 @@ form.inline{display:inline}
     <a href="/admin">Dashboard</a>
     <a href="/admin/posts">Activity feed</a>
     <a href="/admin/content">Page content</a>
+    <a href="/admin/pages">Custom pages</a>
     <a href="/admin/announcements">Announcements</a>
     <a href="/admin/events">Calendar</a>
     <a href="/admin/albums">Photos &amp; albums</a>
@@ -2718,6 +2719,178 @@ adminRouter.post("/posts/:id/delete", requireLeader, async (req, res) => {
   await Promise.all(post.photos.map((p) => removeFile(req.org.id, p.filename)));
   await prisma.post.delete({ where: { id: post.id } });
   res.redirect("/admin/posts");
+});
+
+/* ------------------------------------------------------------------ */
+/* Custom pages                                                        */
+/* ------------------------------------------------------------------ */
+
+function slugifyPath(input) {
+  return String(input || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^\w\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 60) || "page";
+}
+
+const RESERVED_PATH_SLUGS = new Set([
+  "events", "posts", "members", "forms", "calendar", "calendar.ics",
+  "uploads", "rsvp", "admin", "api", "login", "logout", "signup",
+  "magic", "verify", "reset", "forgot",
+]);
+
+adminRouter.get("/pages", requireLeader, async (req, res) => {
+  const pages = await prisma.customPage.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
+  });
+  const items = pages
+    .map(
+      (p) => `
+    <li>
+      <div style="flex:1">
+        <h3>${escape(p.title)}</h3>
+        <p class="muted small">
+          <a href="/p/${escape(p.slug)}" target="_blank" rel="noopener">/p/${escape(p.slug)}</a>
+          <span class="tag">${escape(p.visibility)}</span>
+          ${p.showInNav ? `<span class="tag">in nav</span>` : ""}
+        </p>
+      </div>
+      <div class="row">
+        <a class="btn btn-ghost small" href="/admin/pages/${escape(p.id)}/edit">Edit</a>
+        <form class="inline" method="post" action="/admin/pages/${escape(p.id)}/delete" onsubmit="return confirm('Delete this page?')">
+          <button class="btn btn-danger small" type="submit">Delete</button>
+        </form>
+      </div>
+    </li>`
+    )
+    .join("");
+
+  const body = `
+    <h1>Custom pages</h1>
+    <p class="muted">Add extra pages beyond the home page — History, Eagle list, FAQ, anything. They live at <code>/p/&lt;slug&gt;</code>.</p>
+
+    <form class="card" method="post" action="/admin/pages">
+      <h2 style="margin-top:0">New page</h2>
+      <label>Title<input name="title" type="text" required maxlength="120" placeholder="e.g. Our History"></label>
+      <label>URL slug (optional — derived from title if blank)
+        <input name="slug" type="text" maxlength="60" pattern="[a-z0-9-]+" placeholder="our-history">
+      </label>
+      <label>Body (paragraphs separated by blank lines)
+        <textarea name="body" rows="8" required></textarea>
+      </label>
+      <div class="row">
+        <label style="margin:0;flex:1">Visibility
+          <select name="visibility">
+            <option value="public" selected>Public</option>
+            <option value="members">Members only</option>
+          </select>
+        </label>
+        <label style="margin:0"><input name="showInNav" type="checkbox" value="1" checked style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Show in main nav</label>
+      </div>
+      <button class="btn btn-primary" type="submit">Create</button>
+    </form>
+
+    <h2 style="margin-top:1.25rem">Pages</h2>
+    ${pages.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No custom pages yet.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Custom pages", org: req.org, user: req.user, body }));
+});
+
+async function pickUniqueSlug(orgId, base, excludeId) {
+  let slug = slugifyPath(base);
+  if (RESERVED_PATH_SLUGS.has(slug)) slug = `${slug}-page`;
+  let n = 1;
+  while (true) {
+    const existing = await prisma.customPage.findUnique({
+      where: { orgId_slug: { orgId, slug } },
+    });
+    if (!existing || existing.id === excludeId) return slug;
+    n++;
+    slug = `${slugifyPath(base)}-${n}`;
+  }
+}
+
+adminRouter.post("/pages", requireLeader, async (req, res) => {
+  const title = req.body?.title?.trim();
+  if (!title) return res.redirect("/admin/pages");
+  const slug = await pickUniqueSlug(req.org.id, req.body?.slug?.trim() || title);
+  await prisma.customPage.create({
+    data: {
+      orgId: req.org.id,
+      slug,
+      title,
+      body: (req.body?.body || "").toString().trim() || "",
+      visibility: req.body?.visibility === "members" ? "members" : "public",
+      showInNav: req.body?.showInNav === "1",
+    },
+  });
+  res.redirect("/admin/pages");
+});
+
+adminRouter.get("/pages/:id/edit", requireLeader, async (req, res) => {
+  const p = await prisma.customPage.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!p) return res.status(404).send("Not found");
+  const v = (k) => escape(p[k] ?? "");
+  const sel = (cond) => (cond ? " selected" : "");
+  const body = `
+    <a class="back" href="/admin/pages" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Custom pages</a>
+    <h1>Edit page</h1>
+    <form class="card" method="post" action="/admin/pages/${escape(p.id)}">
+      <label>Title<input name="title" type="text" required maxlength="120" value="${v("title")}"></label>
+      <label>URL slug<input name="slug" type="text" maxlength="60" pattern="[a-z0-9-]+" value="${v("slug")}"></label>
+      <p class="muted small" style="margin:-.5rem 0 .5rem">Public URL: <code>/p/${v("slug")}</code></p>
+      <label>Body<textarea name="body" rows="12" required>${v("body")}</textarea></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Visibility
+          <select name="visibility">
+            <option value="public"${sel(p.visibility === "public")}>Public</option>
+            <option value="members"${sel(p.visibility === "members")}>Members only</option>
+          </select>
+        </label>
+        <label style="margin:0"><input name="showInNav" type="checkbox" value="1"${
+          p.showInNav ? " checked" : ""
+        } style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Show in main nav</label>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/admin/pages">Cancel</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "Edit page", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/pages/:id", requireLeader, async (req, res) => {
+  const p = await prisma.customPage.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!p) return res.status(404).send("Not found");
+  const title = req.body?.title?.trim() || p.title;
+  const slugInput = req.body?.slug?.trim() || p.slug;
+  const slug = slugInput === p.slug ? p.slug : await pickUniqueSlug(req.org.id, slugInput, p.id);
+  await prisma.customPage.update({
+    where: { id: p.id },
+    data: {
+      title,
+      slug,
+      body: (req.body?.body || "").toString().trim() || "",
+      visibility: req.body?.visibility === "members" ? "members" : "public",
+      showInNav: req.body?.showInNav === "1",
+    },
+  });
+  res.redirect("/admin/pages");
+});
+
+adminRouter.post("/pages/:id/delete", requireLeader, async (req, res) => {
+  await prisma.customPage.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  res.redirect("/admin/pages");
 });
 
 /* ------------------------------------------------------------------ */

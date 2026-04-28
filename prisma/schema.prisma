@@ -87,6 +87,7 @@ model Org {
   ingredients   Ingredient[]
   gear          GearItem[]
   equipment     Equipment[]
+  customPages   CustomPage[]
 
   @@index([plan])
 }
@@ -574,4 +575,25 @@ model Equipment {
 
   @@index([orgId, category])
   @@index([orgId, location])
+}
+
+// Custom page — extra content pages beyond the home page (e.g. History,
+// Bylaws summary, Eagle list, FAQ). Distinct from the Page model
+// which holds editable home-page slots.
+model CustomPage {
+  id          String   @id @default(cuid())
+  orgId       String
+  slug        String   // URL slug, lowercased, kebab-case
+  title       String
+  body        String   // markdown-ish; rendered with paragraph + line-break preservation
+  visibility  String   @default("public") // public | members
+  sortOrder   Int      @default(0)
+  showInNav   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, slug])
+  @@index([orgId, sortOrder])
 }
