@@ -7,6 +7,7 @@ import "dotenv/config";
 import { prisma } from "../lib/db.js";
 import { lucia, attachSession, hashPassword, verifyPassword, roleInOrg } from "../lib/auth.js";
 import { originAuth } from "../lib/originAuth.js";
+import { csrfMiddleware, csrfProtect, csrfHtmlInjector } from "../lib/csrf.js";
 import {
   provisionOrg,
   validateProvisionInput,
@@ -65,6 +66,8 @@ app.use(originAuth);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(attachSession);
+app.use(csrfMiddleware);
+app.use(csrfHtmlInjector);
 
 // Resolve req.org from Host header (or custom domain).
 app.use(async (req, _res, next) => {
@@ -126,7 +129,7 @@ app.get("/api/orgs", async (_req, res) => {
 
 /* ------------------ Auth ------------------------------------------ */
 
-app.post("/api/auth/signup", async (req, res) => {
+app.post("/api/auth/signup", csrfProtect, async (req, res) => {
   const { email, password, displayName } = req.body || {};
   if (!email || !password || !displayName) {
     return res.status(400).json({ ok: false, error: "email, password, displayName required" });
@@ -162,7 +165,7 @@ app.post("/api/auth/signup", async (req, res) => {
   res.status(201).json({ ok: true, user: { id: user.id, email: user.email, displayName: user.displayName } });
 });
 
-app.post("/api/auth/login", async (req, res) => {
+app.post("/api/auth/login", csrfProtect, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ ok: false, error: "email and password required" });
@@ -180,7 +183,7 @@ app.post("/api/auth/login", async (req, res) => {
   res.json({ ok: true, user: { id: user.id, email: user.email, displayName: user.displayName } });
 });
 
-app.post("/api/auth/logout", async (req, res) => {
+app.post("/api/auth/logout", csrfProtect, async (req, res) => {
   if (req.session) await lucia.invalidateSession(req.session.id);
   res.appendHeader("Set-Cookie", lucia.createBlankSessionCookie().serialize());
   res.json({ ok: true });
@@ -338,8 +341,12 @@ app.get("/auth/google/callback", async (req, res) => {
 
 app.use("/admin", (req, res, next) => {
   if (!req.org) return res.status(404).send("Site not found");
-  return adminRouter(req, res, next);
+  next();
 });
+// CSRF guard for any /admin state-changing request. csrfProtect is a
+// no-op on GET, so it sits cleanly in front of every admin route.
+app.use("/admin", csrfProtect);
+app.use("/admin", adminRouter);
 
 function rsvpAck(org, { ok, message, eventId }) {
   const escape = (s) =>
@@ -467,7 +474,7 @@ app.get("/login", (req, res, next) => {
   );
 });
 
-app.post("/login", async (req, res, next) => {
+app.post("/login", csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   const { email, password } = req.body || {};
   const nextUrl = safeNext(req.query.next);
@@ -505,7 +512,7 @@ app.get("/signup", (req, res, next) => {
   );
 });
 
-app.post("/signup", async (req, res, next) => {
+app.post("/signup", csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   const { email, password, displayName } = req.body || {};
   const nextUrl = safeNext(req.query.next);
@@ -549,7 +556,7 @@ app.post("/signup", async (req, res, next) => {
   res.redirect(nextUrl);
 });
 
-app.post("/logout", async (req, res, next) => {
+app.post("/logout", csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   if (req.session) await lucia.invalidateSession(req.session.id);
   res.appendHeader("Set-Cookie", lucia.createBlankSessionCookie().serialize());
@@ -651,7 +658,7 @@ app.get("/forgot", (req, res, next) => {
   );
 });
 
-app.post("/forgot", async (req, res, next) => {
+app.post("/forgot", csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   const email = (req.body?.email || "").toString().trim().toLowerCase();
   // Do the DB lookup whether or not we'll send, so timing leaks less.
@@ -702,7 +709,7 @@ app.get("/reset/:token", (req, res, next) => {
   );
 });
 
-app.post("/reset/:token", async (req, res, next) => {
+app.post("/reset/:token", csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   const claims = verifySignedToken(req.params.token, { secret: AUTH_SECRET });
   if (!claims || claims.kind !== "reset") {
@@ -757,7 +764,7 @@ app.get("/magic", (req, res, next) => {
   );
 });
 
-app.post("/magic", async (req, res, next) => {
+app.post("/magic", csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   const email = (req.body?.email || "").toString().trim().toLowerCase();
   const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
@@ -955,7 +962,7 @@ app.get("/posts/:id", async (req, res, next) => {
 // Post a comment. Sign-in required; auto-creates a parent membership
 // on first interaction so a brand-new user comment lands without
 // extra setup.
-app.post("/posts/:id/comments", async (req, res, next) => {
+app.post("/posts/:id/comments", csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   if (!req.user) {
     return res.redirect(`/login?next=/posts/${req.params.id}`);
@@ -1000,7 +1007,7 @@ async function gateLeader(req, res) {
   return true;
 }
 
-app.post("/posts/:id/comments/:cid/hide", async (req, res, next) => {
+app.post("/posts/:id/comments/:cid/hide", csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   if (!(await gateLeader(req, res))) return;
   await prisma.comment.updateMany({
@@ -1010,7 +1017,7 @@ app.post("/posts/:id/comments/:cid/hide", async (req, res, next) => {
   res.redirect(`/posts/${req.params.id}`);
 });
 
-app.post("/posts/:id/comments/:cid/show", async (req, res, next) => {
+app.post("/posts/:id/comments/:cid/show", csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   if (!(await gateLeader(req, res))) return;
   await prisma.comment.updateMany({
@@ -1020,7 +1027,7 @@ app.post("/posts/:id/comments/:cid/show", async (req, res, next) => {
   res.redirect(`/posts/${req.params.id}`);
 });
 
-app.post("/posts/:id/comments/:cid/delete", async (req, res, next) => {
+app.post("/posts/:id/comments/:cid/delete", csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   if (!(await gateLeader(req, res))) return;
   await prisma.comment.deleteMany({
