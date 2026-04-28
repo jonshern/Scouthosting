@@ -1247,6 +1247,68 @@ adminRouter.get("/events/:id/rsvps.csv", requireLeader, async (req, res) => {
 /* Sign-up slots (drivers, food, gear)                                 */
 /* ------------------------------------------------------------------ */
 
+const SLOT_TEMPLATES = {
+  potluck: {
+    label: "Potluck",
+    description: "Standard potluck — drinks, sides, dessert, setup, cleanup.",
+    slots: [
+      { title: "Drinks (enough for everyone)", capacity: 1 },
+      { title: "Plates, utensils, napkins", capacity: 1 },
+      { title: "Main / hot side", capacity: 2 },
+      { title: "Cold side / salad", capacity: 2 },
+      { title: "Dessert", capacity: 2 },
+      { title: "Setup (arrive 15 min early)", capacity: 3 },
+      { title: "Cleanup (stay 15 min after)", capacity: 3 },
+    ],
+  },
+  drivers: {
+    label: "Drivers / carpool",
+    description: "Driver sign-up; each driver covers one carload.",
+    slots: [
+      { title: "Driver — carload 1 (4 seats)", capacity: 1, notes: "Driver should be YPT-trained adult." },
+      { title: "Driver — carload 2 (4 seats)", capacity: 1 },
+      { title: "Driver — carload 3 (4 seats)", capacity: 1 },
+      { title: "Driver — carload 4 (4 seats)", capacity: 1 },
+      { title: "Driver — carload 5 (4 seats)", capacity: 1 },
+    ],
+  },
+  campout: {
+    label: "Campout",
+    description: "Common campout supports: drivers, gear, first aid.",
+    slots: [
+      { title: "Driver — patrol box truck", capacity: 1 },
+      { title: "Driver — Scouts (4 seats each)", capacity: 4 },
+      { title: "First aid kit", capacity: 1 },
+      { title: "Patrol cook box", capacity: 2 },
+      { title: "Tarp / dining fly", capacity: 1 },
+      { title: "Tents (2 per box)", capacity: 3 },
+    ],
+  },
+  court_of_honor: {
+    label: "Court of Honor",
+    description: "Ceremony coordination — refreshments, setup, ceremony roles.",
+    slots: [
+      { title: "Refreshments", capacity: 3 },
+      { title: "Setup crew (arrive 30 min early)", capacity: 4 },
+      { title: "Photographer", capacity: 1 },
+      { title: "MC / announcer", capacity: 1 },
+      { title: "Awards table runner", capacity: 1 },
+      { title: "Cleanup crew", capacity: 4 },
+    ],
+  },
+  service: {
+    label: "Service project",
+    description: "Service-day logistics: tools, food, drivers.",
+    slots: [
+      { title: "Tools / supplies", capacity: 2, notes: "Coordinate with project beneficiary." },
+      { title: "Snacks + drinks", capacity: 2 },
+      { title: "First aid", capacity: 1 },
+      { title: "Photos / documentation", capacity: 1 },
+      { title: "Driver", capacity: 3 },
+    ],
+  },
+};
+
 adminRouter.get("/events/:id/slots", requireLeader, async (req, res) => {
   const ev = await prisma.event.findFirst({
     where: { id: req.params.id, orgId: req.org.id },
@@ -1282,10 +1344,28 @@ adminRouter.get("/events/:id/slots", requireLeader, async (req, res) => {
       </div>
     </li>`;
 
+  const templateOpts = Object.entries(SLOT_TEMPLATES)
+    .map(([key, t]) => `<option value="${escape(key)}">${escape(t.label)} — ${escape(t.description)}</option>`)
+    .join("");
+
   const body = `
     <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
     <h1>Sign-up sheet · ${escape(ev.title)}</h1>
     <p class="muted">Add slots for what your unit needs covered: drivers, food items, gear. Anyone who can see the event can claim a slot — no login required.</p>
+
+    <form class="card" method="post" action="/admin/events/${escape(ev.id)}/slots/template">
+      <h2 style="margin-top:0">Use a template</h2>
+      <p class="muted small">One click creates a sensible set of slots you can edit afterward.</p>
+      <div class="row">
+        <label style="margin:0;flex:1">Template
+          <select name="template" required>
+            <option value="">— pick a template —</option>
+            ${templateOpts}
+          </select>
+        </label>
+        <button class="btn btn-primary" type="submit">Apply template</button>
+      </div>
+    </form>
 
     <h2 style="margin-top:1.25rem">Add a slot</h2>
     <form class="card" method="post" action="/admin/events/${escape(ev.id)}/slots">
@@ -1326,6 +1406,34 @@ adminRouter.post("/events/:id/slots", requireLeader, async (req, res) => {
       capacity: Math.max(1, Math.min(50, parseInt(req.body?.capacity, 10) || 1)),
       sortOrder: (last?.sortOrder ?? 0) + 1,
     },
+  });
+  res.redirect(`/admin/events/${ev.id}/slots`);
+});
+
+adminRouter.post("/events/:id/slots/template", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!ev) return res.status(404).send("Not found");
+  const tpl = SLOT_TEMPLATES[req.body?.template];
+  if (!tpl) return res.redirect(`/admin/events/${ev.id}/slots`);
+
+  const last = await prisma.signupSlot.findFirst({
+    where: { eventId: ev.id },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  let order = (last?.sortOrder ?? 0) + 1;
+  await prisma.signupSlot.createMany({
+    data: tpl.slots.map((s) => ({
+      orgId: req.org.id,
+      eventId: ev.id,
+      title: s.title,
+      description: s.notes || null,
+      capacity: s.capacity,
+      sortOrder: order++,
+    })),
   });
   res.redirect(`/admin/events/${ev.id}/slots`);
 });
