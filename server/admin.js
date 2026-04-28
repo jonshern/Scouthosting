@@ -17,6 +17,7 @@ import { lucia, verifyPassword, roleInOrg } from "../lib/auth.js";
 import { moveFromTemp, remove as removeFile } from "../lib/storage.js";
 import { googleConfigured } from "../lib/oauth.js";
 import { sendBatch, mailDriver } from "../lib/mail.js";
+import { sendSmsBatch, smsDriver, normalisePhone } from "../lib/sms.js";
 import { makeRsvpToken } from "../lib/rsvpToken.js";
 import { buildShoppingList, CATEGORY_ORDER } from "../lib/shoppingList.js";
 
@@ -1810,6 +1811,12 @@ const COMM_PREFS = [
 ];
 
 function memberFromBody(body) {
+  // parentIds may arrive as a string (single select) or an array (multi).
+  let parentIds = body?.parentIds;
+  if (typeof parentIds === "string") parentIds = [parentIds];
+  if (!Array.isArray(parentIds)) parentIds = [];
+  parentIds = parentIds.filter((s) => typeof s === "string" && s.length > 0);
+
   return {
     firstName: body?.firstName?.trim() || "",
     lastName: body?.lastName?.trim() || "",
@@ -1822,14 +1829,37 @@ function memberFromBody(body) {
       ? body.commPreference
       : "email",
     smsOptIn: body?.smsOptIn === "1",
+    scoutbookUserId: body?.scoutbookUserId?.trim() || null,
+    parentIds,
     notes: body?.notes?.trim() || null,
   };
 }
 
-function memberForm({ member, action, submitLabel }) {
+async function memberForm({ member, action, submitLabel, orgId }) {
   const v = (k) => escape(member?.[k] ?? "");
   const checked = (cond) => (cond ? " checked" : "");
   const sel = (cond) => (cond ? " selected" : "");
+
+  // Possible parents: all adult members of this org except this member.
+  const possibleParents = await prisma.member.findMany({
+    where: {
+      orgId,
+      isYouth: false,
+      ...(member?.id ? { id: { not: member.id } } : {}),
+    },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    select: { id: true, firstName: true, lastName: true },
+  });
+  const parentSet = new Set(member?.parentIds ?? []);
+  const parentOpts = possibleParents
+    .map(
+      (p) =>
+        `<option value="${escape(p.id)}"${parentSet.has(p.id) ? " selected" : ""}>${escape(
+          p.firstName
+        )} ${escape(p.lastName)}</option>`
+    )
+    .join("");
+
   return `
     <form class="card" method="post" action="${escape(action)}">
       <div class="row">
@@ -1860,6 +1890,12 @@ function memberForm({ member, action, submitLabel }) {
       <label style="margin:0"><input name="isYouth" type="checkbox" value="1"${checked(
         member ? member.isYouth : true
       )} style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Youth member (otherwise adult)</label>
+      <label>Parents / guardians (for youth — pick the adults already on the roster)
+        <select name="parentIds" multiple size="${Math.min(6, Math.max(2, possibleParents.length))}">${parentOpts}</select>
+      </label>
+      <label>Scoutbook user ID (optional — links this member to their Scoutbook record)
+        <input name="scoutbookUserId" type="text" maxlength="40" placeholder="e.g. 1234567" value="${v("scoutbookUserId")}">
+      </label>
       <label>Notes<textarea name="notes" rows="2">${v("notes")}</textarea></label>
       <div class="row">
         <button class="btn btn-primary" type="submit">${escape(submitLabel)}</button>
@@ -1887,6 +1923,11 @@ adminRouter.get("/members", requireLeader, async (req, res) => {
   }${m.commPreference !== "email" ? ` <span class="tag">${escape(m.commPreference)}</span>` : ""}</p>
       </div>
       <div class="row">
+        ${
+          m.scoutbookUserId
+            ? `<a class="btn btn-ghost small" href="https://scoutbook.scouting.org/mobile/dashboard/Default.asp" target="_blank" rel="noopener" title="Open Scoutbook (sign in there to see ${escape(m.firstName)})">Scoutbook ↗</a>`
+            : `<a class="btn btn-ghost small" href="https://scoutbook.scouting.org/" target="_blank" rel="noopener" title="Scoutbook is the official advancement system">Scoutbook ↗</a>`
+        }
         <a class="btn btn-ghost small" href="/admin/members/${escape(m.id)}/edit">Edit</a>
         <form class="inline" method="post" action="/admin/members/${escape(m.id)}/delete" onsubmit="return confirm('Remove this member from the directory?')">
           <button class="btn btn-danger small" type="submit">Remove</button>
@@ -1899,7 +1940,7 @@ adminRouter.get("/members", requireLeader, async (req, res) => {
     <p class="muted">${members.length} on the roster · ${youth.length} youth · ${adults.length} adults</p>
 
     <h2 style="margin-top:1rem">Add a member</h2>
-    ${memberForm({ member: null, action: "/admin/members", submitLabel: "Add member" })}
+    ${await memberForm({ member: null, action: "/admin/members", submitLabel: "Add member", orgId: req.org.id })}
 
     <p style="margin-top:1rem"><a class="btn btn-ghost" href="/admin/members/import">Bulk import from CSV →</a></p>
 
@@ -2016,7 +2057,7 @@ adminRouter.get("/members/:id/edit", requireLeader, async (req, res) => {
   if (!member) return res.status(404).send("Not found");
   const body = `
     <h1>Edit member</h1>
-    ${memberForm({ member, action: `/admin/members/${escape(member.id)}`, submitLabel: "Save" })}
+    ${await memberForm({ member, action: `/admin/members/${escape(member.id)}`, submitLabel: "Save", orgId: req.org.id })}
   `;
   res.type("html").send(layout({ title: "Edit member", org: req.org, user: req.user, body }));
 });
@@ -2112,28 +2153,31 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
   const orgId = req.org.id;
 
   const all = await audienceFor(orgId, audience, patrol);
-  // Filter by communication preference for the email channel.
-  const recipients = all.filter(
+
+  // Split into email + sms recipients per member's commPreference.
+  const emailRecipients = all.filter(
     (m) => m.email && (m.commPreference === "email" || m.commPreference === "both")
+  );
+  const smsRecipients = all.filter(
+    (m) =>
+      m.smsOptIn &&
+      (m.commPreference === "sms" || m.commPreference === "both") &&
+      normalisePhone(m.phone)
   );
 
   if (action === "preview") {
     const list = all
       .map(
         (m) =>
-          `<li>${escape(m.firstName)} ${escape(m.lastName)}${m.patrol ? ` <span class="tag">${escape(m.patrol)}</span>` : ""} <span class="muted small">${escape(m.email || "(no email)")} · pref:${escape(m.commPreference)}</span></li>`
+          `<li>${escape(m.firstName)} ${escape(m.lastName)}${m.patrol ? ` <span class="tag">${escape(m.patrol)}</span>` : ""} <span class="muted small">${escape(m.email || "(no email)")} · pref:${escape(m.commPreference)}${m.smsOptIn ? " · sms✓" : ""}</span></li>`
       )
       .join("");
-    const willGetEmail = recipients.length;
-    const noEmailReachable =
-      all.length -
-      all.filter(
-        (m) => m.email && (m.commPreference === "email" || m.commPreference === "both")
-      ).length;
-
+    const skipped = all.length - new Set([...emailRecipients, ...smsRecipients]).size;
     const previewBody = `
       <h1>Audience preview</h1>
-      <p class="muted">${all.length} member${all.length === 1 ? "" : "s"} match. Of those, <strong>${willGetEmail}</strong> will receive this email — ${noEmailReachable} will be skipped (no email on file or pref disables it).</p>
+      <p class="muted">${all.length} member${all.length === 1 ? "" : "s"} match this audience.</p>
+      <p>Email: <strong>${emailRecipients.length}</strong> · SMS: <strong>${smsRecipients.length}</strong> · No-contact: <strong>${skipped}</strong></p>
+      <p class="muted small">SMS driver: <code>${escape(smsDriver)}</code></p>
       <ul class="items">${list || `<li class="empty">Nobody matches this audience.</li>`}</ul>
       <p style="margin-top:1.25rem"><a class="btn btn-ghost" href="/admin/email">← Back to compose</a></p>
     `;
@@ -2144,15 +2188,30 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
 
   if (!subject?.trim() || !body?.trim()) return res.redirect("/admin/email");
 
-  const messages = recipients.map((m) => ({
+  const cleanBody = body.trim();
+  const messages = emailRecipients.map((m) => ({
     to: m.email,
     subject: subject.trim(),
-    text: body.trim(),
+    text: cleanBody,
     from: `${req.org.displayName} <noreply@${req.org.slug}.${process.env.APEX_DOMAIN || "scouthosting.com"}>`,
     replyTo: req.user.email,
   }));
 
-  const result = await sendBatch(messages);
+  const smsMessages = smsRecipients.map((m) => ({
+    to: m.phone,
+    body: `${req.org.displayName}: ${subject.trim()}\n${cleanBody.slice(0, 1000)}`,
+  }));
+
+  const [emailResult, smsResult] = await Promise.all([
+    messages.length ? sendBatch(messages) : Promise.resolve({ sent: 0, errors: [] }),
+    smsMessages.length ? sendSmsBatch(smsMessages) : Promise.resolve({ sent: 0, errors: [] }),
+  ]);
+
+  const totalSent = emailResult.sent + smsResult.sent;
+  const allErrors = [
+    ...emailResult.errors.map((e) => ({ ...e, channel: "email" })),
+    ...smsResult.errors.map((e) => ({ ...e, channel: "sms" })),
+  ];
 
   const audienceLabel =
     audience === "patrol"
@@ -2164,28 +2223,27 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
       orgId,
       authorId: req.user.id,
       subject: subject.trim(),
-      body: body.trim(),
-      channel: "email",
+      body: cleanBody,
+      channel: smsRecipients.length ? (emailRecipients.length ? "both" : "sms") : "email",
       audienceLabel,
-      recipientCount: result.sent,
-      status: result.errors.length === 0 ? "sent" : result.sent > 0 ? "partial" : "failed",
-      errors: result.errors.length ? JSON.stringify(result.errors) : null,
-      recipients: recipients.map((m) => ({
-        name: `${m.firstName} ${m.lastName}`,
-        email: m.email,
-        channel: "email",
-      })),
+      recipientCount: totalSent,
+      status: allErrors.length === 0 ? "sent" : totalSent > 0 ? "partial" : "failed",
+      errors: allErrors.length ? JSON.stringify(allErrors) : null,
+      recipients: [
+        ...emailRecipients.map((m) => ({ name: `${m.firstName} ${m.lastName}`, email: m.email, channel: "email" })),
+        ...smsRecipients.map((m) => ({ name: `${m.firstName} ${m.lastName}`, phone: m.phone, channel: "sms" })),
+      ],
     },
   });
 
   const ack = `
     <h1>Sent</h1>
-    <p>Delivered to <strong>${result.sent}</strong> recipient${result.sent === 1 ? "" : "s"}${
-    result.errors.length ? ` (${result.errors.length} failed)` : ""
-  }.</p>
+    <p>Email: <strong>${emailResult.sent}</strong> · SMS: <strong>${smsResult.sent}</strong>${
+    allErrors.length ? ` · failed: ${allErrors.length}` : ""
+  }</p>
     ${
-      result.errors.length
-        ? `<details class="card"><summary>Errors</summary><pre>${escape(JSON.stringify(result.errors, null, 2))}</pre></details>`
+      allErrors.length
+        ? `<details class="card"><summary>Errors</summary><pre>${escape(JSON.stringify(allErrors, null, 2))}</pre></details>`
         : ""
     }
     <p style="margin-top:1.25rem">

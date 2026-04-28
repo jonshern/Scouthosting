@@ -522,32 +522,56 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
 
   const youth = (members || []).filter((m) => m.isYouth);
   const adults = (members || []).filter((m) => !m.isYouth);
-  const renderRow = (m) => `
-    <li>
+
+  // Group youth under their first listed parent — most useful for parents
+  // checking the directory. Youth without parents fall into "Unassigned."
+  const adultsById = new Map(adults.map((a) => [a.id, a]));
+  const familyMap = new Map();
+  for (const a of adults) familyMap.set(a.id, { adult: a, kids: [] });
+  const orphans = [];
+  for (const y of youth) {
+    const parentId = (y.parentIds || []).find((id) => adultsById.has(id));
+    if (parentId) familyMap.get(parentId).kids.push(y);
+    else orphans.push(y);
+  }
+
+  const renderMember = (m, opts = {}) => `
+    <li${opts.indent ? ' class="indent"' : ""}>
       <div>
         <h3>${escapeHtml(m.firstName)} ${escapeHtml(m.lastName)}</h3>
         <p class="muted small">${
           m.position ? `${escapeHtml(m.position)} · ` : ""
-        }${m.patrol ? `${escapeHtml(m.patrol)} patrol` : ""}</p>
+        }${m.patrol ? `${escapeHtml(m.patrol)} patrol` : ""}${
+          m.scoutbookUserId ? ` · <a href="https://scoutbook.scouting.org/" target="_blank" rel="noopener">Scoutbook ↗</a>` : ""
+        }</p>
       </div>
       <div>
         ${m.email ? `<a href="mailto:${escapeHtml(m.email)}">${escapeHtml(m.email)}</a><br>` : ""}
         ${m.phone ? `<span class="muted small">${escapeHtml(m.phone)}</span>` : ""}
       </div>
     </li>`;
+  const renderRow = renderMember;
   const body = `
     <section class="event-list">
       <a class="back" href="/">← Home</a>
       <h1>Member directory</h1>
       <p class="muted">${(members || []).length} on the roster · visible to ${escapeHtml(role)}s of ${escapeHtml(org.displayName)}.</p>
       ${
-        youth.length
-          ? `<h2 style="margin-top:1.5rem">Youth</h2><ul class="items">${youth.map(renderRow).join("")}</ul>`
+        familyMap.size
+          ? `<h2 style="margin-top:1.5rem">Families</h2>
+            <ul class="items">${[...familyMap.values()]
+              .filter((f) => f.kids.length || f.adult)
+              .map(
+                (f) => `
+                ${renderMember(f.adult)}
+                ${f.kids.map((k) => renderMember(k, { indent: true })).join("")}`
+              )
+              .join("")}</ul>`
           : ""
       }
       ${
-        adults.length
-          ? `<h2 style="margin-top:1.5rem">Adults</h2><ul class="items">${adults.map(renderRow).join("")}</ul>`
+        orphans.length
+          ? `<h2 style="margin-top:1.5rem">Other youth</h2><ul class="items">${orphans.map(renderRow).join("")}</ul>`
           : ""
       }
       ${(members || []).length === 0 ? `<p class="muted">No members yet.</p>` : ""}
@@ -555,6 +579,7 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
     <style>
       .event-list ul.items{list-style:none;padding:0;margin:0;display:grid;gap:.6rem}
       .event-list ul.items li{display:flex;gap:1.5rem;justify-content:space-between;align-items:flex-start;background:#fff;border:1px solid #eef0e7;border-radius:10px;padding:.85rem 1rem}
+      .event-list ul.items li.indent{margin-left:1.5rem;background:#fbf8ee}
       .event-list ul.items h3{margin:0 0 .15rem;font-size:1rem;font-family:Inter,sans-serif}
       .event-list ul.items p{margin:0}
       .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.1rem .45rem;border-radius:5px;font-size:.78rem;color:#6b7280;margin-right:.25rem}

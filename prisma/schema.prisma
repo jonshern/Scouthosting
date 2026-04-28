@@ -178,6 +178,15 @@ model Member {
   isYouth        Boolean  @default(true)
   dietaryFlags   String[] @default([]) // e.g. ["vegetarian", "gluten-free"]
   notes          String?
+  // Scoutbook link — Scoutbook user id lets admins jump from the
+  // member directory to that Scout's Scoutbook record. We don't store
+  // any advancement data; that lives in Scoutbook.
+  scoutbookUserId String?
+  // Family linkage. Each row points to its parent Members (typically the
+  // youth's mom/dad/guardian); the inverse relation gives parents their
+  // children. Postgres array of Member IDs keeps schema simple — no join
+  // table needed for v1. Filter at query time.
+  parentIds      String[] @default([])
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
