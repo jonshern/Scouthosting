@@ -1635,9 +1635,19 @@ function escapeHtml(s) {
 
 /* ------------------ Boot ------------------------------------------ */
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Scouthosting running on http://localhost:${PORT}`);
-  console.log(`Marketing:  http://localhost:${PORT}/`);
-  console.log(`Demo org:   http://troop100.localhost:${PORT}/`);
-});
+// Export the Express instance so integration tests can drive it via
+// supertest without binding a real port. We only call .listen() when
+// this module is the entrypoint (`node server/index.js`).
+export { app };
+
+import { fileURLToPath as _fu } from "node:url";
+const _isMain = process.argv[1] && path.resolve(process.argv[1]) === _fu(import.meta.url);
+if (_isMain) {
+  const PORT = process.env.PORT || 3000;
+  app.listen(PORT, () => {
+    console.log(`Scouthosting running on http://localhost:${PORT}`);
+    console.log(`Marketing:  http://localhost:${PORT}/`);
+    console.log(`Demo org:   http://troop100.localhost:${PORT}/`);
+  });
+}
+
