@@ -67,7 +67,11 @@ resource "google_cloud_run_v2_service" "app" {
       }
       env {
         name  = "MAIL_DRIVER"
-        value = "console" # Swap to smtp / resend / ses when wired up.
+        value = var.mail_driver
+      }
+      env {
+        name  = "MAIL_FROM"
+        value = var.mail_from
       }
 
       env {
@@ -102,6 +106,15 @@ resource "google_cloud_run_v2_service" "app" {
         value_source {
           secret_key_ref {
             secret  = var.secret_names.google_secret
+            version = "latest"
+          }
+        }
+      }
+      env {
+        name = "RESEND_API_KEY"
+        value_source {
+          secret_key_ref {
+            secret  = var.secret_names.resend_api_key
             version = "latest"
           }
         }

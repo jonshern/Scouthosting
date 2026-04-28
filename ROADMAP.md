@@ -313,7 +313,9 @@ and operations hub. Scoutbook is the advancement source of truth.
       preference receive)
 - [x] MailLog history with recipient snapshot, status (sent/partial/failed)
 - [x] Send history view at /admin/email/sent
-- [ ] Real SMTP / Resend / SES drivers (the seam is in place)
+- [x] **Real mail drivers** — Resend (HTTP) and SMTP (Nodemailer); both
+      fall back to console with a clear warning if env vars missing
+- [ ] AWS SES driver
 - [ ] DKIM, SPF, DMARC for the org's outbound domain
 - [ ] SMS via Twilio respecting `smsOptIn` (the schema and audience
       filtering already handle this; just need the driver)

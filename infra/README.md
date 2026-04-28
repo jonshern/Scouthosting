@@ -66,15 +66,37 @@ Terraform doesn't write the app secrets — only the DB password it
 generates. Create the rest manually so values stay out of state:
 
 ```bash
+# RSVP token signing key
 echo -n "$(openssl rand -hex 32)" | \
   gcloud secrets create scouthosting-rsvp-secret --data-file=-
 
+# Google OAuth client (https://console.cloud.google.com/apis/credentials)
 echo -n "<your-google-oauth-client-id>" | \
   gcloud secrets create scouthosting-google-client-id --data-file=-
-
 echo -n "<your-google-oauth-client-secret>" | \
   gcloud secrets create scouthosting-google-client-secret --data-file=-
+
+# Resend API key (https://resend.com/api-keys). Required if you set
+# mail_driver=resend (the default). Empty value is fine for staging if
+# you flip mail_driver to "console".
+echo -n "<your-resend-api-key>" | \
+  gcloud secrets create scouthosting-resend-api-key --data-file=-
 ```
+
+### Mail provider
+
+The default is **Resend** (`mail_driver = "resend"` in
+`terraform.tfvars`). Verify a sending domain in Resend that matches the
+`mail_from` value (e.g. `noreply@scouthosting.com`). Resend's free tier
+covers the first 3k messages per month.
+
+Alternatives:
+
+- `mail_driver = "console"` — useful for staging; broadcasts log to
+  Cloud Run stdout instead of sending. No domain setup.
+- `mail_driver = "smtp"` — set `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+  `SMTP_PASS` env vars on the Cloud Run service. Use this for Postmark,
+  Mailgun, AWS SES SMTP, etc.
 
 ### 4. Apply the Terraform
 

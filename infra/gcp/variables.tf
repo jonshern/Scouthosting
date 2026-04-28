@@ -52,10 +52,24 @@ variable "secret_names" {
     rsvp           = string
     google_id      = string
     google_secret  = string
+    resend_api_key = string
   })
   default = {
-    rsvp          = "scouthosting-rsvp-secret"
-    google_id     = "scouthosting-google-client-id"
-    google_secret = "scouthosting-google-client-secret"
+    rsvp           = "scouthosting-rsvp-secret"
+    google_id      = "scouthosting-google-client-id"
+    google_secret  = "scouthosting-google-client-secret"
+    resend_api_key = "scouthosting-resend-api-key"
   }
+}
+
+variable "mail_driver" {
+  description = "Mail driver. \"console\" logs only; \"resend\" sends via Resend; \"smtp\" via Nodemailer."
+  type        = string
+  default     = "resend"
+}
+
+variable "mail_from" {
+  description = "From: header on outbound mail. Domain should be verified in your mail provider."
+  type        = string
+  default     = "Scouthosting <noreply@scouthosting.com>"
 }

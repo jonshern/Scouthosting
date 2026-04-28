@@ -38,6 +38,7 @@ resource "google_secret_manager_secret_iam_member" "rsvp_access" {
     var.secret_names.rsvp,
     var.secret_names.google_id,
     var.secret_names.google_secret,
+    var.secret_names.resend_api_key,
   ])
   secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
