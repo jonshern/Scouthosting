@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "prisma": "^5.22.0",
+    "supertest": "^7.1.0",
     "vitest": "^2.1.8"
   },
   "optionalDependencies": {
