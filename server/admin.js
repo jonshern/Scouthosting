@@ -1181,7 +1181,7 @@ Event details: ${eventUrl}
       to: m.email,
       subject: `RSVP: ${ev.title}`,
       text,
-      from: `${req.org.displayName} <noreply@${req.org.slug}.${apex}>`,
+      from: `${req.user.displayName.replace(/[<>"]/g, "")} (via ${req.org.displayName.replace(/[<>"]/g, "")}) <noreply@${req.org.slug}.${apex}>`,
       replyTo: req.user.email,
     };
   });
@@ -2506,17 +2506,23 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
   if (!subject?.trim() || !body?.trim()) return res.redirect("/admin/email");
 
   const cleanBody = body.trim();
+  // "via" pattern: leader's display name in the visible From, our
+  // verified domain in the addr-spec so DKIM/SPF still passes. Replies
+  // route to the leader directly via Reply-To.
+  const apex = process.env.APEX_DOMAIN || "scouthosting.com";
+  const fromAddr = `noreply@${req.org.slug}.${apex}`;
+  const fromName = `${req.user.displayName.replace(/[<>"]/g, "")} (via ${req.org.displayName.replace(/[<>"]/g, "")})`;
   const messages = emailRecipients.map((m) => ({
     to: m.email,
     subject: subject.trim(),
     text: cleanBody,
-    from: `${req.org.displayName} <noreply@${req.org.slug}.${process.env.APEX_DOMAIN || "scouthosting.com"}>`,
+    from: `${fromName} <${fromAddr}>`,
     replyTo: req.user.email,
   }));
 
   const smsMessages = smsRecipients.map((m) => ({
     to: m.phone,
-    body: `${req.org.displayName}: ${subject.trim()}\n${cleanBody.slice(0, 1000)}`,
+    body: `${req.user.displayName}: ${subject.trim()}\n${cleanBody.slice(0, 1000)}`,
   }));
 
   const [emailResult, smsResult] = await Promise.all([
