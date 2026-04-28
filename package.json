@@ -28,7 +28,8 @@
     "express": "^4.19.2",
     "lucia": "^3.2.2",
     "multer": "^2.0.0",
-    "oslo": "^1.2.1"
+    "oslo": "^1.2.1",
+    "rrule": "^2.8.1"
   },
   "devDependencies": {
     "prisma": "^5.22.0"

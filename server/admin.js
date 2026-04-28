@@ -810,6 +810,24 @@ function eventForm({ event, action, submitLabel }) {
         <label style="margin:0;flex:1">Capacity<input name="capacity" type="number" min="0" max="9999" value="${v("capacity")}"></label>
       </div>
       <label style="margin:0"><input name="signupRequired" type="checkbox" value="1"${event?.signupRequired ? " checked" : ""} style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Sign-up required</label>
+      <h3 style="margin-top:1rem">Recurrence</h3>
+      <div class="row">
+        <label style="margin:0;flex:1">Repeats
+          <select name="recurrence">
+            <option value="">Doesn't repeat</option>
+            <option value="WEEKLY"${/^FREQ=WEEKLY/.test(event?.rrule || "") ? " selected" : ""}>Weekly</option>
+            <option value="BIWEEKLY"${/^FREQ=WEEKLY;INTERVAL=2/.test(event?.rrule || "") ? " selected" : ""}>Every 2 weeks</option>
+            <option value="MONTHLY"${/^FREQ=MONTHLY/.test(event?.rrule || "") ? " selected" : ""}>Monthly (same day)</option>
+            <option value="CUSTOM"${event?.rrule && !/^FREQ=(WEEKLY|MONTHLY)/.test(event.rrule) ? " selected" : ""}>Custom RRULE…</option>
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Until (optional)
+          <input name="recurrenceUntil" type="date" value="${event?.recurrenceUntil ? new Date(event.recurrenceUntil).toISOString().slice(0, 10) : ""}">
+        </label>
+      </div>
+      <label>Custom RRULE (only used when Repeats = Custom)
+        <input name="rruleCustom" type="text" maxlength="200" placeholder="e.g. FREQ=MONTHLY;BYDAY=1TU" value="${event?.rrule && !/^FREQ=(WEEKLY|MONTHLY)/.test(event.rrule) ? escape(event.rrule) : ""}">
+      </label>
       <div class="row">
         <button class="btn btn-primary" type="submit">${escape(submitLabel)}</button>
         <a class="btn btn-ghost" href="/admin/events">Cancel</a>
@@ -820,6 +838,24 @@ function eventForm({ event, action, submitLabel }) {
 function eventDataFromBody(body) {
   const cost = body?.cost ? parseInt(body.cost, 10) : null;
   const capacity = body?.capacity ? parseInt(body.capacity, 10) : null;
+
+  let rrule = null;
+  switch (body?.recurrence) {
+    case "WEEKLY":
+      rrule = "FREQ=WEEKLY";
+      break;
+    case "BIWEEKLY":
+      rrule = "FREQ=WEEKLY;INTERVAL=2";
+      break;
+    case "MONTHLY":
+      rrule = "FREQ=MONTHLY";
+      break;
+    case "CUSTOM":
+      rrule = (body?.rruleCustom || "").trim() || null;
+      break;
+  }
+  const recurrenceUntil = body?.recurrenceUntil ? new Date(body.recurrenceUntil) : null;
+
   return {
     title: body?.title?.trim() || "Untitled",
     description: body?.description?.trim() || null,
@@ -832,6 +868,8 @@ function eventDataFromBody(body) {
     capacity: Number.isFinite(capacity) ? capacity : null,
     signupRequired: body?.signupRequired === "1",
     category: body?.category?.trim() || null,
+    rrule,
+    recurrenceUntil,
   };
 }
 

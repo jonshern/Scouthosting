@@ -548,6 +548,51 @@ export function renderEventsList(org, events) {
   return pageShell(org, "Events", body);
 }
 
+function renderCommentBlock({ post, comments, user, role }) {
+  const visible = (comments || []).filter((c) => !c.hidden || role === "admin" || role === "leader");
+  const isLeader = role === "admin" || role === "leader";
+
+  const items = visible
+    .map(
+      (c) => `
+    <li class="comment${c.hidden ? " hidden" : ""}">
+      <header>
+        <strong>${escapeHtml(c.author?.displayName || "Member")}</strong>
+        <span class="muted small"> · ${escapeHtml(
+          new Date(c.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+        )}</span>
+        ${c.hidden ? `<span class="tag">hidden</span>` : ""}
+      </header>
+      <div class="body">${textToHtml(c.body)}</div>
+      ${
+        isLeader
+          ? `<form class="inline" method="post" action="/posts/${escapeHtml(post.id)}/comments/${escapeHtml(c.id)}/${c.hidden ? "show" : "hide"}">
+              <button class="link-btn" type="submit">${c.hidden ? "Unhide" : "Hide"}</button>
+            </form>
+            <form class="inline" method="post" action="/posts/${escapeHtml(post.id)}/comments/${escapeHtml(c.id)}/delete" onsubmit="return confirm('Delete this comment?')">
+              <button class="link-btn danger" type="submit">Delete</button>
+            </form>`
+          : ""
+      }
+    </li>`
+    )
+    .join("");
+
+  const form = user
+    ? `<form method="post" action="/posts/${escapeHtml(post.id)}/comments" class="comment-form">
+        <textarea name="body" rows="2" required maxlength="2000" placeholder="Write a comment…"></textarea>
+        <button class="btn primary" type="submit">Post comment</button>
+      </form>`
+    : `<p class="muted small"><a href="/login?next=/posts/${escapeHtml(post.id)}">Sign in</a> to comment.</p>`;
+
+  return `
+    <section class="comments">
+      <h2>${visible.length} comment${visible.length === 1 ? "" : "s"}</h2>
+      ${visible.length ? `<ul class="comment-list">${items}</ul>` : ""}
+      ${form}
+    </section>`;
+}
+
 function renderPostCard(p, { showLink = true } = {}) {
   const date = p.publishedAt
     ? new Date(p.publishedAt).toLocaleDateString("en-US", {
@@ -733,11 +778,12 @@ export function renderPostsList(org, posts) {
   return pageShell(org, "Posts", body);
 }
 
-export function renderPostDetail(org, post) {
+export function renderPostDetail(org, post, ctx = {}) {
   const body = `
     <section class="event-list">
       <a class="back" href="/posts">← All posts</a>
       ${renderPostCard(post, { showLink: false })}
+      ${renderCommentBlock({ post, comments: post.comments, user: ctx.user, role: ctx.role })}
     </section>
     <style>${POST_STYLES}</style>`;
   return pageShell(org, post.title || "Post", body);
@@ -763,6 +809,22 @@ const POST_STYLES = `
 .post-photos-3 img{height:100%}
 .post-photos-4{grid-template-columns:1fr 1fr}
 .post-photos-4 img{aspect-ratio:1/1}
+.comments{margin-top:2rem}
+.comments h2{font-size:1.2rem;margin-bottom:.75rem}
+.comment-list{list-style:none;padding:0;margin:0 0 1rem;display:grid;gap:.6rem}
+.comment{background:#fbf8ee;border:1px solid #eef0e7;border-radius:10px;padding:.75rem 1rem}
+.comment.hidden{opacity:.55;background:#fff}
+.comment header{display:flex;align-items:baseline;gap:.4rem;margin-bottom:.25rem}
+.comment .body{color:var(--ink-700,#3a4049)}
+.comment .body p{margin:0 0 .35em}
+.comment .body p:last-child{margin-bottom:0}
+.link-btn{background:none;border:0;padding:0;margin-right:.6rem;color:var(--ink-500,#6b7280);font:inherit;font-size:.82rem;cursor:pointer;text-decoration:underline}
+.link-btn:hover{color:var(--ink-900,#15181c)}
+.link-btn.danger{color:#7d2614}
+.comment-form{display:grid;gap:.5rem}
+.comment-form textarea{padding:.55rem .75rem;border:1px solid var(--ink-300,#c8ccd4);border-radius:8px;font:inherit;resize:vertical}
+.comment-form button{justify-self:start}
+.tag{display:inline-block;background:#fff;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.78rem;color:#6b7280;margin-left:.4rem}
 `;
 
 function renderAnnouncements(list) {

@@ -78,6 +78,7 @@ model Org {
   page        Page?
   announcements Announcement[]
   posts         Post[]
+  comments      Comment[]
   rsvps         Rsvp[]
   slots         SignupSlot[]
   slotAssignments SlotAssignment[]
@@ -101,6 +102,7 @@ model User {
   memberships OrgMembership[]
   announcements Announcement[]
   posts         Post[]
+  comments      Comment[]
   oauthAccounts OAuthAccount[]
   rsvps         Rsvp[]
   slotAssignments SlotAssignment[]
@@ -202,6 +204,11 @@ model Event {
   capacity        Int?
   signupRequired  Boolean  @default(false)
   category        String?  // meeting, campout, service, court-of-honor...
+  // RFC 5545 RRULE without the leading "RRULE:" prefix. Null = single
+  // occurrence. Examples: "FREQ=WEEKLY;BYDAY=MO" (every Monday),
+  // "FREQ=MONTHLY;BYDAY=1TU" (first Tuesday of every month).
+  rrule           String?
+  recurrenceUntil DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -404,6 +411,7 @@ model Post {
   org     Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   author  User?       @relation(fields: [authorId], references: [id], onDelete: SetNull)
   photos  PostPhoto[]
+  comments Comment[]
 
   @@index([orgId, publishedAt])
   @@index([orgId, pinned, publishedAt])
@@ -479,4 +487,23 @@ model Ingredient {
   meal Meal @relation(fields: [mealId], references: [id], onDelete: Cascade)
 
   @@index([orgId, mealId])
+}
+
+// Comments on Posts. Members-only by definition (visibility lives on the
+// parent Post; non-members can't even see the post). Authored by a User.
+model Comment {
+  id        String   @id @default(cuid())
+  orgId     String
+  postId    String
+  authorId  String?
+  body      String
+  hidden    Boolean  @default(false)  // soft-moderation by admin
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org    Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  post   Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, postId, createdAt])
 }

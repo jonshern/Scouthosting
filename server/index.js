@@ -23,7 +23,7 @@ import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
 import { googleOAuth, googleConfigured, fetchGoogleProfile } from "../lib/oauth.js";
 import { generateState, generateCodeVerifier } from "arctic";
-import { icsFor, icsForOrg } from "../lib/calendar.js";
+import { icsFor, icsForOrg, expandOccurrences } from "../lib/calendar.js";
 import { verifyRsvpToken } from "../lib/rsvpToken.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -579,13 +579,24 @@ app.get("/events/:id.ics", async (req, res) => {
 app.get("/events", async (req, res, next) => {
   if (!req.org) return next();
   const events = await prisma.event.findMany({
-    where: { orgId: req.org.id, startsAt: { gte: new Date() } },
+    where: {
+      orgId: req.org.id,
+      OR: [
+        { startsAt: { gte: new Date() } },
+        { rrule: { not: null }, recurrenceUntil: null },
+        { rrule: { not: null }, recurrenceUntil: { gte: new Date() } },
+      ],
+    },
     orderBy: { startsAt: "asc" },
     take: 50,
   });
+  const horizon = new Date(Date.now() + 1000 * 60 * 60 * 24 * 90);
+  const expanded = (
+    await Promise.all(events.map((e) => expandOccurrences(e, { from: new Date(), to: horizon, max: 12 })))
+  ).flat().sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)).slice(0, 50);
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderEventsList(req.org, events));
+    .send(renderEventsList(req.org, expanded));
 });
 
 // Members-only trip plan view.
@@ -651,19 +662,104 @@ app.get("/posts/:id", async (req, res, next) => {
     include: {
       photos: { orderBy: { sortOrder: "asc" } },
       author: { select: { displayName: true } },
+      comments: {
+        orderBy: { createdAt: "asc" },
+        include: { author: { select: { displayName: true } } },
+      },
     },
   });
   if (!post) return res.status(404).send("Post not found");
+
+  let role = null;
   if (post.visibility === "members") {
     if (!req.user) {
       return res.redirect(`/login?next=/posts/${post.id}`);
     }
-    const role = await roleInOrg(req.user.id, req.org.id);
+    role = await roleInOrg(req.user.id, req.org.id);
     if (!role) return res.status(403).send("Members only");
+  } else if (req.user) {
+    role = await roleInOrg(req.user.id, req.org.id);
   }
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderPostDetail(req.org, post));
+    .send(renderPostDetail(req.org, post, { user: req.user, role }));
+});
+
+// Post a comment. Sign-in required; auto-creates a parent membership
+// on first interaction so a brand-new user comment lands without
+// extra setup.
+app.post("/posts/:id/comments", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) {
+    return res.redirect(`/login?next=/posts/${req.params.id}`);
+  }
+  const post = await prisma.post.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, visibility: true },
+  });
+  if (!post) return res.status(404).send("Post not found");
+
+  await prisma.orgMembership.upsert({
+    where: { userId_orgId: { userId: req.user.id, orgId: req.org.id } },
+    update: {},
+    create: { userId: req.user.id, orgId: req.org.id, role: "parent" },
+  });
+
+  const body = (req.body?.body || "").toString().trim().slice(0, 2000);
+  if (!body) return res.redirect(`/posts/${post.id}`);
+
+  await prisma.comment.create({
+    data: {
+      orgId: req.org.id,
+      postId: post.id,
+      authorId: req.user.id,
+      body,
+    },
+  });
+  res.redirect(`/posts/${post.id}#comments`);
+});
+
+// Admin moderation: hide / show / delete a comment.
+async function gateLeader(req, res) {
+  if (!req.user) {
+    res.redirect(`/login?next=/posts/${req.params.id}`);
+    return false;
+  }
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (role !== "admin" && role !== "leader") {
+    res.status(403).send("Leaders only");
+    return false;
+  }
+  return true;
+}
+
+app.post("/posts/:id/comments/:cid/hide", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!(await gateLeader(req, res))) return;
+  await prisma.comment.updateMany({
+    where: { id: req.params.cid, orgId: req.org.id, postId: req.params.id },
+    data: { hidden: true },
+  });
+  res.redirect(`/posts/${req.params.id}`);
+});
+
+app.post("/posts/:id/comments/:cid/show", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!(await gateLeader(req, res))) return;
+  await prisma.comment.updateMany({
+    where: { id: req.params.cid, orgId: req.org.id, postId: req.params.id },
+    data: { hidden: false },
+  });
+  res.redirect(`/posts/${req.params.id}`);
+});
+
+app.post("/posts/:id/comments/:cid/delete", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!(await gateLeader(req, res))) return;
+  await prisma.comment.deleteMany({
+    where: { id: req.params.cid, orgId: req.org.id, postId: req.params.id },
+  });
+  res.redirect(`/posts/${req.params.id}`);
 });
 
 // Members-only directory. A signed-in user with any membership in this
@@ -1001,11 +1097,29 @@ app.get("*", async (req, res, next) => {
         _count: { select: { photos: true } },
       },
     }),
-    prisma.event.findMany({
-      where: { orgId: req.org.id, startsAt: { gte: new Date() } },
-      orderBy: { startsAt: "asc" },
-      take: 8,
-    }),
+    prisma.event
+      .findMany({
+        where: {
+          orgId: req.org.id,
+          OR: [
+            { startsAt: { gte: new Date() } },
+            { rrule: { not: null }, recurrenceUntil: null },
+            { rrule: { not: null }, recurrenceUntil: { gte: new Date() } },
+          ],
+        },
+        orderBy: { startsAt: "asc" },
+        take: 30,
+      })
+      .then(async (rows) => {
+        const horizon = new Date(Date.now() + 1000 * 60 * 60 * 24 * 90);
+        const expanded = (
+          await Promise.all(rows.map((e) => expandOccurrences(e, { from: new Date(), to: horizon, max: 6 })))
+        )
+          .flat()
+          .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
+          .slice(0, 8);
+        return expanded;
+      }),
     prisma.post.findMany({
       where: { orgId: req.org.id, visibility: "public" },
       orderBy: [{ pinned: "desc" }, { publishedAt: "desc" }],
