@@ -47,8 +47,13 @@ member data:
 - [ ] `[security]` Audit log of every read/write to youth records.
 - [ ] `[security]` 2FA for leader/admin roles (mandatory) and parent role
       (optional).
-- [ ] `[security]` Rate limiting (login, signup, /api/provision) and bot
-      protection on signup.
+- [x] **Rate limiting** on login, signup, and /api/provision
+      (`lib/rateLimit.js`). Fixed-window in-memory counter per (route, IP);
+      login = 10/15min, signup = 5/hr, provision = 5/hr. Returns HTTP 429
+      with `Retry-After` when the bucket fills. Trust-proxy = 1 so the
+      real client IP is used. Multi-instance deployments will need a
+      shared store — still on the security backlog.
+- [ ] `[security]` Bot protection on signup (CAPTCHA / proof-of-work).
 - [ ] `[security]` CSP, Trusted Types, strict CORS, signed cookies.
 - [ ] `[security]` SOC 2 Type 1 audit and independent youth-data review
       (graduated up from Phase 14).

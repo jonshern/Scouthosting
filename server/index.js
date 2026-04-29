@@ -8,6 +8,15 @@ import { prisma } from "../lib/db.js";
 import { lucia, attachSession, hashPassword, verifyPassword, roleInOrg } from "../lib/auth.js";
 import { originAuth } from "../lib/originAuth.js";
 import { csrfMiddleware, csrfProtect, csrfHtmlInjector } from "../lib/csrf.js";
+import { rateLimit } from "../lib/rateLimit.js";
+
+// Buckets: tight on auth surfaces (login/signup are the brute-force
+// targets), looser on /api/provision since legitimate provisioning is
+// rare anyway. The factory honours DISABLE_RATE_LIMIT=1 so integration
+// tests can stay deterministic without preconfiguring a fixture window.
+const loginLimiter = rateLimit({ name: "login", limit: 10, windowMs: 15 * 60_000 });
+const signupLimiter = rateLimit({ name: "signup", limit: 5, windowMs: 60 * 60_000 });
+const provisionLimiter = rateLimit({ name: "provision", limit: 5, windowMs: 60 * 60_000 });
 import {
   provisionOrg,
   validateProvisionInput,
@@ -66,6 +75,9 @@ function slugFromHost(host) {
 /* ------------------------------------------------------------------ */
 
 const app = express();
+// Trust the first hop (Cloudflare / GCP load balancer). Without this,
+// req.ip is the upstream proxy and rate-limit buckets collapse onto one IP.
+app.set("trust proxy", 1);
 app.use(originAuth);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -101,7 +113,7 @@ app.use((req, res, next) => {
 
 /* ------------------ Provisioning API ------------------------------ */
 
-app.post("/api/provision", async (req, res) => {
+app.post("/api/provision", provisionLimiter, async (req, res) => {
   const errors = validateProvisionInput(req.body);
   if (errors.length) {
     return res.status(400).json({ ok: false, errors });
@@ -133,7 +145,7 @@ app.get("/api/orgs", async (_req, res) => {
 
 /* ------------------ Auth ------------------------------------------ */
 
-app.post("/api/auth/signup", csrfProtect, async (req, res) => {
+app.post("/api/auth/signup", signupLimiter, csrfProtect, async (req, res) => {
   const { email, password, displayName } = req.body || {};
   if (!email || !password || !displayName) {
     return res.status(400).json({ ok: false, error: "email, password, displayName required" });
@@ -169,7 +181,7 @@ app.post("/api/auth/signup", csrfProtect, async (req, res) => {
   res.status(201).json({ ok: true, user: { id: user.id, email: user.email, displayName: user.displayName } });
 });
 
-app.post("/api/auth/login", csrfProtect, async (req, res) => {
+app.post("/api/auth/login", loginLimiter, csrfProtect, async (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ ok: false, error: "email and password required" });
@@ -478,7 +490,7 @@ app.get("/login", (req, res, next) => {
   );
 });
 
-app.post("/login", csrfProtect, async (req, res, next) => {
+app.post("/login", loginLimiter, csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   const { email, password } = req.body || {};
   const nextUrl = safeNext(req.query.next);
@@ -516,7 +528,7 @@ app.get("/signup", (req, res, next) => {
   );
 });
 
-app.post("/signup", csrfProtect, async (req, res, next) => {
+app.post("/signup", signupLimiter, csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   const { email, password, displayName } = req.body || {};
   const nextUrl = safeNext(req.query.next);
