@@ -209,6 +209,7 @@ form.inline{display:inline}
     <a href="/admin/mbc">Merit Badge Counselors</a>
     <a href="/admin/oa">OA elections</a>
     <a href="/admin/reimbursements">Reimbursements</a>
+    <a href="/admin/treasurer">Treasurer report</a>
     <a href="/admin/surveys">Surveys</a>
     <a href="/admin/email">Email broadcast</a>
     <a href="/" target="_blank">View public site ↗</a>
@@ -5254,6 +5255,123 @@ adminRouter.post("/oa/:id/candidates/:candidateId/delete", requireLeader, async 
     },
   });
   res.redirect(`/admin/oa/${req.params.id}/edit`);
+});
+
+/* ------------------------------------------------------------------ */
+/* Treasurer report (per-event P&L)                                    */
+/* ------------------------------------------------------------------ */
+//
+// Pulls from data we already track:
+//   Income   = event.cost × yes-RSVPs
+//   Expenses = sum of "paid" Reimbursement.amountCents where
+//              reimbursement.eventId = event.id
+//   Net      = income - expenses
+//
+// Per-Scout balances need a Scout-account ledger that doesn't exist
+// yet — that's a separate roadmap item under Phase 9.
+
+adminRouter.get("/treasurer", requireLeader, async (req, res) => {
+  const events = await prisma.event.findMany({
+    where: { orgId: req.org.id },
+    orderBy: { startsAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      startsAt: true,
+      cost: true,
+      rsvps: { where: { response: "yes" }, select: { id: true, guests: true } },
+      reimbursements: {
+        where: { status: "paid" },
+        select: { amountCents: true, purpose: true },
+      },
+    },
+  });
+
+  // Reimbursements not tied to any specific event still belong on the
+  // P&L — show them as a single "general expenses" row.
+  const orphanReimbs = await prisma.reimbursement.findMany({
+    where: { orgId: req.org.id, status: "paid", eventId: null },
+    select: { amountCents: true, purpose: true },
+  });
+
+  const fmtMoney = (cents) =>
+    `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const fmtDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+  let totalIncome = 0;
+  let totalExpenses = 0;
+
+  const rows = events
+    .map((e) => {
+      const yes = e.rsvps.length;
+      const incomeCents = (e.cost || 0) * 100 * yes;
+      const expenseCents = e.reimbursements.reduce((s, r) => s + r.amountCents, 0);
+      const netCents = incomeCents - expenseCents;
+      totalIncome += incomeCents;
+      totalExpenses += expenseCents;
+      if (incomeCents === 0 && expenseCents === 0) return ""; // skip empty
+      return `<tr>
+        <td><a href="/admin/events/${escape(e.id)}/report">${escape(e.title)}</a></td>
+        <td class="muted small">${escape(fmtDate(e.startsAt))}</td>
+        <td class="num">${yes}</td>
+        <td class="num">${fmtMoney(incomeCents)}</td>
+        <td class="num">${fmtMoney(expenseCents)}</td>
+        <td class="num"><strong style="color:${netCents < 0 ? "#7d2614" : netCents > 0 ? "#15532b" : "inherit"}">${fmtMoney(netCents)}</strong></td>
+      </tr>`;
+    })
+    .filter(Boolean)
+    .join("");
+
+  const orphanCents = orphanReimbs.reduce((s, r) => s + r.amountCents, 0);
+  totalExpenses += orphanCents;
+
+  const orphanRow = orphanCents
+    ? `<tr>
+        <td><em>Unattributed expenses</em></td>
+        <td class="muted small">—</td>
+        <td class="num">—</td>
+        <td class="num">—</td>
+        <td class="num">${fmtMoney(orphanCents)}</td>
+        <td class="num"><strong style="color:#7d2614">${fmtMoney(-orphanCents)}</strong></td>
+      </tr>`
+    : "";
+
+  const grandNet = totalIncome - totalExpenses;
+  const totalRow = `<tr style="border-top:2px solid #eef0e7">
+        <td><strong>Totals</strong></td>
+        <td></td>
+        <td></td>
+        <td class="num"><strong>${fmtMoney(totalIncome)}</strong></td>
+        <td class="num"><strong>${fmtMoney(totalExpenses)}</strong></td>
+        <td class="num"><strong style="color:${grandNet < 0 ? "#7d2614" : "#15532b"}">${fmtMoney(grandNet)}</strong></td>
+      </tr>`;
+
+  const body = `
+    <h1>Treasurer report</h1>
+    <p class="muted">Per-event P&amp;L. Income = event cost × yes-RSVPs. Expenses = paid reimbursements assigned to the event. Click a title to drill into the event report.</p>
+
+    <div class="row" style="gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">
+      <div class="card stat-card"><strong style="font-size:1.5rem">${fmtMoney(totalIncome)}</strong><br><span class="muted small">Income</span></div>
+      <div class="card stat-card"><strong style="font-size:1.5rem">${fmtMoney(totalExpenses)}</strong><br><span class="muted small">Paid expenses</span></div>
+      <div class="card stat-card"><strong style="font-size:1.5rem;color:${grandNet < 0 ? "#7d2614" : "#15532b"}">${fmtMoney(grandNet)}</strong><br><span class="muted small">Net</span></div>
+    </div>
+
+    ${
+      rows || orphanRow
+        ? `<table class="ing-table">
+            <thead><tr><th>Event</th><th>Date</th><th class="num">Yes</th><th class="num">Income</th><th class="num">Expenses</th><th class="num">Net</th></tr></thead>
+            <tbody>${rows}${orphanRow}${totalRow}</tbody>
+          </table>`
+        : `<div class="empty">No events with cost or paid reimbursements yet.</div>`
+    }
+
+    <p class="muted small" style="margin-top:1.5rem">Per-Scout account balances need a Scout-account ledger — that's still on the roadmap under Phase 9 (Money).</p>
+
+    <style>
+      .stat-card{flex:1;min-width:160px;text-align:center}
+    </style>
+  `;
+  res.type("html").send(layout({ title: "Treasurer", org: req.org, user: req.user, body }));
 });
 
 /* ------------------------------------------------------------------ */
