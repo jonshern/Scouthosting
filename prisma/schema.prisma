@@ -96,6 +96,7 @@ model Org {
   equipmentLoans EquipmentLoan[]
   trainings     Training[]
   subgroups     Subgroup[]
+  auditLogs     AuditLog[]
 
   @@index([plan])
 }
@@ -859,4 +860,29 @@ model Subgroup {
 
   @@unique([orgId, name])
   @@index([orgId])
+}
+
+// Audit log — who edited what, when. v1 captures CMS / member writes;
+// the security backlog escalates this to "every read/write to youth
+// records" with cryptographic chaining for tamper-evidence.
+//
+// userId may be null for system actions (provisioning, automated
+// reconcile). userDisplay snapshots the actor's display name at the
+// time of the action so log lines stay readable after a leader
+// rotates out of the org.
+model AuditLog {
+  id           String   @id @default(cuid())
+  orgId        String
+  userId       String?
+  userDisplay  String?
+  entityType   String   // "Page", "Announcement", "Post", "Member", ...
+  entityId     String?
+  action       String   // "create", "update", "delete"
+  summary      String?  // short human-readable: "Edited About body"
+  createdAt    DateTime @default(now())
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+  @@index([orgId, entityType, createdAt])
 }

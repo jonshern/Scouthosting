@@ -22,6 +22,7 @@ import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dieta
 import { reconcilePositionTerm as reconcileTerm } from "../lib/positionTerms.js";
 import { makeUnsubToken } from "../lib/unsubToken.js";
 import { tallyCredits, formatCsvRow } from "../lib/credits.js";
+import { recordAudit } from "../lib/audit.js";
 import {
   matchSubgroup,
   buildCurrentTrainingsMap,
@@ -199,6 +200,7 @@ form.inline{display:inline}
     <a href="/admin/credits">Credits</a>
     <a href="/admin/training">Training</a>
     <a href="/admin/subgroups">Subgroups</a>
+    <a href="/admin/audit">Audit log</a>
     <a href="/admin/equipment">Equipment</a>
     <a href="/admin/eagle">Eagle Scouts</a>
     <a href="/admin/surveys">Surveys</a>
@@ -471,20 +473,36 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
 adminRouter.post("/content", requireLeader, async (req, res) => {
   const fields = ["heroHeadline", "heroLede", "aboutBody", "joinBody", "contactNote"];
   const data = {};
+  const changed = [];
   for (const f of fields) {
     const v = (req.body?.[f] ?? "").toString().trim();
     data[f] = v === "" ? null : v;
+    if (v) changed.push(f);
   }
   await prisma.page.upsert({
     where: { orgId: req.org.id },
     update: data,
     create: { orgId: req.org.id, ...data },
   });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "update",
+    summary: `Edited home page (${changed.join(", ") || "cleared"})`,
+  });
   res.redirect("/admin/content?saved=1");
 });
 
 adminRouter.get("/content/reset", requireLeader, async (req, res) => {
   await prisma.page.deleteMany({ where: { orgId: req.org.id } });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "delete",
+    summary: "Reset home page to defaults",
+  });
   res.redirect("/admin/content");
 });
 
@@ -569,7 +587,7 @@ adminRouter.get("/announcements", requireLeader, async (req, res) => {
 adminRouter.post("/announcements", requireLeader, async (req, res) => {
   const { title, body, pinned, expiresAt } = req.body || {};
   if (!title?.trim() || !body?.trim()) return res.redirect("/admin/announcements");
-  await prisma.announcement.create({
+  const created = await prisma.announcement.create({
     data: {
       orgId: req.org.id,
       authorId: req.user.id,
@@ -578,6 +596,14 @@ adminRouter.post("/announcements", requireLeader, async (req, res) => {
       pinned: pinned === "1",
       expiresAt: expiresAt ? new Date(expiresAt) : null,
     },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Announcement",
+    entityId: created.id,
+    action: "create",
+    summary: `Published "${created.title}"`,
   });
   res.redirect("/admin/announcements");
 });
@@ -609,7 +635,7 @@ adminRouter.get("/announcements/:id/edit", requireLeader, async (req, res) => {
 adminRouter.post("/announcements/:id", requireLeader, async (req, res) => {
   const a = await prisma.announcement.findFirst({
     where: { id: req.params.id, orgId: req.org.id },
-    select: { id: true },
+    select: { id: true, title: true },
   });
   if (!a) return res.status(404).send("Not found");
   const { title, body, pinned, expiresAt } = req.body || {};
@@ -622,12 +648,32 @@ adminRouter.post("/announcements/:id", requireLeader, async (req, res) => {
       expiresAt: expiresAt ? new Date(expiresAt) : null,
     },
   });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Announcement",
+    entityId: a.id,
+    action: "update",
+    summary: `Edited "${title?.trim() || a.title}"`,
+  });
   res.redirect("/admin/announcements");
 });
 
 adminRouter.post("/announcements/:id/delete", requireLeader, async (req, res) => {
+  const a = await prisma.announcement.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { title: true },
+  });
   await prisma.announcement.deleteMany({
     where: { id: req.params.id, orgId: req.org.id },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Announcement",
+    entityId: req.params.id,
+    action: "delete",
+    summary: a ? `Deleted "${a.title}"` : `Deleted announcement`,
   });
   res.redirect("/admin/announcements");
 });
@@ -2471,6 +2517,14 @@ adminRouter.post("/members", requireLeader, async (req, res) => {
   if (data.position) {
     await reconcilePositionTerm(req.org.id, created.id, null, data.position);
   }
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Member",
+    entityId: created.id,
+    action: "create",
+    summary: `Added ${data.firstName} ${data.lastName}`,
+  });
   res.redirect("/admin/members");
 });
 
@@ -2980,6 +3034,78 @@ adminRouter.post("/subgroups/:id/delete", requireLeader, async (req, res) => {
   res.redirect("/admin/subgroups");
 });
 
+// Audit log — last 200 entries, filterable by entity type.
+adminRouter.get("/audit", requireLeader, async (req, res) => {
+  const entityType = (req.query.type || "").toString();
+  const where = { orgId: req.org.id };
+  if (entityType) where.entityType = entityType;
+  const [logs, types] = await Promise.all([
+    prisma.auditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+    prisma.auditLog.findMany({
+      where: { orgId: req.org.id },
+      distinct: ["entityType"],
+      select: { entityType: true },
+      orderBy: { entityType: "asc" },
+    }),
+  ]);
+
+  const fmtDate = (d) =>
+    new Date(d).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+  const items = logs
+    .map(
+      (l) => `
+      <li>
+        <div style="flex:1">
+          <strong>${escape(l.entityType)}</strong> · ${escape(l.action)}
+          ${l.summary ? `<div class="muted small">${escape(l.summary)}</div>` : ""}
+        </div>
+        <div class="muted small" style="text-align:right;min-width:200px">
+          ${escape(l.userDisplay || "—")}
+          <br>${escape(fmtDate(l.createdAt))}
+        </div>
+      </li>`,
+    )
+    .join("");
+
+  const filterOpts = types
+    .map(
+      (t) =>
+        `<option value="${escape(t.entityType)}"${t.entityType === entityType ? " selected" : ""}>${escape(t.entityType)}</option>`,
+    )
+    .join("");
+
+  const body = `
+    <h1>Audit log</h1>
+    <p class="muted">Who edited what — last 200 entries. Useful for tracing CMS / roster changes.</p>
+
+    <form class="card" method="get" action="/admin/audit">
+      <div class="row" style="align-items:end">
+        <label style="margin:0;flex:1">Filter by entity
+          <select name="type">
+            <option value="">All types</option>
+            ${filterOpts}
+          </select>
+        </label>
+        <button class="btn btn-primary" type="submit">Apply</button>
+        ${entityType ? `<a class="btn btn-ghost" href="/admin/audit">Clear</a>` : ""}
+      </div>
+    </form>
+
+    ${logs.length ? `<ul class="items" style="margin-top:1rem">${items}</ul>` : `<div class="empty" style="margin-top:1rem">No audit entries yet.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Audit log", org: req.org, user: req.user, body }));
+});
+
 // Org-wide PoR roster: who's currently holding which position.
 adminRouter.get("/positions", requireLeader, async (req, res) => {
   const open = await prisma.positionTerm.findMany({
@@ -3261,6 +3387,14 @@ adminRouter.post("/members/:id", requireLeader, async (req, res) => {
   if (!data.firstName || !data.lastName) return res.redirect(`/admin/members/${member.id}/edit`);
   await prisma.member.update({ where: { id: member.id }, data });
   await reconcilePositionTerm(req.org.id, member.id, member.position, data.position);
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Member",
+    entityId: member.id,
+    action: "update",
+    summary: `Edited ${data.firstName} ${data.lastName}`,
+  });
   res.redirect(`/admin/members/${member.id}/edit`);
 });
 
@@ -3313,7 +3447,19 @@ adminRouter.post("/members/:id/positions/:termId/delete", requireLeader, async (
 });
 
 adminRouter.post("/members/:id/delete", requireLeader, async (req, res) => {
+  const target = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { firstName: true, lastName: true },
+  });
   await prisma.member.deleteMany({ where: { id: req.params.id, orgId: req.org.id } });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Member",
+    entityId: req.params.id,
+    action: "delete",
+    summary: target ? `Deleted ${target.firstName} ${target.lastName}` : "Deleted member",
+  });
   res.redirect("/admin/members");
 });
 
