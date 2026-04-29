@@ -41,6 +41,7 @@ import { googleOAuth, googleConfigured, fetchGoogleProfile } from "../lib/oauth.
 import { generateState, generateCodeVerifier } from "arctic";
 import { icsFor, icsForOrg, expandOccurrences } from "../lib/calendar.js";
 import { verifyRsvpToken } from "../lib/rsvpToken.js";
+import { verifyUnsubToken } from "../lib/unsubToken.js";
 import { makeSignedToken, verifySignedToken } from "../lib/signedToken.js";
 import { send as sendMail } from "../lib/mail.js";
 
@@ -1499,6 +1500,148 @@ app.get("/rsvp/:token", async (req, res, next) => {
         eventId: ev.id,
       })
     );
+});
+
+/* ------------------ One-click unsubscribe ------------------------- */
+
+// GET /unsubscribe/:token — confirmation page (or one-click action when
+// the inbox sends ?one_click=1 per RFC 8058). POST /unsubscribe/:token
+// completes the action so HTML form clicks pass through CSRF.
+async function applyUnsubscribe(orgId, claims) {
+  await prisma.member.updateMany({
+    where: { id: claims.memberId, orgId },
+    data: { emailUnsubscribed: true, unsubscribedAt: new Date() },
+  });
+}
+
+async function applyResubscribe(orgId, claims) {
+  await prisma.member.updateMany({
+    where: { id: claims.memberId, orgId },
+    data: { emailUnsubscribed: false, unsubscribedAt: null },
+  });
+}
+
+function unsubPage(org, { ok, member, token, message }) {
+  const action = member?.emailUnsubscribed ? "resubscribe" : "unsubscribe";
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Email preferences · ${escapeForHtml(org.displayName)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;color:#15181c;background:#fbf8ee;display:grid;place-items:center;min-height:100vh;padding:2rem}
+.card{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1.75rem 2rem;max-width:520px;box-shadow:0 1px 2px rgba(15,58,31,.06),0 6px 18px rgba(15,58,31,.04)}
+h1{font-family:Fraunces,Georgia,serif;font-size:1.6rem;margin:0 0 .25rem}
+.muted{color:#5a6068}
+.btn{display:inline-block;padding:.55rem 1rem;border-radius:8px;border:1px solid transparent;font-size:.95rem;cursor:pointer;font-weight:500}
+.btn-primary{background:#1d6b39;color:#fff}
+.btn-ghost{background:transparent;color:#15181c;border-color:#d8dad0}
+form{margin-top:1rem}
+</style></head><body><main class="card">
+<h1>Email preferences</h1>
+<p class="muted">${escapeForHtml(org.displayName)}</p>
+${message ? `<p>${escapeForHtml(message)}</p>` : ""}
+${
+  ok && member
+    ? `<form method="post" action="/${action}/${escapeForHtml(token)}">
+         <button class="btn btn-primary" type="submit">${
+           member.emailUnsubscribed ? "Re-subscribe" : "Unsubscribe me"
+         }</button>
+       </form>`
+    : ""
+}
+</main></body></html>`;
+}
+
+function escapeForHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+  );
+}
+
+app.get("/unsubscribe/:token", async (req, res, next) => {
+  if (!req.org) return next();
+  const claims = verifyUnsubToken(req.params.token, { orgId: req.org.id });
+  if (!claims) {
+    return res
+      .status(400)
+      .type("html")
+      .send(unsubPage(req.org, { ok: false, message: "This link is invalid or expired." }));
+  }
+  const member = await prisma.member.findFirst({
+    where: { id: claims.memberId, orgId: req.org.id },
+    select: { id: true, firstName: true, lastName: true, email: true, emailUnsubscribed: true },
+  });
+  if (!member) {
+    return res
+      .status(404)
+      .type("html")
+      .send(unsubPage(req.org, { ok: false, message: "We couldn't find that recipient." }));
+  }
+  // RFC 8058 one-click: the mail client POSTs but some implementations
+  // still send GET; the ?one_click=1 query lets us recognise the
+  // mail-driven path and unsubscribe immediately without the confirm step.
+  if (req.query.one_click === "1" && !member.emailUnsubscribed) {
+    await applyUnsubscribe(req.org.id, claims);
+    return res
+      .type("html")
+      .send(
+        unsubPage(req.org, {
+          ok: true,
+          member: { ...member, emailUnsubscribed: true },
+          token: req.params.token,
+          message: `${member.email} has been unsubscribed. You'll no longer get broadcast emails.`,
+        }),
+      );
+  }
+  res.type("html").send(
+    unsubPage(req.org, {
+      ok: true,
+      member,
+      token: req.params.token,
+      message: member.emailUnsubscribed
+        ? `${member.email} is currently unsubscribed.`
+        : `${member.email} is currently subscribed to broadcasts.`,
+    }),
+  );
+});
+
+// One-click POST per RFC 8058 — the inbox POSTs without HTML, so CSRF
+// is not applicable. Same handler answers form submissions from the
+// confirmation page.
+app.post("/unsubscribe/:token", async (req, res, next) => {
+  if (!req.org) return next();
+  const claims = verifyUnsubToken(req.params.token, { orgId: req.org.id });
+  if (!claims) return res.status(400).send("Invalid link");
+  await applyUnsubscribe(req.org.id, claims);
+  const member = await prisma.member.findFirst({
+    where: { id: claims.memberId, orgId: req.org.id },
+    select: { id: true, firstName: true, lastName: true, email: true, emailUnsubscribed: true },
+  });
+  res.type("html").send(
+    unsubPage(req.org, {
+      ok: true,
+      member,
+      token: req.params.token,
+      message: `${member?.email || "You"} are unsubscribed.`,
+    }),
+  );
+});
+
+app.post("/resubscribe/:token", async (req, res, next) => {
+  if (!req.org) return next();
+  const claims = verifyUnsubToken(req.params.token, { orgId: req.org.id });
+  if (!claims) return res.status(400).send("Invalid link");
+  await applyResubscribe(req.org.id, claims);
+  const member = await prisma.member.findFirst({
+    where: { id: claims.memberId, orgId: req.org.id },
+    select: { id: true, firstName: true, lastName: true, email: true, emailUnsubscribed: true },
+  });
+  res.type("html").send(
+    unsubPage(req.org, {
+      ok: true,
+      member,
+      token: req.params.token,
+      message: `${member?.email || "You"} are subscribed again. Welcome back.`,
+    }),
+  );
 });
 
 /* ------------------ Photo serving (org-scoped) -------------------- */

@@ -363,7 +363,13 @@ and operations hub. Scoutbook is the advancement source of truth.
 - [ ] Inbox + per-member email thread view
 - [ ] Bounce + complaint webhooks
 - [ ] Throttling and abuse protection
-- [ ] One-click unsubscribe per recipient
+- [x] **One-click unsubscribe per recipient** — every broadcast email
+      carries a per-member signed `unsubscribe` link in the footer + the
+      `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click`
+      headers (RFC 8058). `POST /unsubscribe/:token` flips
+      `Member.emailUnsubscribed`; `GET ?one_click=1` does the same for the
+      mail-client one-click path. `audienceFor` filters unsubscribed
+      members out of the email channel. Re-subscribe link on the same page.
 
 ## Phase 9 — Money
 
