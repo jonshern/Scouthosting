@@ -17,6 +17,7 @@ import { buildShoppingList } from "../lib/shoppingList.js";
 import { MEAL_DIETARY_TAGS, mealConflicts } from "../lib/dietary.js";
 import { renderMarkdown } from "../lib/markdown.js";
 import { scoutbookUrl } from "../lib/scoutbook.js";
+import { parseVideoUrl } from "../lib/videoEmbed.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -846,6 +847,56 @@ export function renderMbcList(org, list) {
       .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .45rem;border-radius:5px;font-size:.78rem;color:var(--ink-500);margin-right:.2rem}
     </style>`;
   return pageShell(org, "Merit Badge Counselors", body);
+}
+
+export function renderVideoGallery(org, list, { isMember } = {}) {
+  const cards = list
+    .map((v) => {
+      const meta = parseVideoUrl(v.url);
+      const headerMeta = `${v.recordedAt ? `<span class="muted small"> · ${escapeHtml(new Date(v.recordedAt).toISOString().slice(0, 10))}</span>` : ""}${
+        v.visibility === "members" ? ` <span class="tag">members</span>` : ""
+      }`;
+      const noteHtml = v.notes ? `<p class="muted small">${escapeHtml(v.notes)}</p>` : "";
+
+      if (meta && (meta.kind === "youtube" || meta.kind === "vimeo")) {
+        return `
+          <article class="vid-card">
+            <div class="vid-frame"><iframe src="${escapeHtml(meta.embedUrl)}" loading="lazy" allow="accelerometer; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" title="${escapeHtml(v.title)}"></iframe></div>
+            <h3>${escapeHtml(v.title)}${headerMeta}</h3>
+            ${noteHtml}
+          </article>`;
+      }
+      // External / unsupported host: render a clickable card with no embed.
+      return `
+        <article class="vid-card vid-external">
+          <h3>${escapeHtml(v.title)}${headerMeta}</h3>
+          <p><a href="${escapeHtml(meta?.watchUrl || v.url)}" target="_blank" rel="noopener">Watch on the original site ↗</a></p>
+          ${noteHtml}
+        </article>`;
+    })
+    .join("");
+
+  const memberHint = isMember
+    ? ""
+    : `<p class="muted small">Sign in for the members-only videos. <a href="/login?next=/videos">Sign in</a></p>`;
+
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/">← Home</a>
+      <h1>Videos</h1>
+      <p class="muted">${escapeHtml(org.displayName)} on tape — campouts, ceremonies, scoutmaster minutes.</p>
+      ${memberHint}
+      ${list.length ? `<div class="vid-grid">${cards}</div>` : `<p class="muted">No videos yet.</p>`}
+    </section>
+    <style>
+      .vid-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1.25rem;margin-top:1.25rem}
+      .vid-card{background:#fff;border:1px solid #eef0e7;border-radius:12px;padding:.85rem 1rem 1rem}
+      .vid-frame{position:relative;padding-top:56.25%;border-radius:8px;overflow:hidden;background:#000;margin-bottom:.6rem}
+      .vid-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+      .vid-card h3{margin:0 0 .15rem;font-size:1.05rem}
+      .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .45rem;border-radius:5px;font-size:.78rem;margin-left:.25rem}
+    </style>`;
+  return pageShell(org, "Videos", body);
 }
 
 export function renderReimburseForm(org, user, events, mine, csrfToken) {

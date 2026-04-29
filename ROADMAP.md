@@ -410,7 +410,13 @@ and operations hub. Scoutbook is the advancement source of truth.
       `lib/storage.js` is wired; cloud driver is the open piece)
 - [x] Photo gallery: albums + captions; multi-photo grid in posts
 - [ ] EXIF, faces opt-in
-- [ ] Video gallery (link-based)
+- [x] **Video gallery (link-based)** — `Video` model with title, URL,
+      visibility (public/members), recordedAt, notes. Admin CRUD at
+      `/admin/videos`; gallery at `/videos` embeds YouTube /
+      youtu.be / shorts and Vimeo via `lib/videoEmbed.js` (uses
+      youtube-nocookie). External / unsupported hosts fall back to a
+      "watch on the original site" link. CSP `frame-src` is scoped to
+      the two allowed providers.
 - [x] Forms & Documents library — `Form` model with file uploads
 - [ ] Versioning + role-gated access for the documents library
 - [ ] Drag-and-drop upload, mobile capture
