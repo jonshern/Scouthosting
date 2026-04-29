@@ -67,6 +67,23 @@ const ALLOWED_DOC_MIME = new Set([
   "application/zip",
 ]);
 
+// Small CSV uploads (member roster import). Held in memory — these
+// files are tiny by definition (member rosters cap at a few hundred rows)
+// so we skip the temp-file dance.
+const csvUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    const ok =
+      file.mimetype === "text/csv" ||
+      file.mimetype === "text/plain" ||
+      file.mimetype === "application/vnd.ms-excel" ||
+      file.mimetype === "application/octet-stream"; // some browsers
+    if (ok) cb(null, true);
+    else cb(new Error(`Unsupported CSV type: ${file.mimetype}`));
+  },
+});
+
 const documentUpload = multer({
   dest: path.resolve(process.env.UPLOAD_TMP || "/tmp/scouthosting-uploads"),
   limits: { fileSize: 25 * 1024 * 1024, files: 1 }, // 25MB single document
@@ -2227,6 +2244,24 @@ function memberFromBody(body) {
 
   const birthdate = parseDate(body?.birthdate);
   const joinedAt = parseDate(body?.joinedAt);
+  const splitTags = (s) =>
+    String(s || "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+  // De-dupe case-insensitively while preserving first-seen casing.
+  const dedupe = (arr) => {
+    const seen = new Set();
+    const out = [];
+    for (const t of arr) {
+      const k = t.toLowerCase();
+      if (!seen.has(k)) {
+        seen.add(k);
+        out.push(t);
+      }
+    }
+    return out;
+  };
   return {
     firstName: body?.firstName?.trim() || "",
     lastName: body?.lastName?.trim() || "",
@@ -2244,6 +2279,8 @@ function memberFromBody(body) {
     scoutbookUserId: body?.scoutbookUserId?.trim() || null,
     parentIds,
     dietaryFlags,
+    skills: dedupe(splitTags(body?.skills)),
+    interests: dedupe(splitTags(body?.interests)),
     notes: body?.notes?.trim() || null,
   };
 }
@@ -2347,6 +2384,12 @@ async function memberForm({ member, action, submitLabel, orgId }) {
       <label>Scoutbook user ID (optional — links this member to their Scoutbook record)
         <input name="scoutbookUserId" type="text" maxlength="40" placeholder="e.g. 1234567" value="${v("scoutbookUserId")}">
       </label>
+      <label>Skills (comma-separated — e.g. "WFA, mechanic, lifeguard")
+        <input name="skills" type="text" maxlength="240" value="${escape((member?.skills || []).join(", "))}">
+      </label>
+      <label>Interests (comma-separated — e.g. "backpacking, cooking, photography")
+        <input name="interests" type="text" maxlength="240" value="${escape((member?.interests || []).join(", "))}">
+      </label>
       <label>Notes<textarea name="notes" rows="2">${v("notes")}</textarea></label>
       <div class="row">
         <button class="btn btn-primary" type="submit">${escape(submitLabel)}</button>
@@ -2431,11 +2474,15 @@ async function reconcilePositionTerm(orgId, memberId, _oldPosition, newPosition)
 adminRouter.get("/members/import", requireLeader, async (req, res) => {
   const body = `
     <h1>Bulk import members</h1>
-    <p class="muted">Paste CSV with a header row. Recognized column names (case-insensitive):</p>
-    <p class="muted small"><code>firstName, lastName, email, phone, patrol, position, isYouth, commPreference, smsOptIn, notes</code></p>
-    <form class="card" method="post" action="/admin/members/import">
-      <label>CSV
-        <textarea name="csv" rows="10" required placeholder="firstName,lastName,email,patrol,isYouth&#10;Alex,Park,alex@example.com,Eagles,1&#10;Pat,Adams,pat@example.com,,0"></textarea>
+    <p class="muted">Paste CSV or upload a .csv file. The first row must be a header — recognized column names (case-insensitive):</p>
+    <p class="muted small"><code>firstName, lastName, email, phone, patrol, position, isYouth, commPreference, smsOptIn, skills, interests, notes</code></p>
+
+    <form class="card" method="post" action="/admin/members/import" enctype="multipart/form-data">
+      <h2 style="margin-top:0">Upload a CSV file</h2>
+      <label>File<input name="file" type="file" accept=".csv,text/csv,text/plain"></label>
+      <p class="muted small">— or —</p>
+      <label>Paste CSV text
+        <textarea name="csv" rows="10" placeholder="firstName,lastName,email,patrol,isYouth&#10;Alex,Park,alex@example.com,Eagles,1&#10;Pat,Adams,pat@example.com,,0"></textarea>
       </label>
       <div class="row">
         <button class="btn btn-primary" type="submit">Import</button>
@@ -2469,8 +2516,10 @@ function parseCsv(text) {
   return rows.filter((r) => r.length > 1 || (r.length === 1 && r[0].trim() !== ""));
 }
 
-adminRouter.post("/members/import", requireLeader, async (req, res) => {
-  const text = String(req.body?.csv || "").trim();
+adminRouter.post("/members/import", requireLeader, csvUpload.single("file"), async (req, res) => {
+  // Prefer uploaded file; fall back to pasted textarea.
+  const fromFile = req.file?.buffer ? req.file.buffer.toString("utf8") : "";
+  const text = (fromFile || String(req.body?.csv || "")).trim();
   if (!text) return res.redirect("/admin/members");
   const rows = parseCsv(text);
   if (rows.length < 2) return res.redirect("/admin/members");
@@ -2503,6 +2552,18 @@ adminRouter.post("/members/import", requireLeader, async (req, res) => {
         ? pref.toLowerCase()
         : "email",
       smsOptIn: truthy(get("smsOptIn") || get("sms_opt_in")),
+      skills: get("skills")
+        ? get("skills")
+            .split(/[;|]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [],
+      interests: get("interests")
+        ? get("interests")
+            .split(/[;|]/)
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : [],
       notes: get("notes") || null,
     });
   }
