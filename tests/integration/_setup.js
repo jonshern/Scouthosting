@@ -5,6 +5,10 @@
 // tables and re-seed a minimal demo org. Sequential tests so ordering
 // is deterministic; we set test.concurrent = false in the test files.
 
+// Rate limiter is opt-out per request via env, so set it before any
+// integration test (and any module that touches the limiter) runs.
+process.env.DISABLE_RATE_LIMIT = "1";
+
 import { prisma } from "../../lib/db.js";
 
 export const TEST_ORG_SLUG = "testtroop";
