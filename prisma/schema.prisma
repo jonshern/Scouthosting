@@ -92,6 +92,7 @@ model Org {
   eagleScouts   EagleScout[]
   eagleProjects EagleProject[]
   cohAwards     CohAward[]
+  positionTerms PositionTerm[]
 
   @@index([plan])
 }
@@ -199,6 +200,7 @@ model Member {
 
   org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   rsvps Rsvp[]
+  positionTerms PositionTerm[]
 
   @@index([orgId])
   @@index([orgId, lastName])
@@ -730,4 +732,27 @@ model CohAward {
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([orgId, eventId, sortOrder])
+}
+
+// Position-of-Responsibility history. Each term is a (member, position,
+// startedAt, endedAt) tuple — endedAt = null means "currently holding".
+// Member.position keeps the current label denormalized for fast list
+// rendering; on save the admin reconciles by closing the open term and
+// opening a new one when the label changes.
+model PositionTerm {
+  id        String   @id @default(cuid())
+  orgId     String
+  memberId  String
+  position  String   // "SPL", "Scoutmaster", "Patrol Leader — Eagles"
+  startedAt DateTime
+  endedAt   DateTime?
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org    Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, memberId, startedAt])
+  @@index([orgId, endedAt])
 }
