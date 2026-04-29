@@ -281,7 +281,12 @@ Distinct from generic events: campouts and trips need provisioning logic.
 - [x] Family linkage (parent ↔ scout, parent ↔ multiple scouts) —
       `Member.parentIds[]` array of Member ids; admin UI lets you
       attach guardians to a youth.
-- [ ] Dynamic subgroups (rules-based, e.g. "Star+ scouts")
+- [x] **Dynamic subgroups** — `Subgroup` model is a saved audience
+      query. Rules: AND across set fields, OR within a list. Filters
+      on `isYouth`, `patrols`, `skills`, `interests`, and currently-held
+      `trainings`. CRUD at `/admin/subgroups`; the email broadcast
+      audience selector picks them up under "Saved subgroups".
+      Rank-based subgroups ("Star+ scouts") wait on Scoutbook integration.
 - [x] **Position-of-Responsibility tracking** with start/end dates —
       `PositionTerm` model with `(memberId, position, startedAt, endedAt)`.
       Editing `Member.position` auto-closes the open term and opens a
