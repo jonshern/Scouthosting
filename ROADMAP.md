@@ -284,8 +284,11 @@ Distinct from generic events: campouts and trips need provisioning logic.
 - [x] **Gear / equipment checklist** for the trip — `GearItem` per
       trip plan with claim/owner; permanent `Equipment` catalog landed
       separately as the Quartermaster module.
-- [ ] Cross-link gear checklist to the Quartermaster catalog (current
-      gear list is free-text, not yet pulled from `Equipment`).
+- [x] **Cross-link gear checklist to the Quartermaster catalog** —
+      `GearItem.equipmentId` references the permanent `Equipment` row.
+      The trip-plan gear-add form has a dropdown of catalog items; the
+      gear table renders linked items as click-through links to the
+      catalog entry, with a "catalog" tag.
 - [x] **Driver / carpool plan** with seats and who-rides-with-whom —
       `CarRide` (driver, vehicle, seats, departure plan) and
       `CarRideRider` (member or free-form name). Per-event UI at

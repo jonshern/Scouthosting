@@ -575,6 +575,10 @@ model GearItem {
   id          String   @id @default(cuid())
   orgId       String
   tripPlanId  String
+  // Optional link to the permanent Quartermaster catalog. When set, the
+  // gear item references a real Equipment row — clicking through opens
+  // the catalog entry and surfaces the current loan / location.
+  equipmentId String?
   name        String   // "Patrol box", "Propane stove"
   quantity    Int      @default(1)
   assignedTo  String?  // free-form name; future: link to Member
@@ -584,10 +588,12 @@ model GearItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  org      Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  tripPlan TripPlan @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+  org       Org        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tripPlan  TripPlan   @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+  equipment Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
 
   @@index([orgId, tripPlanId, sortOrder])
+  @@index([orgId, equipmentId])
 }
 
 // Comments on Posts. Members-only by definition (visibility lives on the
@@ -629,6 +635,7 @@ model Equipment {
 
   org   Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
   loans EquipmentLoan[]
+  gearItems GearItem[]
 
   @@index([orgId, category])
   @@index([orgId, location])

@@ -1706,7 +1706,14 @@ async function loadOrCreatePlan(eventId, orgId) {
       orderBy: { sortOrder: "asc" },
       include: { ingredients: { orderBy: { name: "asc" } } },
     },
-    gear: { orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }] },
+    gear: {
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      include: {
+        equipment: {
+          select: { id: true, name: true, location: true, condition: true },
+        },
+      },
+    },
   };
   const existing = await prisma.tripPlan.findUnique({
     where: { eventId },
@@ -1745,10 +1752,17 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
 
   // Members with dietary flags — surface to the planner. Also feeds
   // the per-meal conflict check below (lib/dietary.js).
-  const flagged = await prisma.member.findMany({
-    where: { orgId: req.org.id, dietaryFlags: { isEmpty: false } },
-    select: { firstName: true, lastName: true, dietaryFlags: true },
-  });
+  const [flagged, equipmentCatalog] = await Promise.all([
+    prisma.member.findMany({
+      where: { orgId: req.org.id, dietaryFlags: { isEmpty: false } },
+      select: { firstName: true, lastName: true, dietaryFlags: true },
+    }),
+    prisma.equipment.findMany({
+      where: { orgId: req.org.id, condition: { not: "retired" } },
+      orderBy: [{ category: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, category: true },
+    }),
+  ]);
 
   const unitOpts = UNITS.map((u) => `<option value="${escape(u)}">${escape(u)}</option>`).join("");
   const catOpts = CATEGORY_ORDER.map(
@@ -1896,7 +1910,13 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
               <button class="link-btn" type="submit" title="${g.packed ? "Unpack" : "Mark packed"}">${g.packed ? "☑" : "☐"}</button>
             </form>
           </td>
-          <td>${escape(g.name)}${g.notes ? ` <span class="muted small">${escape(g.notes)}</span>` : ""}</td>
+          <td>
+            ${
+              g.equipment
+                ? `<a href="/admin/equipment/${escape(g.equipment.id)}/edit">${escape(g.name)}</a> <span class="tag">catalog</span>`
+                : escape(g.name)
+            }${g.notes ? ` <span class="muted small">${escape(g.notes)}</span>` : ""}
+          </td>
           <td class="num">${escape(String(g.quantity))}</td>
           <td>${escape(g.assignedTo || "—")}</td>
           <td>
@@ -1909,6 +1929,13 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
         .join("")}</tbody>
     </table>`;
   };
+
+  const equipmentOpts = equipmentCatalog
+    .map(
+      (e) =>
+        `<option value="${escape(e.id)}" data-name="${escape(e.name)}">${escape(e.name)}${e.category ? ` (${escape(e.category)})` : ""}</option>`,
+    )
+    .join("");
 
   const body = `
     <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
@@ -1961,7 +1988,11 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
     <div class="card">
       ${renderGear()}
       <form method="post" action="/admin/events/${escape(ev.id)}/plan/gear" class="ing-add" style="margin-top:.6rem">
-        <input name="name" type="text" required placeholder="e.g. Patrol box, Propane tank" maxlength="80">
+        <select name="equipmentId" style="flex:1">
+          <option value="">— or pick from Quartermaster —</option>
+          ${equipmentOpts}
+        </select>
+        <input name="name" type="text" placeholder="…or free-form name" maxlength="80">
         <input name="quantity" type="number" min="1" max="99" value="1" style="width:5rem">
         <input name="assignedTo" type="text" placeholder="Assigned to (optional)" style="flex:1">
         <button class="btn btn-primary small" type="submit">Add gear</button>
@@ -2083,11 +2114,30 @@ adminRouter.post("/events/:id/plan/gear", requireLeader, async (req, res) => {
     select: { sortOrder: true },
   });
   const qty = parseInt(req.body?.quantity, 10);
+
+  // If a Quartermaster catalog item is picked, snapshot the name so the
+  // gear line stays readable even if the catalog row is later renamed.
+  let equipmentId = (req.body?.equipmentId || "").trim() || null;
+  let name = (req.body?.name || "").trim();
+  if (equipmentId) {
+    const eq = await prisma.equipment.findFirst({
+      where: { id: equipmentId, orgId: req.org.id },
+      select: { id: true, name: true },
+    });
+    if (!eq) equipmentId = null;
+    else if (!name) name = eq.name;
+  }
+  if (!name) {
+    if (!equipmentId) return res.redirect(`/admin/events/${req.params.id}/plan`);
+    name = "Untitled";
+  }
+
   await prisma.gearItem.create({
     data: {
       orgId: req.org.id,
       tripPlanId: plan.id,
-      name: req.body?.name?.trim() || "Untitled",
+      equipmentId,
+      name,
       quantity: Number.isFinite(qty) && qty >= 1 ? Math.min(99, qty) : 1,
       assignedTo: req.body?.assignedTo?.trim() || null,
       sortOrder: (last?.sortOrder ?? 0) + 1,
