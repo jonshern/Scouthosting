@@ -365,7 +365,11 @@ and operations hub. Scoutbook is the advancement source of truth.
 
 - [x] Scoutbook user-id field on `Member` (deep-links from the directory
       to that Scout's Scoutbook record)
-- [ ] Deep-links from the Eagle list and summary dashboards
+- [x] **Deep-links from the Eagle list** — when an Eagle row is linked
+      to a roster Member with a `scoutbookUserId`, the public `/eagles`
+      list and the admin Eagle list render a "Scoutbook ↗" link
+      pointing at the per-Scout profile path. Deep-links from broader
+      summary dashboards still wait on read-only Scoutbook sync.
 - [ ] CSV import from Scoutbook's report exports (rank progress, MB
       partials, awards) — fallback before/until BSA's API access lands
 - [ ] When permitted: read-only Scoutbook API sync (rank, MB, awards)

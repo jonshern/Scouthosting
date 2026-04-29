@@ -1067,9 +1067,23 @@ app.get("/eagles", async (req, res, next) => {
     where: { orgId: req.org.id },
     orderBy: [{ earnedAt: "desc" }, { lastName: "asc" }],
   });
+  // Resolve scoutbookUserId for any Eagle that's still on the roster.
+  // We don't expose it on EagleScout directly (the Member is the source
+  // of truth and the Eagle row is intentionally light) — look it up.
+  const linkedMemberIds = eagles.map((e) => e.memberId).filter(Boolean);
+  const sbMap = new Map();
+  if (linkedMemberIds.length) {
+    const linked = await prisma.member.findMany({
+      where: { orgId: req.org.id, id: { in: linkedMemberIds } },
+      select: { id: true, scoutbookUserId: true },
+    });
+    for (const m of linked) {
+      if (m.scoutbookUserId) sbMap.set(m.id, m.scoutbookUserId);
+    }
+  }
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderEagleList(req.org, eagles));
+    .send(renderEagleList(req.org, eagles, sbMap));
 });
 
 // Members-only Merit Badge Counselor list. Phone numbers + emails are
