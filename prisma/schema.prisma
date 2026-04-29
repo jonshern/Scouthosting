@@ -63,6 +63,9 @@ model Org {
   committeeChairEmail String?
   primaryColor        String   @default("#1d6b39")
   accentColor         String   @default("#caa54a")
+  // Per-org logo. Filename in the same per-org storage area as Photos
+  // (lib/storage.js). null = use the default brand mark (unit number).
+  logoFilename        String?
   plan                Plan     @default(patrol)
   isDemo              Boolean  @default(false)
   customDomain        String?  @unique

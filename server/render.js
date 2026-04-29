@@ -220,7 +220,11 @@ function pageShell(org, title, body) {
 <header class="site-header">
   <div class="bar wrap">
     <a class="brand" href="/">
-      <span class="brand-mark" aria-hidden="true">${escapeHtml(org.unitNumber)}</span>
+      ${
+        org.logoFilename
+          ? `<img class="brand-logo" src="/uploads/${escapeHtml(org.logoFilename)}" alt="${escapeHtml(org.displayName)} logo">`
+          : `<span class="brand-mark" aria-hidden="true">${escapeHtml(org.unitNumber)}</span>`
+      }
       <span class="brand-text"><strong>${escapeHtml(org.displayName)}</strong><small>Scouts BSA · ${escapeHtml(org.city)}, ${escapeHtml(org.state)}</small></span>
     </a>
     <nav class="nav"><ul>
