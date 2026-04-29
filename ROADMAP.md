@@ -232,9 +232,9 @@ The most-used feature. Match TroopWebHost's coverage, then exceed it.
 - [x] **Waitlist when a slot fills** — overflow sign-ups are queued
       (per-slot opt-out via `allowWaitlist`); on release, the oldest
       waitlister auto-promotes to active inside the same transaction.
-- [ ] Carpool sign-ups (currently handled via the generic "Drivers /
-      carpool" slot template; dedicated seats-and-riders model still
-      open)
+- [x] **Carpool sign-ups** — generic "Drivers" slot template still
+      available for self-service "I can drive"; the dedicated rides +
+      riders plan is in Phase 4.5.
 - [ ] **Two-way Google Calendar sync** (per-user) — additive; the ICS
       feed already covers the read path. This adds writes from inside
       the user's Google Calendar back to Scouthosting.
@@ -277,8 +277,10 @@ Distinct from generic events: campouts and trips need provisioning logic.
       separately as the Quartermaster module.
 - [ ] Cross-link gear checklist to the Quartermaster catalog (current
       gear list is free-text, not yet pulled from `Equipment`).
-- [ ] **Driver / carpool plan** with seats available, who-rides-with-whom
-      (or fold into the SignupSlot model)
+- [x] **Driver / carpool plan** with seats and who-rides-with-whom —
+      `CarRide` (driver, vehicle, seats, departure plan) and
+      `CarRideRider` (member or free-form name). Per-event UI at
+      `/admin/events/:id/rides` with over-capacity warning.
 - [ ] **Tour plan** auto-fill (BSA Activity Consent forms pre-filled from
       the member roster)
 - [ ] **Recipe library** shared across all tenants (community contributions)

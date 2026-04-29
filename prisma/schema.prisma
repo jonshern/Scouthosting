@@ -100,6 +100,8 @@ model Org {
   trainings     Training[]
   subgroups     Subgroup[]
   auditLogs     AuditLog[]
+  carRides      CarRide[]
+  carRideRiders CarRideRider[]
 
   @@index([plan])
 }
@@ -261,6 +263,7 @@ model Event {
   slots     SignupSlot[]
   plan      TripPlan?
   cohAwards CohAward[]
+  rides     CarRide[]
 
   @@index([orgId, startsAt])
 }
@@ -888,4 +891,49 @@ model AuditLog {
 
   @@index([orgId, createdAt])
   @@index([orgId, entityType, createdAt])
+}
+
+// Driver / carpool plan. Distinct from SignupSlot's generic
+// "Drivers / carpool" template — that captures *who can drive*. CarRide
+// captures *the actual ride*: vehicle, seats, departure plan, and the
+// list of riders assigned to it. v1 is admin-managed (leaders build
+// the plan manually based on RSVPs).
+model CarRide {
+  id                  String          @id @default(cuid())
+  orgId               String
+  eventId             String
+  driverName          String
+  driverEmail         String?
+  driverPhone         String?
+  vehicleNote         String?         // "Honda Pilot — silver", "15-passenger van"
+  seats               Int             @default(4)
+  departureTime       DateTime?
+  departureLocation   String?
+  returnTime          DateTime?
+  notes               String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  org    Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event  Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  riders CarRideRider[]
+
+  @@index([orgId, eventId])
+}
+
+model CarRideRider {
+  id        String   @id @default(cuid())
+  orgId     String
+  rideId    String
+  memberId  String?
+  name      String
+  email     String?
+  isYouth   Boolean  @default(true)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  org  Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  ride CarRide @relation(fields: [rideId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, rideId])
 }
