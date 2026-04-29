@@ -203,6 +203,7 @@ form.inline{display:inline}
     <a href="/admin/audit">Audit log</a>
     <a href="/admin/equipment">Equipment</a>
     <a href="/admin/eagle">Eagle Scouts</a>
+    <a href="/admin/mbc">Merit Badge Counselors</a>
     <a href="/admin/surveys">Surveys</a>
     <a href="/admin/email">Email broadcast</a>
     <a href="/" target="_blank">View public site ↗</a>
@@ -4567,6 +4568,210 @@ adminRouter.post("/equipment/:id/delete", requireLeader, async (req, res) => {
     where: { id: req.params.id, orgId: req.org.id },
   });
   res.redirect("/admin/equipment");
+});
+
+/* ------------------------------------------------------------------ */
+/* Merit Badge Counselor list (troop-curated)                          */
+/* ------------------------------------------------------------------ */
+
+function mbcFromBody(body) {
+  const splitTags = (s) =>
+    String(s || "")
+      .split(/[,;|]/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+  return {
+    name: (body?.name || "").trim().slice(0, 120) || "Counselor",
+    email: (body?.email || "").trim().toLowerCase() || null,
+    phone: (body?.phone || "").trim() || null,
+    badges: splitTags(body?.badges).slice(0, 60),
+    memberId: (body?.memberId || "").trim() || null,
+    notes: (body?.notes || "").trim() || null,
+  };
+}
+
+adminRouter.get("/mbc", requireLeader, async (req, res) => {
+  const [list, members] = await Promise.all([
+    prisma.meritBadgeCounselor.findMany({
+      where: { orgId: req.org.id },
+      orderBy: { name: "asc" },
+    }),
+    prisma.member.findMany({
+      where: { orgId: req.org.id, isYouth: false },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: { id: true, firstName: true, lastName: true },
+    }),
+  ]);
+
+  const memberOpts = members
+    .map(
+      (m) =>
+        `<option value="${escape(m.id)}">${escape(m.firstName)} ${escape(m.lastName)}</option>`,
+    )
+    .join("");
+
+  const items = list
+    .map(
+      (c) => `
+      <li>
+        <div style="flex:1">
+          <h3 style="margin:0">${escape(c.name)}</h3>
+          <p class="muted small" style="margin:.1rem 0 0">
+            ${c.email ? `<a href="mailto:${escape(c.email)}">${escape(c.email)}</a>` : ""}
+            ${c.phone ? ` · ${escape(c.phone)}` : ""}
+          </p>
+          <p style="margin:.25rem 0 0">${
+            c.badges.length
+              ? c.badges.map((b) => `<span class="tag">${escape(b)}</span>`).join(" ")
+              : `<span class="muted small">No badges listed.</span>`
+          }</p>
+          ${c.notes ? `<p class="muted small" style="margin:.25rem 0 0">${escape(c.notes)}</p>` : ""}
+        </div>
+        <div class="row">
+          <a class="btn btn-ghost small" href="/admin/mbc/${escape(c.id)}/edit">Edit</a>
+          <form class="inline" method="post" action="/admin/mbc/${escape(c.id)}/delete" onsubmit="return confirm('Delete this counselor?')">
+            <button class="btn btn-danger small" type="submit">Delete</button>
+          </form>
+        </div>
+      </li>`,
+    )
+    .join("");
+
+  const body = `
+    <h1>Merit Badge Counselors</h1>
+    <p class="muted">The troop's preferred counselor list — local, curated by your committee. Public to members at <code>/mbc</code>. Distinct from Scoutbook's national directory.</p>
+
+    <form class="card" method="post" action="/admin/mbc">
+      <h2 style="margin-top:0">Add a counselor</h2>
+      <div class="row">
+        <label style="margin:0;flex:1">Name<input name="name" type="text" required maxlength="120"></label>
+        <label style="margin:0;flex:1">Roster member (optional)<select name="memberId"><option value="">— free-form / external —</option>${memberOpts}</select></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Email<input name="email" type="email" maxlength="120"></label>
+        <label style="margin:0;flex:1">Phone<input name="phone" type="tel" maxlength="40"></label>
+      </div>
+      <label>Badges (comma-separated)<input name="badges" type="text" maxlength="500" placeholder="First Aid, Camping, Citizenship in the Community"></label>
+      <label>Notes<textarea name="notes" rows="2" maxlength="500" placeholder="Best for First Aid; reach out via email."></textarea></label>
+      <button class="btn btn-primary" type="submit">Add counselor</button>
+    </form>
+
+    <h2 style="margin-top:1.5rem">Counselors</h2>
+    ${list.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No counselors yet. Add one above.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Merit Badge Counselors", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/mbc", requireLeader, async (req, res) => {
+  const data = mbcFromBody(req.body);
+  if (data.memberId) {
+    const m = await prisma.member.findFirst({
+      where: { id: data.memberId, orgId: req.org.id },
+      select: { id: true },
+    });
+    if (!m) data.memberId = null;
+  }
+  const created = await prisma.meritBadgeCounselor.create({
+    data: { orgId: req.org.id, ...data },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "MeritBadgeCounselor",
+    entityId: created.id,
+    action: "create",
+    summary: `Added ${created.name}`,
+  });
+  res.redirect("/admin/mbc");
+});
+
+adminRouter.get("/mbc/:id/edit", requireLeader, async (req, res) => {
+  const [c, members] = await Promise.all([
+    prisma.meritBadgeCounselor.findFirst({
+      where: { id: req.params.id, orgId: req.org.id },
+    }),
+    prisma.member.findMany({
+      where: { orgId: req.org.id, isYouth: false },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: { id: true, firstName: true, lastName: true },
+    }),
+  ]);
+  if (!c) return res.status(404).send("Not found");
+
+  const memberOpts = members
+    .map(
+      (m) =>
+        `<option value="${escape(m.id)}"${c.memberId === m.id ? " selected" : ""}>${escape(m.firstName)} ${escape(m.lastName)}</option>`,
+    )
+    .join("");
+
+  const v = (k) => escape(c[k] ?? "");
+  const body = `
+    <a class="back" href="/admin/mbc" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← MBC list</a>
+    <h1>Edit counselor</h1>
+    <form class="card" method="post" action="/admin/mbc/${escape(c.id)}">
+      <div class="row">
+        <label style="margin:0;flex:1">Name<input name="name" type="text" required maxlength="120" value="${v("name")}"></label>
+        <label style="margin:0;flex:1">Roster member<select name="memberId"><option value="">— free-form / external —</option>${memberOpts}</select></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Email<input name="email" type="email" maxlength="120" value="${v("email")}"></label>
+        <label style="margin:0;flex:1">Phone<input name="phone" type="tel" maxlength="40" value="${v("phone")}"></label>
+      </div>
+      <label>Badges (comma-separated)<input name="badges" type="text" maxlength="500" value="${escape(c.badges.join(", "))}"></label>
+      <label>Notes<textarea name="notes" rows="2" maxlength="500">${v("notes")}</textarea></label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/admin/mbc">Cancel</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "Edit counselor", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/mbc/:id", requireLeader, async (req, res) => {
+  const c = await prisma.meritBadgeCounselor.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!c) return res.status(404).send("Not found");
+  const data = mbcFromBody(req.body);
+  if (data.memberId) {
+    const m = await prisma.member.findFirst({
+      where: { id: data.memberId, orgId: req.org.id },
+      select: { id: true },
+    });
+    if (!m) data.memberId = null;
+  }
+  await prisma.meritBadgeCounselor.update({ where: { id: c.id }, data });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "MeritBadgeCounselor",
+    entityId: c.id,
+    action: "update",
+    summary: `Edited ${data.name}`,
+  });
+  res.redirect("/admin/mbc");
+});
+
+adminRouter.post("/mbc/:id/delete", requireLeader, async (req, res) => {
+  const c = await prisma.meritBadgeCounselor.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { name: true },
+  });
+  await prisma.meritBadgeCounselor.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "MeritBadgeCounselor",
+    entityId: req.params.id,
+    action: "delete",
+    summary: c ? `Deleted ${c.name}` : "Deleted counselor",
+  });
+  res.redirect("/admin/mbc");
 });
 
 /* ------------------------------------------------------------------ */

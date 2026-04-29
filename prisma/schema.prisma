@@ -102,6 +102,7 @@ model Org {
   auditLogs     AuditLog[]
   carRides      CarRide[]
   carRideRiders CarRideRider[]
+  meritBadgeCounselors MeritBadgeCounselor[]
 
   @@index([plan])
 }
@@ -222,6 +223,7 @@ model Member {
   positionTerms PositionTerm[]
   equipmentLoans EquipmentLoan[]
   trainings     Training[]
+  meritBadgeCounselors MeritBadgeCounselor[]
 
   @@index([orgId])
   @@index([orgId, lastName])
@@ -936,4 +938,30 @@ model CarRideRider {
   ride CarRide @relation(fields: [rideId], references: [id], onDelete: Cascade)
 
   @@index([orgId, rideId])
+}
+
+// Troop's preferred Merit Badge Counselor list. Local-only, troop-curated;
+// distinct from Scoutbook's national MBC directory. v1 captures who the
+// troop actually uses for which badges. Scouts and parents read this list
+// when they're picking a counselor.
+model MeritBadgeCounselor {
+  id          String   @id @default(cuid())
+  orgId       String
+  name        String
+  email       String?
+  phone       String?
+  badges      String[] @default([])  // e.g. ["First Aid", "Camping", "Citizenship in the Community"]
+  // Optional link to a roster member if the counselor is also part of
+  // the unit. Free-form names are allowed too — many councils share
+  // counselors across units.
+  memberId    String?
+  notes       String?  // "Best for First Aid; reach out via email", "Lives in Oakdale"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  org    Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, name])
+  @@index([orgId, memberId])
 }

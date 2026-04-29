@@ -364,8 +364,11 @@ and operations hub. Scoutbook is the advancement source of truth.
       (`idea` / `proposal` / `approved` / `in progress` / `complete`),
       workbook URL, started/completed dates. Public Eagle list backed
       by `EagleScout`.
-- [ ] Troop's preferred Merit Badge Counselor list (local, troop-curated,
-      separate from Scoutbook's national directory)
+- [x] **Troop's preferred Merit Badge Counselor list** —
+      `MeritBadgeCounselor` model (name, email, phone, badges[],
+      optional roster member link, notes). Admin CRUD at `/admin/mbc`;
+      members see the list at `/mbc` (login + membership gated since
+      it's contact info).
 - [x] **Court of Honor planning** — `CohAward` rows attach to a CoH
       event and drive the printable program.
 - [x] **Service-hour / camping-night / hiking-mile capture** from

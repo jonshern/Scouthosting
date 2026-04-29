@@ -803,6 +803,46 @@ export function renderEagleList(org, eagles) {
   return pageShell(org, "Eagle Scouts", body);
 }
 
+export function renderMbcList(org, list) {
+  const items = list.length
+    ? `<ul class="mbc-list">${list
+        .map(
+          (c) => `
+        <li>
+          <h3>${escapeHtml(c.name)}</h3>
+          <p class="muted small">
+            ${c.email ? `<a href="mailto:${escapeHtml(c.email)}">${escapeHtml(c.email)}</a>` : ""}
+            ${c.phone ? ` · ${escapeHtml(c.phone)}` : ""}
+          </p>
+          ${
+            c.badges.length
+              ? `<p class="badges">${c.badges
+                  .map((b) => `<span class="tag">${escapeHtml(b)}</span>`)
+                  .join(" ")}</p>`
+              : ""
+          }
+          ${c.notes ? `<p class="muted small">${escapeHtml(c.notes)}</p>` : ""}
+        </li>`,
+        )
+        .join("")}</ul>`
+    : `<p class="muted">No counselors on the list yet.</p>`;
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/">← Home</a>
+      <h1>Merit Badge Counselors</h1>
+      <p class="muted">${escapeHtml(org.displayName)}'s preferred counselor list. Local — distinct from Scoutbook's national directory. Reach out directly to schedule.</p>
+      ${items}
+    </section>
+    <style>
+      .mbc-list{list-style:none;padding:0;margin:1.5rem 0;display:grid;gap:.6rem}
+      .mbc-list li{background:#fff;border:1px solid #eef0e7;border-radius:10px;padding:.85rem 1rem}
+      .mbc-list h3{margin:0;font-size:1rem}
+      .mbc-list .badges{margin:.4rem 0 0}
+      .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .45rem;border-radius:5px;font-size:.78rem;color:var(--ink-500);margin-right:.2rem}
+    </style>`;
+  return pageShell(org, "Merit Badge Counselors", body);
+}
+
 export function renderCohProgram(org, ev, awards) {
   const byCat = {};
   for (const a of awards) {

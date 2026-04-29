@@ -34,6 +34,7 @@ import {
   renderSurveyAck,
   renderEagleList,
   renderCohProgram,
+  renderMbcList,
 } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
@@ -1063,6 +1064,23 @@ app.get("/eagles", async (req, res, next) => {
   res
     .set("Content-Type", "text/html; charset=utf-8")
     .send(renderEagleList(req.org, eagles));
+});
+
+// Members-only Merit Badge Counselor list. Phone numbers + emails are
+// member contact info, not public data — gate behind login + membership.
+app.get("/mbc", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect(`/login?next=/mbc`);
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (!role) return res.status(403).send("Members only");
+
+  const list = await prisma.meritBadgeCounselor.findMany({
+    where: { orgId: req.org.id },
+    orderBy: { name: "asc" },
+  });
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderMbcList(req.org, list));
 });
 
 // Printable Court of Honor program for a specific event.
