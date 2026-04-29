@@ -21,6 +21,7 @@ import { sendSmsBatch, smsDriver, normalisePhone } from "../lib/sms.js";
 import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dietary.js";
 import { reconcilePositionTerm as reconcileTerm } from "../lib/positionTerms.js";
 import { makeUnsubToken } from "../lib/unsubToken.js";
+import { tallyCredits, formatCsvRow } from "../lib/credits.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -173,6 +174,7 @@ form.inline{display:inline}
     <a href="/admin/members">Members</a>
     <a href="/admin/positions">Position roster</a>
     <a href="/admin/reports">Reports</a>
+    <a href="/admin/credits">Credits</a>
     <a href="/admin/equipment">Equipment</a>
     <a href="/admin/eagle">Eagle Scouts</a>
     <a href="/admin/surveys">Surveys</a>
@@ -922,6 +924,13 @@ function eventForm({ event, action, submitLabel }) {
       <label>Custom RRULE (only used when Repeats = Custom)
         <input name="rruleCustom" type="text" maxlength="200" placeholder="e.g. FREQ=MONTHLY;BYDAY=1TU" value="${event?.rrule && !/^FREQ=(WEEKLY|MONTHLY)/.test(event.rrule) ? escape(event.rrule) : ""}">
       </label>
+      <h3 style="margin-top:1rem">Credits per attendee</h3>
+      <p class="muted small" style="margin-top:-.4rem">Each member with a "yes" RSVP earns these. Service hours feed Eagle / rank requirements; camping nights and hiking miles feed Camping &amp; Hiking awards.</p>
+      <div class="row">
+        <label style="margin:0;flex:1">Service hours<input name="serviceHours" type="number" step="0.5" min="0" max="999" value="${escape(event?.serviceHours ?? "")}"></label>
+        <label style="margin:0;flex:1">Camping nights<input name="campingNights" type="number" min="0" max="60" value="${escape(event?.campingNights ?? "")}"></label>
+        <label style="margin:0;flex:1">Hiking miles<input name="hikingMiles" type="number" step="0.1" min="0" max="999" value="${escape(event?.hikingMiles ?? "")}"></label>
+      </div>
       <div class="row">
         <button class="btn btn-primary" type="submit">${escape(submitLabel)}</button>
         <a class="btn btn-ghost" href="/admin/events">Cancel</a>
@@ -950,6 +959,10 @@ function eventDataFromBody(body) {
   }
   const recurrenceUntil = body?.recurrenceUntil ? new Date(body.recurrenceUntil) : null;
 
+  const sh = parseFloat(body?.serviceHours);
+  const cn = parseInt(body?.campingNights, 10);
+  const hm = parseFloat(body?.hikingMiles);
+
   return {
     title: body?.title?.trim() || "Untitled",
     description: body?.description?.trim() || null,
@@ -962,6 +975,9 @@ function eventDataFromBody(body) {
     capacity: Number.isFinite(capacity) ? capacity : null,
     signupRequired: body?.signupRequired === "1",
     category: body?.category?.trim() || null,
+    serviceHours: Number.isFinite(sh) && sh > 0 ? sh : null,
+    campingNights: Number.isFinite(cn) && cn > 0 ? cn : null,
+    hikingMiles: Number.isFinite(hm) && hm > 0 ? hm : null,
     rrule,
     recurrenceUntil,
   };
@@ -2695,6 +2711,133 @@ adminRouter.get("/reports", requireLeader, async (req, res) => {
     </style>
   `;
   res.type("html").send(layout({ title: "Reports", org: req.org, user: req.user, body }));
+});
+
+// Per-member credits earned from event attendance: service hours,
+// camping nights, hiking miles. Sum across yes-RSVPs on past events.
+async function loadCreditsRoster(orgId) {
+  const [members, rsvps] = await Promise.all([
+    prisma.member.findMany({
+      where: { orgId },
+      orderBy: [{ isYouth: "desc" }, { lastName: "asc" }, { firstName: "asc" }],
+    }),
+    prisma.rsvp.findMany({
+      where: { orgId, response: "yes", memberId: { not: null } },
+      select: {
+        memberId: true,
+        response: true,
+        event: {
+          select: {
+            startsAt: true,
+            serviceHours: true,
+            campingNights: true,
+            hikingMiles: true,
+          },
+        },
+      },
+    }),
+  ]);
+  const totals = tallyCredits(rsvps);
+  return members.map((m) => ({
+    member: m,
+    totals: totals.get(m.id) || {
+      serviceHours: 0,
+      campingNights: 0,
+      hikingMiles: 0,
+      eventCount: 0,
+    },
+  }));
+}
+
+adminRouter.get("/credits", requireLeader, async (req, res) => {
+  const rows = await loadCreditsRoster(req.org.id);
+  const items = rows
+    .filter((r) => r.totals.eventCount > 0)
+    .map((r) => {
+      const t = r.totals;
+      const m = r.member;
+      return `
+      <li>
+        <div style="flex:1">
+          <strong>${escape(m.firstName)} ${escape(m.lastName)}</strong>${
+            m.isYouth ? "" : ` <span class="tag">adult</span>`
+          }
+          <div class="muted small">
+            ${t.serviceHours > 0 ? `${t.serviceHours.toFixed(1)} service hr · ` : ""}${
+              t.campingNights > 0 ? `${t.campingNights} camping nt · ` : ""
+            }${t.hikingMiles > 0 ? `${t.hikingMiles.toFixed(1)} mi · ` : ""}${t.eventCount} event${t.eventCount === 1 ? "" : "s"}
+          </div>
+        </div>
+        <a class="btn btn-ghost small" href="/admin/members/${escape(m.id)}/edit">Edit</a>
+      </li>`;
+    })
+    .join("");
+
+  const totals = rows.reduce(
+    (acc, r) => {
+      acc.serviceHours += r.totals.serviceHours;
+      acc.campingNights += r.totals.campingNights;
+      acc.hikingMiles += r.totals.hikingMiles;
+      return acc;
+    },
+    { serviceHours: 0, campingNights: 0, hikingMiles: 0 },
+  );
+
+  const body = `
+    <h1>Credits</h1>
+    <p class="muted">Service hours, camping nights, and hiking miles auto-tallied from yes-RSVPs on past events. Set the per-attendee credits on each event when you create it.</p>
+
+    <div class="row" style="gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem">
+      <div class="card stat-card"><strong style="font-size:1.6rem">${totals.serviceHours.toFixed(1)}</strong><br><span class="muted small">Service hr (unit total)</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem">${totals.campingNights}</strong><br><span class="muted small">Camping nt (unit total)</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem">${totals.hikingMiles.toFixed(1)}</strong><br><span class="muted small">Miles (unit total)</span></div>
+    </div>
+
+    <p><a class="btn btn-ghost" href="/admin/credits.csv">Export CSV</a> <span class="muted small">— hand the file to your advancement chair.</span></p>
+
+    ${items.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No credits yet. Set <em>Credits per attendee</em> on an event and collect yes-RSVPs.</div>`}
+
+    <style>.stat-card{flex:1;min-width:140px;text-align:center}</style>
+  `;
+  res.type("html").send(layout({ title: "Credits", org: req.org, user: req.user, body }));
+});
+
+adminRouter.get("/credits.csv", requireLeader, async (req, res) => {
+  const rows = await loadCreditsRoster(req.org.id);
+  const lines = [
+    formatCsvRow([
+      "First name",
+      "Last name",
+      "Email",
+      "Youth",
+      "Service hours",
+      "Camping nights",
+      "Hiking miles",
+      "Events attended",
+    ]),
+  ];
+  for (const r of rows) {
+    if (r.totals.eventCount === 0) continue;
+    lines.push(
+      formatCsvRow([
+        r.member.firstName,
+        r.member.lastName,
+        r.member.email || "",
+        r.member.isYouth ? "yes" : "no",
+        r.totals.serviceHours,
+        r.totals.campingNights,
+        r.totals.hikingMiles,
+        r.totals.eventCount,
+      ]),
+    );
+  }
+  res
+    .type("text/csv; charset=utf-8")
+    .set(
+      "Content-Disposition",
+      `attachment; filename="${req.org.slug}-credits-${new Date().toISOString().slice(0, 10)}.csv"`,
+    )
+    .send(lines.join("\n"));
 });
 
 adminRouter.post("/members/:id", requireLeader, async (req, res) => {

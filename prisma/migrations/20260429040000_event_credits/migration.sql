@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "Event" ADD COLUMN "serviceHours" DOUBLE PRECISION;
+ALTER TABLE "Event" ADD COLUMN "campingNights" INTEGER;
+ALTER TABLE "Event" ADD COLUMN "hikingMiles" DOUBLE PRECISION;
