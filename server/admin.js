@@ -19,6 +19,9 @@ import { googleConfigured } from "../lib/oauth.js";
 import { sendBatch, mailDriver } from "../lib/mail.js";
 import { sendSmsBatch, smsDriver, normalisePhone } from "../lib/sms.js";
 import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dietary.js";
+
+const MARKDOWN_HINT =
+  'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
 import { makeRsvpToken } from "../lib/rsvpToken.js";
 import { buildShoppingList, CATEGORY_ORDER } from "../lib/shoppingList.js";
 
@@ -381,6 +384,7 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
   const body = `
     <h1>Page content</h1>
     <p class="muted">Anything you save here replaces the default copy on the public site.</p>
+    <p class="muted small">${MARKDOWN_HINT}</p>
     <form class="card" method="post" action="/admin/content">
       <label>Hero headline
         <input name="heroHeadline" type="text" value="${v("heroHeadline")}" placeholder="e.g. Adventure, leadership, and the outdoors — since 1972.">
@@ -518,6 +522,7 @@ adminRouter.get("/announcements", requireLeader, async (req, res) => {
       <h2>New announcement</h2>
       <label>Title<input name="title" type="text" required maxlength="120"></label>
       <label>Body<textarea name="body" required rows="4"></textarea></label>
+      <p class="muted small" style="margin-top:-.4rem">${MARKDOWN_HINT}</p>
       <div class="row">
         <label style="margin:0"><input name="pinned" type="checkbox" value="1" style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Pin to the top</label>
         <label style="margin:0;flex:1">Expires (optional)<input name="expiresAt" type="date"></label>
@@ -557,6 +562,7 @@ adminRouter.get("/announcements/:id/edit", requireLeader, async (req, res) => {
     <form class="card" method="post" action="/admin/announcements/${escape(a.id)}">
       <label>Title<input name="title" type="text" required maxlength="120" value="${escape(a.title)}"></label>
       <label>Body<textarea name="body" required rows="6">${escape(a.body)}</textarea></label>
+      <p class="muted small" style="margin-top:-.4rem">${MARKDOWN_HINT}</p>
       <div class="row">
         <label style="margin:0"><input name="pinned" type="checkbox" value="1" style="width:auto;display:inline;margin-top:0;margin-right:.4rem"${a.pinned ? " checked" : ""}>Pin to the top</label>
         <label style="margin:0;flex:1">Expires (optional)<input name="expiresAt" type="date" value="${a.expiresAt ? a.expiresAt.toISOString().slice(0, 10) : ""}"></label>
@@ -2750,7 +2756,8 @@ adminRouter.get("/posts", requireLeader, async (req, res) => {
     <form class="card" method="post" action="/admin/posts" enctype="multipart/form-data">
       <h2 style="margin-top:0">New post</h2>
       <label>Headline (optional)<input name="title" type="text" maxlength="120" placeholder="e.g. Camporee recap"></label>
-      <label>Body<textarea name="body" rows="4" required placeholder="What happened? Plain text — paragraphs preserved."></textarea></label>
+      <label>Body<textarea name="body" rows="4" required placeholder="What happened? Markdown supported."></textarea></label>
+      <p class="muted small" style="margin-top:-.4rem">${MARKDOWN_HINT}</p>
       <label>Photos (optional, JPEG/PNG/WebP up to 10 MB each)
         <input name="files" type="file" accept="image/*" multiple>
       </label>
@@ -2839,6 +2846,7 @@ adminRouter.get("/posts/:id/edit", requireLeader, async (req, res) => {
     <form class="card" method="post" action="/admin/posts/${escape(post.id)}" enctype="multipart/form-data">
       <label>Headline<input name="title" type="text" maxlength="120" value="${v("title")}"></label>
       <label>Body<textarea name="body" rows="6" required>${v("body")}</textarea></label>
+      <p class="muted small" style="margin-top:-.4rem">${MARKDOWN_HINT}</p>
       <label>Add more photos<input name="files" type="file" accept="image/*" multiple></label>
       <div class="row">
         <label style="margin:0;flex:1">Visibility
@@ -2985,9 +2993,10 @@ adminRouter.get("/pages", requireLeader, async (req, res) => {
       <label>URL slug (optional — derived from title if blank)
         <input name="slug" type="text" maxlength="60" pattern="[a-z0-9-]+" placeholder="our-history">
       </label>
-      <label>Body (paragraphs separated by blank lines)
+      <label>Body
         <textarea name="body" rows="8" required></textarea>
       </label>
+      <p class="muted small" style="margin-top:-.4rem">${MARKDOWN_HINT}</p>
       <div class="row">
         <label style="margin:0;flex:1">Visibility
           <select name="visibility">
@@ -3052,6 +3061,7 @@ adminRouter.get("/pages/:id/edit", requireLeader, async (req, res) => {
       <label>URL slug<input name="slug" type="text" maxlength="60" pattern="[a-z0-9-]+" value="${v("slug")}"></label>
       <p class="muted small" style="margin:-.5rem 0 .5rem">Public URL: <code>/p/${v("slug")}</code></p>
       <label>Body<textarea name="body" rows="12" required>${v("body")}</textarea></label>
+      <p class="muted small" style="margin-top:-.4rem">${MARKDOWN_HINT}</p>
       <div class="row">
         <label style="margin:0;flex:1">Visibility
           <select name="visibility">

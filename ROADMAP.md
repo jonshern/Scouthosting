@@ -166,7 +166,12 @@ subdomain and edit the public site without anyone redeploying.
 - [x] Publish, edit, delete, pin, expire announcements
 - [x] Public site renders DB-stored content over the seeded defaults
 - [x] Announcements section with pinned-first ordering
-- [ ] Markdown / rich-text editing (currently plain text + `\n\n`)
+- [x] **Markdown rendering** — small dependency-free renderer in
+      `lib/markdown.js` (headings, bold/italic, links with safe-URL
+      whitelist, lists, code, blockquotes). Applied uniformly to Page,
+      Announcement, Post, CustomPage, Event description, and Comment
+      bodies. Plain-text content renders identically (markdown is a
+      superset). Editor surfaces a `Markdown supported` hint.
 - [ ] Image insertion in body (waits on Phase 3.6)
 - [x] Multi-page support — `CustomPage` model + admin editor; arbitrary
       slugs render at `/p/:slug`.
