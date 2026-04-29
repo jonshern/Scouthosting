@@ -420,7 +420,12 @@ and operations hub. Scoutbook is the advancement source of truth.
 - [ ] Dues schedules + automatic invoicing
 - [ ] Event payments via Stripe
 - [ ] Treasurer reports (P&L per event, per-Scout balances)
-- [ ] Reimbursement requests
+- [x] **Reimbursement requests** — `Reimbursement` model with status
+      lifecycle (pending → approved → paid, or → denied). Members
+      submit at `/reimburse` with optional receipt upload (image/PDF,
+      gated to requester + leaders). Treasurer view at
+      `/admin/reimbursements` with filter tabs and total-by-status
+      stats. Audit-logged on every decision.
 
 ## Phase 10 — Operations
 

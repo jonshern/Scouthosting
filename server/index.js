@@ -1,6 +1,8 @@
 import express from "express";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
+import multer from "multer";
 import { fileURLToPath } from "node:url";
 import "dotenv/config";
 
@@ -35,6 +37,7 @@ import {
   renderEagleList,
   renderCohProgram,
   renderMbcList,
+  renderReimburseForm,
 } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
@@ -1083,6 +1086,83 @@ app.get("/mbc", async (req, res, next) => {
     .send(renderMbcList(req.org, list));
 });
 
+// Reimbursement request form — member submits, treasurer reviews in
+// /admin/reimbursements. Receipt upload is optional but encouraged.
+const reimbursementUpload = multer({
+  dest: process.env.UPLOAD_TMP || "/tmp/scouthosting-uploads",
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+});
+
+app.get("/reimburse", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect(`/login?next=/reimburse`);
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (!role) return res.status(403).send("Members only");
+
+  const [events, mine] = await Promise.all([
+    prisma.event.findMany({
+      where: { orgId: req.org.id },
+      orderBy: { startsAt: "desc" },
+      take: 30,
+      select: { id: true, title: true, startsAt: true },
+    }),
+    prisma.reimbursement.findMany({
+      where: { orgId: req.org.id, requesterUserId: req.user.id },
+      orderBy: { submittedAt: "desc" },
+      take: 20,
+      include: { event: { select: { title: true } } },
+    }),
+  ]);
+
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderReimburseForm(req.org, req.user, events, mine, req.csrfToken));
+});
+
+app.post(
+  "/reimburse",
+  csrfProtect,
+  reimbursementUpload.single("receipt"),
+  async (req, res, next) => {
+    if (!req.org) return next();
+    if (!req.user) return res.redirect(`/login?next=/reimburse`);
+    const role = await roleInOrg(req.user.id, req.org.id);
+    if (!role) return res.status(403).send("Members only");
+
+    const amount = parseFloat(req.body?.amount || "0");
+    const purpose = (req.body?.purpose || "").toString().trim();
+    const eventId = (req.body?.eventId || "").toString().trim() || null;
+    if (!Number.isFinite(amount) || amount <= 0 || !purpose) {
+      return res.redirect("/reimburse?error=missing");
+    }
+
+    let receiptFilename = null;
+    let receiptMimeType = null;
+    if (req.file) {
+      const ext = (req.file.originalname.match(/\.([a-z0-9]+)$/i)?.[1] || "bin").toLowerCase();
+      receiptFilename = `receipt-${crypto.randomBytes(8).toString("hex")}.${ext}`;
+      receiptMimeType = req.file.mimetype || "application/octet-stream";
+      await storage.moveFromTemp(req.org.id, receiptFilename, req.file.path);
+    }
+
+    await prisma.reimbursement.create({
+      data: {
+        orgId: req.org.id,
+        requesterUserId: req.user.id,
+        requesterName: req.user.displayName,
+        requesterEmail: req.user.email,
+        eventId,
+        amountCents: Math.round(amount * 100),
+        purpose,
+        receiptFilename,
+        receiptMimeType,
+      },
+    });
+
+    res.redirect("/reimburse?ok=1");
+  },
+);
+
 // Printable Court of Honor program for a specific event.
 app.get("/events/:id/program", async (req, res, next) => {
   if (!req.org) return next();
@@ -1715,6 +1795,24 @@ app.get("/uploads/:filename", async (req, res) => {
     res.set("Content-Type", postPhoto.mimeType);
     res.set("Cache-Control", "public, max-age=86400");
     return storage.readStream(req.org.id, postPhoto.filename).pipe(res);
+  }
+
+  // Reimbursement receipts — visible to the requester or to leaders/admins.
+  const reimb = await prisma.reimbursement.findFirst({
+    where: { orgId: req.org.id, receiptFilename: filename },
+  });
+  if (reimb) {
+    if (!req.user) return res.redirect(`/login?next=/uploads/${filename}`);
+    const isOwner = reimb.requesterUserId === req.user.id;
+    if (!isOwner) {
+      const role = await roleInOrg(req.user.id, req.org.id);
+      if (role !== "leader" && role !== "admin") {
+        return res.status(403).send("Not authorized");
+      }
+    }
+    res.set("Content-Type", reimb.receiptMimeType || "application/octet-stream");
+    res.set("Cache-Control", "private, max-age=300");
+    return storage.readStream(req.org.id, reimb.receiptFilename).pipe(res);
   }
 
   // Forms / documents — visibility-gated.
