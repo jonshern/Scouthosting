@@ -843,6 +843,86 @@ export function renderMbcList(org, list) {
   return pageShell(org, "Merit Badge Counselors", body);
 }
 
+export function renderReimburseForm(org, user, events, mine, csrfToken) {
+  const fmtDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const fmtMoney = (cents) => `$${(cents / 100).toFixed(2)}`;
+  const statusTag = (s) => {
+    if (s === "paid") return `<span class="tag" style="background:#eaf6ec;border-color:#b9dec1;color:#15532b">paid</span>`;
+    if (s === "approved") return `<span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">approved</span>`;
+    if (s === "denied") return `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">denied</span>`;
+    return `<span class="tag">pending</span>`;
+  };
+
+  const eventOpts = events
+    .map(
+      (e) =>
+        `<option value="${escapeHtml(e.id)}">${escapeHtml(e.title)} · ${escapeHtml(fmtDate(e.startsAt))}</option>`,
+    )
+    .join("");
+
+  const mineHtml = mine.length
+    ? `<ul class="rb-list">${mine
+        .map(
+          (r) => `
+        <li>
+          <div style="flex:1">
+            <strong>${escapeHtml(fmtMoney(r.amountCents))}</strong> ${statusTag(r.status)}
+            <div class="muted small">${escapeHtml(r.purpose)}${r.event ? ` · ${escapeHtml(r.event.title)}` : ""}</div>
+            <div class="muted small">Submitted ${escapeHtml(fmtDate(r.submittedAt))}${
+              r.decidedAt ? ` · ${escapeHtml(r.status)} ${escapeHtml(fmtDate(r.decidedAt))}${r.decidedByDisplay ? ` by ${escapeHtml(r.decidedByDisplay)}` : ""}` : ""
+            }</div>
+            ${r.notes ? `<div class="muted small">Treasurer note: ${escapeHtml(r.notes)}</div>` : ""}
+          </div>
+          ${r.receiptFilename ? `<a class="btn ghost" href="/uploads/${escapeHtml(r.receiptFilename)}">Receipt</a>` : ""}
+        </li>`,
+        )
+        .join("")}</ul>`
+    : `<p class="muted">No requests yet.</p>`;
+
+  const errorParam = "";
+  const okParam = "";
+
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/">← Home</a>
+      <h1>Reimbursement requests</h1>
+      <p class="muted">Submit an expense for the troop to repay you. The treasurer will review and mark it paid. Receipts are optional but speed approval.</p>
+
+      <form class="rb-form" method="post" action="/reimburse" enctype="multipart/form-data">
+        <input type="hidden" name="csrf" value="${escapeHtml(csrfToken || "")}">
+        <label>Amount (USD)
+          <input name="amount" type="number" step="0.01" min="0.01" max="99999" required placeholder="e.g. 42.18">
+        </label>
+        <label>What was it for?
+          <textarea name="purpose" rows="3" maxlength="500" required placeholder="e.g. Propane refill for Fall Camporee"></textarea>
+        </label>
+        <label>Related event (optional)
+          <select name="eventId">
+            <option value="">— none —</option>
+            ${eventOpts}
+          </select>
+        </label>
+        <label>Receipt (optional — image or PDF)
+          <input name="receipt" type="file" accept="image/*,application/pdf">
+        </label>
+        <button class="btn primary" type="submit">Submit request</button>
+      </form>
+
+      <h2 style="margin-top:1.5rem">Your requests</h2>
+      ${mineHtml}
+    </section>
+    <style>
+      .rb-form{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1.25rem;display:grid;gap:.75rem;max-width:560px;margin-top:1rem}
+      .rb-form label{display:block;font-weight:500}
+      .rb-form input,.rb-form textarea,.rb-form select{display:block;width:100%;margin-top:.3rem;padding:.5rem .65rem;border:1px solid var(--ink-300);border-radius:8px;font:inherit}
+      .rb-form .btn{padding:.6rem 1.1rem;border-radius:8px;border:0;background:${escapeHtml(org.primaryColor || "#1d6b39")};color:#fff;font-weight:600;cursor:pointer}
+      .rb-list{list-style:none;padding:0;margin:1rem 0;display:grid;gap:.6rem}
+      .rb-list li{background:#fff;border:1px solid #eef0e7;border-radius:10px;padding:.75rem 1rem;display:flex;gap:.75rem;align-items:center}
+      .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .45rem;border-radius:5px;font-size:.78rem;margin-left:.25rem}
+    </style>`;
+  return pageShell(org, "Reimbursements", body);
+}
+
 export function renderCohProgram(org, ev, awards) {
   const byCat = {};
   for (const a of awards) {

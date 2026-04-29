@@ -103,6 +103,7 @@ model Org {
   carRides      CarRide[]
   carRideRiders CarRideRider[]
   meritBadgeCounselors MeritBadgeCounselor[]
+  reimbursements Reimbursement[]
 
   @@index([plan])
 }
@@ -266,6 +267,7 @@ model Event {
   plan      TripPlan?
   cohAwards CohAward[]
   rides     CarRide[]
+  reimbursements Reimbursement[]
 
   @@index([orgId, startsAt])
 }
@@ -964,4 +966,39 @@ model MeritBadgeCounselor {
 
   @@index([orgId, name])
   @@index([orgId, memberId])
+}
+
+// Reimbursement request — a member submits an expense, the treasurer
+// reviews and marks it paid. The receipt file goes into the same per-org
+// storage area as photos and forms. amountCents avoids float drift.
+//
+// Status transitions:
+//   pending → approved → paid     (happy path)
+//   pending → denied              (rejected)
+//   pending → paid                (treasurer skips approval — small unit shorthand)
+model Reimbursement {
+  id                String    @id @default(cuid())
+  orgId             String
+  requesterUserId   String?
+  requesterName     String
+  requesterEmail    String?
+  eventId           String?
+  amountCents       Int
+  purpose           String
+  receiptFilename   String?
+  receiptMimeType   String?
+  status            String    @default("pending")  // pending | approved | denied | paid
+  submittedAt       DateTime  @default(now())
+  decidedAt         DateTime?
+  decidedByUserId   String?
+  decidedByDisplay  String?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, status, submittedAt])
+  @@index([orgId, requesterUserId])
 }

@@ -204,6 +204,7 @@ form.inline{display:inline}
     <a href="/admin/equipment">Equipment</a>
     <a href="/admin/eagle">Eagle Scouts</a>
     <a href="/admin/mbc">Merit Badge Counselors</a>
+    <a href="/admin/reimbursements">Reimbursements</a>
     <a href="/admin/surveys">Surveys</a>
     <a href="/admin/email">Email broadcast</a>
     <a href="/" target="_blank">View public site ↗</a>
@@ -4568,6 +4569,174 @@ adminRouter.post("/equipment/:id/delete", requireLeader, async (req, res) => {
     where: { id: req.params.id, orgId: req.org.id },
   });
   res.redirect("/admin/equipment");
+});
+
+/* ------------------------------------------------------------------ */
+/* Reimbursements (treasurer view)                                     */
+/* ------------------------------------------------------------------ */
+
+const REIMB_STATUSES = ["pending", "approved", "denied", "paid"];
+
+adminRouter.get("/reimbursements", requireLeader, async (req, res) => {
+  const filter = REIMB_STATUSES.includes(req.query.status) ? req.query.status : "";
+  const where = { orgId: req.org.id };
+  if (filter) where.status = filter;
+
+  const [list, totals] = await Promise.all([
+    prisma.reimbursement.findMany({
+      where,
+      orderBy: [{ status: "asc" }, { submittedAt: "desc" }],
+      include: { event: { select: { title: true } } },
+    }),
+    prisma.reimbursement.groupBy({
+      by: ["status"],
+      where: { orgId: req.org.id },
+      _sum: { amountCents: true },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const fmtMoney = (cents) => `$${(cents / 100).toFixed(2)}`;
+  const fmtDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+  const totalsBy = {};
+  for (const t of totals) {
+    totalsBy[t.status] = { count: t._count._all, sum: t._sum.amountCents || 0 };
+  }
+  const stat = (s) => totalsBy[s] || { count: 0, sum: 0 };
+
+  const statusTag = (s) => {
+    if (s === "paid") return `<span class="tag" style="background:#eaf6ec;border-color:#b9dec1;color:#15532b">paid</span>`;
+    if (s === "approved") return `<span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">approved</span>`;
+    if (s === "denied") return `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">denied</span>`;
+    return `<span class="tag">pending</span>`;
+  };
+
+  const items = list
+    .map(
+      (r) => `
+      <li>
+        <div style="flex:1">
+          <strong>${escape(fmtMoney(r.amountCents))}</strong> ${statusTag(r.status)}
+          <div class="muted small">${escape(r.purpose)}${r.event ? ` · ${escape(r.event.title)}` : ""}</div>
+          <div class="muted small">From ${escape(r.requesterName)}${r.requesterEmail ? ` &lt;${escape(r.requesterEmail)}&gt;` : ""} · ${escape(fmtDate(r.submittedAt))}</div>
+          ${r.notes ? `<div class="muted small">Note: ${escape(r.notes)}</div>` : ""}
+          ${r.decidedAt ? `<div class="muted small">${escape(r.status)} ${escape(fmtDate(r.decidedAt))}${r.decidedByDisplay ? ` by ${escape(r.decidedByDisplay)}` : ""}</div>` : ""}
+        </div>
+        <div class="row" style="gap:.35rem">
+          ${r.receiptFilename ? `<a class="btn btn-ghost small" href="/uploads/${escape(r.receiptFilename)}" target="_blank">Receipt</a>` : ""}
+          ${
+            r.status === "pending"
+              ? `<form class="inline" method="post" action="/admin/reimbursements/${escape(r.id)}/approve">
+                   <button class="btn btn-primary small" type="submit">Approve</button>
+                 </form>
+                 <form class="inline" method="post" action="/admin/reimbursements/${escape(r.id)}/deny">
+                   <button class="btn btn-danger small" type="submit">Deny</button>
+                 </form>`
+              : ""
+          }
+          ${
+            r.status !== "paid" && r.status !== "denied"
+              ? `<form class="inline" method="post" action="/admin/reimbursements/${escape(r.id)}/pay">
+                   <button class="btn btn-primary small" type="submit">Mark paid</button>
+                 </form>`
+              : ""
+          }
+          <form class="inline" method="post" action="/admin/reimbursements/${escape(r.id)}/delete" onsubmit="return confirm('Delete this request?')">
+            <button class="btn btn-danger small" type="submit">×</button>
+          </form>
+        </div>
+      </li>`,
+    )
+    .join("");
+
+  const filterTabs = ["", "pending", "approved", "paid", "denied"]
+    .map(
+      (s) =>
+        `<a class="btn btn-ghost small" href="/admin/reimbursements${s ? `?status=${s}` : ""}" style="${s === filter ? "background:#fbf8ee" : ""}">${s || "All"}${s && totalsBy[s] ? ` (${totalsBy[s].count})` : ""}</a>`,
+    )
+    .join(" ");
+
+  const body = `
+    <h1>Reimbursements</h1>
+    <p class="muted">Members submit at <code>/reimburse</code>; approve, deny, and mark paid here.</p>
+
+    <div class="row" style="gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">
+      <div class="card stat-card"><strong style="font-size:1.5rem">${fmtMoney(stat("pending").sum)}</strong><br><span class="muted small">Pending (${stat("pending").count})</span></div>
+      <div class="card stat-card"><strong style="font-size:1.5rem">${fmtMoney(stat("approved").sum)}</strong><br><span class="muted small">Approved (${stat("approved").count})</span></div>
+      <div class="card stat-card"><strong style="font-size:1.5rem">${fmtMoney(stat("paid").sum)}</strong><br><span class="muted small">Paid (${stat("paid").count})</span></div>
+      <div class="card stat-card"><strong style="font-size:1.5rem">${fmtMoney(stat("denied").sum)}</strong><br><span class="muted small">Denied (${stat("denied").count})</span></div>
+    </div>
+
+    <div class="row" style="margin-bottom:.75rem;gap:.4rem">${filterTabs}</div>
+
+    ${list.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No requests${filter ? ` with status "${escape(filter)}"` : ""} yet.</div>`}
+
+    <style>.stat-card{flex:1;min-width:160px;text-align:center}</style>
+  `;
+  res.type("html").send(layout({ title: "Reimbursements", org: req.org, user: req.user, body }));
+});
+
+async function decideReimbursement(req, res, status) {
+  const r = await prisma.reimbursement.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, requesterName: true, amountCents: true },
+  });
+  if (!r) return res.status(404).send("Not found");
+  await prisma.reimbursement.update({
+    where: { id: r.id },
+    data: {
+      status,
+      decidedAt: new Date(),
+      decidedByUserId: req.user.id,
+      decidedByDisplay: req.user.displayName,
+    },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Reimbursement",
+    entityId: r.id,
+    action: "update",
+    summary: `${status === "paid" ? "Paid" : status === "approved" ? "Approved" : "Denied"} ${r.requesterName} · $${(r.amountCents / 100).toFixed(2)}`,
+  });
+  res.redirect("/admin/reimbursements");
+}
+
+adminRouter.post("/reimbursements/:id/approve", requireLeader, (req, res) =>
+  decideReimbursement(req, res, "approved"),
+);
+adminRouter.post("/reimbursements/:id/deny", requireLeader, (req, res) =>
+  decideReimbursement(req, res, "denied"),
+);
+adminRouter.post("/reimbursements/:id/pay", requireLeader, (req, res) =>
+  decideReimbursement(req, res, "paid"),
+);
+
+adminRouter.post("/reimbursements/:id/delete", requireLeader, async (req, res) => {
+  const r = await prisma.reimbursement.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { receiptFilename: true, requesterName: true },
+  });
+  if (r?.receiptFilename) {
+    try {
+      await removeFile(req.org.id, r.receiptFilename);
+    } catch (_) {
+      // best-effort
+    }
+  }
+  await prisma.reimbursement.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Reimbursement",
+    entityId: req.params.id,
+    action: "delete",
+    summary: r ? `Deleted ${r.requesterName} request` : "Deleted reimbursement",
+  });
+  res.redirect("/admin/reimbursements");
 });
 
 /* ------------------------------------------------------------------ */
