@@ -1,0 +1,801 @@
+/* =========================================================================
+   Compass — Public Unit Site
+   Locked palette: Forest & Ember (the `bold` palette in tokens.js)
+   Locked design: troop-pages.jsx → TroopBalanced (dark forest hero variant)
+   Typography: Newsreader (display) + Inter Tight (UI)
+   ========================================================================= */
+
+/* -------------------------------------------------------------------------
+   Design tokens — extracted from design/source/tokens.js (bold palette).
+   ------------------------------------------------------------------------- */
+:root {
+  /* Surfaces */
+  --bg: #f4ecdc;
+  --surface: #ffffff;
+  --surface-alt: #1a1f1a;          /* dark forest band */
+
+  /* Ink */
+  --ink: #0d130d;
+  --ink-soft: #2a352a;
+  --ink-muted: #5a6258;
+
+  /* Lines */
+  --line: #d4c8a8;
+  --line-soft: #e6dcc0;
+
+  /* Brand */
+  --primary: #0e3320;              /* deep evergreen */
+  --primary-hover: #06200f;
+  --accent: #c8e94a;               /* chartreuse */
+  --accent-soft: #e3f29b;
+
+  /* Status */
+  --danger: #a82e1d;
+  --success: #3d6b3a;
+
+  /* Secondary spectrum (event categories) */
+  --sky: #3a7ab8;
+  --ember: #e07a3c;
+  --raspberry: #c43d6b;
+  --butter: #f3c54a;
+  --plum: #6e3b7a;
+  --teal: #3aa893;
+
+  /* Typography */
+  --font-display: "Newsreader", "Source Serif Pro", Georgia, serif;
+  --font-ui: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Shape */
+  --radius-chip: 4px;
+  --radius-button: 6px;
+  --radius-card: 12px;
+  --radius-pill: 999px;
+
+  /* Layout */
+  --page-pad-x: 56px;
+  --page-pad-y: 88px;
+  --shadow-soft: 0 4px 20px rgba(15, 23, 42, 0.08);
+}
+
+/* -------------------------------------------------------------------------
+   Reset / base
+   ------------------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+img, svg { display: block; max-width: 100%; }
+
+a { color: inherit; text-decoration: none; }
+
+h1, h2, h3, h4 { margin: 0; font-family: var(--font-display); font-weight: 400; }
+
+p { margin: 0; }
+
+button { font-family: inherit; cursor: pointer; }
+
+/* -------------------------------------------------------------------------
+   Skip link (accessibility)
+   ------------------------------------------------------------------------- */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: auto;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+.skip-link:focus {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  width: auto;
+  height: auto;
+  padding: 10px 16px;
+  background: var(--primary);
+  color: var(--accent);
+  border-radius: var(--radius-button);
+  z-index: 1000;
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------
+   Top bar — slim header with compass mark, unit name, nav.
+   Mirrors troop-pages.jsx → TroopBalanced top bar (lines 167–178).
+   ------------------------------------------------------------------------- */
+.topbar {
+  border-bottom: 1.5px solid var(--ink);
+  padding: 16px 56px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg);
+}
+
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.topbar__unit {
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.topbar__divider {
+  color: var(--line);
+  user-select: none;
+}
+
+.topbar__meta {
+  font-size: 12px;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+
+.topbar__nav {
+  display: flex;
+  gap: 24px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  align-items: center;
+}
+
+.topbar__nav a {
+  transition: color 120ms ease-out;
+}
+.topbar__nav a:hover,
+.topbar__nav a:focus-visible {
+  color: var(--primary);
+}
+
+.topbar__signin {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------------------
+   Hero — dark forest, oversized italic numeric watermark.
+   Per README: "Hero — Dark forest background. Large display number watermark
+   (the '12') rendered as a 400+px italic Newsreader watermark with low
+   opacity in a corner."
+   ------------------------------------------------------------------------- */
+.hero {
+  background: var(--surface-alt);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1.5px solid var(--ink);
+}
+
+.hero__inner {
+  position: relative;
+  padding: 96px 56px 112px;
+  max-width: 1200px;
+  margin: 0 auto;
+  z-index: 1;
+}
+
+.hero__watermark {
+  position: absolute;
+  top: -80px;
+  right: -40px;
+  font-family: var(--font-display);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 480px;
+  line-height: 1;
+  color: var(--accent);
+  opacity: 0.10;
+  letter-spacing: -0.05em;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+}
+
+.hero__kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  background: var(--accent);
+  color: var(--ink);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 28px;
+}
+
+.hero__kicker-dot {
+  width: 6px;
+  height: 6px;
+  background: var(--ink);
+  border-radius: 50%;
+}
+
+.hero__headline {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: 116px;
+  line-height: 0.92;
+  letter-spacing: -0.035em;
+  margin: 0 0 28px;
+  color: #fff;
+  max-width: 900px;
+}
+
+.hero__headline-italic {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.hero__body {
+  font-size: 17px;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.55;
+  max-width: 560px;
+}
+
+/* -------------------------------------------------------------------------
+   About + sponsor card
+   ------------------------------------------------------------------------- */
+.about {
+  padding: 88px 56px;
+  display: grid;
+  grid-template-columns: 1.6fr 1fr;
+  gap: 56px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.section-eyebrow {
+  font-family: var(--font-display);
+  font-size: 12px;
+  font-style: italic;
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+
+.section-eyebrow--accent { color: var(--accent); }
+
+.about__title {
+  font-family: var(--font-display);
+  font-size: 64px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  margin: 0 0 24px;
+}
+
+.about__title em {
+  font-style: italic;
+  color: var(--primary);
+}
+
+.about__body {
+  font-size: 17px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+}
+
+.about__body::first-letter {
+  font-family: var(--font-display);
+  font-size: 88px;
+  font-weight: 400;
+  line-height: 0.85;
+  float: left;
+  margin: 6px 12px 0 0;
+  color: var(--primary);
+}
+
+.sponsor-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-card);
+  padding: 28px;
+  align-self: start;
+  position: sticky;
+  top: 24px;
+  box-shadow: var(--shadow-soft);
+}
+
+.sponsor-card__label {
+  font-size: 11px;
+  color: var(--ink-muted);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.sponsor-card__name {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  margin-bottom: 4px;
+}
+
+.sponsor-card dl {
+  margin: 20px 0 0;
+  display: grid;
+  gap: 14px;
+}
+
+.sponsor-card dt {
+  font-size: 10px;
+  color: var(--ink-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+
+.sponsor-card dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* -------------------------------------------------------------------------
+   Inverted band — events
+   ------------------------------------------------------------------------- */
+.band-dark {
+  background: var(--surface-alt);
+  color: #fff;
+}
+
+.events {
+  padding: 88px 56px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.events__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 40px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.events__title {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  color: #fff;
+  margin: 0;
+}
+
+.events__title em {
+  font-style: italic;
+  color: var(--accent);
+}
+
+.events__subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.events__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+
+.event {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: 24px;
+  align-items: center;
+  padding: 22px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.event:last-child { border-bottom: 1px solid rgba(255, 255, 255, 0.12); }
+
+.event__date {
+  text-align: left;
+}
+
+.event__month {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.event__day {
+  font-family: var(--font-display);
+  font-size: 36px;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1;
+  color: #fff;
+  margin-top: 2px;
+}
+
+.event__body { min-width: 0; }
+
+.event__name {
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  margin: 0 0 4px;
+}
+
+.event__meta {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.event__bar {
+  width: 6px;
+  align-self: stretch;
+  border-radius: 3px;
+}
+
+/* Event color variants — secondary spectrum.
+   Each modifier tints the month/day numerals + the right-edge bar. */
+.event--sky       .event__month, .event--sky       .event__day { color: var(--sky); }
+.event--sky       .event__bar   { background: var(--sky); }
+.event--ember     .event__month, .event--ember     .event__day { color: var(--ember); }
+.event--ember     .event__bar   { background: var(--ember); }
+.event--raspberry .event__month, .event--raspberry .event__day { color: var(--raspberry); }
+.event--raspberry .event__bar   { background: var(--raspberry); }
+.event--butter    .event__month, .event--butter    .event__day { color: var(--butter); }
+.event--butter    .event__bar   { background: var(--butter); }
+.event--plum      .event__month, .event--plum      .event__day { color: var(--plum); }
+.event--plum      .event__bar   { background: var(--plum); }
+.event--teal      .event__month, .event--teal      .event__day { color: var(--teal); }
+.event--teal      .event__bar   { background: var(--teal); }
+
+.events__cta {
+  margin-top: 32px;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  padding: 12px 22px;
+  border-radius: var(--radius-pill);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  transition: background 150ms ease-out, color 150ms ease-out;
+}
+.events__cta:hover,
+.events__cta:focus-visible {
+  background: var(--accent);
+  color: var(--ink);
+}
+
+/* -------------------------------------------------------------------------
+   News
+   ------------------------------------------------------------------------- */
+.news {
+  padding: 88px 56px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.news__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 40px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.news__title {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+
+.news__title em {
+  font-style: italic;
+  color: var(--primary);
+}
+
+.news__list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.news__item {
+  border-top: 3px solid var(--accent);
+  padding: 20px 0 0;
+}
+
+.news__item--sky       { border-top-color: var(--sky); }
+.news__item--raspberry { border-top-color: var(--raspberry); }
+.news__item--ember     { border-top-color: var(--ember); }
+.news__item--plum      { border-top-color: var(--plum); }
+.news__item--accent    { border-top-color: var(--accent); }
+
+.news__date {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 8px;
+  color: var(--primary);
+}
+
+.news__item--sky       .news__date { color: var(--sky); }
+.news__item--raspberry .news__date { color: var(--raspberry); }
+.news__item--ember     .news__date { color: var(--ember); }
+.news__item--plum      .news__date { color: var(--plum); }
+
+.news__headline {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+  margin: 0 0 10px;
+}
+
+.news__body {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+
+/* -------------------------------------------------------------------------
+   Photo gallery
+   ------------------------------------------------------------------------- */
+.gallery {
+  padding: 88px 56px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.gallery__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.gallery__title {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.025em;
+  margin: 0;
+}
+.gallery__title em {
+  font-style: italic;
+  color: var(--primary);
+}
+
+.gallery__grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.photo {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  border-top: 6px solid var(--accent);
+}
+
+.photo--sky       { border-top-color: var(--sky); }
+.photo--ember     { border-top-color: var(--ember); }
+.photo--raspberry { border-top-color: var(--raspberry); }
+.photo--butter    { border-top-color: var(--butter); }
+.photo--plum      { border-top-color: var(--plum); }
+.photo--teal      { border-top-color: var(--teal); }
+
+.photo__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.photo__label {
+  position: absolute;
+  left: 12px;
+  bottom: 10px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* Subject backgrounds (gradient + tint), mirrors atoms.jsx Photo subjects */
+.photo--forest    { background: linear-gradient(135deg, #3d5a3d 0%, #7a9a5c 140%); }
+.photo--campfire  { background: linear-gradient(135deg, #3a2418 0%, #d97a3a 140%); }
+.photo--canoe     { background: linear-gradient(135deg, #2c4a5a 0%, #7ab0c4 140%); }
+.photo--troop     { background: linear-gradient(135deg, #4a3a28 0%, #c4a374 140%); }
+.photo--summit    { background: linear-gradient(135deg, #2a3a4a 0%, #a4c4d4 140%); }
+.photo--service   { background: linear-gradient(135deg, #2a3a2a 0%, #94b478 140%); }
+.photo--climbing  { background: linear-gradient(135deg, #3a2a2a 0%, #d49474 140%); }
+.photo--eagle     { background: linear-gradient(135deg, #3a2a1a 0%, #d4a868 140%); }
+.photo--firstaid  { background: linear-gradient(135deg, #2a3a3a 0%, #94c4c4 140%); }
+
+/* -------------------------------------------------------------------------
+   Footer
+   ------------------------------------------------------------------------- */
+.footer {
+  background: var(--surface-alt);
+  color: rgba(255, 255, 255, 0.78);
+  padding: 56px;
+  border-top: 1.5px solid var(--ink);
+}
+
+.footer__inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  gap: 28px;
+}
+
+.footer__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.footer__brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #fff;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+}
+
+.footer__brand .accent { color: var(--accent); }
+
+.footer__copy {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.footer__disclaimer {
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--accent);
+}
+
+/* -------------------------------------------------------------------------
+   Wordmark / SHMark
+   ------------------------------------------------------------------------- */
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-display);
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  line-height: 1;
+}
+
+.wordmark .accent { color: var(--accent); }
+
+.wordmark--light { color: #fff; }
+
+/* -------------------------------------------------------------------------
+   Responsive — desktop -> tablet -> phone
+   ------------------------------------------------------------------------- */
+@media (max-width: 1024px) {
+  :root {
+    --page-pad-x: 32px;
+  }
+  .topbar { padding: 14px 32px; }
+  .hero__inner { padding: 80px 32px 96px; }
+  .hero__watermark { font-size: 360px; }
+  .hero__headline { font-size: 92px; }
+  .about,
+  .events,
+  .news,
+  .gallery { padding: 64px 32px; gap: 40px; }
+  .about { grid-template-columns: 1fr; }
+  .sponsor-card { position: static; }
+  .about__title,
+  .events__title,
+  .news__title,
+  .gallery__title { font-size: 44px; }
+  .news__list { grid-template-columns: repeat(2, 1fr); }
+  .gallery__grid { grid-template-columns: repeat(3, 1fr); }
+  .footer { padding: 40px 32px; }
+}
+
+@media (max-width: 640px) {
+  .topbar {
+    padding: 14px 20px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .topbar__nav {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 16px;
+    font-size: 12px;
+  }
+  .hero__inner { padding: 56px 20px 72px; }
+  .hero__watermark {
+    font-size: 240px;
+    top: -40px;
+    right: -20px;
+  }
+  .hero__headline { font-size: 56px; line-height: 0.95; }
+  .hero__body { font-size: 15px; }
+  .about,
+  .events,
+  .news,
+  .gallery { padding: 48px 20px; }
+  .about__title,
+  .events__title,
+  .news__title,
+  .gallery__title { font-size: 36px; }
+  .about__body { font-size: 15px; }
+  .about__body::first-letter { font-size: 64px; }
+  .event {
+    grid-template-columns: 64px 1fr 6px;
+    gap: 16px;
+    padding: 18px 0;
+  }
+  .event__day { font-size: 28px; }
+  .event__name { font-size: 15px; }
+  .news__list { grid-template-columns: 1fr; }
+  .gallery__grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .footer { padding: 32px 20px; }
+  .footer__top { flex-direction: column; align-items: flex-start; }
+}
