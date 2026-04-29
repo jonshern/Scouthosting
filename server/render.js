@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gcalAddUrl, outlookAddUrl, mapUrls } from "../lib/calendar.js";
 import { buildShoppingList } from "../lib/shoppingList.js";
+import { MEAL_DIETARY_TAGS, mealConflicts } from "../lib/dietary.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -249,37 +250,55 @@ function renderSlotsBlock({ event, slots, user, flash }) {
 
   const items = slots
     .map((s) => {
-      const filled = s.assignments.length;
+      const active = s.assignments.filter((a) => !a.waitlisted);
+      const waiting = s.assignments.filter((a) => a.waitlisted);
+      const filled = active.length;
       const remaining = Math.max(0, s.capacity - filled);
       const mine = s.assignments.find(myMatch) || null;
-      const namesHtml = s.assignments.length
-        ? `<p class="muted small">Signed up: ${s.assignments.map((a) => escapeHtml(a.name)).join(", ")}</p>`
+      const myWaitPos = mine && mine.waitlisted
+        ? waiting.findIndex((a) => a.id === mine.id) + 1
+        : 0;
+
+      const activeLine = active.length
+        ? `<p class="muted small">Signed up: ${active.map((a) => escapeHtml(a.name)).join(", ")}</p>`
         : `<p class="muted small">No takers yet.</p>`;
+      const waitLine = waiting.length
+        ? `<p class="muted small">Waitlist: ${waiting.map((a) => escapeHtml(a.name)).join(", ")}</p>`
+        : "";
 
       let actionHtml;
       if (mine) {
+        const status = mine.waitlisted
+          ? `On waitlist${myWaitPos ? ` · #${myWaitPos}` : ""}`
+          : "You're signed up";
         actionHtml = `
           <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/release" class="slot-action">
             ${user ? "" : `<input type="hidden" name="email" value="${escapeHtml(mine.email || "")}">`}
             <button class="btn ghost" type="submit">Remove me</button>
-            <span class="muted small">You're signed up</span>
+            <span class="muted small">${escapeHtml(status)}</span>
           </form>`;
-      } else if (remaining === 0) {
+      } else if (remaining === 0 && !s.allowWaitlist) {
         actionHtml = `<p class="muted small"><strong>Filled.</strong> Thanks to those who signed up.</p>`;
-      } else if (user) {
-        actionHtml = `
-          <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/take" class="slot-action">
-            <button class="btn primary" type="submit">I'll do it</button>
-            <span class="muted small">${remaining} spot${remaining === 1 ? "" : "s"} left</span>
-          </form>`;
       } else {
-        actionHtml = `
-          <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/take" class="slot-action slot-anon">
-            <input name="name" type="text" required maxlength="80" placeholder="Your name" autocomplete="name">
-            <input name="email" type="email" required maxlength="120" placeholder="you@example.com" autocomplete="email">
-            <button class="btn primary" type="submit">I'll do it</button>
-            <span class="muted small">${remaining} spot${remaining === 1 ? "" : "s"} left</span>
-          </form>`;
+        const ctaLabel = remaining === 0 ? "Join waitlist" : "I'll do it";
+        const counter = remaining === 0
+          ? `Full · ${waiting.length} on waitlist`
+          : `${remaining} spot${remaining === 1 ? "" : "s"} left`;
+        if (user) {
+          actionHtml = `
+            <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/take" class="slot-action">
+              <button class="btn primary" type="submit">${escapeHtml(ctaLabel)}</button>
+              <span class="muted small">${escapeHtml(counter)}</span>
+            </form>`;
+        } else {
+          actionHtml = `
+            <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/take" class="slot-action slot-anon">
+              <input name="name" type="text" required maxlength="80" placeholder="Your name" autocomplete="name">
+              <input name="email" type="email" required maxlength="120" placeholder="you@example.com" autocomplete="email">
+              <button class="btn primary" type="submit">${escapeHtml(ctaLabel)}</button>
+              <span class="muted small">${escapeHtml(counter)}</span>
+            </form>`;
+        }
       }
 
       return `
@@ -287,9 +306,10 @@ function renderSlotsBlock({ event, slots, user, flash }) {
         <div class="slot-head">
           <h3>${escapeHtml(s.title)}${
             s.capacity > 1 ? ` <span class="tag">${filled}/${s.capacity}</span>` : ""
-          }</h3>
+          }${waiting.length ? ` <span class="tag">+${waiting.length} waiting</span>` : ""}</h3>
           ${s.description ? `<p>${escapeHtml(s.description)}</p>` : ""}
-          ${namesHtml}
+          ${activeLine}
+          ${waitLine}
         </div>
         ${actionHtml}
       </li>`;
@@ -940,15 +960,35 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
   costPerPerson = Math.round(costPerPerson * 100) / 100;
   const totalCost = Math.round(costPerPerson * headcount * 100) / 100;
 
+  const tagLabel = (key) =>
+    MEAL_DIETARY_TAGS.find((t) => t.key === key)?.label || key;
+
   const mealCards = meals.length
     ? meals
-        .map(
-          (m) => `
+        .map((m) => {
+          const tags = m.dietaryTags || [];
+          const tagBadges = tags.length
+            ? `<p class="muted small" style="margin:.25rem 0 0">${tags
+                .map((t) => `<span class="trip-tag">${escapeHtml(tagLabel(t))}</span>`)
+                .join(" ")}</p>`
+            : "";
+          const conflicts = mealConflicts(flagged || [], tags);
+          const warn = conflicts.length
+            ? `<div class="trip-warn"><strong>⚠ Heads-up</strong> — ${conflicts
+                .map(
+                  (c) =>
+                    `<strong>${escapeHtml(c.name)}</strong> (${escapeHtml(c.flag)})`,
+                )
+                .join(", ")} on the roster.</div>`
+            : "";
+          return `
       <article class="trip-meal">
         <header>
           <h3>${escapeHtml(m.name)}</h3>
           ${m.recipeName ? `<p class="muted small">Recipe: ${escapeHtml(m.recipeName)}</p>` : ""}
+          ${tagBadges}
         </header>
+        ${warn}
         ${
           m.ingredients.length
             ? `<table>
@@ -960,14 +1000,14 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
                       <td class="num">${escapeHtml(String(i.quantityPerPerson))}</td>
                       <td class="num"><strong>${escapeHtml(String(Math.round(i.quantityPerPerson * headcount * 100) / 100))}</strong></td>
                       <td>${escapeHtml(i.unit)}</td>
-                    </tr>`
+                    </tr>`,
                   )
                   .join("")}</tbody>
               </table>`
             : `<p class="muted small">No ingredients yet.</p>`
         }
-      </article>`
-        )
+      </article>`;
+        })
         .join("")
     : `<p class="muted">No meals planned yet.</p>`;
 
@@ -1072,6 +1112,8 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
       .trip-meal .num,.trip-shop .num{text-align:right;font-variant-numeric:tabular-nums}
       .trip-shop{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1.25rem 1.5rem;box-shadow:0 1px 2px rgba(15,58,31,.06),0 6px 18px rgba(15,58,31,.04)}
       .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.78rem;color:var(--ink-500);margin-right:.25rem}
+      .trip-tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;border-radius:999px;padding:.1rem .55rem;font-size:.78rem;color:var(--ink-500);margin-right:.25rem}
+      .trip-warn{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:.55rem .85rem;border-radius:8px;margin:.55rem 0;font-size:.92rem}
       @media print{.site-header,.back,.trip-actions{display:none}.event-list{padding:0}}
     </style>`;
   return pageShell(org, `Trip plan · ${ev.title}`, body);

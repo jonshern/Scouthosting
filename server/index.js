@@ -1220,6 +1220,12 @@ app.get("/events/:id", async (req, res, next) => {
     case "taken":
       ctx.slotFlash = { type: "ok", message: "You're signed up — thanks!" };
       break;
+    case "waitlisted":
+      ctx.slotFlash = {
+        type: "ok",
+        message: "Slot is full — you're on the waitlist. We'll bump you up if a spot opens.",
+      };
+      break;
     case "released":
       ctx.slotFlash = { type: "ok", message: "Slot released." };
       break;
@@ -1328,7 +1334,8 @@ app.post("/events/:id/rsvp", async (req, res, next) => {
 
 // Take a sign-up slot (drivers, food, gear). Anyone can claim — login is
 // optional. Capacity enforced inside a transaction so two simultaneous
-// claims can't oversubscribe.
+// claims can't oversubscribe. When a slot is full and waitlisting is
+// allowed, additional claims are queued; auto-promoted on release.
 app.post("/events/:id/slots/:slotId/take", async (req, res, next) => {
   if (!req.org) return next();
   const slot = await prisma.signupSlot.findFirst({
@@ -1349,13 +1356,19 @@ app.post("/events/:id/slots/:slotId/take", async (req, res, next) => {
     return res.redirect(`/events/${req.params.id}?slot=missing`);
   }
 
+  let waitlisted = false;
   try {
     await prisma.$transaction(async (tx) => {
-      const count = await tx.slotAssignment.count({ where: { slotId: slot.id } });
-      if (count >= slot.capacity) {
-        const err = new Error("FULL");
-        err.code = "FULL";
-        throw err;
+      const activeCount = await tx.slotAssignment.count({
+        where: { slotId: slot.id, waitlisted: false },
+      });
+      if (activeCount >= slot.capacity) {
+        if (!slot.allowWaitlist) {
+          const err = new Error("FULL");
+          err.code = "FULL";
+          throw err;
+        }
+        waitlisted = true;
       }
       await tx.slotAssignment.create({
         data: {
@@ -1365,6 +1378,7 @@ app.post("/events/:id/slots/:slotId/take", async (req, res, next) => {
           name,
           email,
           notes,
+          waitlisted,
         },
       });
     });
@@ -1379,11 +1393,15 @@ app.post("/events/:id/slots/:slotId/take", async (req, res, next) => {
     throw e;
   }
 
-  res.redirect(`/events/${req.params.id}?slot=taken`);
+  res.redirect(
+    `/events/${req.params.id}?slot=${waitlisted ? "waitlisted" : "taken"}`,
+  );
 });
 
 // Release a slot assignment. Only the user who claimed it (matching by
-// userId or email) can release; admins can manage from /admin.
+// userId or email) can release; admins can manage from /admin. If the
+// released row was active, promote the oldest waitlisted entry to active
+// in the same transaction.
 app.post("/events/:id/slots/:slotId/release", async (req, res, next) => {
   if (!req.org) return next();
   const slot = await prisma.signupSlot.findFirst({
@@ -1400,7 +1418,24 @@ app.post("/events/:id/slots/:slotId/release", async (req, res, next) => {
     if (!email) return res.redirect(`/events/${req.params.id}?slot=missing`);
     where.email = email;
   }
-  await prisma.slotAssignment.deleteMany({ where });
+
+  await prisma.$transaction(async (tx) => {
+    const target = await tx.slotAssignment.findFirst({ where });
+    if (!target) return;
+    await tx.slotAssignment.delete({ where: { id: target.id } });
+    if (!target.waitlisted) {
+      const next = await tx.slotAssignment.findFirst({
+        where: { slotId: slot.id, waitlisted: true },
+        orderBy: { createdAt: "asc" },
+      });
+      if (next) {
+        await tx.slotAssignment.update({
+          where: { id: next.id },
+          data: { waitlisted: false },
+        });
+      }
+    }
+  });
   res.redirect(`/events/${req.params.id}?slot=released`);
 });
 

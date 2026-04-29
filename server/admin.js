@@ -18,6 +18,7 @@ import { moveFromTemp, remove as removeFile } from "../lib/storage.js";
 import { googleConfigured } from "../lib/oauth.js";
 import { sendBatch, mailDriver } from "../lib/mail.js";
 import { sendSmsBatch, smsDriver, normalisePhone } from "../lib/sms.js";
+import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dietary.js";
 import { makeRsvpToken } from "../lib/rsvpToken.js";
 import { buildShoppingList, CATEGORY_ORDER } from "../lib/shoppingList.js";
 
@@ -1328,19 +1329,27 @@ adminRouter.get("/events/:id/slots", requireLeader, async (req, res) => {
     include: { assignments: { orderBy: { createdAt: "asc" } } },
   });
 
-  const renderSlot = (s) => `
+  const renderSlot = (s) => {
+    const active = s.assignments.filter((a) => !a.waitlisted);
+    const waiting = s.assignments.filter((a) => a.waitlisted);
+    return `
     <li>
       <div style="flex:1">
         <h3>${escape(s.title)}${
-          s.capacity > 1 ? ` <span class="tag">${s.assignments.length} of ${s.capacity}</span>` : ""
-        }${s.capacity === 1 && s.assignments.length === 1 ? ` <span class="tag">filled</span>` : ""}</h3>
+          s.capacity > 1 ? ` <span class="tag">${active.length} of ${s.capacity}</span>` : ""
+        }${s.capacity === 1 && active.length === 1 ? ` <span class="tag">filled</span>` : ""}${
+          waiting.length ? ` <span class="tag">+${waiting.length} waiting</span>` : ""
+        }${!s.allowWaitlist ? ` <span class="tag">no waitlist</span>` : ""}</h3>
         ${s.description ? `<p class="muted small">${escape(s.description)}</p>` : ""}
         ${
-          s.assignments.length
-            ? `<p class="muted small">${s.assignments
-                .map((a) => escape(a.name))
-                .join(", ")}</p>`
+          active.length
+            ? `<p class="muted small">Signed up: ${active.map((a) => escape(a.name)).join(", ")}</p>`
             : `<p class="muted small">No takers yet.</p>`
+        }
+        ${
+          waiting.length
+            ? `<p class="muted small">Waitlist: ${waiting.map((a) => escape(a.name)).join(", ")}</p>`
+            : ""
         }
       </div>
       <div class="row">
@@ -1350,6 +1359,7 @@ adminRouter.get("/events/:id/slots", requireLeader, async (req, res) => {
         </form>
       </div>
     </li>`;
+  };
 
   const templateOpts = Object.entries(SLOT_TEMPLATES)
     .map(([key, t]) => `<option value="${escape(key)}">${escape(t.label)} — ${escape(t.description)}</option>`)
@@ -1383,6 +1393,10 @@ adminRouter.get("/events/:id/slots", requireLeader, async (req, res) => {
           <input name="capacity" type="number" required min="1" max="50" value="1">
         </label>
       </div>
+      <label class="row" style="align-items:center;gap:.5rem;margin-top:.5rem">
+        <input type="checkbox" name="allowWaitlist" value="1" checked>
+        <span>Allow waitlist when full (auto-promotes the next person when a spot opens)</span>
+      </label>
       <button class="btn btn-primary" type="submit">Add slot</button>
     </form>
 
@@ -1411,6 +1425,7 @@ adminRouter.post("/events/:id/slots", requireLeader, async (req, res) => {
       title: req.body?.title?.trim() || "Untitled",
       description: req.body?.description?.trim() || null,
       capacity: Math.max(1, Math.min(50, parseInt(req.body?.capacity, 10) || 1)),
+      allowWaitlist: req.body?.allowWaitlist != null,
       sortOrder: (last?.sortOrder ?? 0) + 1,
     },
   });
@@ -1458,6 +1473,10 @@ adminRouter.get("/events/:id/slots/:slotId/edit", requireLeader, async (req, res
       <label>Title<input name="title" type="text" required maxlength="120" value="${v("title")}"></label>
       <label>Description<textarea name="description" rows="2" maxlength="500">${v("description")}</textarea></label>
       <label>How many people needed<input name="capacity" type="number" required min="1" max="50" value="${v("capacity")}"></label>
+      <label class="row" style="align-items:center;gap:.5rem;margin-top:.25rem">
+        <input type="checkbox" name="allowWaitlist" value="1"${slot.allowWaitlist ? " checked" : ""}>
+        <span>Allow waitlist when full</span>
+      </label>
       <div class="row">
         <button class="btn btn-primary" type="submit">Save</button>
         <a class="btn btn-ghost" href="/admin/events/${escape(req.params.id)}/slots">Cancel</a>
@@ -1479,6 +1498,7 @@ adminRouter.post("/events/:id/slots/:slotId", requireLeader, async (req, res) =>
       title: req.body?.title?.trim() || "Untitled",
       description: req.body?.description?.trim() || null,
       capacity: Math.max(1, Math.min(50, parseInt(req.body?.capacity, 10) || 1)),
+      allowWaitlist: req.body?.allowWaitlist != null,
     },
   });
   res.redirect(`/admin/events/${req.params.id}/slots`);
@@ -1540,7 +1560,8 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
   const headcount = plan.headcountOverride ?? yesCount;
   const list = buildShoppingList(plan.meals, headcount);
 
-  // Members with dietary flags — surface to the planner.
+  // Members with dietary flags — surface to the planner. Also feeds
+  // the per-meal conflict check below (lib/dietary.js).
   const flagged = await prisma.member.findMany({
     where: { orgId: req.org.id, dietaryFlags: { isEmpty: false } },
     select: { firstName: true, lastName: true, dietaryFlags: true },
@@ -1570,6 +1591,36 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
       )
       .join("");
 
+    const tagLabel = (key) =>
+      MEAL_DIETARY_TAGS.find((t) => t.key === key)?.label || key;
+    const tagBadges = (m.dietaryTags || []).length
+      ? `<p class="muted small" style="margin:.25rem 0 0">${(m.dietaryTags || [])
+          .map((t) => `<span class="tag">${escape(tagLabel(t))}</span>`)
+          .join(" ")}</p>`
+      : "";
+
+    const conflicts = mealConflicts(flagged, m.dietaryTags || []);
+    const conflictHtml = conflicts.length
+      ? `<div class="meal-warn">
+          <strong>⚠ Dietary conflict</strong>
+          <ul style="margin:.25rem 0 0;padding-left:1.25rem">
+            ${conflicts
+              .map(
+                (c) =>
+                  `<li><strong>${escape(c.name)}</strong> — ${escape(c.flag)} (vs. ${c.tags
+                    .map((t) => escape(tagLabel(t)))
+                    .join(", ")})</li>`,
+              )
+              .join("")}
+          </ul>
+        </div>`
+      : "";
+
+    const tagCheckboxes = MEAL_DIETARY_TAGS.map((t) => {
+      const checked = (m.dietaryTags || []).includes(t.key) ? " checked" : "";
+      return `<label class="chip-check"><input type="checkbox" name="dietaryTag" value="${escape(t.key)}"${checked}> ${escape(t.label)}</label>`;
+    }).join("");
+
     return `
     <article class="card" style="margin-bottom:1rem">
       <div class="row" style="align-items:flex-start">
@@ -1577,11 +1628,20 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
           <h3 style="margin:0 0 .15rem">${escape(m.name)}</h3>
           ${m.recipeName ? `<p class="muted small">Recipe: ${escape(m.recipeName)}</p>` : ""}
           ${m.notes ? `<p class="muted small">${escape(m.notes)}</p>` : ""}
+          ${tagBadges}
         </div>
         <form class="inline" method="post" action="/admin/events/${escape(ev.id)}/plan/meals/${escape(m.id)}/delete" onsubmit="return confirm('Delete this meal and its ingredients?')">
           <button class="btn btn-danger small" type="submit">Delete meal</button>
         </form>
       </div>
+      ${conflictHtml}
+      <details class="meal-tags">
+        <summary class="muted small">Edit recipe tags</summary>
+        <form method="post" action="/admin/events/${escape(ev.id)}/plan/meals/${escape(m.id)}/tags" class="chip-group">
+          ${tagCheckboxes}
+          <button class="btn btn-ghost small" type="submit">Save tags</button>
+        </form>
+      </details>
 
       ${
         m.ingredients.length
@@ -1692,6 +1752,12 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
         <label style="margin:0;flex:1">Name<input name="name" type="text" required maxlength="60" placeholder="e.g. Saturday breakfast"></label>
         <label style="margin:0;flex:1">Recipe (optional)<input name="recipeName" type="text" maxlength="80" placeholder="e.g. Foil packets"></label>
       </div>
+      <p class="muted small" style="margin:.6rem 0 .25rem">Recipe contains (optional — we cross-check against the roster's dietary flags):</p>
+      <div class="chip-group">
+        ${MEAL_DIETARY_TAGS.map(
+          (t) => `<label class="chip-check"><input type="checkbox" name="dietaryTag" value="${escape(t.key)}"> ${escape(t.label)}</label>`,
+        ).join("")}
+      </div>
       <button class="btn btn-primary" type="submit">Add meal</button>
     </form>
 
@@ -1732,6 +1798,12 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
       .ing-table .num{text-align:right;font-variant-numeric:tabular-nums}
       .ing-add{display:flex;gap:.4rem;margin-top:.6rem;flex-wrap:wrap}
       .ing-add input,.ing-add select{padding:.45rem .55rem;border:1px solid var(--ink-300);border-radius:6px;font:inherit;flex:1;min-width:0}
+      .meal-warn{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:.55rem .85rem;border-radius:8px;margin:.6rem 0 0;font-size:.9rem}
+      .meal-tags{margin-top:.55rem}
+      .meal-tags summary{cursor:pointer;display:inline-block}
+      .chip-group{display:flex;flex-wrap:wrap;gap:.35rem .65rem;margin-top:.45rem;align-items:center}
+      .chip-check{display:inline-flex;align-items:center;gap:.3rem;background:#fbf8ee;border:1px solid #eef0e7;border-radius:999px;padding:.2rem .65rem;font-size:.85rem;cursor:pointer}
+      .chip-check input{accent-color:var(--brand,#1d6b39)}
     </style>
   `;
   res.type("html").send(layout({ title: `Trip plan · ${ev.title}`, org: req.org, user: req.user, body }));
@@ -1771,10 +1843,24 @@ adminRouter.post("/events/:id/plan/meals", requireLeader, async (req, res) => {
       tripPlanId: plan.id,
       name: req.body?.name?.trim() || "Untitled",
       recipeName: req.body?.recipeName?.trim() || null,
+      dietaryTags: sanitizeMealTags(req.body?.dietaryTag),
       sortOrder: (last?.sortOrder ?? 0) + 1,
     },
   });
   res.redirect(`/admin/events/${ev.id}/plan`);
+});
+
+adminRouter.post("/events/:id/plan/meals/:mealId/tags", requireLeader, async (req, res) => {
+  const meal = await prisma.meal.findFirst({
+    where: { id: req.params.mealId, orgId: req.org.id },
+    select: { id: true, tripPlan: { select: { eventId: true } } },
+  });
+  if (!meal || meal.tripPlan.eventId !== req.params.id) return res.status(404).send("Not found");
+  await prisma.meal.update({
+    where: { id: meal.id },
+    data: { dietaryTags: sanitizeMealTags(req.body?.dietaryTag) },
+  });
+  res.redirect(`/admin/events/${req.params.id}/plan`);
 });
 
 adminRouter.post("/events/:id/plan/meals/:mealId/delete", requireLeader, async (req, res) => {

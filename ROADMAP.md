@@ -139,8 +139,8 @@ Captured in-flight; sequenced into the right phase later.
   Facebook-style multi-photo grid (1/2/3/4-up), pin, public-vs-members
   visibility, /posts archive + /posts/:id permalink. Existing Announcements
   + Albums kept around so older content keeps rendering.
-- **Comments on posts** (members-only) — once we land it; the post detail
-  page is the natural place.
+- ~~**Comments on posts** (members-only).~~ DONE — `Comment` model
+  attached to Post, members-only thread on the post detail page.
 - **Optional Facebook cross-post.** Per-org "publish to our Facebook page"
   toggle on a post. OAuth into Meta's Page API; on publish, mirror the
   post text + photos to the unit's Facebook page. Off by default — a unit
@@ -168,7 +168,8 @@ subdomain and edit the public site without anyone redeploying.
 - [x] Announcements section with pinned-first ordering
 - [ ] Markdown / rich-text editing (currently plain text + `\n\n`)
 - [ ] Image insertion in body (waits on Phase 3.6)
-- [ ] Multi-page support (custom pages beyond the home page)
+- [x] Multi-page support — `CustomPage` model + admin editor; arbitrary
+      slugs render at `/p/:slug`.
 - [ ] Audit log of who edited what (`[security]`)
 
 ## Phase 4 — Calendar & events
@@ -194,13 +195,19 @@ The most-used feature. Match TroopWebHost's coverage, then exceed it.
       personalized Yes / Maybe / Can't-make-it links for an event.
 - [x] Public `/login` + `/signup` on every org subdomain (any user, not
       leader-only); auto-creates `OrgMembership(role=parent)`
-- [ ] Recurring events (RRULE)
+- [x] Recurring events (RRULE) — Weekly / Bi-weekly / Monthly presets +
+      custom RRULE; expansion via the `rrule` library; `recurrenceUntil`
+      caps the series.
 - [x] **Sign-up sheet slots** (food, gear, "Bring drinks", "Drive 2 scouts").
       Per-slot capacity enforced inside a transaction so concurrent claims
       can't oversubscribe. Anyone can claim — login optional. Idempotent
       per (slot, user) for signed-in and (slot, email) for anonymous.
-- [ ] Waitlist when a slot fills
-- [ ] Carpool sign-ups
+- [x] **Waitlist when a slot fills** — overflow sign-ups are queued
+      (per-slot opt-out via `allowWaitlist`); on release, the oldest
+      waitlister auto-promotes to active inside the same transaction.
+- [ ] Carpool sign-ups (currently handled via the generic "Drivers /
+      carpool" slot template; dedicated seats-and-riders model still
+      open)
 - [ ] **Two-way Google Calendar sync** (per-user) — additive; the ICS
       feed already covers the read path. This adds writes from inside
       the user's Google Calendar back to Scouthosting.
@@ -221,12 +228,19 @@ Distinct from generic events: campouts and trips need provisioning logic.
       the public view
 - [x] **Dietary flags surface** — `Member.dietaryFlags` listed on the
       plan page so cooks see allergy/diet constraints
-- [ ] **Recipe-level dietary tags** + automatic warnings when a meal
-      violates a flagged member's diet
-- [ ] **Cost estimate** per meal and per Scout; reconciles to the event
-      fee. (Add `unitCost` to Ingredient.)
-- [ ] **Gear / equipment checklist** for the trip with check-out from the
-      Quartermaster's catalog
+- [x] **Recipe-level dietary tags** + automatic warnings — `Meal.dietaryTags`
+      ("contains meat / dairy / gluten / nuts / shellfish / egg / soy /
+      pork / fish / alcohol") cross-checked against each
+      `Member.dietaryFlags`; conflicts surface on both the admin planner
+      and the public/members trip plan view.
+- [x] **Cost estimate** per meal and per Scout — `Ingredient.unitCost`
+      sums `quantityPerPerson * unitCost` across the plan and shows
+      cost-per-Scout + total trip cost on the planner.
+- [x] **Gear / equipment checklist** for the trip — `GearItem` per
+      trip plan with claim/owner; permanent `Equipment` catalog landed
+      separately as the Quartermaster module.
+- [ ] Cross-link gear checklist to the Quartermaster catalog (current
+      gear list is free-text, not yet pulled from `Equipment`).
 - [ ] **Driver / carpool plan** with seats available, who-rides-with-whom
       (or fold into the SignupSlot model)
 - [ ] **Tour plan** auto-fill (BSA Activity Consent forms pre-filled from
@@ -241,7 +255,9 @@ Distinct from generic events: campouts and trips need provisioning logic.
 - [x] SMS opt-in flag
 - [x] CSV-paste bulk import
 - [x] Members-only public directory at /members (login + membership gated)
-- [ ] Family linkage (parent ↔ scout, parent ↔ multiple scouts)
+- [x] Family linkage (parent ↔ scout, parent ↔ multiple scouts) —
+      `Member.parentIds[]` array of Member ids; admin UI lets you
+      attach guardians to a youth.
 - [ ] Dynamic subgroups (rules-based, e.g. "Star+ scouts")
 - [ ] Position-of-Responsibility tracking with start/end dates
 - [ ] Birthdays, join dates, tenure reports
@@ -276,21 +292,23 @@ and operations hub. Scoutbook is the advancement source of truth.
 
 ## Phase 6 — Scoutbook integration + ceremony tooling
 
-- [ ] Scoutbook deep-links from every Scout profile, the Eagle list, and
-      summary dashboards
+- [x] Scoutbook user-id field on `Member` (deep-links from the directory
+      to that Scout's Scoutbook record)
+- [ ] Deep-links from the Eagle list and summary dashboards
 - [ ] CSV import from Scoutbook's report exports (rank progress, MB
       partials, awards) — fallback before/until BSA's API access lands
 - [ ] When permitted: read-only Scoutbook API sync (rank, MB, awards)
 - [ ] Read-only summary dashboards: who's close to a rank, MB partials,
       upcoming boards of review — built off the imported/synced data
-- [ ] Eagle project workflow (project management, not advancement records):
-      mentor assignment, beneficiary contacts, internal review checklist,
-      examples library, status (idea / proposal / approved / in progress /
-      complete)
+- [x] **Eagle project workflow** (project management, not advancement
+      records): `EagleProject` with mentor, beneficiary, status
+      (`idea` / `proposal` / `approved` / `in progress` / `complete`),
+      workbook URL, started/completed dates. Public Eagle list backed
+      by `EagleScout`.
 - [ ] Troop's preferred Merit Badge Counselor list (local, troop-curated,
       separate from Scoutbook's national directory)
-- [ ] Court of Honor planning: ceremony program generator from a recent
-      advancement export, sign-up sheet, parent invitations
+- [x] **Court of Honor planning** — `CohAward` rows attach to a CoH
+      event and drive the printable program.
 - [ ] Service-hour / camping-night / hiking-mile capture from Scouthosting's
       calendar, with a one-click "send to Scoutbook" CSV export for the
       advancement chair
@@ -298,10 +316,13 @@ and operations hub. Scoutbook is the advancement source of truth.
 
 ## Phase 7 — Photos & files
 
-- [ ] S3-backed object storage per tenant
-- [ ] Photo gallery: albums, captions, EXIF, faces opt-in
+- [ ] S3-backed object storage per tenant (storage abstraction in
+      `lib/storage.js` is wired; cloud driver is the open piece)
+- [x] Photo gallery: albums + captions; multi-photo grid in posts
+- [ ] EXIF, faces opt-in
 - [ ] Video gallery (link-based)
-- [ ] Forms & Documents library (versioned, role-gated)
+- [x] Forms & Documents library — `Form` model with file uploads
+- [ ] Versioning + role-gated access for the documents library
 - [ ] Drag-and-drop upload, mobile capture
 
 ## Phase 8 — E-mail / SMS
@@ -334,11 +355,15 @@ and operations hub. Scoutbook is the advancement source of truth.
 
 ## Phase 10 — Operations
 
-- [ ] Equipment/library catalog with check-out
+- [x] **Equipment / Quartermaster catalog** — `Equipment` model with
+      condition, location, current holder, notes; admin CRUD.
+- [ ] Equipment check-out workflow (assignment trail + return reminders)
 - [ ] Training History per leader (BSA YPT, IOLS, Wood Badge…)
 - [ ] OA elections workflow
-- [ ] Announcements / news feed
-- [ ] Surveys & forums
+- [x] Announcements / news feed (`Announcement` + Posts)
+- [x] **Surveys** — composer, public form, responses, CSV export
+      (shipped in #3).
+- [ ] Forums
 
 ## Phase 11 — Customization & domains
 

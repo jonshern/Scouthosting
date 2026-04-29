@@ -91,7 +91,7 @@ describe("RSVP + signup-slot flows", () => {
     expect(r.status).toBe(400);
   });
 
-  it("slot capacity is enforced inside a transaction (third take fails)", async () => {
+  it("slot capacity is enforced for active sign-ups; overflow goes to waitlist", async () => {
     const org = await prisma.org.findUnique({ where: { slug: TEST_ORG_SLUG } });
     const slot = await prisma.signupSlot.create({
       data: {
@@ -111,19 +111,116 @@ describe("RSVP + signup-slot flows", () => {
         .send({ name: `Driver ${i}`, email: `driver${i}@test.invalid` });
 
     const a = await take(1);
-    expect(a.status).toBe(302);
     expect(a.headers.location).toContain("slot=taken");
 
     const b = await take(2);
-    expect(b.status).toBe(302);
     expect(b.headers.location).toContain("slot=taken");
 
     const c = await take(3);
-    expect(c.status).toBe(302);
-    expect(c.headers.location).toContain("slot=full");
+    expect(c.headers.location).toContain("slot=waitlisted");
 
-    const assignments = await prisma.slotAssignment.findMany({ where: { slotId: slot.id } });
-    expect(assignments).toHaveLength(2);
+    const active = await prisma.slotAssignment.findMany({
+      where: { slotId: slot.id, waitlisted: false },
+    });
+    expect(active).toHaveLength(2);
+
+    const waiting = await prisma.slotAssignment.findMany({
+      where: { slotId: slot.id, waitlisted: true },
+    });
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0].email).toBe("driver3@test.invalid");
+  });
+
+  it("releasing an active slot auto-promotes the oldest waitlister", async () => {
+    const org = await prisma.org.findUnique({ where: { slug: TEST_ORG_SLUG } });
+    const slot = await prisma.signupSlot.create({
+      data: { orgId: org.id, eventId: event.id, title: "Drive", capacity: 1 },
+    });
+    const url = `/events/${event.id}/slots/${slot.id}/take`;
+    for (let i = 1; i <= 3; i++) {
+      await request
+        .post(url)
+        .set("Host", HOST)
+        .type("form")
+        .send({ name: `P${i}`, email: `p${i}@test.invalid` });
+    }
+
+    const release = await request
+      .post(`/events/${event.id}/slots/${slot.id}/release`)
+      .set("Host", HOST)
+      .type("form")
+      .send({ email: "p1@test.invalid" });
+    expect(release.status).toBe(302);
+
+    const rows = await prisma.slotAssignment.findMany({
+      where: { slotId: slot.id },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(rows).toHaveLength(2);
+    // p2 promoted to active, p3 still waiting.
+    const p2 = rows.find((r) => r.email === "p2@test.invalid");
+    const p3 = rows.find((r) => r.email === "p3@test.invalid");
+    expect(p2.waitlisted).toBe(false);
+    expect(p3.waitlisted).toBe(true);
+  });
+
+  it("releasing a waitlist row does not promote anyone", async () => {
+    const org = await prisma.org.findUnique({ where: { slug: TEST_ORG_SLUG } });
+    const slot = await prisma.signupSlot.create({
+      data: { orgId: org.id, eventId: event.id, title: "Drive", capacity: 1 },
+    });
+    const url = `/events/${event.id}/slots/${slot.id}/take`;
+    for (let i = 1; i <= 3; i++) {
+      await request
+        .post(url)
+        .set("Host", HOST)
+        .type("form")
+        .send({ name: `P${i}`, email: `p${i}@test.invalid` });
+    }
+
+    // p3 (a waitlister) bails — p2 should stay waitlisted.
+    await request
+      .post(`/events/${event.id}/slots/${slot.id}/release`)
+      .set("Host", HOST)
+      .type("form")
+      .send({ email: "p3@test.invalid" });
+
+    const rows = await prisma.slotAssignment.findMany({ where: { slotId: slot.id } });
+    expect(rows).toHaveLength(2);
+    const p1 = rows.find((r) => r.email === "p1@test.invalid");
+    const p2 = rows.find((r) => r.email === "p2@test.invalid");
+    expect(p1.waitlisted).toBe(false);
+    expect(p2.waitlisted).toBe(true);
+  });
+
+  it("with allowWaitlist=false, the third take is rejected as full", async () => {
+    const org = await prisma.org.findUnique({ where: { slug: TEST_ORG_SLUG } });
+    const slot = await prisma.signupSlot.create({
+      data: {
+        orgId: org.id,
+        eventId: event.id,
+        title: "Drive",
+        capacity: 2,
+        allowWaitlist: false,
+      },
+    });
+    const url = `/events/${event.id}/slots/${slot.id}/take`;
+    for (let i = 1; i <= 2; i++) {
+      const r = await request
+        .post(url)
+        .set("Host", HOST)
+        .type("form")
+        .send({ name: `P${i}`, email: `p${i}@test.invalid` });
+      expect(r.headers.location).toContain("slot=taken");
+    }
+    const c = await request
+      .post(url)
+      .set("Host", HOST)
+      .type("form")
+      .send({ name: "P3", email: "p3@test.invalid" });
+    expect(c.headers.location).toContain("slot=full");
+    const rows = await prisma.slotAssignment.findMany({ where: { slotId: slot.id } });
+    expect(rows).toHaveLength(2);
   });
 
   it("slot release by anon email removes only that assignment", async () => {
