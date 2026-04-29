@@ -202,6 +202,7 @@ form.inline{display:inline}
     <a href="/admin/training">Training</a>
     <a href="/admin/subgroups">Subgroups</a>
     <a href="/admin/audit">Audit log</a>
+    <a href="/admin/export">Export</a>
     <a href="/admin/equipment">Equipment</a>
     <a href="/admin/eagle">Eagle Scouts</a>
     <a href="/admin/mbc">Merit Badge Counselors</a>
@@ -3169,6 +3170,181 @@ adminRouter.post("/subgroups/:id", requireLeader, async (req, res) => {
 adminRouter.post("/subgroups/:id/delete", requireLeader, async (req, res) => {
   await prisma.subgroup.deleteMany({ where: { id: req.params.id, orgId: req.org.id } });
   res.redirect("/admin/subgroups");
+});
+
+// Per-org data export. Returns a single JSON document with every
+// org-scoped row the leader's org owns. Useful for backups and for
+// the "give me my data" path when a council customer churns.
+//
+// Doesn't include uploaded files (photos, receipts, forms). Those live
+// in the per-org storage area and would need a zip wrapper — tracked
+// separately in the roadmap.
+adminRouter.get("/export.json", requireLeader, async (req, res) => {
+  const orgId = req.org.id;
+  const where = { orgId };
+
+  // Tables we own. Plain `where` filter keeps each query fast on the
+  // existing indexes; we don't need joins because the JSON consumer can
+  // re-link by foreign keys.
+  const [
+    org,
+    members,
+    page,
+    customPages,
+    announcements,
+    posts,
+    postPhotos,
+    comments,
+    events,
+    rsvps,
+    slots,
+    slotAssignments,
+    tripPlans,
+    meals,
+    ingredients,
+    gear,
+    rides,
+    rideRiders,
+    albums,
+    photos,
+    forms,
+    surveys,
+    surveyResponses,
+    eagleScouts,
+    eagleProjects,
+    cohAwards,
+    equipment,
+    equipmentLoans,
+    trainings,
+    positionTerms,
+    subgroups,
+    mbcs,
+    reimbursements,
+    oaElections,
+    oaCandidates,
+    mailLogs,
+    auditLogs,
+  ] = await Promise.all([
+    prisma.org.findUnique({ where: { id: orgId } }),
+    prisma.member.findMany({ where }),
+    prisma.page.findUnique({ where: { orgId } }),
+    prisma.customPage.findMany({ where }),
+    prisma.announcement.findMany({ where }),
+    prisma.post.findMany({ where }),
+    prisma.postPhoto.findMany({ where }),
+    prisma.comment.findMany({ where }),
+    prisma.event.findMany({ where }),
+    prisma.rsvp.findMany({ where }),
+    prisma.signupSlot.findMany({ where }),
+    prisma.slotAssignment.findMany({ where }),
+    prisma.tripPlan.findMany({ where }),
+    prisma.meal.findMany({ where }),
+    prisma.ingredient.findMany({ where }),
+    prisma.gearItem.findMany({ where }),
+    prisma.carRide.findMany({ where }),
+    prisma.carRideRider.findMany({ where }),
+    prisma.album.findMany({ where }),
+    prisma.photo.findMany({ where }),
+    prisma.form.findMany({ where }),
+    prisma.survey.findMany({ where }),
+    prisma.surveyResponse.findMany({ where }),
+    prisma.eagleScout.findMany({ where }),
+    prisma.eagleProject.findMany({ where }),
+    prisma.cohAward.findMany({ where }),
+    prisma.equipment.findMany({ where }),
+    prisma.equipmentLoan.findMany({ where }),
+    prisma.training.findMany({ where }),
+    prisma.positionTerm.findMany({ where }),
+    prisma.subgroup.findMany({ where }),
+    prisma.meritBadgeCounselor.findMany({ where }),
+    prisma.reimbursement.findMany({ where }),
+    prisma.oaElection.findMany({ where }),
+    prisma.oaCandidate.findMany({ where }),
+    prisma.mailLog.findMany({ where }),
+    prisma.auditLog.findMany({ where }),
+  ]);
+
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Org",
+    entityId: orgId,
+    action: "export",
+    summary: `Downloaded full data export`,
+  });
+
+  const dump = {
+    schema: "scouthosting/v1",
+    exportedAt: new Date().toISOString(),
+    org,
+    page,
+    members,
+    customPages,
+    announcements,
+    posts,
+    postPhotos,
+    comments,
+    events,
+    rsvps,
+    signupSlots: slots,
+    slotAssignments,
+    tripPlans,
+    meals,
+    ingredients,
+    gear,
+    carRides: rides,
+    carRideRiders: rideRiders,
+    albums,
+    photos,
+    forms,
+    surveys,
+    surveyResponses,
+    eagleScouts,
+    eagleProjects,
+    cohAwards,
+    equipment,
+    equipmentLoans,
+    trainings,
+    positionTerms,
+    subgroups,
+    meritBadgeCounselors: mbcs,
+    reimbursements,
+    oaElections,
+    oaCandidates,
+    mailLogs,
+    auditLogs,
+  };
+
+  const filename = `${req.org.slug}-export-${new Date().toISOString().slice(0, 10)}.json`;
+  res
+    .type("application/json")
+    .set("Content-Disposition", `attachment; filename="${filename}"`)
+    .send(JSON.stringify(dump, null, 2));
+});
+
+adminRouter.get("/export", requireLeader, async (req, res) => {
+  const counts = await prisma.$transaction([
+    prisma.member.count({ where: { orgId: req.org.id } }),
+    prisma.event.count({ where: { orgId: req.org.id } }),
+    prisma.post.count({ where: { orgId: req.org.id } }),
+    prisma.photo.count({ where: { orgId: req.org.id } }),
+  ]);
+  const [memberCount, eventCount, postCount, photoCount] = counts;
+
+  const body = `
+    <h1>Export</h1>
+    <p class="muted">Download a single JSON file with everything your unit owns: roster, calendar, posts, RSVPs, trip plans, surveys, audit log — every row scoped to <code>${escape(req.org.slug)}</code>.</p>
+
+    <div class="card">
+      <p><strong>What's in the export</strong></p>
+      <p class="muted small">${memberCount} members · ${eventCount} events · ${postCount} posts · ${photoCount} photo records</p>
+      <p class="muted small">Uploaded files (photos, document attachments, receipts) aren't bundled into the JSON — they live in object storage and need a separate sync. A zip wrapper that includes them is a roadmap follow-up.</p>
+      <a class="btn btn-primary" href="/admin/export.json">Download export.json</a>
+    </div>
+
+    <p class="muted small" style="margin-top:1rem">Exports are audit-logged. Anyone with the <em>leader</em> or <em>admin</em> role on this org can run one.</p>
+  `;
+  res.type("html").send(layout({ title: "Export", org: req.org, user: req.user, body }));
 });
 
 // Audit log — last 200 entries, filterable by entity type.

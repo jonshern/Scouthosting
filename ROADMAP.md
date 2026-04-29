@@ -104,7 +104,11 @@ The core architecture: one server, many troop sites, isolated by subdomain.
 - [x] Provisioning rewritten to write to Prisma
 - [x] Org resolution in the server reads from Prisma
 - [ ] `[security]` Row-Level Security policies (see backlog)
-- [ ] `[infra]` Daily logical backups; per-org export-to-zip on demand
+- [x] **Per-org export-on-demand** — `/admin/export` UI links to a
+      `/admin/export.json` route that streams a single JSON document
+      containing every org-scoped row (~37 tables). Audit-logged.
+      Zipping uploaded files alongside the JSON is a follow-up; daily
+      logical backups remain on the infra backlog.
 - [ ] `[migration]` Importer that ingests TroopWebHost CSV/JSON exports
 
 ## MVP-2 priority order
