@@ -204,6 +204,7 @@ form.inline{display:inline}
     <a href="/admin/equipment">Equipment</a>
     <a href="/admin/eagle">Eagle Scouts</a>
     <a href="/admin/mbc">Merit Badge Counselors</a>
+    <a href="/admin/oa">OA elections</a>
     <a href="/admin/reimbursements">Reimbursements</a>
     <a href="/admin/surveys">Surveys</a>
     <a href="/admin/email">Email broadcast</a>
@@ -4569,6 +4570,305 @@ adminRouter.post("/equipment/:id/delete", requireLeader, async (req, res) => {
     where: { id: req.params.id, orgId: req.org.id },
   });
   res.redirect("/admin/equipment");
+});
+
+/* ------------------------------------------------------------------ */
+/* Order of the Arrow elections                                         */
+/* ------------------------------------------------------------------ */
+
+const OA_STATUSES = ["planned", "conducted", "submitted"];
+const OA_CAND_STATUSES = ["eligible", "elected", "not-elected", "declined"];
+
+adminRouter.get("/oa", requireLeader, async (req, res) => {
+  const elections = await prisma.oaElection.findMany({
+    where: { orgId: req.org.id },
+    orderBy: { electionDate: "desc" },
+    include: { candidates: { select: { status: true } } },
+  });
+
+  const fmtDate = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+  const items = elections
+    .map((e) => {
+      const elected = e.candidates.filter((c) => c.status === "elected").length;
+      return `
+      <li>
+        <div style="flex:1">
+          <h3 style="margin:0">${escape(fmtDate(e.electionDate))}${e.lodgeName ? ` · ${escape(e.lodgeName)}${e.lodgeNumber ? ` (${escape(e.lodgeNumber)})` : ""}` : ""}</h3>
+          <p class="muted small" style="margin:.1rem 0 0">
+            <span class="tag">${escape(e.status)}</span>
+            ${e.candidates.length} candidate${e.candidates.length === 1 ? "" : "s"} · ${elected} elected
+            ${e.oaTeamContact ? ` · OA contact: ${escape(e.oaTeamContact)}` : ""}
+          </p>
+        </div>
+        <div class="row">
+          <a class="btn btn-ghost small" href="/admin/oa/${escape(e.id)}/edit">Manage</a>
+          <form class="inline" method="post" action="/admin/oa/${escape(e.id)}/delete" onsubmit="return confirm('Delete this election and all candidate records?')">
+            <button class="btn btn-danger small" type="submit">Delete</button>
+          </form>
+        </div>
+      </li>`;
+    })
+    .join("");
+
+  const body = `
+    <h1>OA elections</h1>
+    <p class="muted">Schedule the unit's annual Order of the Arrow election, track the candidate slate, and record results to send to your lodge.</p>
+
+    <form class="card" method="post" action="/admin/oa">
+      <h2 style="margin-top:0">Schedule a new election</h2>
+      <div class="row">
+        <label style="margin:0;flex:1">Election date<input name="electionDate" type="date" required></label>
+        <label style="margin:0;flex:1">Lodge name<input name="lodgeName" type="text" maxlength="80" placeholder="e.g. Naguonabe"></label>
+        <label style="margin:0;flex:1">Lodge #<input name="lodgeNumber" type="text" maxlength="20" placeholder="e.g. 105"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">OA team contact<input name="oaTeamContact" type="text" maxlength="80"></label>
+        <label style="margin:0;flex:1">Contact email<input name="oaTeamContactEmail" type="email" maxlength="120"></label>
+      </div>
+      <label>Notes<textarea name="notes" rows="2" maxlength="500"></textarea></label>
+      <button class="btn btn-primary" type="submit">Schedule</button>
+    </form>
+
+    <h2 style="margin-top:1.5rem">Past + upcoming</h2>
+    ${elections.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No elections scheduled yet.</div>`}
+  `;
+  res.type("html").send(layout({ title: "OA elections", org: req.org, user: req.user, body }));
+});
+
+function oaElectionFromBody(body) {
+  const status = OA_STATUSES.includes(body?.status) ? body.status : "planned";
+  const electionDate = body?.electionDate ? new Date(body.electionDate) : null;
+  const votingMembers = parseInt(body?.votingMembersCount, 10);
+  const threshold = parseInt(body?.votingThreshold, 10);
+  return {
+    electionDate: electionDate && !isNaN(electionDate) ? electionDate : new Date(),
+    lodgeName: (body?.lodgeName || "").trim() || null,
+    lodgeNumber: (body?.lodgeNumber || "").trim() || null,
+    oaTeamContact: (body?.oaTeamContact || "").trim() || null,
+    oaTeamContactEmail: (body?.oaTeamContactEmail || "").trim().toLowerCase() || null,
+    votingMembersCount: Number.isFinite(votingMembers) && votingMembers > 0 ? votingMembers : null,
+    votingThreshold: Number.isFinite(threshold) && threshold > 0 ? threshold : null,
+    status,
+    notes: (body?.notes || "").trim() || null,
+  };
+}
+
+adminRouter.post("/oa", requireLeader, async (req, res) => {
+  const data = oaElectionFromBody(req.body);
+  const created = await prisma.oaElection.create({
+    data: { orgId: req.org.id, ...data },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "OaElection",
+    entityId: created.id,
+    action: "create",
+    summary: `Scheduled OA election for ${created.electionDate.toISOString().slice(0, 10)}`,
+  });
+  res.redirect(`/admin/oa/${created.id}/edit`);
+});
+
+adminRouter.get("/oa/:id/edit", requireLeader, async (req, res) => {
+  const [e, eligibleMembers] = await Promise.all([
+    prisma.oaElection.findFirst({
+      where: { id: req.params.id, orgId: req.org.id },
+      include: { candidates: { orderBy: { candidateName: "asc" } } },
+    }),
+    prisma.member.findMany({
+      where: { orgId: req.org.id, isYouth: true },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: { id: true, firstName: true, lastName: true },
+    }),
+  ]);
+  if (!e) return res.status(404).send("Not found");
+
+  const v = (k) => escape(e[k] ?? "");
+  const dateVal = e.electionDate ? new Date(e.electionDate).toISOString().slice(0, 10) : "";
+  const sel = (cond) => (cond ? " selected" : "");
+
+  const memberOpts = eligibleMembers
+    .map(
+      (m) =>
+        `<option value="${escape(m.id)}">${escape(m.firstName)} ${escape(m.lastName)}</option>`,
+    )
+    .join("");
+
+  const candRows = e.candidates
+    .map((c) => {
+      const statusOpts = OA_CAND_STATUSES.map(
+        (s) => `<option value="${escape(s)}"${sel(c.status === s)}>${escape(s)}</option>`,
+      ).join("");
+      const tag =
+        c.status === "elected"
+          ? `<span class="tag" style="background:#eaf6ec;border-color:#b9dec1;color:#15532b">elected</span>`
+          : c.status === "not-elected"
+          ? `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">not elected</span>`
+          : c.status === "declined"
+          ? `<span class="tag" style="opacity:.6">declined</span>`
+          : `<span class="tag">eligible</span>`;
+      return `
+        <li>
+          <div style="flex:1">
+            <strong>${escape(c.candidateName)}</strong> ${tag}
+            ${c.votesFor != null ? `<span class="muted small"> · ${c.votesFor} for / ${c.votesAgainst ?? 0} against</span>` : ""}
+            ${c.notes ? `<div class="muted small">${escape(c.notes)}</div>` : ""}
+          </div>
+          <form class="inline row" method="post" action="/admin/oa/${escape(e.id)}/candidates/${escape(c.id)}" style="gap:.4rem">
+            <select name="status">${statusOpts}</select>
+            <input name="votesFor" type="number" min="0" max="999" value="${c.votesFor ?? ""}" placeholder="for" style="width:5rem">
+            <input name="votesAgainst" type="number" min="0" max="999" value="${c.votesAgainst ?? ""}" placeholder="against" style="width:5rem">
+            <button class="btn btn-ghost small" type="submit">Save</button>
+          </form>
+          <form class="inline" method="post" action="/admin/oa/${escape(e.id)}/candidates/${escape(c.id)}/delete" onsubmit="return confirm('Remove this candidate?')">
+            <button class="btn btn-danger small" type="submit">×</button>
+          </form>
+        </li>`;
+    })
+    .join("");
+
+  const statusOpts = OA_STATUSES.map(
+    (s) => `<option value="${escape(s)}"${sel(e.status === s)}>${escape(s)}</option>`,
+  ).join("");
+
+  const body = `
+    <a class="back" href="/admin/oa" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← OA elections</a>
+    <h1>Manage election · ${escape(new Date(e.electionDate).toLocaleDateString("en-US"))}</h1>
+
+    <form class="card" method="post" action="/admin/oa/${escape(e.id)}">
+      <div class="row">
+        <label style="margin:0;flex:1">Election date<input name="electionDate" type="date" required value="${escape(dateVal)}"></label>
+        <label style="margin:0;flex:1">Status<select name="status">${statusOpts}</select></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Lodge name<input name="lodgeName" type="text" maxlength="80" value="${v("lodgeName")}"></label>
+        <label style="margin:0;flex:1">Lodge #<input name="lodgeNumber" type="text" maxlength="20" value="${v("lodgeNumber")}"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">OA team contact<input name="oaTeamContact" type="text" maxlength="80" value="${v("oaTeamContact")}"></label>
+        <label style="margin:0;flex:1">Contact email<input name="oaTeamContactEmail" type="email" maxlength="120" value="${v("oaTeamContactEmail")}"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Voting members<input name="votingMembersCount" type="number" min="0" max="999" value="${v("votingMembersCount")}"></label>
+        <label style="margin:0;flex:1">Threshold (votes needed)<input name="votingThreshold" type="number" min="0" max="999" value="${v("votingThreshold")}"></label>
+      </div>
+      <label>Notes<textarea name="notes" rows="2" maxlength="500">${v("notes")}</textarea></label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/admin/oa">Cancel</a>
+      </div>
+    </form>
+
+    <h2 style="margin-top:1.5rem">Candidate slate ${e.candidates.length ? `<span class="muted" style="font-weight:400">(${e.candidates.length})</span>` : ""}</h2>
+    ${e.candidates.length ? `<ul class="items">${candRows}</ul>` : `<div class="empty">No candidates yet. Add one below.</div>`}
+
+    <form class="card" method="post" action="/admin/oa/${escape(e.id)}/candidates" style="margin-top:1rem">
+      <h3 style="margin-top:0">Add a candidate</h3>
+      <div class="row">
+        <label style="margin:0;flex:1">Roster member<select name="memberId"><option value="">— pick a Scout —</option>${memberOpts}</select></label>
+        <label style="margin:0;flex:1">…or free-form name<input name="candidateName" type="text" maxlength="80"></label>
+      </div>
+      <label>Notes<textarea name="notes" rows="2" maxlength="200" placeholder="Camping nights met, First Class+ verified, etc."></textarea></label>
+      <button class="btn btn-primary" type="submit">Add candidate</button>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "OA election", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/oa/:id", requireLeader, async (req, res) => {
+  const e = await prisma.oaElection.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!e) return res.status(404).send("Not found");
+  const data = oaElectionFromBody(req.body);
+  await prisma.oaElection.update({ where: { id: e.id }, data });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "OaElection",
+    entityId: e.id,
+    action: "update",
+    summary: `Updated election (status: ${data.status})`,
+  });
+  res.redirect(`/admin/oa/${e.id}/edit`);
+});
+
+adminRouter.post("/oa/:id/delete", requireLeader, async (req, res) => {
+  await prisma.oaElection.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "OaElection",
+    entityId: req.params.id,
+    action: "delete",
+    summary: "Deleted election",
+  });
+  res.redirect("/admin/oa");
+});
+
+adminRouter.post("/oa/:id/candidates", requireLeader, async (req, res) => {
+  const election = await prisma.oaElection.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!election) return res.status(404).send("Not found");
+
+  let memberId = (req.body?.memberId || "").trim() || null;
+  let candidateName = (req.body?.candidateName || "").trim() || null;
+  if (memberId) {
+    const m = await prisma.member.findFirst({
+      where: { id: memberId, orgId: req.org.id },
+      select: { firstName: true, lastName: true },
+    });
+    if (m) candidateName = `${m.firstName} ${m.lastName}`;
+    else memberId = null;
+  }
+  if (!candidateName) return res.redirect(`/admin/oa/${election.id}/edit`);
+
+  await prisma.oaCandidate.create({
+    data: {
+      orgId: req.org.id,
+      electionId: election.id,
+      memberId,
+      candidateName,
+      notes: (req.body?.notes || "").trim() || null,
+    },
+  });
+  res.redirect(`/admin/oa/${election.id}/edit`);
+});
+
+adminRouter.post("/oa/:id/candidates/:candidateId", requireLeader, async (req, res) => {
+  const status = OA_CAND_STATUSES.includes(req.body?.status) ? req.body.status : "eligible";
+  const votesFor = parseInt(req.body?.votesFor, 10);
+  const votesAgainst = parseInt(req.body?.votesAgainst, 10);
+  await prisma.oaCandidate.updateMany({
+    where: {
+      id: req.params.candidateId,
+      orgId: req.org.id,
+      electionId: req.params.id,
+    },
+    data: {
+      status,
+      votesFor: Number.isFinite(votesFor) ? votesFor : null,
+      votesAgainst: Number.isFinite(votesAgainst) ? votesAgainst : null,
+    },
+  });
+  res.redirect(`/admin/oa/${req.params.id}/edit`);
+});
+
+adminRouter.post("/oa/:id/candidates/:candidateId/delete", requireLeader, async (req, res) => {
+  await prisma.oaCandidate.deleteMany({
+    where: {
+      id: req.params.candidateId,
+      orgId: req.org.id,
+      electionId: req.params.id,
+    },
+  });
+  res.redirect(`/admin/oa/${req.params.id}/edit`);
 });
 
 /* ------------------------------------------------------------------ */

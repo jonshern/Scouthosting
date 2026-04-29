@@ -104,6 +104,8 @@ model Org {
   carRideRiders CarRideRider[]
   meritBadgeCounselors MeritBadgeCounselor[]
   reimbursements Reimbursement[]
+  oaElections    OaElection[]
+  oaCandidates   OaCandidate[]
 
   @@index([plan])
 }
@@ -225,6 +227,7 @@ model Member {
   equipmentLoans EquipmentLoan[]
   trainings     Training[]
   meritBadgeCounselors MeritBadgeCounselor[]
+  oaCandidacies        OaCandidate[]
 
   @@index([orgId])
   @@index([orgId, lastName])
@@ -1001,4 +1004,51 @@ model Reimbursement {
 
   @@index([orgId, status, submittedAt])
   @@index([orgId, requesterUserId])
+}
+
+// Order of the Arrow election. Each troop typically holds one a year.
+// We track the slate, the result, and lodge submission state — actual
+// voting happens in person at a meeting.
+//
+// Status transitions:
+//   planned → conducted → submitted
+model OaElection {
+  id                  String        @id @default(cuid())
+  orgId               String
+  electionDate        DateTime
+  lodgeName           String?
+  lodgeNumber         String?
+  oaTeamContact       String?
+  oaTeamContactEmail  String?
+  votingMembersCount  Int?          // size of the active voting unit at the time
+  votingThreshold     Int?          // 50% + 1 of voting members
+  status              String        @default("planned")  // planned | conducted | submitted
+  notes               String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  org        Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  candidates OaCandidate[]
+
+  @@index([orgId, electionDate])
+}
+
+model OaCandidate {
+  id            String   @id @default(cuid())
+  orgId         String
+  electionId    String
+  memberId      String?
+  candidateName String
+  status        String   @default("eligible")  // eligible | elected | not-elected | declined
+  votesFor      Int?
+  votesAgainst  Int?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  org      Org        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  election OaElection @relation(fields: [electionId], references: [id], onDelete: Cascade)
+  member   Member?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, electionId])
 }

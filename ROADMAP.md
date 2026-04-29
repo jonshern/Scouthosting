@@ -444,7 +444,12 @@ and operations hub. Scoutbook is the advancement source of truth.
       courses. Org-wide `/admin/training` roster groups every adult
       leader's training and flags expired or expiring-in-60-days
       certifications (YPT in particular).
-- [ ] OA elections workflow
+- [x] **OA elections workflow** — `OaElection` (date, lodge name +
+      number, OA team contact, voting members count + threshold,
+      status: planned/conducted/submitted) and `OaCandidate` (member
+      link or free-form name, status: eligible/elected/not-elected/
+      declined, optional vote tally). Admin CRUD at `/admin/oa` with
+      per-election candidate-slate management. Audit-logged.
 - [x] Announcements / news feed (`Announcement` + Posts)
 - [x] **Surveys** — composer, public form, responses, CSV export
       (shipped in #3).

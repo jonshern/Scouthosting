@@ -21,6 +21,8 @@ export const TEST_ORG_SLUG = "testtroop";
 export async function resetDb() {
   // Order matters because Prisma cascades take care of children, but
   // these top-level tables keep state across test runs.
+  await prisma.oaCandidate.deleteMany({});
+  await prisma.oaElection.deleteMany({});
   await prisma.reimbursement.deleteMany({});
   await prisma.meritBadgeCounselor.deleteMany({});
   await prisma.carRideRider.deleteMany({});
