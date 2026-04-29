@@ -221,7 +221,12 @@ The most-used feature. Match TroopWebHost's coverage, then exceed it.
 - [ ] **Two-way Google Calendar sync** (per-user) — additive; the ICS
       feed already covers the read path. This adds writes from inside
       the user's Google Calendar back to Scouthosting.
-- [ ] Service-hour, camping-night, hiking-mile auto-tracking from events
+- [x] **Service-hour / camping-night / hiking-mile auto-tracking** —
+      `Event.serviceHours`, `Event.campingNights`, `Event.hikingMiles`
+      are per-attendee credits. `lib/credits.js#tallyCredits` sums them
+      across each member's yes-RSVPs (past events only). Surfaces in
+      `/admin/credits` with a per-member roster + unit-total summary,
+      plus a `/admin/credits.csv` export to hand to the advancement chair.
 - [ ] Event reports (attendance, hours, cost breakdown)
 
 ## Phase 4.5 — Trip planning & meal planner
@@ -329,9 +334,10 @@ and operations hub. Scoutbook is the advancement source of truth.
       separate from Scoutbook's national directory)
 - [x] **Court of Honor planning** — `CohAward` rows attach to a CoH
       event and drive the printable program.
-- [ ] Service-hour / camping-night / hiking-mile capture from Scouthosting's
-      calendar, with a one-click "send to Scoutbook" CSV export for the
-      advancement chair
+- [x] **Service-hour / camping-night / hiking-mile capture** from
+      Scouthosting's calendar with a one-click "send to Scoutbook" CSV
+      export at `/admin/credits.csv`. Pushing directly to Internet
+      Advancement is the still-open follow-up.
 - [ ] Push to Internet Advancement via the same CSV path
 
 ## Phase 7 — Photos & files

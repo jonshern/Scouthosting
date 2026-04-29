@@ -232,6 +232,13 @@ model Event {
   // "FREQ=MONTHLY;BYDAY=1TU" (first Tuesday of every month).
   rrule           String?
   recurrenceUntil DateTime?
+  // Per-attendee credits this event grants. A 2-night campout sets
+  // campingNights = 2; a service project sets serviceHours = 4. Every
+  // member with a "yes" RSVP earns the credits when /admin/credits
+  // computes totals. null/0 means the event doesn't grant that credit.
+  serviceHours    Float?
+  campingNights   Int?
+  hikingMiles     Float?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
