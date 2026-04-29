@@ -175,6 +175,7 @@ form.inline{display:inline}
     <a href="/admin/positions">Position roster</a>
     <a href="/admin/reports">Reports</a>
     <a href="/admin/credits">Credits</a>
+    <a href="/admin/training">Training</a>
     <a href="/admin/equipment">Equipment</a>
     <a href="/admin/eagle">Eagle Scouts</a>
     <a href="/admin/surveys">Surveys</a>
@@ -2516,10 +2517,16 @@ adminRouter.get("/members/:id/edit", requireLeader, async (req, res) => {
     where: { id: req.params.id, orgId: req.org.id },
   });
   if (!member) return res.status(404).send("Not found");
-  const terms = await prisma.positionTerm.findMany({
-    where: { orgId: req.org.id, memberId: member.id },
-    orderBy: [{ endedAt: { sort: "asc", nulls: "first" } }, { startedAt: "desc" }],
-  });
+  const [terms, trainings] = await Promise.all([
+    prisma.positionTerm.findMany({
+      where: { orgId: req.org.id, memberId: member.id },
+      orderBy: [{ endedAt: { sort: "asc", nulls: "first" } }, { startedAt: "desc" }],
+    }),
+    prisma.training.findMany({
+      where: { orgId: req.org.id, memberId: member.id },
+      orderBy: { completedAt: "desc" },
+    }),
+  ]);
   const fmt = (d) => (d ? new Date(d).toISOString().slice(0, 10) : "");
   const termRows = terms
     .map((t) => {
@@ -2565,8 +2572,177 @@ adminRouter.get("/members/:id/edit", requireLeader, async (req, res) => {
       <label>Notes<textarea name="notes" rows="2" maxlength="200"></textarea></label>
       <button class="btn btn-primary" type="submit">Add term</button>
     </form>
+
+    <h2 style="margin-top:1.5rem">Training</h2>
+    <p class="muted small">BSA Youth Protection (YPT), IOLS, Wood Badge, Scoutmaster Specifics, etc. YPT expires every 2 years; the org-wide <a href="/admin/training">training roster</a> flags expirations.</p>
+    ${
+      trainings.length
+        ? `<ul class="items">${trainings
+            .map((t) => {
+              const exp = t.expiresAt ? new Date(t.expiresAt) : null;
+              const expired = exp && exp < new Date();
+              const expiringSoon = exp && !expired && (exp.getTime() - Date.now()) < 60 * 86400000;
+              const expTag = expired
+                ? ` <span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">expired</span>`
+                : expiringSoon
+                ? ` <span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">expires soon</span>`
+                : "";
+              return `
+        <li class="row" style="align-items:center;gap:.5rem">
+          <div style="flex:1">
+            <strong>${escape(t.courseName)}</strong>${expTag}
+            <div class="muted small">Completed ${escape(fmt(t.completedAt))}${
+              t.expiresAt ? ` · expires ${escape(fmt(t.expiresAt))}` : ""
+            }${t.notes ? ` · ${escape(t.notes)}` : ""}</div>
+          </div>
+          <form class="inline" method="post" action="/admin/members/${escape(member.id)}/training/${escape(t.id)}/delete" onsubmit="return confirm('Delete this training record?')">
+            <button class="btn btn-danger small" type="submit">×</button>
+          </form>
+        </li>`;
+            })
+            .join("")}</ul>`
+        : `<div class="empty">No training recorded yet.</div>`
+    }
+
+    <form class="card" method="post" action="/admin/members/${escape(member.id)}/training">
+      <h3 style="margin-top:0">Add training</h3>
+      <label>Course
+        <input name="courseName" type="text" required maxlength="120" list="training-courses" placeholder="e.g. Youth Protection Training">
+        <datalist id="training-courses">
+          ${TRAINING_COURSES.map((c) => `<option value="${escape(c)}"></option>`).join("")}
+        </datalist>
+      </label>
+      <div class="row">
+        <label style="margin:0;flex:1">Completed<input name="completedAt" type="date" required></label>
+        <label style="margin:0;flex:1">Expires (blank = doesn't expire)<input name="expiresAt" type="date"></label>
+      </div>
+      <label>Notes<textarea name="notes" rows="2" maxlength="200"></textarea></label>
+      <button class="btn btn-primary" type="submit">Add</button>
+    </form>
   `;
   res.type("html").send(layout({ title: "Edit member", org: req.org, user: req.user, body }));
+});
+
+const TRAINING_COURSES = [
+  "Youth Protection Training",
+  "IOLS — Introduction to Outdoor Leader Skills",
+  "SM/ASM Position-Specific Training",
+  "Den Leader Position-Specific Training",
+  "Cubmaster Position-Specific Training",
+  "Wood Badge",
+  "BALOO — Basic Adult Leader Outdoor Orientation",
+  "Hazardous Weather Training",
+  "Safe Swim Defense",
+  "Safety Afloat",
+  "Climb on Safely",
+  "Trek Safely",
+  "Powder Horn",
+  "Sea Badge",
+];
+
+adminRouter.post("/members/:id/training", requireLeader, async (req, res) => {
+  const member = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!member) return res.status(404).send("Not found");
+  const courseName = (req.body?.courseName || "").trim();
+  const completedAt = parseDate(req.body?.completedAt);
+  const expiresAt = parseDate(req.body?.expiresAt);
+  if (!courseName || !completedAt) {
+    return res.redirect(`/admin/members/${member.id}/edit`);
+  }
+  await prisma.training.create({
+    data: {
+      orgId: req.org.id,
+      memberId: member.id,
+      courseName,
+      completedAt,
+      expiresAt: expiresAt || null,
+      notes: (req.body?.notes || "").trim() || null,
+    },
+  });
+  res.redirect(`/admin/members/${member.id}/edit`);
+});
+
+adminRouter.post("/members/:id/training/:trainingId/delete", requireLeader, async (req, res) => {
+  await prisma.training.deleteMany({
+    where: {
+      id: req.params.trainingId,
+      orgId: req.org.id,
+      memberId: req.params.id,
+    },
+  });
+  res.redirect(`/admin/members/${req.params.id}/edit`);
+});
+
+// Org-wide training roster: every adult leader's current training,
+// flagging expirations.
+adminRouter.get("/training", requireLeader, async (req, res) => {
+  const adults = await prisma.member.findMany({
+    where: { orgId: req.org.id, isYouth: false },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    include: { trainings: { orderBy: { completedAt: "desc" } } },
+  });
+
+  const fmt = (d) => new Date(d).toISOString().slice(0, 10);
+  const today = new Date();
+  let totalExpired = 0;
+  let totalExpiringSoon = 0;
+
+  const items = adults
+    .map((m) => {
+      if (m.trainings.length === 0) {
+        return `
+        <li>
+          <div style="flex:1">
+            <h3 style="margin:0">${escape(m.firstName)} ${escape(m.lastName)}</h3>
+            <p class="muted small" style="margin:.1rem 0 0">No training recorded.</p>
+          </div>
+          <a class="btn btn-ghost small" href="/admin/members/${escape(m.id)}/edit">Add</a>
+        </li>`;
+      }
+      const courseList = m.trainings
+        .map((t) => {
+          const exp = t.expiresAt ? new Date(t.expiresAt) : null;
+          const expired = exp && exp < today;
+          const expiringSoon = exp && !expired && (exp.getTime() - today.getTime()) < 60 * 86400000;
+          if (expired) totalExpired++;
+          else if (expiringSoon) totalExpiringSoon++;
+          const tag = expired
+            ? ` <span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">expired</span>`
+            : expiringSoon
+            ? ` <span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">${Math.ceil((exp.getTime() - today.getTime()) / 86400000)}d</span>`
+            : "";
+          return `${escape(t.courseName)}${tag}${t.expiresAt ? ` <span class="muted small">(exp ${escape(fmt(t.expiresAt))})</span>` : ""}`;
+        })
+        .join(" · ");
+      return `
+        <li>
+          <div style="flex:1">
+            <h3 style="margin:0">${escape(m.firstName)} ${escape(m.lastName)}</h3>
+            <p class="muted small" style="margin:.1rem 0 0">${courseList}</p>
+          </div>
+          <a class="btn btn-ghost small" href="/admin/members/${escape(m.id)}/edit">Edit</a>
+        </li>`;
+    })
+    .join("");
+
+  const body = `
+    <h1>Training roster</h1>
+    <p class="muted">All adult leaders and their training history. Expired YPT in red — chase those down before campouts.</p>
+
+    <div class="row" style="gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">
+      <div class="card stat-card"><strong style="font-size:1.6rem">${adults.length}</strong><br><span class="muted small">Adult leaders</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem;color:${totalExpired > 0 ? "#7d2614" : "inherit"}">${totalExpired}</strong><br><span class="muted small">Expired</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem;color:${totalExpiringSoon > 0 ? "#7d5a00" : "inherit"}">${totalExpiringSoon}</strong><br><span class="muted small">Expiring &lt; 60d</span></div>
+    </div>
+
+    ${adults.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No adults on the roster yet.</div>`}
+
+    <style>.stat-card{flex:1;min-width:140px;text-align:center}</style>
+  `;
+  res.type("html").send(layout({ title: "Training roster", org: req.org, user: req.user, body }));
 });
 
 // Org-wide PoR roster: who's currently holding which position.
