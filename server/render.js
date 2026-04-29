@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { gcalAddUrl, outlookAddUrl, mapUrls } from "../lib/calendar.js";
 import { buildShoppingList } from "../lib/shoppingList.js";
 import { MEAL_DIETARY_TAGS, mealConflicts } from "../lib/dietary.js";
+import { renderMarkdown } from "../lib/markdown.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -39,12 +40,11 @@ function escapeHtml(s) {
 
 // Plain-text → HTML: escape, preserve double-newlines as paragraph breaks
 // and single-newlines as <br>.
+// CMS bodies (Page, Announcement, Post, CustomPage, Event description,
+// Comment) accept a small markdown subset. Plain-text content renders
+// the same as it did before — markdown is a superset.
 function textToHtml(s) {
-  const escaped = escapeHtml(s ?? "");
-  return escaped
-    .split(/\n\n+/)
-    .map((p) => `<p>${p.replace(/\n/g, "<br>")}</p>`)
-    .join("");
+  return renderMarkdown(s ?? "");
 }
 
 function renderGallery(albums) {
