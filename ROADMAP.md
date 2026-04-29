@@ -188,7 +188,13 @@ subdomain and edit the public site without anyone redeploying.
 - [ ] Image insertion in body (waits on Phase 3.6)
 - [x] Multi-page support — `CustomPage` model + admin editor; arbitrary
       slugs render at `/p/:slug`.
-- [ ] Audit log of who edited what (`[security]`)
+- [x] **Audit log of who edited what** — `AuditLog` model captures
+      (orgId, userId?, userDisplay snapshot, entityType, entityId,
+      action, summary). Wired into the high-traffic CMS / member write
+      paths (Page edits, Announcements create/update/delete, Member
+      create/update/delete). Viewable at `/admin/audit` filtered by
+      entity type. Tamper-evident chaining and youth-record read
+      logging stay on the security backlog.
 
 ## Phase 4 — Calendar & events
 
