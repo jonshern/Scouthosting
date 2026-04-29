@@ -264,7 +264,12 @@ Distinct from generic events: campouts and trips need provisioning logic.
       `Member.parentIds[]` array of Member ids; admin UI lets you
       attach guardians to a youth.
 - [ ] Dynamic subgroups (rules-based, e.g. "Star+ scouts")
-- [ ] Position-of-Responsibility tracking with start/end dates
+- [x] **Position-of-Responsibility tracking** with start/end dates —
+      `PositionTerm` model with `(memberId, position, startedAt, endedAt)`.
+      Editing `Member.position` auto-closes the open term and opens a
+      new one (`lib/positionTerms.js`). Backfill UI on the member edit
+      page; org-wide /admin/positions roster shows current PoR holders
+      and their tenure.
 - [ ] Birthdays, join dates, tenure reports
 - [ ] Skills & interests per member
 - [ ] CSV upload (file) in addition to CSV-paste

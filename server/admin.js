@@ -19,6 +19,7 @@ import { googleConfigured } from "../lib/oauth.js";
 import { sendBatch, mailDriver } from "../lib/mail.js";
 import { sendSmsBatch, smsDriver, normalisePhone } from "../lib/sms.js";
 import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dietary.js";
+import { reconcilePositionTerm as reconcileTerm } from "../lib/positionTerms.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -169,6 +170,7 @@ form.inline{display:inline}
     <a href="/admin/albums">Photos &amp; albums</a>
     <a href="/admin/forms">Forms &amp; documents</a>
     <a href="/admin/members">Members</a>
+    <a href="/admin/positions">Position roster</a>
     <a href="/admin/equipment">Equipment</a>
     <a href="/admin/eagle">Eagle Scouts</a>
     <a href="/admin/surveys">Surveys</a>
@@ -2378,9 +2380,16 @@ adminRouter.get("/members", requireLeader, async (req, res) => {
 adminRouter.post("/members", requireLeader, async (req, res) => {
   const data = memberFromBody(req.body || {});
   if (!data.firstName || !data.lastName) return res.redirect("/admin/members");
-  await prisma.member.create({ data: { orgId: req.org.id, ...data } });
+  const created = await prisma.member.create({ data: { orgId: req.org.id, ...data } });
+  if (data.position) {
+    await reconcilePositionTerm(req.org.id, created.id, null, data.position);
+  }
   res.redirect("/admin/members");
 });
+
+async function reconcilePositionTerm(orgId, memberId, _oldPosition, newPosition) {
+  return reconcileTerm(prisma, orgId, memberId, newPosition);
+}
 
 adminRouter.get("/members/import", requireLeader, async (req, res) => {
   const body = `
@@ -2471,23 +2480,153 @@ adminRouter.get("/members/:id/edit", requireLeader, async (req, res) => {
     where: { id: req.params.id, orgId: req.org.id },
   });
   if (!member) return res.status(404).send("Not found");
+  const terms = await prisma.positionTerm.findMany({
+    where: { orgId: req.org.id, memberId: member.id },
+    orderBy: [{ endedAt: { sort: "asc", nulls: "first" } }, { startedAt: "desc" }],
+  });
+  const fmt = (d) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+  const termRows = terms
+    .map((t) => {
+      const open = t.endedAt == null;
+      return `
+      <li class="row" style="align-items:center;gap:.5rem">
+        <div style="flex:1">
+          <strong>${escape(t.position)}</strong>${open ? ` <span class="tag">current</span>` : ""}
+          <div class="muted small">${escape(fmt(t.startedAt))}${
+            t.endedAt ? ` → ${escape(fmt(t.endedAt))}` : " → present"
+          }${t.notes ? ` · ${escape(t.notes)}` : ""}</div>
+        </div>
+        ${
+          open
+            ? `<form class="inline" method="post" action="/admin/members/${escape(member.id)}/positions/${escape(t.id)}/end">
+                 <button class="btn btn-ghost small" type="submit">End today</button>
+               </form>`
+            : ""
+        }
+        <form class="inline" method="post" action="/admin/members/${escape(member.id)}/positions/${escape(t.id)}/delete" onsubmit="return confirm('Delete this term?')">
+          <button class="btn btn-danger small" type="submit">×</button>
+        </form>
+      </li>`;
+    })
+    .join("");
   const body = `
     <h1>Edit member</h1>
     ${await memberForm({ member, action: `/admin/members/${escape(member.id)}`, submitLabel: "Save", orgId: req.org.id })}
+
+    <h2 style="margin-top:1.5rem">Position history</h2>
+    <p class="muted small">Editing the <strong>Position</strong> field above auto-closes the open term and opens a new one. You can also backfill past terms here.</p>
+    ${terms.length ? `<ul class="items">${termRows}</ul>` : `<div class="empty">No position terms recorded yet.</div>`}
+
+    <form class="card" method="post" action="/admin/members/${escape(member.id)}/positions">
+      <h3 style="margin-top:0">Backfill a term</h3>
+      <div class="row">
+        <label style="margin:0;flex:1">Position<input name="position" type="text" required maxlength="60" placeholder="e.g. Patrol Leader — Eagles"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Started<input name="startedAt" type="date" required></label>
+        <label style="margin:0;flex:1">Ended (blank = still holding)<input name="endedAt" type="date"></label>
+      </div>
+      <label>Notes<textarea name="notes" rows="2" maxlength="200"></textarea></label>
+      <button class="btn btn-primary" type="submit">Add term</button>
+    </form>
   `;
   res.type("html").send(layout({ title: "Edit member", org: req.org, user: req.user, body }));
+});
+
+// Org-wide PoR roster: who's currently holding which position.
+adminRouter.get("/positions", requireLeader, async (req, res) => {
+  const open = await prisma.positionTerm.findMany({
+    where: { orgId: req.org.id, endedAt: null },
+    orderBy: [{ position: "asc" }, { startedAt: "asc" }],
+    include: { member: { select: { id: true, firstName: true, lastName: true, isYouth: true } } },
+  });
+  const fmt = (d) => new Date(d).toISOString().slice(0, 10);
+  const items = open
+    .map((t) => {
+      const m = t.member;
+      const days = Math.max(
+        0,
+        Math.floor((Date.now() - new Date(t.startedAt).getTime()) / 86400000),
+      );
+      return `
+      <li>
+        <div style="flex:1">
+          <h3 style="margin:0">${escape(t.position)}</h3>
+          <p class="muted small" style="margin:.1rem 0 0">
+            <a href="/admin/members/${escape(m.id)}/edit">${escape(m.firstName)} ${escape(m.lastName)}</a>
+            · since ${escape(fmt(t.startedAt))} (${days}d)
+          </p>
+        </div>
+      </li>`;
+    })
+    .join("");
+  const body = `
+    <h1>Position roster</h1>
+    <p class="muted">Active Positions of Responsibility across the unit.</p>
+    ${open.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No active position terms. Set the <em>Position</em> field on a member to start one.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Position roster", org: req.org, user: req.user, body }));
 });
 
 adminRouter.post("/members/:id", requireLeader, async (req, res) => {
   const member = await prisma.member.findFirst({
     where: { id: req.params.id, orgId: req.org.id },
-    select: { id: true },
+    select: { id: true, position: true },
   });
   if (!member) return res.status(404).send("Not found");
   const data = memberFromBody(req.body || {});
   if (!data.firstName || !data.lastName) return res.redirect(`/admin/members/${member.id}/edit`);
   await prisma.member.update({ where: { id: member.id }, data });
-  res.redirect("/admin/members");
+  await reconcilePositionTerm(req.org.id, member.id, member.position, data.position);
+  res.redirect(`/admin/members/${member.id}/edit`);
+});
+
+// Manually add a historical position term (e.g. backfill an old role).
+adminRouter.post("/members/:id/positions", requireLeader, async (req, res) => {
+  const member = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!member) return res.status(404).send("Not found");
+  const position = (req.body?.position || "").toString().trim();
+  const startedAt = req.body?.startedAt ? new Date(req.body.startedAt) : null;
+  const endedAt = req.body?.endedAt ? new Date(req.body.endedAt) : null;
+  if (!position || !startedAt || isNaN(startedAt.getTime())) {
+    return res.redirect(`/admin/members/${member.id}/edit`);
+  }
+  await prisma.positionTerm.create({
+    data: {
+      orgId: req.org.id,
+      memberId: member.id,
+      position,
+      startedAt,
+      endedAt: endedAt && !isNaN(endedAt.getTime()) ? endedAt : null,
+      notes: (req.body?.notes || "").toString().trim() || null,
+    },
+  });
+  res.redirect(`/admin/members/${member.id}/edit`);
+});
+
+// End an open position term today.
+adminRouter.post("/members/:id/positions/:termId/end", requireLeader, async (req, res) => {
+  await prisma.positionTerm.updateMany({
+    where: {
+      id: req.params.termId,
+      orgId: req.org.id,
+      memberId: req.params.id,
+      endedAt: null,
+    },
+    data: { endedAt: new Date() },
+  });
+  res.redirect(`/admin/members/${req.params.id}/edit`);
+});
+
+// Delete a position term outright.
+adminRouter.post("/members/:id/positions/:termId/delete", requireLeader, async (req, res) => {
+  await prisma.positionTerm.deleteMany({
+    where: { id: req.params.termId, orgId: req.org.id, memberId: req.params.id },
+  });
+  res.redirect(`/admin/members/${req.params.id}/edit`);
 });
 
 adminRouter.post("/members/:id/delete", requireLeader, async (req, res) => {
