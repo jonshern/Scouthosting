@@ -235,7 +235,11 @@ The most-used feature. Match TroopWebHost's coverage, then exceed it.
       across each member's yes-RSVPs (past events only). Surfaces in
       `/admin/credits` with a per-member roster + unit-total summary,
       plus a `/admin/credits.csv` export to hand to the advancement chair.
-- [ ] Event reports (attendance, hours, cost breakdown)
+- [x] **Event reports** (attendance, hours, cost breakdown) —
+      `/admin/events/:id/report` aggregates RSVP counts (yes/maybe/no
+      + guest tally), sign-up slot coverage (filled/open/waiting),
+      credits-granted (service hr / camping nt / miles × yes-RSVPs),
+      and total attendee cost. Linked from each event's row.
 
 ## Phase 4.5 — Trip planning & meal planner
 

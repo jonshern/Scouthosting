@@ -1038,6 +1038,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rsvps">RSVPs</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/slots">Sign-up sheet</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/plan">Trip plan</a>
+        <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/report">Report</a>
         ${
           e.category === "Court of Honor"
             ? `<a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/program">Program</a>`
@@ -4707,6 +4708,117 @@ adminRouter.post("/events/:id/program/:awardId/delete", requireLeader, async (re
     where: { id: req.params.awardId, orgId: req.org.id, eventId: req.params.id },
   });
   res.redirect(`/admin/events/${req.params.id}/program`);
+});
+
+// Per-event report — RSVP counts, headcount, sign-up coverage, credits
+// granted, and total cost. Pulls everything we already track.
+adminRouter.get("/events/:id/report", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    include: {
+      rsvps: { include: { user: { select: { id: true } } } },
+      slots: { include: { assignments: true } },
+    },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const counts = { yes: 0, no: 0, maybe: 0, totalGuests: 0, total: 0 };
+  for (const r of ev.rsvps) {
+    counts[r.response] = (counts[r.response] || 0) + 1;
+    counts.total++;
+    if (r.response === "yes") counts.totalGuests += r.guests || 0;
+  }
+  const headcount = counts.yes + counts.totalGuests;
+
+  // Slot coverage: open vs filled (active assignments only).
+  let totalCapacity = 0;
+  let totalFilled = 0;
+  let totalWaitlisted = 0;
+  for (const s of ev.slots) {
+    totalCapacity += s.capacity;
+    const active = s.assignments.filter((a) => !a.waitlisted).length;
+    totalFilled += Math.min(active, s.capacity);
+    totalWaitlisted += s.assignments.filter((a) => a.waitlisted).length;
+  }
+
+  // Credits granted (per yes-RSVP × per-attendee credit). Past or
+  // future event — we report what would be earned if it happens.
+  const creditsHours = (ev.serviceHours || 0) * counts.yes;
+  const creditsNights = (ev.campingNights || 0) * counts.yes;
+  const creditsMiles = (ev.hikingMiles || 0) * counts.yes;
+
+  const totalCost = (ev.cost || 0) * counts.yes;
+
+  const fmtNum = (n) => Number.isInteger(n) ? String(n) : Number(n).toFixed(1);
+
+  const slotRows = ev.slots
+    .map((s) => {
+      const active = s.assignments.filter((a) => !a.waitlisted).length;
+      const waiting = s.assignments.filter((a) => a.waitlisted).length;
+      const open = Math.max(0, s.capacity - active);
+      return `<tr>
+        <td>${escape(s.title)}</td>
+        <td class="num">${active} / ${s.capacity}</td>
+        <td class="num">${open}</td>
+        <td class="num">${waiting}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const body = `
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <h1>Event report · ${escape(ev.title)}</h1>
+    <p class="muted">${escape(new Date(ev.startsAt).toLocaleString("en-US"))}${ev.location ? ` · ${escape(ev.location)}` : ""}</p>
+
+    <h2>Attendance</h2>
+    <div class="row" style="gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">
+      <div class="card stat-card"><strong style="font-size:1.6rem">${counts.yes}</strong><br><span class="muted small">Yes</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem">${counts.maybe}</strong><br><span class="muted small">Maybe</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem">${counts.no}</strong><br><span class="muted small">No</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem">${headcount}</strong><br><span class="muted small">Headcount (yes + guests)</span></div>
+    </div>
+    <p class="muted small"><a href="/admin/events/${escape(ev.id)}/rsvps">See RSVP list →</a> · <a href="/admin/events/${escape(ev.id)}/rsvps.csv">CSV</a></p>
+
+    <h2 style="margin-top:1.5rem">Sign-up sheets</h2>
+    ${
+      ev.slots.length
+        ? `<table class="ing-table">
+            <thead><tr><th>Slot</th><th class="num">Filled</th><th class="num">Open</th><th class="num">Waiting</th></tr></thead>
+            <tbody>${slotRows}
+              <tr><td><strong>Totals</strong></td>
+                <td class="num"><strong>${totalFilled} / ${totalCapacity}</strong></td>
+                <td class="num"><strong>${Math.max(0, totalCapacity - totalFilled)}</strong></td>
+                <td class="num"><strong>${totalWaitlisted}</strong></td>
+              </tr>
+            </tbody>
+          </table>`
+        : `<p class="muted">No sign-up sheet for this event.</p>`
+    }
+
+    <h2 style="margin-top:1.5rem">Credits granted</h2>
+    ${
+      ev.serviceHours || ev.campingNights || ev.hikingMiles
+        ? `<div class="row" style="gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem">
+            ${ev.serviceHours ? `<div class="card stat-card"><strong style="font-size:1.6rem">${fmtNum(creditsHours)}</strong><br><span class="muted small">Service hr (${ev.serviceHours} × ${counts.yes})</span></div>` : ""}
+            ${ev.campingNights ? `<div class="card stat-card"><strong style="font-size:1.6rem">${creditsNights}</strong><br><span class="muted small">Camping nt (${ev.campingNights} × ${counts.yes})</span></div>` : ""}
+            ${ev.hikingMiles ? `<div class="card stat-card"><strong style="font-size:1.6rem">${fmtNum(creditsMiles)}</strong><br><span class="muted small">Miles (${ev.hikingMiles} × ${counts.yes})</span></div>` : ""}
+          </div>`
+        : `<p class="muted">No per-attendee credits set on this event. <a href="/admin/events/${escape(ev.id)}/edit">Edit</a> to add some.</p>`
+    }
+
+    <h2 style="margin-top:1.5rem">Cost</h2>
+    ${
+      ev.cost
+        ? `<div class="card stat-card" style="display:inline-block;min-width:240px">
+            <strong style="font-size:1.6rem">$${totalCost}</strong>
+            <br><span class="muted small">$${ev.cost} per attendee × ${counts.yes} yes-RSVPs</span>
+          </div>`
+        : `<p class="muted">No per-attendee cost set on this event.</p>`
+    }
+
+    <style>.stat-card{flex:1;min-width:140px;text-align:center}</style>
+  `;
+  res.type("html").send(layout({ title: `Report · ${ev.title}`, org: req.org, user: req.user, body }));
 });
 
 /* ------------------------------------------------------------------ */
