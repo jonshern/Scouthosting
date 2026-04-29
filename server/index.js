@@ -11,6 +11,7 @@ import { lucia, attachSession, hashPassword, verifyPassword, roleInOrg } from ".
 import { originAuth } from "../lib/originAuth.js";
 import { csrfMiddleware, csrfProtect, csrfHtmlInjector } from "../lib/csrf.js";
 import { rateLimit } from "../lib/rateLimit.js";
+import { securityHeaders } from "../lib/securityHeaders.js";
 
 // Buckets: tight on auth surfaces (login/signup are the brute-force
 // targets), looser on /api/provision since legitimate provisioning is
@@ -83,6 +84,8 @@ const app = express();
 // Trust the first hop (Cloudflare / GCP load balancer). Without this,
 // req.ip is the upstream proxy and rate-limit buckets collapse onto one IP.
 app.set("trust proxy", 1);
+app.disable("x-powered-by");
+app.use(securityHeaders);
 app.use(originAuth);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

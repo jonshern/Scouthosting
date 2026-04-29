@@ -54,7 +54,16 @@ member data:
       real client IP is used. Multi-instance deployments will need a
       shared store — still on the security backlog.
 - [ ] `[security]` Bot protection on signup (CAPTCHA / proof-of-work).
-- [ ] `[security]` CSP, Trusted Types, strict CORS, signed cookies.
+- [x] **CSP + hardening response headers** — `lib/securityHeaders.js`
+      adds Content-Security-Policy (script + style + font + img + connect
+      sources locked down to self + the known Google/Resend hosts; frame-
+      ancestors 'none'), X-Content-Type-Options, X-Frame-Options,
+      Referrer-Policy, Permissions-Policy, Cross-Origin-Opener-Policy,
+      Cross-Origin-Resource-Policy, and HSTS in production. CSRF and
+      session cookies are already HttpOnly + SameSite=Lax + Secure-in-prod
+      via `lib/csrf.js` + Lucia.
+- [ ] `[security]` Trusted Types and tightening `script-src` away from
+      `'unsafe-inline'` (requires refactoring inline onsubmit handlers).
 - [ ] `[security]` SOC 2 Type 1 audit and independent youth-data review
       (graduated up from Phase 14).
 - [ ] `[security]` Penetration test before first paid council customer.
