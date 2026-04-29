@@ -1,0 +1,3 @@
+-- AlterTable
+ALTER TABLE "Member" ADD COLUMN "skills" TEXT[] DEFAULT ARRAY[]::TEXT[];
+ALTER TABLE "Member" ADD COLUMN "interests" TEXT[] DEFAULT ARRAY[]::TEXT[];

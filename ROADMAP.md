@@ -294,8 +294,14 @@ Distinct from generic events: campouts and trips need provisioning logic.
       callout), longest-tenure leaderboard, and roster demographics
       (youth/adult split, active PoR count, contactable count, dietary
       flag count).
-- [ ] Skills & interests per member
-- [ ] CSV upload (file) in addition to CSV-paste
+- [x] **Skills & interests per member** — `Member.skills[]` and
+      `Member.interests[]` arrays editable as comma-separated free-form
+      text. Lower-case dedupe; first-seen casing preserved for display.
+      Surfaced in CSV import too (`skills`, `interests` columns,
+      semicolon- or pipe-separated).
+- [x] **CSV upload (file)** — `/admin/members/import` now accepts a
+      file upload alongside the existing paste field. memoryStorage
+      (2 MB cap) so the temp-file dance is skipped.
 
 ## Positioning vs. Scoutbook
 
