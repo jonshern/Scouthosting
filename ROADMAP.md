@@ -118,14 +118,22 @@ Scouthosting staff lives outside this model.
 - [x] Lucia auth on the control plane, sessions in `public.Session`
 - [x] argon2id password hashing (`@node-rs/argon2`)
 - [x] `/api/auth/signup`, `/api/auth/login`, `/api/auth/logout`, `/api/auth/me`
-- [ ] Email verification on signup
-- [ ] Magic-link login (passwordless)
-- [ ] Password reset flow
+- [x] **Email verification on signup** — signed token, 7-day TTL,
+      `/verify/:token` flips `User.emailVerified`. Magic-link sign-in
+      also auto-verifies.
+- [x] **Magic-link login** (passwordless) — `/magic` form emails a
+      15-minute token; `/magic/:token` signs the user in.
+- [x] **Password reset flow** — `/forgot` → emailed signed token bound
+      to the current password-hash suffix; `/reset/:token` accepts a
+      new password and invalidates existing sessions. Old reset tokens
+      stop working as soon as the password changes.
+- [x] **CSRF protection** on state-changing routes (`lib/csrf.js`) —
+      cookie + form-field double-submit pattern.
 - [ ] `[security]` 2FA for leader/admin roles
-- [ ] `[security]` CSRF protection on state-changing routes
 - [ ] Two-deep digital communication enforcement
 - [ ] Youth Protection guardrails (parent linkage, minor flags)
-- [ ] SSO with Google / Apple / Microsoft
+- [x] **SSO with Google** (`/auth/google/start`, Arctic + OpenID
+      Connect, `OAuthAccount` table). Apple / Microsoft still open.
 
 ## Backlog (added during build)
 
@@ -389,7 +397,13 @@ and operations hub. Scoutbook is the advancement source of truth.
 
 - [x] **Equipment / Quartermaster catalog** — `Equipment` model with
       condition, location, current holder, notes; admin CRUD.
-- [ ] Equipment check-out workflow (assignment trail + return reminders)
+- [x] **Equipment check-out workflow** — `EquipmentLoan` model with
+      open / returned states, optional `dueAt`. Equipment list shows an
+      "out" badge per item; the edit page exposes loan history,
+      check-out form (Member dropdown or free-form name), and
+      mark-returned action. New `/admin/equipment/loans` roster lists
+      every open loan with overdue flagging.
+- [ ] Return-reminder emails on overdue loans
 - [ ] Training History per leader (BSA YPT, IOLS, Wood Badge…)
 - [ ] OA elections workflow
 - [x] Announcements / news feed (`Announcement` + Posts)
