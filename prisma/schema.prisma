@@ -486,16 +486,21 @@ model TripPlan {
 }
 
 model Meal {
-  id         String   @id @default(cuid())
-  orgId      String
-  tripPlanId String
-  name       String   // "Saturday breakfast"
-  recipeName String?  // "Foil packets", "Mac and cheese"
-  notes      String?
-  sortOrder  Int      @default(0)
-  servesAt   DateTime?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id           String   @id @default(cuid())
+  orgId        String
+  tripPlanId   String
+  name         String   // "Saturday breakfast"
+  recipeName   String?  // "Foil packets", "Mac and cheese"
+  notes        String?
+  // "Contains" tags applied at the recipe level (e.g. "contains-meat",
+  // "contains-gluten"). Cross-checked against each Member.dietaryFlags
+  // to surface conflicts on the planner. See lib/dietary.js for the
+  // canonical tag set and conflict map.
+  dietaryTags  String[] @default([])
+  sortOrder    Int      @default(0)
+  servesAt     DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   org         Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
   tripPlan    TripPlan    @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)

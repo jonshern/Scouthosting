@@ -228,8 +228,11 @@ Distinct from generic events: campouts and trips need provisioning logic.
       the public view
 - [x] **Dietary flags surface** — `Member.dietaryFlags` listed on the
       plan page so cooks see allergy/diet constraints
-- [ ] **Recipe-level dietary tags** + automatic warnings when a meal
-      violates a flagged member's diet
+- [x] **Recipe-level dietary tags** + automatic warnings — `Meal.dietaryTags`
+      ("contains meat / dairy / gluten / nuts / shellfish / egg / soy /
+      pork / fish / alcohol") cross-checked against each
+      `Member.dietaryFlags`; conflicts surface on both the admin planner
+      and the public/members trip plan view.
 - [x] **Cost estimate** per meal and per Scout — `Ingredient.unitCost`
       sums `quantityPerPerson * unitCost` across the plan and shows
       cost-per-Scout + total trip cost on the planner.

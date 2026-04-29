@@ -14,6 +14,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { gcalAddUrl, outlookAddUrl, mapUrls } from "../lib/calendar.js";
 import { buildShoppingList } from "../lib/shoppingList.js";
+import { MEAL_DIETARY_TAGS, mealConflicts } from "../lib/dietary.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -959,15 +960,35 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
   costPerPerson = Math.round(costPerPerson * 100) / 100;
   const totalCost = Math.round(costPerPerson * headcount * 100) / 100;
 
+  const tagLabel = (key) =>
+    MEAL_DIETARY_TAGS.find((t) => t.key === key)?.label || key;
+
   const mealCards = meals.length
     ? meals
-        .map(
-          (m) => `
+        .map((m) => {
+          const tags = m.dietaryTags || [];
+          const tagBadges = tags.length
+            ? `<p class="muted small" style="margin:.25rem 0 0">${tags
+                .map((t) => `<span class="trip-tag">${escapeHtml(tagLabel(t))}</span>`)
+                .join(" ")}</p>`
+            : "";
+          const conflicts = mealConflicts(flagged || [], tags);
+          const warn = conflicts.length
+            ? `<div class="trip-warn"><strong>⚠ Heads-up</strong> — ${conflicts
+                .map(
+                  (c) =>
+                    `<strong>${escapeHtml(c.name)}</strong> (${escapeHtml(c.flag)})`,
+                )
+                .join(", ")} on the roster.</div>`
+            : "";
+          return `
       <article class="trip-meal">
         <header>
           <h3>${escapeHtml(m.name)}</h3>
           ${m.recipeName ? `<p class="muted small">Recipe: ${escapeHtml(m.recipeName)}</p>` : ""}
+          ${tagBadges}
         </header>
+        ${warn}
         ${
           m.ingredients.length
             ? `<table>
@@ -979,14 +1000,14 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
                       <td class="num">${escapeHtml(String(i.quantityPerPerson))}</td>
                       <td class="num"><strong>${escapeHtml(String(Math.round(i.quantityPerPerson * headcount * 100) / 100))}</strong></td>
                       <td>${escapeHtml(i.unit)}</td>
-                    </tr>`
+                    </tr>`,
                   )
                   .join("")}</tbody>
               </table>`
             : `<p class="muted small">No ingredients yet.</p>`
         }
-      </article>`
-        )
+      </article>`;
+        })
         .join("")
     : `<p class="muted">No meals planned yet.</p>`;
 
@@ -1091,6 +1112,8 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
       .trip-meal .num,.trip-shop .num{text-align:right;font-variant-numeric:tabular-nums}
       .trip-shop{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1.25rem 1.5rem;box-shadow:0 1px 2px rgba(15,58,31,.06),0 6px 18px rgba(15,58,31,.04)}
       .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.78rem;color:var(--ink-500);margin-right:.25rem}
+      .trip-tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;border-radius:999px;padding:.1rem .55rem;font-size:.78rem;color:var(--ink-500);margin-right:.25rem}
+      .trip-warn{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:.55rem .85rem;border-radius:8px;margin:.55rem 0;font-size:.92rem}
       @media print{.site-header,.back,.trip-actions{display:none}.event-list{padding:0}}
     </style>`;
   return pageShell(org, `Trip plan · ${ev.title}`, body);
