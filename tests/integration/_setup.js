@@ -83,8 +83,9 @@ export async function resetDb() {
 }
 
 /**
- * Drive the GET, scrape the cookie + CSRF token, return both so the
- * caller can issue authenticated POSTs.
+ * Drive the GET, scrape the cookie + CSRF token + (optionally) the
+ * honeypot timestamp, and return them so the caller can issue
+ * authenticated POSTs that pass both gates.
  */
 export async function getCsrf(request, path = "/login") {
   const r = await request.get(path).set("Host", `${TEST_ORG_SLUG}.localhost`);
@@ -92,21 +93,32 @@ export async function getCsrf(request, path = "/login") {
   const cookieHeader = cookies.join("; ");
   const m = (r.text || "").match(/name="csrf"\s+value="([^"]+)"/);
   if (!m) throw new Error("No CSRF token in response — server didn't render a form");
-  return { cookie: cookieHeader, csrf: m[1] };
+  const startedAt = (r.text || "").match(/name="form_started_at"\s+value="([^"]+)"/);
+  return {
+    cookie: cookieHeader,
+    csrf: m[1],
+    formStartedAt: startedAt ? startedAt[1] : null,
+  };
 }
 
 /**
  * Sign up a user via /signup on the test org. Returns a cookie string
  * that carries both the CSRF cookie and the live session cookie.
+ *
+ * Bypasses the honeypot's minimum-fill-time check by signing a fresh
+ * past timestamp — `lib/honeypot.js#_internal.sign(now - 5000)` is
+ * accepted because the form looks at least 2 seconds old.
  */
 export async function signUpUser(request, { email, password, displayName }) {
   const { cookie, csrf } = await getCsrf(request, "/signup");
+  const { _internal } = await import("../../lib/honeypot.js");
+  const formStartedAt = _internal.sign(Date.now() - 5000);
   const signup = await request
     .post("/signup")
     .set("Host", `${TEST_ORG_SLUG}.localhost`)
     .set("Cookie", cookie)
     .type("form")
-    .send({ email, password, displayName, csrf });
+    .send({ email, password, displayName, csrf, form_started_at: formStartedAt });
   // Merge the session Set-Cookie from the POST response with the
   // existing CSRF cookie. supertest doesn't keep a cookie jar across
   // requests, so we hand-roll it.

@@ -14,6 +14,14 @@ beforeAll(() => {
 describe("auth flows", () => {
   beforeEach(resetDb);
 
+  // The honeypot's minimum render-to-submit time would otherwise reject
+  // a same-tick POST; back-date the timestamp so each test passes the
+  // gate without an artificial delay.
+  async function backdatedHoneypot() {
+    const { _internal } = await import("../../lib/honeypot.js");
+    return _internal.sign(Date.now() - 5000);
+  }
+
   it("/signup creates a user, sets a session cookie, and the user is returned by /api/auth/me", async () => {
     const { cookie, csrf } = await getCsrf(request, "/signup");
     const signup = await request
@@ -26,6 +34,7 @@ describe("auth flows", () => {
         email: "alice@test.invalid",
         password: "this-is-a-strong-pw",
         csrf,
+        form_started_at: await backdatedHoneypot(),
       });
     expect(signup.status).toBe(302);
 
@@ -50,6 +59,7 @@ describe("auth flows", () => {
         email: "sm@test.invalid", // matches the seeded org's scoutmasterEmail
         password: "this-is-a-strong-pw",
         csrf,
+        form_started_at: await backdatedHoneypot(),
       });
 
     const u = await prisma.user.findUnique({ where: { email: "sm@test.invalid" } });
@@ -70,6 +80,7 @@ describe("auth flows", () => {
         email: "u@test.invalid",
         password: "this-is-a-strong-pw",
         csrf: csrf1,
+        form_started_at: await backdatedHoneypot(),
       });
 
     // Try to log in with the wrong password

@@ -12,6 +12,7 @@ import { originAuth } from "../lib/originAuth.js";
 import { csrfMiddleware, csrfProtect, csrfHtmlInjector } from "../lib/csrf.js";
 import { rateLimit } from "../lib/rateLimit.js";
 import { securityHeaders } from "../lib/securityHeaders.js";
+import { honeypotFields, verifyHoneypot } from "../lib/honeypot.js";
 
 // Buckets: tight on auth surfaces (login/signup are the brute-force
 // targets), looser on /api/provision since legitimate provisioning is
@@ -464,6 +465,7 @@ ${googleHtml}
 ${nameField}
 <label>Email<input name="email" type="email" required autocomplete="email"></label>
 <label>Password<input name="password" type="password" required autocomplete="${isLogin ? "current-password" : "new-password"}" minlength="${isLogin ? "1" : "12"}"></label>
+${isLogin ? "" : honeypotFields()}
 <button class="btn" type="submit">${escape(submit)}</button>
 </form>
 <small class="help">
@@ -540,6 +542,18 @@ app.post("/signup", signupLimiter, csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   const { email, password, displayName } = req.body || {};
   const nextUrl = safeNext(req.query.next);
+
+  // Bot deterrents — honeypot field + minimum render-to-submit time.
+  // Failures look like a generic error to avoid leaking which signal
+  // tripped (so naive bots can't tune around it).
+  const hp = verifyHoneypot(req.body || {});
+  if (!hp.ok) {
+    console.warn(`[signup] honeypot rejected: ${hp.reason}`);
+    return res.type("html").send(
+      publicLoginPage(req.org, { error: "Couldn't create the account. Try again in a moment.", next: nextUrl, googleConfigured, mode: "signup" }),
+    );
+  }
+
   if (!email || !password || !displayName) {
     return res.type("html").send(
       publicLoginPage(req.org, { error: "Name, email, and password required.", next: nextUrl, googleConfigured, mode: "signup" })

@@ -53,7 +53,14 @@ member data:
       with `Retry-After` when the bucket fills. Trust-proxy = 1 so the
       real client IP is used. Multi-instance deployments will need a
       shared store — still on the security backlog.
-- [ ] `[security]` Bot protection on signup (CAPTCHA / proof-of-work).
+- [x] **Bot protection on signup (honeypot)** — `lib/honeypot.js` adds
+      a hidden trap field plus an HMAC-signed render-to-submit timestamp.
+      Submissions that fill the trap or arrive in under 2 seconds are
+      rejected with a generic error (so naive spammers can't tune
+      around the signal). Combined with the existing rate limit, this
+      kills the bulk of casual signup spam without making real users
+      pass a CAPTCHA. CAPTCHA / proof-of-work remains an option for
+      higher-traffic deployments.
 - [x] **CSP + hardening response headers** — `lib/securityHeaders.js`
       adds Content-Security-Policy (script + style + font + img + connect
       sources locked down to self + the known Google/Resend hosts; frame-
