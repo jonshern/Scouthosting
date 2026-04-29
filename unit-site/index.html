@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Scouts BSA Troop 12 of Anytown, USA — chartered by St. Mark's Community Church. Hosted with Compass." />
+  <title>Scouts BSA Troop 12 · Anytown, USA</title>
+
+  <!-- Google Fonts: Newsreader (display) + Inter Tight (UI) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <!-- ====================================================================
+       1. Top bar
+       Compass wordmark + unit name + city/est + nav links.
+       ==================================================================== -->
+  <header class="topbar" role="banner">
+    <div class="topbar__brand">
+      <a href="#" class="wordmark" aria-label="Compass — Hosted with">
+        <!-- SHMark — compass-rose icon, recreated from atoms.jsx -->
+        <svg width="36" height="36" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+          <circle cx="20" cy="20" r="18.5" fill="none" stroke="#0d130d" stroke-width="1.25" />
+          <circle cx="20" cy="20" r="11" fill="none" stroke="#0d130d" stroke-width="0.75" opacity="0.4" />
+          <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#c8e94a" />
+          <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="#0d130d" opacity="0.85" />
+          <path d="M37 20 L20 22.4 L22.4 20 L20 17.6 Z" fill="#0d130d" opacity="0.5" />
+          <path d="M3 20 L20 17.6 L17.6 20 L20 22.4 Z" fill="#0d130d" opacity="0.5" />
+          <circle cx="20" cy="20" r="1.6" fill="#0d130d" />
+        </svg>
+        <span>Compass<span class="accent">.</span></span>
+      </a>
+      <span class="topbar__divider" aria-hidden="true">·</span>
+      <span class="topbar__unit">Troop 12</span>
+      <span class="topbar__divider" aria-hidden="true">·</span>
+      <span class="topbar__meta">Anytown, USA &middot; Est. 1962</span>
+    </div>
+    <nav class="topbar__nav" aria-label="Primary">
+      <a href="#about">About</a>
+      <a href="#calendar">Calendar</a>
+      <a href="#photos">Photos</a>
+      <a href="#contact">Contact</a>
+      <a href="#" class="topbar__signin">Sign in &rarr;</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <!-- ==================================================================
+         2. Hero — dark forest band with oversized italic numeric watermark.
+         "12" rendered at 480px italic Newsreader, low opacity, top-right.
+         ================================================================== -->
+    <section class="hero" aria-labelledby="hero-headline">
+      <span class="hero__watermark" aria-hidden="true">12</span>
+      <div class="hero__inner">
+        <div class="hero__kicker">
+          <span class="hero__kicker-dot" aria-hidden="true"></span>
+          Scouts BSA &middot; Cedar Bluff Council
+        </div>
+        <h1 id="hero-headline" class="hero__headline">
+          Scouts BSA<br />
+          <span class="hero__headline-italic">Troop 12.</span>
+        </h1>
+        <p class="hero__body">
+          St. Mark's Community Church &middot; District 4, Cedar Bluff Council. A scout-led troop
+          based in Anytown, camping monthly since 1962, with a High Adventure trek every summer
+          and a service tradition that goes deeper than the patches.
+        </p>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         3. About + sponsor card
+         ================================================================== -->
+    <section id="about" class="about" aria-labelledby="about-title">
+      <div>
+        <div class="section-eyebrow">&sect; About the troop</div>
+        <h2 id="about-title" class="about__title">
+          What we're <em>about.</em>
+        </h2>
+        <p class="about__body">
+          Scouts BSA Troop 12 has been part of Anytown since 1962. We're a Scout-led troop of
+          roughly 32 youth and 18 trained adult leaders. We camp once a month, run a High
+          Adventure trek every summer (rotating Philmont, Sea Base, Boundary Waters, and the
+          Jamboree), and serve our community through projects with local food shelves, the
+          fire department's Fire &amp; Ice festival, and the Lions Club. New scouts and visiting
+          families are always welcome at our Tuesday meetings &mdash; bring questions, leave with
+          a calendar.
+        </p>
+      </div>
+
+      <aside class="sponsor-card" aria-label="Charter, address, and council">
+        <div class="sponsor-card__label">Chartered by</div>
+        <div class="sponsor-card__name">St. Mark's Community Church</div>
+        <dl>
+          <div>
+            <dt>Address</dt>
+            <dd>
+              101 Main Street<br />
+              Anytown, USA 00000
+            </dd>
+          </div>
+          <div>
+            <dt>Council</dt>
+            <dd>Cedar Bluff Council, District 4</dd>
+          </div>
+          <div>
+            <dt>Meets</dt>
+            <dd>Tuesdays 7:00 PM<br />Holy Nativity Hall</dd>
+          </div>
+          <div>
+            <dt>Scoutmaster</dt>
+            <dd>Mr. Avery &middot; Mr. Brooks (ASM) &middot; Ms. Carter (ASM)</dd>
+          </div>
+        </dl>
+      </aside>
+    </section>
+
+    <!-- ==================================================================
+         4. Upcoming events (dark inverted band)
+         5 items, color-coded by event type via secondary spectrum.
+         ================================================================== -->
+    <section id="calendar" class="band-dark" aria-labelledby="events-title">
+      <div class="events">
+        <header class="events__head">
+          <div>
+            <div class="section-eyebrow section-eyebrow--accent">&sect; On the calendar</div>
+            <h2 id="events-title" class="events__title">
+              Upcoming <em>events.</em>
+            </h2>
+          </div>
+          <div class="events__subtitle">Next 30 days</div>
+        </header>
+
+        <ol class="events__list">
+          <li class="event event--sky">
+            <div class="event__date">
+              <div class="event__month">May</div>
+              <div class="event__day">04</div>
+            </div>
+            <div class="event__body">
+              <h3 class="event__name">PLC Meeting &amp; Court of Honor Prep</h3>
+              <p class="event__meta">6:30 PM &middot; Scout Room, Holy Nativity</p>
+            </div>
+            <div class="event__bar" aria-hidden="true"></div>
+          </li>
+
+          <li class="event event--ember">
+            <div class="event__date">
+              <div class="event__month">May</div>
+              <div class="event__day">09</div>
+            </div>
+            <div class="event__body">
+              <h3 class="event__name">Shooting Sports &amp; Climbing Tower</h3>
+              <p class="event__meta">9:00 AM &middot; Phillippo Scout Camp &middot; outdoor</p>
+            </div>
+            <div class="event__bar" aria-hidden="true"></div>
+          </li>
+
+          <li class="event event--raspberry">
+            <div class="event__date">
+              <div class="event__month">May</div>
+              <div class="event__day">11</div>
+            </div>
+            <div class="event__body">
+              <h3 class="event__name">May Court of Honor</h3>
+              <p class="event__meta">7:00 PM &middot; Sanctuary &middot; all families welcome</p>
+            </div>
+            <div class="event__bar" aria-hidden="true"></div>
+          </li>
+
+          <li class="event event--butter">
+            <div class="event__date">
+              <div class="event__month">May</div>
+              <div class="event__day">15</div>
+            </div>
+            <div class="event__body">
+              <h3 class="event__name">Spring Camporee &mdash; Tomahawk</h3>
+              <p class="event__meta">All weekend (May 15&ndash;17) &middot; permission slip + dues</p>
+            </div>
+            <div class="event__bar" aria-hidden="true"></div>
+          </li>
+
+          <li class="event event--plum">
+            <div class="event__date">
+              <div class="event__month">May</div>
+              <div class="event__day">26</div>
+            </div>
+            <div class="event__body">
+              <h3 class="event__name">Committee Meeting</h3>
+              <p class="event__meta">7:00 PM &middot; Holy Nativity &middot; parents welcome</p>
+            </div>
+            <div class="event__bar" aria-hidden="true"></div>
+          </li>
+        </ol>
+
+        <button type="button" class="events__cta">Full calendar &rarr;</button>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         5. Recent news / announcements
+         ================================================================== -->
+    <section class="news" aria-labelledby="news-title">
+      <header class="news__head">
+        <div>
+          <div class="section-eyebrow">&sect; Latest from the troop</div>
+          <h2 id="news-title" class="news__title">
+            News &amp; <em>announcements.</em>
+          </h2>
+        </div>
+        <a href="#" class="events__subtitle" style="color: var(--primary);">All updates &rarr;</a>
+      </header>
+
+      <div class="news__list">
+        <article class="news__item news__item--accent">
+          <div class="news__date">Apr 24 &middot; Eagle</div>
+          <h3 class="news__headline">Two new Eagles this spring</h3>
+          <p class="news__body">
+            Sam and Max earned the rank of Eagle Scout this April. Joint Court of Honor on May 11
+            at 7 PM in the Sanctuary &mdash; all troop families and friends of the troop are
+            invited. Light reception to follow.
+          </p>
+        </article>
+
+        <article class="news__item news__item--sky">
+          <div class="news__date">Apr 22 &middot; High Adventure</div>
+          <h3 class="news__headline">Boundary Waters trek roster posted</h3>
+          <p class="news__body">
+            22 scouts and 8 adult leaders are heading to the BWCA on May 9. Final gear check is
+            Friday May 8 at 7 PM in the Scout Room. Drivers are still needed &mdash; reach out to
+            Ms. Carter if you can help shuttle gear.
+          </p>
+        </article>
+
+        <article class="news__item news__item--raspberry">
+          <div class="news__date">Apr 15 &middot; Welcome</div>
+          <h3 class="news__headline">Welcome to our new Webelos crossovers</h3>
+          <p class="news__body">
+            Eight new scouts crossed over from Pack 577 last weekend &mdash; including Jamie and
+            Alex. Patrol assignments have been posted in the Scout Room and shared with parents
+            via Compass. Tuesday meetings start at 7 PM sharp.
+          </p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         6. Photo gallery — 9 placeholder photos, gradient + SVG metaphor
+         per atoms.jsx Photo component. Each has a colored top-border.
+         ================================================================== -->
+    <section id="photos" class="gallery" aria-labelledby="gallery-title">
+      <header class="gallery__head">
+        <div>
+          <div class="section-eyebrow">&sect; Recent adventures</div>
+          <h2 id="gallery-title" class="gallery__title">
+            Photo <em>gallery.</em>
+          </h2>
+        </div>
+        <a href="#" class="events__subtitle" style="color: var(--primary);">All photos &rarr;</a>
+      </header>
+
+      <div class="gallery__grid">
+        <!-- Each .photo combines a gradient background, an inline SVG metaphor, a label.
+             Decorative — aria-hidden true on the SVG; a visible caption supplies context. -->
+        <figure class="photo photo--forest photo--accent" role="img" aria-label="Pine ridge hike">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 75 L15 45 L25 60 L40 30 L55 55 L70 35 L85 50 L100 40 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+          </svg>
+          <figcaption class="photo__label">Pine ridge</figcaption>
+        </figure>
+
+        <figure class="photo photo--campfire photo--ember" role="img" aria-label="Evening campfire">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M40 70 L50 35 L60 70 Z M30 75 L70 75 L65 85 L35 85 Z" fill="#fff" opacity="0.6" />
+          </svg>
+          <figcaption class="photo__label">Campfire</figcaption>
+        </figure>
+
+        <figure class="photo photo--canoe photo--sky" role="img" aria-label="Boundary Waters canoe trip">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 60 L100 60 L100 100 L0 100 Z M20 55 Q50 40 80 55 L70 65 L30 65 Z" fill="#fff" opacity="0.6" />
+          </svg>
+          <figcaption class="photo__label">Canoe trip</figcaption>
+        </figure>
+
+        <figure class="photo photo--troop photo--butter" role="img" aria-label="Troop group photo">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 70 Q50 55 100 70 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+          </svg>
+          <figcaption class="photo__label">Troop photo</figcaption>
+        </figure>
+
+        <figure class="photo photo--summit photo--teal" role="img" aria-label="Summit day on the ridge">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 80 L20 40 L35 60 L50 25 L70 55 L100 35 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+          </svg>
+          <figcaption class="photo__label">Summit day</figcaption>
+        </figure>
+
+        <figure class="photo photo--service photo--plum" role="img" aria-label="Service day at the food shelf">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 70 Q50 55 100 70 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+          </svg>
+          <figcaption class="photo__label">Service day</figcaption>
+        </figure>
+
+        <figure class="photo photo--climbing photo--raspberry" role="img" aria-label="Rock climbing tower">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 80 L20 40 L35 60 L50 25 L70 55 L100 35 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+          </svg>
+          <figcaption class="photo__label">Rock climbing</figcaption>
+        </figure>
+
+        <figure class="photo photo--eagle photo--accent" role="img" aria-label="Eagle Court of Honor">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 70 Q50 55 100 70 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+          </svg>
+          <figcaption class="photo__label">Eagle CoH</figcaption>
+        </figure>
+
+        <figure class="photo photo--firstaid photo--ember" role="img" aria-label="First aid practice session">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M0 70 Q50 55 100 70 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+          </svg>
+          <figcaption class="photo__label">First aid</figcaption>
+        </figure>
+      </div>
+    </section>
+  </main>
+
+  <!-- ====================================================================
+       7. Footer
+       ==================================================================== -->
+  <footer id="contact" class="footer" role="contentinfo">
+    <div class="footer__inner">
+      <div class="footer__top">
+        <div class="footer__brand" aria-label="Compass wordmark">
+          <svg width="32" height="32" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+            <circle cx="20" cy="20" r="18.5" fill="none" stroke="#fff" stroke-width="1.25" />
+            <circle cx="20" cy="20" r="11" fill="none" stroke="#fff" stroke-width="0.75" opacity="0.4" />
+            <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#c8e94a" />
+            <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="#fff" opacity="0.85" />
+            <path d="M37 20 L20 22.4 L22.4 20 L20 17.6 Z" fill="#fff" opacity="0.5" />
+            <path d="M3 20 L20 17.6 L17.6 20 L20 22.4 Z" fill="#fff" opacity="0.5" />
+            <circle cx="20" cy="20" r="1.6" fill="#fff" />
+          </svg>
+          <span>Compass<span class="accent">.</span></span>
+        </div>
+        <nav aria-label="Footer">
+          <ul style="list-style:none; margin:0; padding:0; display:flex; gap:24px; flex-wrap:wrap; font-size:13px; color:rgba(255,255,255,0.78);">
+            <li><a href="#about">About</a></li>
+            <li><a href="#calendar">Calendar</a></li>
+            <li><a href="#photos">Photos</a></li>
+            <li><a href="mailto:webmaster@example.com">Webmaster</a></li>
+            <li><a href="#">Privacy</a></li>
+          </ul>
+        </nav>
+      </div>
+      <div class="footer__copy">
+        <span>&copy; 2026 Scouts BSA Troop 12 &middot; Anytown, USA &middot; Hosted with Compass.</span>
+        <span class="footer__disclaimer">Independent &middot; Not affiliated with Scouting America or BSA.</span>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
