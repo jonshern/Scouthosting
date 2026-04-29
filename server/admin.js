@@ -1166,6 +1166,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rsvps">RSVPs</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/slots">Sign-up sheet</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/plan">Trip plan</a>
+        <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rides">Carpool</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/report">Report</a>
         ${
           e.category === "Court of Honor"
@@ -5048,6 +5049,214 @@ adminRouter.get("/events/:id/report", requireLeader, async (req, res) => {
   `;
   res.type("html").send(layout({ title: `Report · ${ev.title}`, org: req.org, user: req.user, body }));
 });
+
+/* ------------------------------------------------------------------ */
+/* Carpool plan (per-event rides + riders)                             */
+/* ------------------------------------------------------------------ */
+
+adminRouter.get("/events/:id/rides", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const [rides, members] = await Promise.all([
+    prisma.carRide.findMany({
+      where: { eventId: ev.id },
+      orderBy: [{ departureTime: "asc" }, { createdAt: "asc" }],
+      include: { riders: { orderBy: { createdAt: "asc" } } },
+    }),
+    prisma.member.findMany({
+      where: { orgId: req.org.id },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: { id: true, firstName: true, lastName: true, isYouth: true },
+    }),
+  ]);
+
+  const memberOpts = members
+    .map(
+      (m) =>
+        `<option value="${escape(m.id)}">${escape(m.firstName)} ${escape(m.lastName)}${
+          m.isYouth ? "" : " (adult)"
+        }</option>`,
+    )
+    .join("");
+
+  const fmtDt = (d) =>
+    d ? new Date(d).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "";
+
+  const renderRide = (r) => {
+    const filled = r.riders.length;
+    const remaining = Math.max(0, r.seats - filled);
+    const overFilled = filled > r.seats;
+    const ridersList = r.riders
+      .map(
+        (rd) => `
+        <li class="row" style="align-items:center;gap:.5rem">
+          <div style="flex:1">
+            <strong>${escape(rd.name)}</strong>${rd.isYouth ? "" : ` <span class="tag">adult</span>`}
+            ${rd.notes ? `<div class="muted small">${escape(rd.notes)}</div>` : ""}
+          </div>
+          <form class="inline" method="post" action="/admin/events/${escape(ev.id)}/rides/${escape(r.id)}/riders/${escape(rd.id)}/delete">
+            <button class="btn btn-danger small" type="submit">×</button>
+          </form>
+        </li>`,
+      )
+      .join("");
+
+    return `
+      <article class="card" style="margin-bottom:1rem">
+        <div class="row" style="align-items:flex-start">
+          <div style="flex:1">
+            <h3 style="margin:0 0 .15rem">${escape(r.driverName)}${
+              r.vehicleNote ? ` <span class="muted small">— ${escape(r.vehicleNote)}</span>` : ""
+            }</h3>
+            <p class="muted small" style="margin:0">
+              ${filled} / ${r.seats} seat${r.seats === 1 ? "" : "s"}${overFilled ? ` <span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">over capacity</span>` : remaining === 0 ? ` <span class="tag">full</span>` : ""}
+              ${r.departureTime ? ` · departs ${escape(fmtDt(r.departureTime))}` : ""}
+              ${r.departureLocation ? ` from ${escape(r.departureLocation)}` : ""}
+              ${r.driverPhone ? ` · ${escape(r.driverPhone)}` : ""}
+              ${r.driverEmail ? ` · <a href="mailto:${escape(r.driverEmail)}">${escape(r.driverEmail)}</a>` : ""}
+            </p>
+            ${r.notes ? `<p class="muted small" style="margin:.25rem 0 0">${escape(r.notes)}</p>` : ""}
+          </div>
+          <form class="inline" method="post" action="/admin/events/${escape(ev.id)}/rides/${escape(r.id)}/delete" onsubmit="return confirm('Delete this ride?')">
+            <button class="btn btn-danger small" type="submit">Delete ride</button>
+          </form>
+        </div>
+
+        ${ridersList ? `<ul class="items" style="margin-top:.5rem">${ridersList}</ul>` : `<p class="muted small" style="margin:.5rem 0 0">No riders assigned yet.</p>`}
+
+        <form method="post" action="/admin/events/${escape(ev.id)}/rides/${escape(r.id)}/riders" class="row" style="margin-top:.5rem;gap:.4rem;flex-wrap:wrap">
+          <select name="memberId" style="flex:1;min-width:160px">
+            <option value="">— pick a rider —</option>
+            ${memberOpts}
+          </select>
+          <input name="name" type="text" maxlength="80" placeholder="…or free-form name" style="flex:1;min-width:140px">
+          <input name="notes" type="text" maxlength="120" placeholder="Notes (optional)" style="flex:1;min-width:140px">
+          <button class="btn btn-primary small" type="submit">Add rider</button>
+        </form>
+      </article>`;
+  };
+
+  const body = `
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <h1>Carpool plan · ${escape(ev.title)}</h1>
+    <p class="muted">Build the ride list for this event. Each ride is a driver + vehicle + seats; assign riders from the roster (or free-form names for guests).</p>
+
+    <h2 style="margin-top:1.25rem">Add a ride</h2>
+    <form class="card" method="post" action="/admin/events/${escape(ev.id)}/rides">
+      <div class="row">
+        <label style="margin:0;flex:1">Driver name<input name="driverName" type="text" required maxlength="80"></label>
+        <label style="margin:0;flex:1">Vehicle note<input name="vehicleNote" type="text" maxlength="80" placeholder="Honda Pilot · silver"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Driver email<input name="driverEmail" type="email" maxlength="120"></label>
+        <label style="margin:0;flex:1">Driver phone<input name="driverPhone" type="tel" maxlength="40"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Seats (excluding driver)<input name="seats" type="number" min="1" max="20" value="4" required></label>
+        <label style="margin:0;flex:1">Departs at<input name="departureTime" type="datetime-local"></label>
+        <label style="margin:0;flex:1">Returns at<input name="returnTime" type="datetime-local"></label>
+      </div>
+      <label>Departure location<input name="departureLocation" type="text" maxlength="120" placeholder="Holy Nativity parking lot"></label>
+      <label>Notes<textarea name="notes" rows="2" maxlength="200"></textarea></label>
+      <button class="btn btn-primary" type="submit">Create ride</button>
+    </form>
+
+    <h2 style="margin-top:1.5rem">Rides ${rides.length ? `<span class="muted" style="font-weight:400">(${rides.length})</span>` : ""}</h2>
+    ${rides.length ? rides.map(renderRide).join("") : `<div class="empty">No rides yet. Add one above.</div>`}
+  `;
+  res.type("html").send(layout({ title: `Carpool · ${ev.title}`, org: req.org, user: req.user, body }));
+});
+
+function rideDataFromBody(body) {
+  const seats = parseInt(body?.seats, 10);
+  const dep = body?.departureTime ? new Date(body.departureTime) : null;
+  const ret = body?.returnTime ? new Date(body.returnTime) : null;
+  return {
+    driverName: (body?.driverName || "").trim() || "Driver",
+    driverEmail: (body?.driverEmail || "").trim().toLowerCase() || null,
+    driverPhone: (body?.driverPhone || "").trim() || null,
+    vehicleNote: (body?.vehicleNote || "").trim() || null,
+    seats: Number.isFinite(seats) && seats >= 1 ? Math.min(20, seats) : 4,
+    departureTime: dep && !isNaN(dep) ? dep : null,
+    returnTime: ret && !isNaN(ret) ? ret : null,
+    departureLocation: (body?.departureLocation || "").trim() || null,
+    notes: (body?.notes || "").trim() || null,
+  };
+}
+
+adminRouter.post("/events/:id/rides", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!ev) return res.status(404).send("Not found");
+  await prisma.carRide.create({
+    data: { orgId: req.org.id, eventId: ev.id, ...rideDataFromBody(req.body) },
+  });
+  res.redirect(`/admin/events/${ev.id}/rides`);
+});
+
+adminRouter.post("/events/:id/rides/:rideId/delete", requireLeader, async (req, res) => {
+  await prisma.carRide.deleteMany({
+    where: { id: req.params.rideId, orgId: req.org.id, eventId: req.params.id },
+  });
+  res.redirect(`/admin/events/${req.params.id}/rides`);
+});
+
+adminRouter.post("/events/:id/rides/:rideId/riders", requireLeader, async (req, res) => {
+  const ride = await prisma.carRide.findFirst({
+    where: { id: req.params.rideId, orgId: req.org.id, eventId: req.params.id },
+    select: { id: true },
+  });
+  if (!ride) return res.status(404).send("Not found");
+
+  let memberId = (req.body?.memberId || "").trim() || null;
+  let name = (req.body?.name || "").trim() || null;
+  let isYouth = true;
+  if (memberId) {
+    const m = await prisma.member.findFirst({
+      where: { id: memberId, orgId: req.org.id },
+      select: { firstName: true, lastName: true, isYouth: true },
+    });
+    if (m) {
+      name = `${m.firstName} ${m.lastName}`;
+      isYouth = m.isYouth;
+    } else {
+      memberId = null;
+    }
+  }
+  if (!name) return res.redirect(`/admin/events/${req.params.id}/rides`);
+
+  await prisma.carRideRider.create({
+    data: {
+      orgId: req.org.id,
+      rideId: ride.id,
+      memberId,
+      name,
+      isYouth,
+      notes: (req.body?.notes || "").trim() || null,
+    },
+  });
+  res.redirect(`/admin/events/${req.params.id}/rides`);
+});
+
+adminRouter.post(
+  "/events/:id/rides/:rideId/riders/:riderId/delete",
+  requireLeader,
+  async (req, res) => {
+    await prisma.carRideRider.deleteMany({
+      where: {
+        id: req.params.riderId,
+        orgId: req.org.id,
+        rideId: req.params.rideId,
+      },
+    });
+    res.redirect(`/admin/events/${req.params.id}/rides`);
+  },
+);
 
 /* ------------------------------------------------------------------ */
 /* Surveys                                                             */
