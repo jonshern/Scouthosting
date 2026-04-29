@@ -241,15 +241,19 @@ model Event {
 // (or N people): drivers, food items to bring, gear to provide. Unlike
 // RSVPs (one-per-person, yes/no/maybe), slots are tied to specific tasks.
 model SignupSlot {
-  id          String   @id @default(cuid())
-  orgId       String
-  eventId     String
-  title       String          // "Bring drinks for 30", "Drive 2 scouts"
-  description String?
-  capacity    Int      @default(1)
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id             String   @id @default(cuid())
+  orgId          String
+  eventId        String
+  title          String          // "Bring drinks for 30", "Drive 2 scouts"
+  description    String?
+  capacity       Int      @default(1)
+  // When a slot fills, additional sign-ups join a waitlist (ordered by
+  // createdAt). The oldest waitlister auto-promotes when an active
+  // assignment is released. Leaders can disable per-slot.
+  allowWaitlist  Boolean  @default(true)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   org         Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
   event       Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -259,14 +263,18 @@ model SignupSlot {
 }
 
 model SlotAssignment {
-  id        String   @id @default(cuid())
-  orgId     String
-  slotId    String
-  userId    String?  // signed-in user (preferred path)
-  name      String
-  email     String?
-  notes     String?
-  createdAt DateTime @default(now())
+  id         String   @id @default(cuid())
+  orgId      String
+  slotId     String
+  userId     String?  // signed-in user (preferred path)
+  name       String
+  email      String?
+  notes      String?
+  // True while the assignment is queued behind a full slot. When an
+  // active assignment is released, the oldest waitlisted row is
+  // promoted in the same transaction.
+  waitlisted Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   org  Org        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   slot SignupSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)

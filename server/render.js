@@ -249,37 +249,55 @@ function renderSlotsBlock({ event, slots, user, flash }) {
 
   const items = slots
     .map((s) => {
-      const filled = s.assignments.length;
+      const active = s.assignments.filter((a) => !a.waitlisted);
+      const waiting = s.assignments.filter((a) => a.waitlisted);
+      const filled = active.length;
       const remaining = Math.max(0, s.capacity - filled);
       const mine = s.assignments.find(myMatch) || null;
-      const namesHtml = s.assignments.length
-        ? `<p class="muted small">Signed up: ${s.assignments.map((a) => escapeHtml(a.name)).join(", ")}</p>`
+      const myWaitPos = mine && mine.waitlisted
+        ? waiting.findIndex((a) => a.id === mine.id) + 1
+        : 0;
+
+      const activeLine = active.length
+        ? `<p class="muted small">Signed up: ${active.map((a) => escapeHtml(a.name)).join(", ")}</p>`
         : `<p class="muted small">No takers yet.</p>`;
+      const waitLine = waiting.length
+        ? `<p class="muted small">Waitlist: ${waiting.map((a) => escapeHtml(a.name)).join(", ")}</p>`
+        : "";
 
       let actionHtml;
       if (mine) {
+        const status = mine.waitlisted
+          ? `On waitlist${myWaitPos ? ` · #${myWaitPos}` : ""}`
+          : "You're signed up";
         actionHtml = `
           <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/release" class="slot-action">
             ${user ? "" : `<input type="hidden" name="email" value="${escapeHtml(mine.email || "")}">`}
             <button class="btn ghost" type="submit">Remove me</button>
-            <span class="muted small">You're signed up</span>
+            <span class="muted small">${escapeHtml(status)}</span>
           </form>`;
-      } else if (remaining === 0) {
+      } else if (remaining === 0 && !s.allowWaitlist) {
         actionHtml = `<p class="muted small"><strong>Filled.</strong> Thanks to those who signed up.</p>`;
-      } else if (user) {
-        actionHtml = `
-          <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/take" class="slot-action">
-            <button class="btn primary" type="submit">I'll do it</button>
-            <span class="muted small">${remaining} spot${remaining === 1 ? "" : "s"} left</span>
-          </form>`;
       } else {
-        actionHtml = `
-          <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/take" class="slot-action slot-anon">
-            <input name="name" type="text" required maxlength="80" placeholder="Your name" autocomplete="name">
-            <input name="email" type="email" required maxlength="120" placeholder="you@example.com" autocomplete="email">
-            <button class="btn primary" type="submit">I'll do it</button>
-            <span class="muted small">${remaining} spot${remaining === 1 ? "" : "s"} left</span>
-          </form>`;
+        const ctaLabel = remaining === 0 ? "Join waitlist" : "I'll do it";
+        const counter = remaining === 0
+          ? `Full · ${waiting.length} on waitlist`
+          : `${remaining} spot${remaining === 1 ? "" : "s"} left`;
+        if (user) {
+          actionHtml = `
+            <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/take" class="slot-action">
+              <button class="btn primary" type="submit">${escapeHtml(ctaLabel)}</button>
+              <span class="muted small">${escapeHtml(counter)}</span>
+            </form>`;
+        } else {
+          actionHtml = `
+            <form method="post" action="/events/${escapeHtml(event.id)}/slots/${escapeHtml(s.id)}/take" class="slot-action slot-anon">
+              <input name="name" type="text" required maxlength="80" placeholder="Your name" autocomplete="name">
+              <input name="email" type="email" required maxlength="120" placeholder="you@example.com" autocomplete="email">
+              <button class="btn primary" type="submit">${escapeHtml(ctaLabel)}</button>
+              <span class="muted small">${escapeHtml(counter)}</span>
+            </form>`;
+        }
       }
 
       return `
@@ -287,9 +305,10 @@ function renderSlotsBlock({ event, slots, user, flash }) {
         <div class="slot-head">
           <h3>${escapeHtml(s.title)}${
             s.capacity > 1 ? ` <span class="tag">${filled}/${s.capacity}</span>` : ""
-          }</h3>
+          }${waiting.length ? ` <span class="tag">+${waiting.length} waiting</span>` : ""}</h3>
           ${s.description ? `<p>${escapeHtml(s.description)}</p>` : ""}
-          ${namesHtml}
+          ${activeLine}
+          ${waitLine}
         </div>
         ${actionHtml}
       </li>`;

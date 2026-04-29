@@ -1328,19 +1328,27 @@ adminRouter.get("/events/:id/slots", requireLeader, async (req, res) => {
     include: { assignments: { orderBy: { createdAt: "asc" } } },
   });
 
-  const renderSlot = (s) => `
+  const renderSlot = (s) => {
+    const active = s.assignments.filter((a) => !a.waitlisted);
+    const waiting = s.assignments.filter((a) => a.waitlisted);
+    return `
     <li>
       <div style="flex:1">
         <h3>${escape(s.title)}${
-          s.capacity > 1 ? ` <span class="tag">${s.assignments.length} of ${s.capacity}</span>` : ""
-        }${s.capacity === 1 && s.assignments.length === 1 ? ` <span class="tag">filled</span>` : ""}</h3>
+          s.capacity > 1 ? ` <span class="tag">${active.length} of ${s.capacity}</span>` : ""
+        }${s.capacity === 1 && active.length === 1 ? ` <span class="tag">filled</span>` : ""}${
+          waiting.length ? ` <span class="tag">+${waiting.length} waiting</span>` : ""
+        }${!s.allowWaitlist ? ` <span class="tag">no waitlist</span>` : ""}</h3>
         ${s.description ? `<p class="muted small">${escape(s.description)}</p>` : ""}
         ${
-          s.assignments.length
-            ? `<p class="muted small">${s.assignments
-                .map((a) => escape(a.name))
-                .join(", ")}</p>`
+          active.length
+            ? `<p class="muted small">Signed up: ${active.map((a) => escape(a.name)).join(", ")}</p>`
             : `<p class="muted small">No takers yet.</p>`
+        }
+        ${
+          waiting.length
+            ? `<p class="muted small">Waitlist: ${waiting.map((a) => escape(a.name)).join(", ")}</p>`
+            : ""
         }
       </div>
       <div class="row">
@@ -1350,6 +1358,7 @@ adminRouter.get("/events/:id/slots", requireLeader, async (req, res) => {
         </form>
       </div>
     </li>`;
+  };
 
   const templateOpts = Object.entries(SLOT_TEMPLATES)
     .map(([key, t]) => `<option value="${escape(key)}">${escape(t.label)} — ${escape(t.description)}</option>`)
@@ -1383,6 +1392,10 @@ adminRouter.get("/events/:id/slots", requireLeader, async (req, res) => {
           <input name="capacity" type="number" required min="1" max="50" value="1">
         </label>
       </div>
+      <label class="row" style="align-items:center;gap:.5rem;margin-top:.5rem">
+        <input type="checkbox" name="allowWaitlist" value="1" checked>
+        <span>Allow waitlist when full (auto-promotes the next person when a spot opens)</span>
+      </label>
       <button class="btn btn-primary" type="submit">Add slot</button>
     </form>
 
@@ -1411,6 +1424,7 @@ adminRouter.post("/events/:id/slots", requireLeader, async (req, res) => {
       title: req.body?.title?.trim() || "Untitled",
       description: req.body?.description?.trim() || null,
       capacity: Math.max(1, Math.min(50, parseInt(req.body?.capacity, 10) || 1)),
+      allowWaitlist: req.body?.allowWaitlist != null,
       sortOrder: (last?.sortOrder ?? 0) + 1,
     },
   });
@@ -1458,6 +1472,10 @@ adminRouter.get("/events/:id/slots/:slotId/edit", requireLeader, async (req, res
       <label>Title<input name="title" type="text" required maxlength="120" value="${v("title")}"></label>
       <label>Description<textarea name="description" rows="2" maxlength="500">${v("description")}</textarea></label>
       <label>How many people needed<input name="capacity" type="number" required min="1" max="50" value="${v("capacity")}"></label>
+      <label class="row" style="align-items:center;gap:.5rem;margin-top:.25rem">
+        <input type="checkbox" name="allowWaitlist" value="1"${slot.allowWaitlist ? " checked" : ""}>
+        <span>Allow waitlist when full</span>
+      </label>
       <div class="row">
         <button class="btn btn-primary" type="submit">Save</button>
         <a class="btn btn-ghost" href="/admin/events/${escape(req.params.id)}/slots">Cancel</a>
@@ -1479,6 +1497,7 @@ adminRouter.post("/events/:id/slots/:slotId", requireLeader, async (req, res) =>
       title: req.body?.title?.trim() || "Untitled",
       description: req.body?.description?.trim() || null,
       capacity: Math.max(1, Math.min(50, parseInt(req.body?.capacity, 10) || 1)),
+      allowWaitlist: req.body?.allowWaitlist != null,
     },
   });
   res.redirect(`/admin/events/${req.params.id}/slots`);
