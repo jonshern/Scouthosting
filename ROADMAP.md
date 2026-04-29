@@ -452,7 +452,12 @@ and operations hub. Scoutbook is the advancement source of truth.
 - [ ] Scout account ledger (credits, debits, fundraising)
 - [ ] Dues schedules + automatic invoicing
 - [ ] Event payments via Stripe
-- [ ] Treasurer reports (P&L per event, per-Scout balances)
+- [x] **Treasurer report (per-event P&L)** — `/admin/treasurer` lists
+      every event with income (cost × yes-RSVPs), expenses (sum of
+      paid reimbursements assigned to that event), and the net.
+      Unattributed paid reimbursements appear as a single
+      "unattributed expenses" row. Per-Scout balances still wait on
+      the Scout-account ledger.
 - [x] **Reimbursement requests** — `Reimbursement` model with status
       lifecycle (pending → approved → paid, or → denied). Members
       submit at `/reimburse` with optional receipt upload (image/PDF,
