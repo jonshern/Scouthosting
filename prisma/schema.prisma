@@ -106,6 +106,7 @@ model Org {
   reimbursements Reimbursement[]
   oaElections    OaElection[]
   oaCandidates   OaCandidate[]
+  videos         Video[]
 
   @@index([plan])
 }
@@ -1058,4 +1059,26 @@ model OaCandidate {
   member   Member?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
 
   @@index([orgId, electionId])
+}
+
+// Video gallery — link-based, not hosted. URL points at YouTube or
+// Vimeo; the renderer derives the embed URL from the link. Hosting
+// video ourselves is a heavier feature tracked separately in the
+// roadmap.
+model Video {
+  id             String   @id @default(cuid())
+  orgId          String
+  title          String
+  url            String
+  thumbnailUrl   String?
+  recordedAt     DateTime?
+  notes          String?
+  visibility     String   @default("members")  // public | members
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, sortOrder])
 }

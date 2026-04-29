@@ -40,6 +40,7 @@ import {
   renderCohProgram,
   renderMbcList,
   renderReimburseForm,
+  renderVideoGallery,
 } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
@@ -1115,6 +1116,23 @@ app.get("/mbc", async (req, res, next) => {
   res
     .set("Content-Type", "text/html; charset=utf-8")
     .send(renderMbcList(req.org, list));
+});
+
+// Public + members-only video gallery. Public videos render to anyone;
+// members-only videos require login + an org membership.
+app.get("/videos", async (req, res, next) => {
+  if (!req.org) return next();
+  const role = req.user ? await roleInOrg(req.user.id, req.org.id) : null;
+  const isMember = !!role;
+  const where = { orgId: req.org.id };
+  if (!isMember) where.visibility = "public";
+  const list = await prisma.video.findMany({
+    where,
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+  });
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderVideoGallery(req.org, list, { isMember }));
 });
 
 // Reimbursement request form — member submits, treasurer reviews in

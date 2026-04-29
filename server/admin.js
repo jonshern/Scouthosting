@@ -194,6 +194,7 @@ form.inline{display:inline}
     <a href="/admin/announcements">Announcements</a>
     <a href="/admin/events">Calendar</a>
     <a href="/admin/albums">Photos &amp; albums</a>
+    <a href="/admin/videos">Videos</a>
     <a href="/admin/forms">Forms &amp; documents</a>
     <a href="/admin/members">Members</a>
     <a href="/admin/positions">Position roster</a>
@@ -3170,6 +3171,163 @@ adminRouter.post("/subgroups/:id", requireLeader, async (req, res) => {
 adminRouter.post("/subgroups/:id/delete", requireLeader, async (req, res) => {
   await prisma.subgroup.deleteMany({ where: { id: req.params.id, orgId: req.org.id } });
   res.redirect("/admin/subgroups");
+});
+
+/* ------------------------------------------------------------------ */
+/* Video gallery (link-based)                                          */
+/* ------------------------------------------------------------------ */
+
+const VIDEO_VISIBILITY = ["public", "members"];
+
+adminRouter.get("/videos", requireLeader, async (req, res) => {
+  const list = await prisma.video.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "desc" }],
+  });
+
+  const items = list
+    .map(
+      (v) => `
+      <li>
+        <div style="flex:1">
+          <h3 style="margin:0">${escape(v.title)} <span class="tag">${escape(v.visibility)}</span></h3>
+          <p class="muted small" style="margin:.1rem 0 0">
+            <a href="${escape(v.url)}" target="_blank" rel="noopener">${escape(v.url)}</a>
+            ${v.recordedAt ? ` · ${escape(new Date(v.recordedAt).toISOString().slice(0, 10))}` : ""}
+          </p>
+          ${v.notes ? `<p class="muted small">${escape(v.notes)}</p>` : ""}
+        </div>
+        <div class="row">
+          <a class="btn btn-ghost small" href="/admin/videos/${escape(v.id)}/edit">Edit</a>
+          <form class="inline" method="post" action="/admin/videos/${escape(v.id)}/delete" onsubmit="return confirm('Delete this video?')">
+            <button class="btn btn-danger small" type="submit">Delete</button>
+          </form>
+        </div>
+      </li>`,
+    )
+    .join("");
+
+  const body = `
+    <h1>Videos</h1>
+    <p class="muted">Link-based gallery — paste a YouTube or Vimeo URL and it embeds. Members see videos at <code>/videos</code>; public ones also surface there to anonymous visitors.</p>
+
+    <form class="card" method="post" action="/admin/videos">
+      <h2 style="margin-top:0">Add a video</h2>
+      <label>Title<input name="title" type="text" required maxlength="120" placeholder="e.g. Camporee 2026 highlights"></label>
+      <label>YouTube or Vimeo URL<input name="url" type="url" required maxlength="500"></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Recorded<input name="recordedAt" type="date"></label>
+        <label style="margin:0;flex:1">Visibility
+          <select name="visibility">
+            <option value="members">Members only</option>
+            <option value="public">Public</option>
+          </select>
+        </label>
+      </div>
+      <label>Notes<textarea name="notes" rows="2" maxlength="500"></textarea></label>
+      <button class="btn btn-primary" type="submit">Add video</button>
+    </form>
+
+    <h2 style="margin-top:1.5rem">Videos</h2>
+    ${list.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No videos yet. Add one above.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Videos", org: req.org, user: req.user, body }));
+});
+
+function videoFromBody(body) {
+  const recordedAt = parseDate(body?.recordedAt);
+  const visibility = VIDEO_VISIBILITY.includes(body?.visibility) ? body.visibility : "members";
+  return {
+    title: (body?.title || "").trim().slice(0, 120) || "Untitled",
+    url: (body?.url || "").trim().slice(0, 500),
+    recordedAt: recordedAt || null,
+    visibility,
+    notes: (body?.notes || "").trim() || null,
+  };
+}
+
+adminRouter.post("/videos", requireLeader, async (req, res) => {
+  const data = videoFromBody(req.body);
+  if (!data.url) return res.redirect("/admin/videos");
+  const created = await prisma.video.create({
+    data: { orgId: req.org.id, ...data },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Video",
+    entityId: created.id,
+    action: "create",
+    summary: `Added "${created.title}"`,
+  });
+  res.redirect("/admin/videos");
+});
+
+adminRouter.get("/videos/:id/edit", requireLeader, async (req, res) => {
+  const v = await prisma.video.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!v) return res.status(404).send("Not found");
+  const get = (k) => escape(v[k] ?? "");
+  const sel = (cond) => (cond ? " selected" : "");
+  const recordedVal = v.recordedAt ? new Date(v.recordedAt).toISOString().slice(0, 10) : "";
+  const body = `
+    <a class="back" href="/admin/videos" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Videos</a>
+    <h1>Edit video</h1>
+    <form class="card" method="post" action="/admin/videos/${escape(v.id)}">
+      <label>Title<input name="title" type="text" required maxlength="120" value="${get("title")}"></label>
+      <label>URL<input name="url" type="url" required maxlength="500" value="${get("url")}"></label>
+      <div class="row">
+        <label style="margin:0;flex:1">Recorded<input name="recordedAt" type="date" value="${escape(recordedVal)}"></label>
+        <label style="margin:0;flex:1">Visibility
+          <select name="visibility">
+            <option value="members"${sel(v.visibility === "members")}>Members only</option>
+            <option value="public"${sel(v.visibility === "public")}>Public</option>
+          </select>
+        </label>
+      </div>
+      <label>Notes<textarea name="notes" rows="2" maxlength="500">${get("notes")}</textarea></label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/admin/videos">Cancel</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout({ title: "Edit video", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/videos/:id", requireLeader, async (req, res) => {
+  const v = await prisma.video.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!v) return res.status(404).send("Not found");
+  const data = videoFromBody(req.body);
+  await prisma.video.update({ where: { id: v.id }, data });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Video",
+    entityId: v.id,
+    action: "update",
+    summary: `Edited "${data.title}"`,
+  });
+  res.redirect("/admin/videos");
+});
+
+adminRouter.post("/videos/:id/delete", requireLeader, async (req, res) => {
+  await prisma.video.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Video",
+    entityId: req.params.id,
+    action: "delete",
+    summary: "Deleted video",
+  });
+  res.redirect("/admin/videos");
 });
 
 // Per-org data export. Returns a single JSON document with every
