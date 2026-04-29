@@ -1657,6 +1657,20 @@ app.get("/uploads/:filename", async (req, res) => {
   const { filename } = req.params;
   if (!/^[a-z0-9._-]+$/i.test(filename)) return res.status(400).send("Bad request");
 
+  // Org logo — public, no auth needed.
+  if (req.org.logoFilename === filename) {
+    const ext = filename.split(".").pop()?.toLowerCase();
+    const mime =
+      ext === "png" ? "image/png"
+      : ext === "jpg" || ext === "jpeg" ? "image/jpeg"
+      : ext === "svg" ? "image/svg+xml"
+      : ext === "webp" ? "image/webp"
+      : "application/octet-stream";
+    res.set("Content-Type", mime);
+    res.set("Cache-Control", "public, max-age=3600");
+    return storage.readStream(req.org.id, filename).pipe(res);
+  }
+
   // Photos first.
   const photo = await prisma.photo.findFirst({
     where: { orgId: req.org.id, filename },

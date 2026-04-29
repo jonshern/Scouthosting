@@ -79,7 +79,10 @@ The core architecture: one server, many troop sites, isolated by subdomain.
 - [x] Marketing site served on the apex / `www` host
 - [x] Demo org pre-seeded for `troop100.localhost`
 - [x] Reserved-subdomain list (no `www`, `admin`, `api`, etc.)
-- [ ] Per-org theme (logo, color) injected into template
+- [x] **Per-org theme** (logo + color) — color pickers and logo upload
+      live on `/admin/content`. Logo replaces the unit-number brand
+      mark in the public site header. PNG / JPG / SVG / WebP. Old logo
+      is removed from storage on upload of a new one. Audit-logged.
 
 ## Phase 2 — Database (DONE in this commit)
 

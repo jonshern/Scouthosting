@@ -441,7 +441,7 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
     </form>
 
     <h2 style="margin-top:1.5rem">Theme</h2>
-    <p class="muted small">Pick the colors that show up on your unit's public site, the admin sidebar, and event date badges.</p>
+    <p class="muted small">Pick the colors and logo that show up on your unit's public site, the admin sidebar, and event date badges.</p>
     <form class="card" method="post" action="/admin/theme">
       <div class="row">
         <label style="margin:0;flex:1">Primary color
@@ -462,9 +462,33 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
         <a class="btn btn-ghost" style="margin-left:auto" href="/admin/theme/reset" onclick="return confirm('Reset to the default Scouthosting green + gold?')">Reset to defaults</a>
       </div>
     </form>
+
+    <h3 style="margin-top:1.25rem">Logo</h3>
+    <p class="muted small">Square or wide images both work. Replaces the unit-number badge in the public site header. PNG / JPG / SVG / WebP.</p>
+    <div class="card">
+      ${
+        req.org.logoFilename
+          ? `<div class="logo-preview"><img src="/uploads/${escape(req.org.logoFilename)}" alt="Current logo"></div>`
+          : `<p class="muted small">No logo uploaded yet — using the unit-number badge.</p>`
+      }
+      <form method="post" action="/admin/theme/logo" enctype="multipart/form-data">
+        <label>Replace logo<input name="logo" type="file" accept="image/*" required></label>
+        <button class="btn btn-primary" type="submit">Upload</button>
+      </form>
+      ${
+        req.org.logoFilename
+          ? `<form method="post" action="/admin/theme/logo/clear" onsubmit="return confirm('Remove the current logo?')" style="margin-top:.5rem">
+               <button class="btn btn-ghost" type="submit">Remove logo</button>
+             </form>`
+          : ""
+      }
+    </div>
+
     <style>
       .theme-preview{display:flex;gap:.6rem;margin:.6rem 0}
       .theme-chip{display:inline-block;padding:.3rem .8rem;border-radius:6px;color:#fff;font-size:.85rem;font-weight:600}
+      .logo-preview{margin-bottom:.75rem}
+      .logo-preview img{max-height:80px;max-width:240px;border:1px solid #eef0e7;border-radius:8px;background:#fff;padding:.5rem}
     </style>
   `;
   res.type("html").send(layout({ title: "Page content", org: req.org, user: req.user, body }));
@@ -523,6 +547,64 @@ adminRouter.get("/theme/reset", requireLeader, async (req, res) => {
   await prisma.org.update({
     where: { id: req.org.id },
     data: { primaryColor: "#1d6b39", accentColor: "#caa54a" },
+  });
+  res.redirect("/admin/content");
+});
+
+adminRouter.post(
+  "/theme/logo",
+  requireLeader,
+  upload.single("logo"),
+  async (req, res) => {
+    if (!req.file) return res.redirect("/admin/content");
+    const ext = (req.file.originalname.match(/\.([a-z0-9]+)$/i)?.[1] || "png").toLowerCase();
+    const filename = `logo-${crypto.randomBytes(8).toString("hex")}.${ext}`;
+    await moveFromTemp(req.org.id, filename, req.file.path);
+
+    // Clean up the previous logo file (best-effort).
+    if (req.org.logoFilename) {
+      try {
+        await removeFile(req.org.id, req.org.logoFilename);
+      } catch (_) {
+        // ignore — old file may already be gone
+      }
+    }
+
+    await prisma.org.update({
+      where: { id: req.org.id },
+      data: { logoFilename: filename },
+    });
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "Org",
+      entityId: req.org.id,
+      action: "update",
+      summary: "Uploaded new logo",
+    });
+    res.redirect("/admin/content");
+  },
+);
+
+adminRouter.post("/theme/logo/clear", requireLeader, async (req, res) => {
+  if (req.org.logoFilename) {
+    try {
+      await removeFile(req.org.id, req.org.logoFilename);
+    } catch (_) {
+      // best-effort
+    }
+  }
+  await prisma.org.update({
+    where: { id: req.org.id },
+    data: { logoFilename: null },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Org",
+    entityId: req.org.id,
+    action: "delete",
+    summary: "Removed logo",
   });
   res.redirect("/admin/content");
 });
