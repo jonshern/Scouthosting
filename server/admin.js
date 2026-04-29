@@ -171,6 +171,7 @@ form.inline{display:inline}
     <a href="/admin/forms">Forms &amp; documents</a>
     <a href="/admin/members">Members</a>
     <a href="/admin/positions">Position roster</a>
+    <a href="/admin/reports">Reports</a>
     <a href="/admin/equipment">Equipment</a>
     <a href="/admin/eagle">Eagle Scouts</a>
     <a href="/admin/surveys">Surveys</a>
@@ -2172,6 +2173,12 @@ const COMM_PREFS = [
   { value: "none", label: "Do not contact" },
 ];
 
+function parseDate(s) {
+  if (!s) return null;
+  const d = new Date(String(s));
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function memberFromBody(body) {
   // parentIds may arrive as a string (single select) or an array (multi).
   let parentIds = body?.parentIds;
@@ -2200,6 +2207,8 @@ function memberFromBody(body) {
     }
   }
 
+  const birthdate = parseDate(body?.birthdate);
+  const joinedAt = parseDate(body?.joinedAt);
   return {
     firstName: body?.firstName?.trim() || "",
     lastName: body?.lastName?.trim() || "",
@@ -2207,6 +2216,8 @@ function memberFromBody(body) {
     phone: body?.phone?.trim() || null,
     patrol: body?.patrol?.trim() || null,
     position: body?.position?.trim() || null,
+    birthdate,
+    ...(joinedAt ? { joinedAt } : {}),
     isYouth: body?.isYouth === "1",
     commPreference: ["email", "sms", "both", "none"].includes(body?.commPreference)
       ? body.commPreference
@@ -2269,6 +2280,14 @@ async function memberForm({ member, action, submitLabel, orgId }) {
       <div class="row">
         <label style="margin:0;flex:1">Patrol<input name="patrol" type="text" maxlength="40" value="${v("patrol")}"></label>
         <label style="margin:0;flex:1">Position<input name="position" type="text" maxlength="60" placeholder="e.g. SPL, Scoutmaster" value="${v("position")}"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Birthdate (optional)<input name="birthdate" type="date" value="${
+          member?.birthdate ? new Date(member.birthdate).toISOString().slice(0, 10) : ""
+        }"></label>
+        <label style="margin:0;flex:1">Joined the unit<input name="joinedAt" type="date" value="${
+          member?.joinedAt ? new Date(member.joinedAt).toISOString().slice(0, 10) : ""
+        }"></label>
       </div>
       <div class="row">
         <label style="margin:0;flex:1">Communication preference
@@ -2566,6 +2585,115 @@ adminRouter.get("/positions", requireLeader, async (req, res) => {
     ${open.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No active position terms. Set the <em>Position</em> field on a member to start one.</div>`}
   `;
   res.type("html").send(layout({ title: "Position roster", org: req.org, user: req.user, body }));
+});
+
+// Roster reports — birthdays, tenure, demographic breakdown.
+adminRouter.get("/reports", requireLeader, async (req, res) => {
+  const members = await prisma.member.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+  });
+
+  const fmtDate = (d) => new Date(d).toISOString().slice(0, 10);
+  const niceDate = (d) =>
+    new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+  const today = new Date();
+  const todayKey = today.getMonth() * 100 + today.getDate();
+
+  // Upcoming birthdays — next 60 days, ignoring birth year. Wraps Dec → Jan.
+  const upcoming = members
+    .filter((m) => m.birthdate)
+    .map((m) => {
+      const b = new Date(m.birthdate);
+      const month = b.getUTCMonth();
+      const day = b.getUTCDate();
+      const next = new Date(today.getFullYear(), month, day);
+      if (
+        next < today &&
+        !(next.getMonth() === today.getMonth() && next.getDate() === today.getDate())
+      ) {
+        next.setFullYear(today.getFullYear() + 1);
+      }
+      const daysUntil = Math.round((next.getTime() - today.getTime()) / 86400000);
+      const turning = today.getFullYear() - b.getUTCFullYear() + (next.getFullYear() > today.getFullYear() ? 1 : 0);
+      return { m, next, daysUntil, turning, key: month * 100 + day };
+    })
+    .filter((x) => x.daysUntil <= 60)
+    .sort((a, b) => a.daysUntil - b.daysUntil);
+
+  const birthdayHtml = upcoming.length
+    ? `<ul class="items">${upcoming
+        .map((x) => {
+          const isToday = x.key === todayKey;
+          return `<li>
+            <div style="flex:1">
+              <strong>${escape(x.m.firstName)} ${escape(x.m.lastName)}</strong>
+              ${isToday ? ` <span class="tag">today!</span>` : ""}
+              <div class="muted small">${escape(niceDate(x.next))} · turning ${x.turning} · in ${x.daysUntil}d</div>
+            </div>
+            <a class="btn btn-ghost small" href="/admin/members/${escape(x.m.id)}/edit">Edit</a>
+          </li>`;
+        })
+        .join("")}</ul>`
+    : `<div class="empty">No birthdays in the next 60 days. Add birthdates on member profiles to populate.</div>`;
+
+  // Tenure leaderboard — longest-serving 10 members by joinedAt.
+  const tenure = [...members]
+    .filter((m) => m.joinedAt)
+    .sort((a, b) => new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime())
+    .slice(0, 10);
+
+  const tenureHtml = tenure.length
+    ? `<ul class="items">${tenure
+        .map((m) => {
+          const years = (Date.now() - new Date(m.joinedAt).getTime()) / (365.25 * 86400000);
+          return `<li>
+            <div style="flex:1">
+              <strong>${escape(m.firstName)} ${escape(m.lastName)}</strong>${
+                m.isYouth ? "" : ` <span class="tag">adult</span>`
+              }
+              <div class="muted small">Joined ${escape(fmtDate(m.joinedAt))} · ${years.toFixed(1)} years</div>
+            </div>
+            <a class="btn btn-ghost small" href="/admin/members/${escape(m.id)}/edit">Edit</a>
+          </li>`;
+        })
+        .join("")}</ul>`
+    : `<div class="empty">No join dates recorded yet.</div>`;
+
+  // Roster breakdown
+  const youthCount = members.filter((m) => m.isYouth).length;
+  const adultCount = members.length - youthCount;
+  const withEmail = members.filter((m) => m.email).length;
+  const dietaryCount = members.filter((m) => m.dietaryFlags?.length).length;
+  const activePor = await prisma.positionTerm.count({
+    where: { orgId: req.org.id, endedAt: null },
+  });
+
+  const body = `
+    <h1>Reports</h1>
+    <p class="muted">A quick read on the roster — birthdays, tenure, and demographics.</p>
+
+    <div class="row" style="gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem">
+      <div class="card stat-card"><strong style="font-size:1.6rem">${members.length}</strong><br><span class="muted small">Total members</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem">${youthCount}</strong><br><span class="muted small">Youth</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem">${adultCount}</strong><br><span class="muted small">Adults</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem">${activePor}</strong><br><span class="muted small">Active PoRs</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem">${withEmail}</strong><br><span class="muted small">With email</span></div>
+      <div class="card stat-card"><strong style="font-size:1.6rem">${dietaryCount}</strong><br><span class="muted small">Dietary flags</span></div>
+    </div>
+
+    <h2>Upcoming birthdays</h2>
+    ${birthdayHtml}
+
+    <h2 style="margin-top:1.5rem">Longest tenure</h2>
+    ${tenureHtml}
+
+    <style>
+      .stat-card{flex:1;min-width:140px;text-align:center}
+    </style>
+  `;
+  res.type("html").send(layout({ title: "Reports", org: req.org, user: req.user, body }));
 });
 
 adminRouter.post("/members/:id", requireLeader, async (req, res) => {

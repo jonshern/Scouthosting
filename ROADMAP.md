@@ -270,7 +270,12 @@ Distinct from generic events: campouts and trips need provisioning logic.
       new one (`lib/positionTerms.js`). Backfill UI on the member edit
       page; org-wide /admin/positions roster shows current PoR holders
       and their tenure.
-- [ ] Birthdays, join dates, tenure reports
+- [x] **Birthdays, join dates, tenure reports** — birthdate + joinedAt
+      now editable on the member form. New `/admin/reports` page surfaces
+      upcoming birthdays (next 60 days, ignoring birth year, "today!"
+      callout), longest-tenure leaderboard, and roster demographics
+      (youth/adult split, active PoR count, contactable count, dietary
+      flag count).
 - [ ] Skills & interests per member
 - [ ] CSV upload (file) in addition to CSV-paste
 
