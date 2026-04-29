@@ -404,7 +404,12 @@ and operations hub. Scoutbook is the advancement source of truth.
       mark-returned action. New `/admin/equipment/loans` roster lists
       every open loan with overdue flagging.
 - [ ] Return-reminder emails on overdue loans
-- [ ] Training History per leader (BSA YPT, IOLS, Wood Badge…)
+- [x] **Training History per leader** — `Training` model with course
+      name, completedAt, optional expiresAt. Member edit page shows the
+      list and a course-name datalist auto-completing common BSA
+      courses. Org-wide `/admin/training` roster groups every adult
+      leader's training and flags expired or expiring-in-60-days
+      certifications (YPT in particular).
 - [ ] OA elections workflow
 - [x] Announcements / news feed (`Announcement` + Posts)
 - [x] **Surveys** — composer, public form, responses, CSV export
