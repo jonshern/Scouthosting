@@ -21,6 +21,7 @@ import { sendSmsBatch, smsDriver, normalisePhone } from "../lib/sms.js";
 import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dietary.js";
 import { reconcilePositionTerm as reconcileTerm } from "../lib/positionTerms.js";
 import { makeUnsubToken } from "../lib/unsubToken.js";
+import { scoutbookUrl } from "../lib/scoutbook.js";
 import { tallyCredits, formatCsvRow } from "../lib/credits.js";
 import { recordAudit } from "../lib/audit.js";
 import {
@@ -5311,15 +5312,33 @@ adminRouter.get("/eagle", requireLeader, async (req, res) => {
     }),
   ]);
 
+  // Resolve scoutbookUserId per Eagle that's still on the roster, so we
+  // can deep-link to their Scoutbook profile.
+  const linkedMemberIds = eagles.map((e) => e.memberId).filter(Boolean);
+  const sbMap = new Map();
+  if (linkedMemberIds.length) {
+    const linked = await prisma.member.findMany({
+      where: { orgId: req.org.id, id: { in: linkedMemberIds } },
+      select: { id: true, scoutbookUserId: true },
+    });
+    for (const m of linked) {
+      if (m.scoutbookUserId) sbMap.set(m.id, m.scoutbookUserId);
+    }
+  }
+
   const eagleRows = eagles
-    .map(
-      (e) => `
+    .map((e) => {
+      const sbId = e.memberId ? sbMap.get(e.memberId) : null;
+      const sbLink = sbId
+        ? ` · <a href="${escape(scoutbookUrl(sbId))}" target="_blank" rel="noopener">Scoutbook ↗</a>`
+        : "";
+      return `
       <li>
         <div style="flex:1">
           <h3>${escape(e.firstName)} ${escape(e.lastName)}</h3>
           <p class="muted small">
             <span class="tag">${escape(e.earnedAt.toISOString().slice(0, 10))}</span>
-            ${e.projectName ? `${escape(e.projectName)}` : ""}
+            ${e.projectName ? `${escape(e.projectName)}` : ""}${sbLink}
           </p>
         </div>
         <div class="row">
@@ -5328,8 +5347,8 @@ adminRouter.get("/eagle", requireLeader, async (req, res) => {
             <button class="btn btn-danger small" type="submit">Delete</button>
           </form>
         </div>
-      </li>`
-    )
+      </li>`;
+    })
     .join("");
 
   const projRows = projects

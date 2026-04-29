@@ -16,6 +16,7 @@ import { gcalAddUrl, outlookAddUrl, mapUrls } from "../lib/calendar.js";
 import { buildShoppingList } from "../lib/shoppingList.js";
 import { MEAL_DIETARY_TAGS, mealConflicts } from "../lib/dietary.js";
 import { renderMarkdown } from "../lib/markdown.js";
+import { scoutbookUrl } from "../lib/scoutbook.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -773,19 +774,23 @@ export function renderCustomPage(org, page) {
   return pageShell(org, page.title, body);
 }
 
-export function renderEagleList(org, eagles) {
+export function renderEagleList(org, eagles, scoutbookByMemberId = new Map()) {
   const items = eagles.length
     ? `<ul class="eagle-list">${eagles
-        .map(
-          (e) => `
+        .map((e) => {
+          const sbId = e.memberId ? scoutbookByMemberId.get(e.memberId) : null;
+          const sbLink = sbId
+            ? ` · <a href="${escapeHtml(scoutbookUrl(sbId))}" target="_blank" rel="noopener">Scoutbook ↗</a>`
+            : "";
+          return `
         <li>
           <strong>${escapeHtml(e.firstName)} ${escapeHtml(e.lastName)}</strong>
           <span class="muted small"> · ${escapeHtml(
-            new Date(e.earnedAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })
-          )}</span>
+            new Date(e.earnedAt).toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+          )}${sbLink}</span>
           ${e.projectName ? `<p class="muted small">${escapeHtml(e.projectName)}</p>` : ""}
-        </li>`
-        )
+        </li>`;
+        })
         .join("")}</ul>`
     : `<p class="muted">No Eagles on the list yet.</p>`;
   const body = `
