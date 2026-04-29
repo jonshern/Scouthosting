@@ -20,6 +20,7 @@ import { sendBatch, mailDriver } from "../lib/mail.js";
 import { sendSmsBatch, smsDriver, normalisePhone } from "../lib/sms.js";
 import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dietary.js";
 import { reconcilePositionTerm as reconcileTerm } from "../lib/positionTerms.js";
+import { makeUnsubToken } from "../lib/unsubToken.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -2781,6 +2782,18 @@ async function audienceFor(orgId, kind, patrol) {
   return prisma.member.findMany({ where });
 }
 
+// Filter the audience down to actually contactable members. Unsubscribed
+// recipients are dropped from the email channel even if their
+// commPreference still says "email".
+function emailableMembers(members) {
+  return members.filter(
+    (m) =>
+      m.email &&
+      !m.emailUnsubscribed &&
+      (m.commPreference === "email" || m.commPreference === "both"),
+  );
+}
+
 adminRouter.get("/email", requireLeader, async (req, res) => {
   const patrols = await prisma.member.findMany({
     where: { orgId: req.org.id, patrol: { not: null } },
@@ -2838,9 +2851,8 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
   const all = await audienceFor(orgId, audience, patrol);
 
   // Split into email + sms recipients per member's commPreference.
-  const emailRecipients = all.filter(
-    (m) => m.email && (m.commPreference === "email" || m.commPreference === "both")
-  );
+  // Unsubscribed members are filtered out of the email channel.
+  const emailRecipients = emailableMembers(all);
   const smsRecipients = all.filter(
     (m) =>
       m.smsOptIn &&
@@ -2878,13 +2890,26 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
   const apex = process.env.APEX_DOMAIN || "scouthosting.com";
   const fromAddr = `noreply@${req.org.slug}.${apex}`;
   const fromName = `${req.user.displayName.replace(/[<>"]/g, "")} (via ${req.org.displayName.replace(/[<>"]/g, "")})`;
-  const messages = emailRecipients.map((m) => ({
-    to: m.email,
-    subject: subject.trim(),
-    text: cleanBody,
-    from: `${fromName} <${fromAddr}>`,
-    replyTo: req.user.email,
-  }));
+  const orgHost = `${req.org.slug}.${apex}`;
+  const messages = emailRecipients.map((m) => {
+    const token = makeUnsubToken({ memberId: m.id, orgId: req.org.id });
+    const unsubUrl = `https://${orgHost}/unsubscribe/${token}`;
+    const footer = `\n\n—\nYou're receiving this because you're a member of ${req.org.displayName}.\nUnsubscribe: ${unsubUrl}`;
+    // RFC 8058: List-Unsubscribe + List-Unsubscribe-Post lets Gmail/Apple
+    // Mail surface a one-click unsubscribe button without confirming.
+    const headers = {
+      "List-Unsubscribe": `<${unsubUrl}?one_click=1>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
+    return {
+      to: m.email,
+      subject: subject.trim(),
+      text: cleanBody + footer,
+      from: `${fromName} <${fromAddr}>`,
+      replyTo: req.user.email,
+      headers,
+    };
+  });
 
   const smsMessages = smsRecipients.map((m) => ({
     to: m.phone,

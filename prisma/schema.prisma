@@ -195,6 +195,11 @@ model Member {
   // children. Postgres array of Member IDs keeps schema simple — no join
   // table needed for v1. Filter at query time.
   parentIds      String[] @default([])
+  // Recipient-level unsubscribe. Set when the member clicks the
+  // unsubscribe link in a broadcast (or hits the one-click List-Unsubscribe
+  // header). Filters them out of audienceFor regardless of commPreference.
+  emailUnsubscribed Boolean   @default(false)
+  unsubscribedAt    DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
