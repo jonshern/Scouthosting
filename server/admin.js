@@ -2536,6 +2536,20 @@ async function memberForm({ member, action, submitLabel, orgId }) {
         <label style="margin:0;flex:1">Email<input name="email" type="email" maxlength="120" value="${v("email")}"></label>
         <label style="margin:0;flex:1">Phone<input name="phone" type="tel" maxlength="40" value="${v("phone")}"></label>
       </div>
+      ${
+        member.bouncedAt
+          ? `<p style="background:#fbe8e3;border:1px solid #f0bcb1;border-radius:8px;padding:.55rem .75rem;color:#7d2614;font-size:.92rem">
+               <strong>Email is bouncing</strong> · ${escape(member.bounceReason || "no reason given")} ·
+               last seen ${escape(new Date(member.bouncedAt).toLocaleString("en-US"))}.
+               <span class="muted">Future broadcasts skip this address until you fix it and clear the flag.</span>
+             </p>
+             <div class="row" style="margin-bottom:.6rem">
+               <form class="inline" method="post" action="/admin/members/${escape(member.id)}/clear-bounce">
+                 <button class="btn btn-ghost small" type="submit">Clear bounce flag</button>
+               </form>
+             </div>`
+          : ""
+      }
       <div class="row">
         <label style="margin:0;flex:1">Patrol<input name="patrol" type="text" maxlength="40" value="${v("patrol")}"></label>
         <label style="margin:0;flex:1">Position<input name="position" type="text" maxlength="60" placeholder="e.g. SPL, Scoutmaster" value="${v("position")}"></label>
@@ -2892,6 +2906,10 @@ adminRouter.get("/members/:id/edit", requireLeader, async (req, res) => {
       <label>Notes<textarea name="notes" rows="2" maxlength="200"></textarea></label>
       <button class="btn btn-primary" type="submit">Add</button>
     </form>
+
+    <h2 style="margin-top:1.5rem">Communication</h2>
+    <p class="muted small">Every email or SMS broadcast (including newsletters) where this member appeared in the recipient snapshot.</p>
+    <p><a class="btn btn-ghost" href="/admin/members/${escape(member.id)}/messages">View message history →</a></p>
   `;
   res.type("html").send(layout({ title: "Edit member", org: req.org, user: req.user, body }));
 });
@@ -3927,6 +3945,133 @@ adminRouter.post("/members/:id/positions/:termId/delete", requireLeader, async (
     where: { id: req.params.termId, orgId: req.org.id, memberId: req.params.id },
   });
   res.redirect(`/admin/members/${req.params.id}/edit`);
+});
+
+// Clear a previously-set bounce flag. Resets emailUnsubscribed too —
+// the leader has decided the address is fixed, so we trust them.
+adminRouter.post("/members/:id/clear-bounce", requireLeader, async (req, res) => {
+  await prisma.member.updateMany({
+    where: { id: req.params.id, orgId: req.org.id },
+    data: { bouncedAt: null, bounceReason: null, emailUnsubscribed: false, unsubscribedAt: null },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Member",
+    entityId: req.params.id,
+    action: "clear-bounce",
+    summary: "Bounce + unsubscribe flags cleared",
+  });
+  res.redirect(`/admin/members/${req.params.id}/edit`);
+});
+
+// Per-member message history. Surfaces every MailLog (broadcast or
+// newsletter) where this member appeared in the recipient snapshot, so
+// a leader can answer "what have we said to the Schmidt family in the
+// last month" without scrolling the org-wide history.
+//
+// We filter in-memory against MailLog.recipients (a Json snapshot
+// captured at send time). The query is bounded by orgId + a 500-row
+// look-back; older rows page in via the Older link. For our
+// communication volumes this is comfortably fast — a unit sends a
+// handful of broadcasts per week.
+adminRouter.get("/members/:id/messages", requireLeader, async (req, res) => {
+  const member = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, firstName: true, lastName: true, email: true, phone: true },
+  });
+  if (!member) return res.status(404).send("Not found");
+
+  const before = req.query.before ? new Date(String(req.query.before)) : null;
+  const PAGE = 50;
+  const SCAN = 500; // bounded look-back
+  const where = { orgId: req.org.id };
+  if (before && !Number.isNaN(before.getTime())) where.sentAt = { lt: before };
+  const logs = await prisma.mailLog.findMany({
+    where,
+    orderBy: { sentAt: "desc" },
+    take: SCAN,
+    select: {
+      id: true,
+      subject: true,
+      sentAt: true,
+      channel: true,
+      audienceLabel: true,
+      status: true,
+      recipientCount: true,
+      recipients: true,
+    },
+  });
+
+  const memberEmail = (member.email || "").trim().toLowerCase();
+  const memberPhone = (member.phone || "").replace(/\D/g, "");
+  const matches = logs.filter((log) => {
+    const list = Array.isArray(log.recipients) ? log.recipients : [];
+    for (const r of list) {
+      if (memberEmail && (r.email || "").toLowerCase() === memberEmail) return true;
+      if (memberPhone && String(r.phone || "").replace(/\D/g, "") === memberPhone) return true;
+    }
+    return false;
+  });
+
+  const page = matches.slice(0, PAGE);
+  const hasMore = matches.length > PAGE || logs.length === SCAN;
+  const oldestSeen = page.length ? page[page.length - 1].sentAt : null;
+  const fmt = (d) =>
+    new Date(d).toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+  const statusTag = (s) => {
+    if (s === "sent") return `<span class="tag" style="background:#e3f29b;border-color:#c8e94a;color:#0e3320">sent</span>`;
+    if (s === "partial") return `<span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">partial</span>`;
+    if (s === "failed") return `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">failed</span>`;
+    return `<span class="tag">${escape(s)}</span>`;
+  };
+
+  const items = page
+    .map((log) => {
+      // Recover the per-member channel from the snapshot.
+      const list = Array.isArray(log.recipients) ? log.recipients : [];
+      const hit = list.find(
+        (r) =>
+          (memberEmail && (r.email || "").toLowerCase() === memberEmail) ||
+          (memberPhone && String(r.phone || "").replace(/\D/g, "") === memberPhone),
+      );
+      const ch = hit?.channel || log.channel;
+      return `
+      <li>
+        <div style="flex:1">
+          <h3 style="margin:0">${escape(log.subject)}</h3>
+          <p class="muted small" style="margin:.1rem 0 0">
+            ${statusTag(log.status)}
+            <span class="tag">${escape(ch)}</span>
+            <span class="tag">${escape(log.audienceLabel)}</span>
+            · ${escape(fmt(log.sentAt))}
+            · ${log.recipientCount} recipient${log.recipientCount === 1 ? "" : "s"}
+          </p>
+        </div>
+      </li>`;
+    })
+    .join("");
+
+  const olderLink = hasMore && oldestSeen
+    ? `<p style="margin-top:1rem"><a class="btn btn-ghost" href="/admin/members/${escape(member.id)}/messages?before=${encodeURIComponent(oldestSeen.toISOString())}">Older →</a></p>`
+    : "";
+
+  const body = `
+    <a class="back" href="/admin/members/${escape(member.id)}/edit" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← ${escape(member.firstName)} ${escape(member.lastName)}</a>
+    <h1>Message history</h1>
+    <p class="muted">Every email or SMS broadcast (including newsletters) where <strong>${escape(member.firstName)} ${escape(member.lastName)}</strong> appeared in the recipient snapshot.</p>
+    <p class="muted small">${escape(member.email || "no email on file")}${member.phone ? " · " + escape(member.phone) : ""}</p>
+    ${page.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No broadcasts in the last ${SCAN} sends matched this member.</div>`}
+    ${olderLink}
+  `;
+  res.type("html").send(layout({ title: "Message history", org: req.org, user: req.user, body }));
 });
 
 adminRouter.post("/members/:id/delete", requireLeader, async (req, res) => {

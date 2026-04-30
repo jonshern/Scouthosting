@@ -227,6 +227,14 @@ model Member {
   // header). Filters them out of audienceFor regardless of commPreference.
   emailUnsubscribed Boolean   @default(false)
   unsubscribedAt    DateTime?
+  // Set when a bounce or complaint webhook arrives from the mail
+  // provider (Resend today). When non-null, audienceFor also drops
+  // this member from the email channel — even if emailUnsubscribed
+  // is false. The reason field carries the provider's classification
+  // (e.g. "bounced:hard", "complained") so a leader can decide
+  // whether to chase a corrected address.
+  bouncedAt         DateTime?
+  bounceReason      String?
   // Free-form roster lookups: "who has WFA?", "who can drive a 15-passenger
   // van?", "who plays a guitar for campfires?". Lowercased on save for
   // dedupe; display preserves first-seen casing.
