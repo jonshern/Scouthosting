@@ -597,11 +597,24 @@ read-only until the threshold is restored.
       Tenant-site primary nav gets a "Chat" link. Standing channels
       (troop / parents / leaders / per-patrol) provisioned via a one-
       click admin action — idempotent, safe to re-run.
-- [ ] Mobile app wiring — connect the existing `mobile/` scaffold to
-      the API, add Expo push notifications, TestFlight build. **PR C.**
+- [x] **Mobile app — first wiring.** The Expo + RN + TS scaffold from
+      #32 now talks to the live JSON API. Auth flow: user types their
+      unit's subdomain on `SignInScreen`, app opens
+      `https://<slug>.compass.app/auth/mobile/begin?redirect=compass://auth/callback`
+      in `expo-web-browser`'s auth session, web signs them in, server
+      mints an `ApiToken` and deep-links back; the app stores the bearer
+      in `expo-secure-store`. ChannelsListScreen pulls real channels +
+      groups by kind; ThreadScreen renders messages + composer + 5s
+      polling + suspended-channel banner from server-reported state.
+      `mobile/src/api/{config,client,channels,auth,storage,types}.ts`
+      cover the network surface with 17 unit tests. Other screens
+      (Home, Calendar, Photos, Profile) stay mock until those features
+      have a backend. Push notifications + TestFlight pipeline are PR
+      C2 / C3.
 - [ ] Real-time delivery — SSE on `/api/v1/channels/:id/stream` backed
       by Postgres `LISTEN/NOTIFY`. **PR D.**
 - [ ] Reactions, polls, event-channel embeds, attachments. **PR E.**
+- [ ] Push notifications + TestFlight pipeline. **PR C2 / C3.**
 
 ## Phase 11 — Customization & domains
 

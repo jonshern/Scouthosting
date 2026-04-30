@@ -1,7 +1,8 @@
 // Compass mobile entry point. Loads UI fonts via expo-font (config-only;
 // the reviewer's installer wires up the actual font asset bundle), sets
-// up the safe-area provider + navigation container, and mounts the root
-// tab navigator.
+// up the safe-area provider + navigation container, mounts the auth
+// state, and chooses between SignInScreen (signed-out) and the bottom
+// tab navigator (signed-in).
 
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
@@ -12,6 +13,8 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { palette } from './src/theme/tokens';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { AuthProvider, useAuth } from './src/state/AuthContext';
+import SignInScreen from './src/screens/SignInScreen';
 
 export default function App() {
   // Font registration is declared here for symmetry with the design
@@ -26,7 +29,6 @@ export default function App() {
   });
 
   if (!fontsLoaded) {
-    // System fallbacks render fine; the splash here is just defensive.
     return (
       <View style={styles.loading}>
         <ActivityIndicator color={palette.primary} />
@@ -36,12 +38,29 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
-      <NavigationContainer>
-        <StatusBar style="dark" />
-        <RootNavigator />
-      </NavigationContainer>
+      <AuthProvider>
+        <NavigationContainer>
+          <StatusBar style="dark" />
+          <AuthGate />
+        </NavigationContainer>
+      </AuthProvider>
     </SafeAreaProvider>
   );
+}
+
+function AuthGate() {
+  const { state } = useAuth();
+  if (state.status === 'loading') {
+    return (
+      <View style={styles.loading}>
+        <ActivityIndicator color={palette.primary} />
+      </View>
+    );
+  }
+  if (state.status === 'signed-out') {
+    return <SignInScreen />;
+  }
+  return <RootNavigator />;
 }
 
 const styles = StyleSheet.create({

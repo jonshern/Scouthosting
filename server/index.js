@@ -14,6 +14,7 @@ import { rateLimit } from "../lib/rateLimit.js";
 import { securityHeaders } from "../lib/securityHeaders.js";
 import { honeypotFields, verifyHoneypot } from "../lib/honeypot.js";
 import { apiRouter } from "./api.js";
+import { issueToken } from "../lib/apiToken.js";
 
 // Buckets: tight on auth surfaces (login/signup are the brute-force
 // targets), looser on /api/provision since legitimate provisioning is
@@ -500,6 +501,39 @@ function safeNext(nextRaw) {
   const n = String(nextRaw || "/");
   return n.startsWith("/") && !n.startsWith("//") ? n : "/";
 }
+
+/* ------------------ Mobile-app auth handshake -------------------- */
+
+// The mobile app opens this URL in an in-app browser. If the user isn't
+// signed in, we redirect to /login?next=... and bounce back here once
+// they are. Once signed in (Lucia cookie present), we mint a fresh
+// ApiToken and redirect to the deep-link scheme so the app receives it.
+//
+// Flow:
+//   compass app  →  https://<org>/auth/mobile/begin?redirect=compass://callback
+//                   (in-app browser, sees cookie or signs the user in)
+//                →  Location: compass://callback?token=<raw>&user=<id>
+//   app then calls /api/v1/auth/me with the bearer to populate state.
+app.get("/auth/mobile/begin", async (req, res, next) => {
+  if (!req.org) return next();
+  const redirect = String(req.query.redirect || "");
+  // Allow only the compass:// custom scheme. Everything else returns
+  // 400 — we don't want to hand out tokens to arbitrary URLs.
+  if (!/^compass:\/\//.test(redirect)) {
+    return res.status(400).type("text/plain").send("Missing or invalid redirect= scheme.");
+  }
+  if (!req.user) {
+    const next = `/auth/mobile/begin?redirect=${encodeURIComponent(redirect)}`;
+    return res.redirect(`/login?next=${encodeURIComponent(next)}`);
+  }
+  const deviceLabel = String(req.query.device || req.headers["user-agent"] || "Mobile device").slice(0, 80);
+  const token = await issueToken(req.user.id, deviceLabel, prisma);
+  const url = new URL(redirect);
+  url.searchParams.set("token", token.raw);
+  url.searchParams.set("userId", req.user.id);
+  url.searchParams.set("displayName", req.user.displayName || "");
+  return res.redirect(url.toString());
+});
 
 app.get("/login", (req, res, next) => {
   if (!req.org) return next();
