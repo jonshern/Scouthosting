@@ -1,393 +1,505 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Compass — The planning &amp; communication hub for Scout units</title>
-<meta name="description" content="Compass is the planning and communication hub for Scouts BSA troops, Cub Scout packs, and Venturing crews. Calendar, photos, group email, trip &amp; meal planning, and a CMS leaders can actually use. Scoutbook handles advancement — we don't duplicate it." />
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Fraunces:wght@600;700;800;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Compass — modern software for volunteer Scouting units. Calendar, public site, photos, and parent communication, mobile-first and security-engineered." />
+  <title>Compass · Modern software for volunteer units</title>
+
+  <!-- Google Fonts: Newsreader (display) + Inter Tight (UI) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to main content</a>
 
-<a class="skip" href="#main">Skip to content</a>
-
-<header class="site-header" id="top">
-  <div class="bar wrap">
-    <a class="brand" href="#top">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3 4 28h24z"/><path d="M16 12v10"/><path d="M11 22h10"/></svg>
-      </span>
-      <span class="brand-text">
-        <strong>Compass</strong>
-        <small>Websites for every troop</small>
-      </span>
+  <!-- ====================================================================
+       1. Top nav — wordmark left, anchors center, sign-in + CTA right.
+       Mirrors marketing-balanced.jsx top nav (lines 11–20).
+       ==================================================================== -->
+  <header class="topnav" role="banner">
+    <a href="#" class="wordmark" aria-label="Compass — home">
+      <!-- SHMark — compass-rose icon, recreated from atoms.jsx -->
+      <svg width="32" height="32" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="18.5" fill="none" stroke="#0d130d" stroke-width="1.25" />
+        <circle cx="20" cy="20" r="11" fill="none" stroke="#0d130d" stroke-width="0.75" opacity="0.4" />
+        <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#c8e94a" />
+        <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="#0d130d" opacity="0.85" />
+        <path d="M37 20 L20 22.4 L22.4 20 L20 17.6 Z" fill="#0d130d" opacity="0.5" />
+        <path d="M3 20 L20 17.6 L17.6 20 L20 22.4 Z" fill="#0d130d" opacity="0.5" />
+        <circle cx="20" cy="20" r="1.6" fill="#0d130d" />
+      </svg>
+      <span>Compass<span class="accent">.</span></span>
     </a>
 
-    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Open menu">
-      <span></span><span></span><span></span>
-    </button>
-
-    <nav id="nav" class="nav" aria-label="Primary">
-      <ul>
-        <li><a href="#features">Features</a></li>
-        <li><a href="#how">How it works</a></li>
-        <li><a href="#pricing">Pricing</a></li>
-        <li><a href="demo/">See a demo</a></li>
-        <li><a href="login.html">Sign in</a></li>
-        <li><a class="cta" href="signup.html">Start your site</a></li>
-      </ul>
+    <nav class="topnav__anchors" aria-label="Primary">
+      <a href="#product">The Product</a>
+      <a href="#audience">For Troops &amp; Packs</a>
+      <a href="#pricing">Pricing</a>
+      <a href="#field-notes">Field Notes</a>
     </nav>
-  </div>
-</header>
 
-<main id="main">
+    <div class="topnav__actions">
+      <a href="/login.html" class="topnav__signin">Sign in</a>
+      <a href="/signup.html" class="btn btn--accent btn--pill">Start a trial</a>
+    </div>
+  </header>
 
-  <section class="hero">
-    <div class="wrap hero-inner">
-      <p class="eyebrow">The planning &amp; communication hub for Scout units</p>
-      <h1>The site <span class="hl">your unit actually runs on</span> — calendar, photos, email, planning.</h1>
-      <p class="lede">Compass gives every Scouts BSA troop, Cub Scout pack, and Venturing crew a fast, mobile-first hub for the day-to-day: calendar with directions, photos, group email, trip &amp; meal planning, forms, and a CMS leaders can actually use. <strong>Scoutbook handles advancement.</strong> We deep-link into it instead of duplicating it — no more double-entry.</p>
-      <div class="hero-cta">
-        <a class="btn primary lg" href="signup.html">Start your troop's site — free</a>
-        <a class="btn ghost lg" href="demo/">See a live demo →</a>
+  <main id="main">
+    <!-- ==================================================================
+         2. Hero — magazine cover. Kicker masthead, oversized italic
+         headline with chartreuse accent block, security-first pill in the
+         right column, body copy + dual CTAs, then a 3-up photo strip with
+         spectrum-colored top borders.
+         Mirrors marketing-balanced.jsx hero (lines 22–57).
+         ================================================================== -->
+    <section class="hero" aria-labelledby="hero-headline">
+      <div class="hero__masthead">
+        <span>Volume 1 &middot; Issue 04</span>
+        <span>The Compass Field Notes</span>
+        <span>Modern Software for Volunteer Units</span>
+        <span>Independent &middot; Not affiliated with BSA</span>
       </div>
-      <p class="muted small">Free for units under 25 Scouts · No credit card required · Cancel anytime</p>
 
-      <div class="hero-shot" aria-hidden="true">
-        <div class="shot-frame">
-          <div class="shot-bar"><span></span><span></span><span></span><em>troop567.compass.app</em></div>
-          <div class="shot-body">
-            <div class="shot-hero"></div>
-            <div class="shot-cards">
-              <div class="shot-card"><strong>Apr 27</strong><span>Spring Road Cleanup</span></div>
-              <div class="shot-card"><strong>May 4</strong><span>PLC Meeting</span></div>
-              <div class="shot-card"><strong>May 15</strong><span>Spring Camporee</span></div>
-            </div>
+      <div class="hero__grid">
+        <h1 id="hero-headline" class="hero__headline">
+          Your troop's<br />
+          website shouldn't<br />
+          <span class="hero__accent-block">look like 2008.</span>
+        </h1>
+
+        <div class="hero__aside">
+          <div class="hero__pill">
+            <span class="hero__pill-dot" aria-hidden="true"></span>
+            SECURITY-FIRST &middot; BUILT FOR MINORS' DATA
+          </div>
+          <p class="hero__body">
+            Most volunteer units are stuck on hosting platforms designed before the iPhone.
+            Compass is the modern, mobile-first, security-engineered alternative &mdash; the
+            calendar, public site, photo library, and parent inbox your families actually want
+            to use.
+          </p>
+          <div class="hero__ctas">
+            <a href="/signup.html" class="btn btn--ink">Start free trial &rarr;</a>
+            <a href="#security" class="btn btn--ghost">See the security model</a>
           </div>
         </div>
       </div>
-    </div>
-  </section>
 
-  <section class="trust">
-    <div class="wrap">
-      <p class="muted small center">Built by Scouters, for Scouters · Compatible with Scoutbook &amp; Internet Advancement</p>
-      <div class="logos">
-        <span>Scouts&nbsp;BSA</span>
-        <span>Cub&nbsp;Scouts</span>
-        <span>Venturing</span>
-        <span>Sea&nbsp;Scouts</span>
-        <span>Northern&nbsp;Star&nbsp;Council</span>
+      <!-- Photo strip — 2/1/1 grid, each tile gets a different spectrum top border. -->
+      <div class="hero__photos" aria-hidden="true">
+        <figure class="photo photo--canoe photo--accent">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <path d="M0 60 L100 60 L100 100 L0 100 Z M20 55 Q50 40 80 55 L70 65 L30 65 Z" fill="#fff" opacity="0.6" />
+          </svg>
+        </figure>
+        <figure class="photo photo--troop photo--sky">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <path d="M0 70 Q50 55 100 70 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+          </svg>
+        </figure>
+        <figure class="photo photo--campfire photo--raspberry">
+          <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <path d="M40 70 L50 35 L60 70 Z M30 75 L70 75 L65 85 L35 85 Z" fill="#fff" opacity="0.6" />
+          </svg>
+        </figure>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="features" class="section">
-    <div class="wrap">
-      <header class="section-head center">
-        <p class="eyebrow">Everything your unit needs</p>
-        <h2>One platform. All the pieces.</h2>
-        <p>Stop stitching together five tools. Compass bundles every feature a unit needs in one clean, modern interface.</p>
+    <!-- ==================================================================
+         3. Stats band — dark forest. Four cells, each with a top-border in
+         a different secondary-spectrum tone. Trades vague "10,000 happy
+         users" metrics for security/values claims.
+         Mirrors marketing-balanced.jsx stats strip (lines 59–72).
+         ================================================================== -->
+    <section class="stats band-dark" aria-label="Security and pricing at a glance">
+      <div class="stats__grid">
+        <div class="stat stat--accent">
+          <div class="stat__num">AES-256</div>
+          <div class="stat__label">encryption at rest</div>
+        </div>
+        <div class="stat stat--sky">
+          <div class="stat__num">SSO</div>
+          <div class="stat__label">SAML &middot; OIDC &middot; WebAuthn</div>
+        </div>
+        <div class="stat stat--butter">
+          <div class="stat__num">Two-deep</div>
+          <div class="stat__label">YPT-aligned messaging audit</div>
+        </div>
+        <div class="stat stat--teal">
+          <div class="stat__num">$12</div>
+          <div class="stat__label">flat per unit, per month</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         4. Features — four editorial blocks. Alternating image / text
+         layout, oversized italic numerals (01–04) in the section's accent
+         tone, image labelled with a colored chip in the corner.
+         Mirrors marketing-balanced.jsx features (lines 74–110).
+         ================================================================== -->
+    <section id="product" class="features" aria-labelledby="features-title">
+      <header class="features__head">
+        <div class="section-eyebrow">&sect; The Product</div>
+        <h2 id="features-title" class="features__title">
+          Built around the four things <em>volunteers actually need.</em>
+        </h2>
       </header>
 
-      <div class="grid features">
-        <article class="feature">
-          <div class="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 11h18"/></svg>
+      <article class="feature feature--01" data-tone="sky">
+        <div class="feature__media">
+          <div class="photo photo--forest photo--sky photo--feature">
+            <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d="M0 75 L15 45 L25 60 L40 30 L55 55 L70 35 L85 50 L100 40 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+            </svg>
           </div>
-          <h3>Calendar &amp; events</h3>
-          <p>Drag‑and‑drop events, RSVP and sign‑up sheets, recurring meetings, ICS export, automatic reminders. <strong>One‑click "Add to Google Calendar"</strong> on every event.</p>
-        </article>
-        <article class="feature">
-          <div class="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s7-7 7-13a7 7 0 1 0-14 0c0 6 7 13 7 13z"/><circle cx="12" cy="9" r="2.5"/></svg>
-          </div>
-          <h3>Directions to every event</h3>
-          <p>Each event auto-generates Google Maps, Apple Maps, and Waze links from its location, plus a carpool sign‑up so families can share the drive.</p>
-        </article>
-        <article class="feature">
-          <div class="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3h14l-1 7a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4z"/><path d="M9 21h6M12 14v7"/></svg>
-          </div>
-          <h3>Trip &amp; meal planner</h3>
-          <p>Headcount, meal plan, dietary flags, and an auto‑generated shopping list. Recipes scale to your real attendance and reconcile to the event fee.</p>
-        </article>
-        <article class="feature">
-          <div class="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="4"/><path d="M2 21a7 7 0 0 1 14 0"/><circle cx="17" cy="6" r="2.5"/><path d="M22 13a4.5 4.5 0 0 0-7.5-3.4"/></svg>
-          </div>
-          <h3>Member directory</h3>
-          <p>Family-aware roster with patrols, leadership positions, contact info, and per‑member privacy controls.</p>
-        </article>
-        <article class="feature">
-          <div class="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 6v6c0 5 3.5 9 8 10 4.5-1 8-5 8-10V6z"/><path d="m9 12 2 2 4-4"/></svg>
-          </div>
-          <h3>Scoutbook deep-links</h3>
-          <p>Scoutbook is the official advancement system — we don't duplicate it. We deep-link from every Scout profile and surface read-only summaries (when BSA's API permits).</p>
-        </article>
-        <article class="feature">
-          <div class="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
-          </div>
-          <h3>Group email</h3>
-          <p>Send to the whole troop, a patrol, or a custom subgroup. Delivery tracking and reply threading included.</p>
-        </article>
-        <article class="feature">
-          <div class="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m3 18 6-6 5 5 3-3 4 4"/></svg>
-          </div>
-          <h3>Photo &amp; video gallery</h3>
-          <p>Drag‑drop uploads, event‑based albums, captioning, and one‑click sharing — without surrendering rights to a social platform.</p>
-        </article>
-        <article class="feature">
-          <div class="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/></svg>
-          </div>
-          <h3>Forms &amp; documents</h3>
-          <p>Permission slips, medical forms, bylaws, handbooks. Versioned, searchable, and gated to roles.</p>
-        </article>
-        <article class="feature">
-          <div class="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M3 10h18M7 15h4"/></svg>
-          </div>
-          <h3>Money &amp; dues</h3>
-          <p>Track Scout accounts, dues, fundraising credits, and event payments. Stripe‑powered checkout.</p>
-        </article>
-        <article class="feature">
-          <div class="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11h6M9 15h4"/><rect x="3" y="4" width="18" height="16" rx="2"/></svg>
-          </div>
-          <h3>Sign‑ups &amp; surveys</h3>
-          <p>Collect headcount, lunch choices, gear assignments, or feedback in seconds. Results export to CSV.</p>
-        </article>
-        <article class="feature">
-          <div class="ico">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a13 13 0 0 1 0 18M12 3a13 13 0 0 0 0 18"/></svg>
-          </div>
-          <h3>Public site + private hub</h3>
-          <p>One side faces the world (recruiting!), the other is a member‑only command center. Same login, both views.</p>
-        </article>
-      </div>
-    </div>
-  </section>
+          <span class="feature__chip">CALENDAR</span>
+        </div>
+        <div class="feature__copy">
+          <div class="feature__num">01</div>
+          <h3 class="feature__title">A calendar that handles RSVPs, money, and rides.</h3>
+          <p class="feature__body">
+            Publish a campout, attach the permission slip, accept payment, and assign carpools
+            &mdash; without a single PDF email.
+          </p>
+        </div>
+      </article>
 
-  <section id="how" class="section alt">
-    <div class="wrap">
-      <header class="section-head center">
-        <p class="eyebrow">Provisioning, automated</p>
-        <h2>Five minutes from sign‑up to live site.</h2>
-        <p>You answer a short questionnaire. We generate a complete website preloaded with your troop's branding, leadership, calendar, and starter content.</p>
-      </header>
+      <article class="feature feature--02" data-tone="accent">
+        <div class="feature__copy">
+          <div class="feature__num">02</div>
+          <h3 class="feature__title">A public homepage that recruits new families.</h3>
+          <p class="feature__body">
+            Pick from six templates, drop in your troop number, and you're live on a custom
+            subdomain. Scouts can edit it during a Tuesday meeting.
+          </p>
+        </div>
+        <div class="feature__media">
+          <div class="photo photo--troop photo--accent photo--feature">
+            <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d="M0 70 Q50 55 100 70 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+            </svg>
+          </div>
+          <span class="feature__chip">WEBSITE</span>
+        </div>
+      </article>
 
-      <ol class="steps">
-        <li>
-          <span class="num">1</span>
-          <h3>Tell us about your unit</h3>
-          <p>Unit number, type (troop / pack / crew), charter org, council, district, meeting time. Takes about 90 seconds.</p>
-        </li>
-        <li>
-          <span class="num">2</span>
-          <h3>We provision your site</h3>
-          <p>Our pipeline spins up your subdomain (<code>troop567.compass.app</code>), seeds the database, generates pages, and sends you a login link.</p>
-        </li>
-        <li>
-          <span class="num">3</span>
-          <h3>Invite your members</h3>
-          <p>Bulk‑invite parents and Scouts via email or CSV. Optionally import your existing Scoutbook roster.</p>
-        </li>
-        <li>
-          <span class="num">4</span>
-          <h3>You're live</h3>
-          <p>Customize colors, add a logo, post your first event. Your unit's website is on the open web within minutes.</p>
-        </li>
-      </ol>
+      <article class="feature feature--03" data-tone="raspberry">
+        <div class="feature__media">
+          <div class="photo photo--campfire photo--raspberry photo--feature">
+            <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d="M40 70 L50 35 L60 70 Z M30 75 L70 75 L65 85 L35 85 Z" fill="#fff" opacity="0.6" />
+            </svg>
+          </div>
+          <span class="feature__chip">MESSAGES</span>
+        </div>
+        <div class="feature__copy">
+          <div class="feature__num">03</div>
+          <h3 class="feature__title">Email &amp; text that families actually read.</h3>
+          <p class="feature__body">
+            Send a Sunday update or a 7am cancellation. Threaded replies. SMS for urgent.
+            No more "did you get the flier?"
+          </p>
+        </div>
+      </article>
 
-      <div class="card cli">
-        <div class="cli-bar"><span></span><span></span><span></span><em>compass · provisioning</em></div>
-<pre><code>$ compass provision --config troop567.json
-<span class="ok">✓</span> Reserved subdomain: troop567.compass.app
-<span class="ok">✓</span> Seeded calendar with charter‑org meeting schedule
-<span class="ok">✓</span> Created leadership accounts (Scoutmaster, Committee Chair)
-<span class="ok">✓</span> Generated 7 starter pages and a photo gallery
-<span class="ok">✓</span> Sent invite emails to 24 family addresses
-<span class="ok">✓</span> Site live in 2m 41s</code></pre>
-      </div>
-    </div>
-  </section>
+      <article class="feature feature--04" data-tone="plum">
+        <div class="feature__copy">
+          <div class="feature__num">04</div>
+          <h3 class="feature__title">A photo library worth scrolling through.</h3>
+          <p class="feature__body">
+            Drop 200 phone photos in after Friday's campout. Auto-organized by event. Families
+            can request blurs on faces.
+          </p>
+        </div>
+        <div class="feature__media">
+          <div class="photo photo--canoe photo--plum photo--feature">
+            <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d="M0 60 L100 60 L100 100 L0 100 Z M20 55 Q50 40 80 55 L70 65 L30 65 Z" fill="#fff" opacity="0.6" />
+            </svg>
+          </div>
+          <span class="feature__chip">MEMORIES</span>
+        </div>
+      </article>
+    </section>
 
-  <section id="pricing" class="section">
-    <div class="wrap">
-      <header class="section-head center">
-        <p class="eyebrow">Pricing</p>
-        <h2>One unit, one site, one price.</h2>
-        <p>No per‑Scout fees. No surprise add‑ons. Cancel anytime, take your data with you.</p>
-      </header>
-
-      <div class="grid pricing">
-        <article class="card price">
-          <h3>Patrol</h3>
-          <p class="amt"><strong>Free</strong></p>
-          <p class="muted">For units with up to 25 Scouts</p>
-          <ul class="checks">
-            <li>Public site + member hub</li>
-            <li>Calendar, photos, forms</li>
-            <li>Email up to 2,000 sends/mo</li>
-            <li>Community support</li>
-          </ul>
-          <a class="btn ghost block" href="signup.html?plan=patrol">Start free</a>
-        </article>
-        <article class="card price featured">
-          <span class="badge">Most popular</span>
-          <h3>Troop</h3>
-          <p class="amt"><strong>$9</strong><span>/month</span></p>
-          <p class="muted">For active units of any size</p>
-          <ul class="checks">
-            <li>Everything in Patrol</li>
-            <li>Unlimited members &amp; storage</li>
-            <li>Advancement tracking + Scoutbook sync</li>
-            <li>Money / dues &amp; Stripe checkout</li>
-            <li>Custom domain</li>
-            <li>Priority email support</li>
-          </ul>
-          <a class="btn primary block" href="signup.html?plan=troop">Start 30‑day trial</a>
-        </article>
-        <article class="card price">
-          <h3>Council</h3>
-          <p class="amt"><strong>Custom</strong></p>
-          <p class="muted">For councils, districts &amp; multi‑unit charter orgs</p>
-          <ul class="checks">
-            <li>Bulk provisioning across units</li>
-            <li>SSO &amp; centralized directory</li>
-            <li>Council‑wide events &amp; communications</li>
-            <li>Dedicated success manager</li>
-          </ul>
-          <a class="btn ghost block" href="signup.html?plan=council">Talk to us</a>
-        </article>
-      </div>
-    </div>
-  </section>
-
-  <section class="section alt">
-    <div class="wrap two-col compare">
-      <div>
-        <p class="eyebrow">Why switch from TroopWebHost</p>
-        <h2>Modern where it matters.</h2>
-        <p>TroopWebHost works, but it shows its age. Compass was rebuilt from the ground up for the way Scouts and parents actually use the web today.</p>
-        <ul class="compare-list">
-          <li><strong>Mobile-first.</strong> Every screen designed for the phone first, desktop second.</li>
-          <li><strong>Fast.</strong> Pages render in under a second; no full-page reloads on navigation.</li>
-          <li><strong>Friendly admin.</strong> A leader can post an event in 15 seconds, not 15 clicks.</li>
-          <li><strong>Honest about Scoutbook.</strong> Advancement lives in Scoutbook — we deep-link, we don't duplicate. No double-entry.</li>
-          <li><strong>Open data.</strong> Export your full unit data anytime. No lock-in.</li>
-          <li><strong>Integrated.</strong> Scoutbook, Google &amp; Apple Calendar, Stripe, Mailgun/SES.</li>
+    <!-- ==================================================================
+         5. Migration band — sand surface, list of platforms we import from.
+         Mirrors marketing-balanced.jsx migration band (lines 112–133).
+         ================================================================== -->
+    <section id="audience" class="migration" aria-labelledby="migration-title">
+      <div class="migration__inner">
+        <div class="migration__copy">
+          <div class="section-eyebrow">&sect; Migration</div>
+          <h2 id="migration-title" class="migration__title">
+            Bring your <em>18 years</em> of troop history with you.
+          </h2>
+          <p class="migration__body">
+            We import from TroopWebHost, ScoutLander, TroopTrack, and a folder of CSVs you
+            found on the old committee chair's laptop. White-glove migration is included on
+            every plan &mdash; book a 30-minute call and we'll have you running by Sunday.
+          </p>
+        </div>
+        <ul class="migration__list">
+          <li>TroopWebHost</li>
+          <li>ScoutLander</li>
+          <li>TroopTrack</li>
+          <li>Wix / Squarespace</li>
+          <li>Google Sites</li>
+          <li>CSV / Excel</li>
+          <li>Scoutbook export</li>
+          <li>Internet Advancement</li>
+          <li>A shared Drive folder</li>
         </ul>
       </div>
-      <table class="compare-table">
-        <thead><tr><th></th><th>TroopWebHost</th><th>Compass</th></tr></thead>
-        <tbody>
-          <tr><td>Mobile-first design</td><td>—</td><td class="yes">✓</td></tr>
-          <tr><td>Trip &amp; meal planner</td><td>—</td><td class="yes">✓</td></tr>
-          <tr><td>One-click "Add to Google Calendar"</td><td>—</td><td class="yes">✓</td></tr>
-          <tr><td>Per-event Maps / Apple / Waze directions</td><td>—</td><td class="yes">✓</td></tr>
-          <tr><td>Custom domain on free tier</td><td>—</td><td class="yes">✓</td></tr>
-          <tr><td>Defers advancement to Scoutbook (no double-entry)</td><td>—</td><td class="yes">✓</td></tr>
-          <tr><td>Scoutbook deep-links + read-only summaries</td><td>—</td><td class="yes">✓</td></tr>
-          <tr><td>Open data export</td><td>—</td><td class="yes">✓</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+    </section>
 
-  <section class="section">
-    <div class="wrap">
-      <header class="section-head center">
-        <p class="eyebrow">From the field</p>
-        <h2>What Scouters say.</h2>
+    <!-- ==================================================================
+         6. Pricing — two tiers. The Unit tier is highlighted (dark card,
+         "MOST TROOPS" ribbon).
+         Mirrors marketing-balanced.jsx pricing (lines 135–190).
+         ================================================================== -->
+    <section id="pricing" class="pricing" aria-labelledby="pricing-title">
+      <header class="pricing__head">
+        <div class="section-eyebrow">&sect; Pricing</div>
+        <h2 id="pricing-title" class="pricing__title">
+          One price per unit &mdash; pack, troop, crew, ship, or post. No
+          <em>per-scout</em> fees, ever.
+        </h2>
       </header>
-      <div class="grid three">
-        <blockquote class="card quote">
-          <p>"Our committee chair set up the whole site in an afternoon. Parents can finally find a permission slip without three emails."</p>
-          <footer>— Erin K., Scoutmaster · Troop 412</footer>
-        </blockquote>
-        <blockquote class="card quote">
-          <p>"The advancement view is what sold me. I can see exactly where each Scout is, what's next, and which counselors they need."</p>
-          <footer>— Marcus B., Advancement Chair · Troop 88</footer>
-        </blockquote>
-        <blockquote class="card quote">
-          <p>"We migrated 11 years of TroopWebHost data over a weekend. The import worked the first time. That never happens."</p>
-          <footer>— Priya N., Committee Chair · Troop 1247</footer>
-        </blockquote>
-      </div>
-    </div>
-  </section>
 
-  <section class="section alt">
-    <div class="wrap">
-      <header class="section-head center">
-        <p class="eyebrow">FAQ</p>
-        <h2>Common questions.</h2>
-      </header>
-      <div class="faq">
-        <details><summary>Can we move from TroopWebHost?</summary><p>Yes. Export your data from TroopWebHost (members, calendar, documents) and our import wizard will map it onto your new Compass site.</p></details>
-        <details><summary>Does Compass work for Cub packs and Venturing crews?</summary><p>Yes. Pick your unit type during sign‑up and the site is configured with the right ranks, awards, and structure.</p></details>
-        <details><summary>Who owns our data?</summary><p>You do. You can export everything at any time as JSON, CSV, or PDFs, and you can request full account deletion at any time.</p></details>
-        <details><summary>Is Compass officially affiliated with Scouting America?</summary><p>No. Compass is an independent product. We integrate with Scoutbook and Internet Advancement, but we are not endorsed by or affiliated with Scouting America.</p></details>
-        <details><summary>How is youth privacy handled?</summary><p>Per‑member privacy flags, role‑gated visibility, parental consent for minors, and Two‑Deep digital communication patterns are built in.</p></details>
-        <details><summary>Can we use our own domain?</summary><p>Yes — on every plan, including Patrol (free).</p></details>
-      </div>
-    </div>
-  </section>
+      <div class="pricing__grid">
+        <article class="tier tier--highlight" aria-labelledby="tier-unit-title">
+          <div class="tier__ribbon">MOST TROOPS</div>
+          <div class="tier__name" id="tier-unit-title">Unit</div>
+          <div class="tier__price">$12</div>
+          <div class="tier__sub">/ month, billed annually</div>
+          <p class="tier__desc">
+            One pack, troop, crew, ship, or post. No per-scout fees, no per-leader fees, no
+            setup fees.
+          </p>
+          <ul class="tier__features">
+            <li>Public website + custom subdomain</li>
+            <li>Calendar with RSVPs, permission slips, and Stripe payments</li>
+            <li>SMS for urgent alerts &middot; email for everything else</li>
+            <li>Photo library (50 GB) with per-scout privacy controls</li>
+            <li>Carpool &amp; ride coordination</li>
+            <li>Two-deep messaging audit (YPT-aligned)</li>
+            <li>Scoutbook one-way sync</li>
+            <li>White-glove migration from your old site</li>
+          </ul>
+          <a href="/signup.html" class="btn btn--accent btn--full">Start free trial &rarr;</a>
+        </article>
 
-  <section class="section cta-final">
-    <div class="wrap center">
-      <h2>Run your unit on a site that doesn't fight you.</h2>
-      <p class="lede">Free to start. Five minutes to launch. Built for the day-to-day — Scoutbook still owns advancement.</p>
-      <p>
-        <a class="btn primary lg" href="signup.html">Start your troop's site</a>
-        <a class="btn ghost lg" href="demo/">Tour the demo</a>
+        <article class="tier" aria-labelledby="tier-district-title">
+          <div class="tier__name" id="tier-district-title">District</div>
+          <div class="tier__price">Talk to us</div>
+          <div class="tier__sub">Multi-unit &middot; custom</div>
+          <p class="tier__desc">
+            For districts, councils, and large charter orgs running several units centrally.
+          </p>
+          <ul class="tier__features">
+            <li>Everything in Unit, for every unit you run</li>
+            <li>Centralized billing &amp; multi-unit dashboard</li>
+            <li>SAML SSO + SCIM provisioning</li>
+            <li>Custom domain per unit</li>
+            <li>Audit-log export</li>
+            <li>Dedicated migration engineer</li>
+          </ul>
+          <a href="mailto:hello@compass.app?subject=Compass%20for%20our%20district" class="btn btn--ghost btn--full">Book a call &rarr;</a>
+        </article>
+      </div>
+
+      <p class="pricing__note">
+        501(c)(3)? You get 20% off, automatically. Stripe fees passed through at cost
+        (2.9% + 30&cent;).
       </p>
+    </section>
+
+    <!-- ==================================================================
+         7. Old vs. New comparison band — dark forest, two browser-window
+         mocks side by side. Old = TroopWebHost-style: Times-on-grey, table
+         layouts, hit counter. New = Compass.
+         Mirrors marketing-balanced.jsx comparison (lines 192–323).
+         ================================================================== -->
+    <section id="security" class="compare band-dark" aria-labelledby="compare-title">
+      <header class="compare__head">
+        <div class="section-eyebrow section-eyebrow--accent">&sect; The status quo</div>
+        <h2 id="compare-title" class="compare__title">
+          The site your families see <em>is your front door.</em>
+        </h2>
+        <p class="compare__lede">
+          Recruiting families compare your unit to the soccer club, the Y, the music school.
+          If your homepage looks like a 2008 phpBB install, you're losing scouts before the
+          first parent night.
+        </p>
+      </header>
+
+      <div class="compare__grid">
+        <!-- OLD — TroopWebHost-style screenshot mock -->
+        <div class="compare__col">
+          <div class="compare__caption compare__caption--old">
+            <span class="compare__dot" aria-hidden="true"></span>
+            Today &middot; Old hosting platform
+          </div>
+          <div class="browser browser--old" role="img" aria-label="An outdated Scout unit website with table layouts, Times font, a hit counter, and IE7-era styling">
+            <div class="browser__chrome">
+              <span class="browser__bullet" style="background:#fb6964;"></span>
+              <span class="browser__bullet" style="background:#fdc14b;"></span>
+              <span class="browser__bullet" style="background:#34c64c;"></span>
+              <div class="browser__url browser__url--old">https://www.oldhostingplatform.com/Troop12/Index.htm</div>
+            </div>
+            <div class="oldsite">
+              <div class="oldsite__header">
+                <span class="oldsite__title">Troop 12 - Anytown, USA</span>
+                <span class="oldsite__login">Login | Help</span>
+              </div>
+              <div class="oldsite__crumbs">Home &gt; Welcome</div>
+              <div class="oldsite__body">
+                <aside class="oldsite__menu">
+                  <div class="oldsite__menu-title">MAIN MENU</div>
+                  <a href="#">&raquo; Home</a>
+                  <a href="#">&raquo; About Our Troop</a>
+                  <a href="#">&raquo; Calendar</a>
+                  <a href="#">&raquo; Photo Gallery</a>
+                  <a href="#">&raquo; Eagle Scouts</a>
+                  <a href="#">&raquo; Documents</a>
+                  <a href="#">&raquo; Forms</a>
+                  <a href="#">&raquo; Contact Us</a>
+                  <a href="#">&raquo; Members Only</a>
+                </aside>
+                <div class="oldsite__main">
+                  <h4 class="oldsite__h">Welcome to Troop 12!</h4>
+                  <p class="oldsite__p">
+                    <span class="oldsite__img" aria-hidden="true">scouts.jpg</span>
+                    Troop 12 has been serving Anytown since 1972. We meet every Tuesday at
+                    7:00 PM at St. Mark's Community Church. New scouts are always welcome
+                    - please contact our Scoutmaster for more information.
+                  </p>
+                  <div class="oldsite__alert">
+                    <b>NEW!</b> Spring Campout signup is now open. Permission slip
+                    <a href="#">(click here)</a> must be returned by Friday.
+                  </div>
+                  <h5 class="oldsite__h2">Upcoming Events</h5>
+                  <table class="oldsite__table">
+                    <tbody>
+                      <tr><td>03/21/26</td><td><a href="#">Spring Campout - Birch Lake</a></td></tr>
+                      <tr><td>03/25/26</td><td><a href="#">Troop Meeting</a></td></tr>
+                      <tr><td>04/04/26</td><td><a href="#">Eagle Project - Jamie</a></td></tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="oldsite__footer">
+                Powered by OldHostingPlatform.com - &copy; 2009-2026 &middot; best viewed in IE7+
+              </div>
+            </div>
+          </div>
+          <p class="compare__note compare__note--old">
+            <span aria-hidden="true">&#9679;</span>
+            Broken on phones. No HTTPS-only enforcement. No SSO. No two-deep audit. Tables for
+            layout. Member roster behind a single shared password.
+          </p>
+        </div>
+
+        <!-- NEW — Compass screenshot mock -->
+        <div class="compare__col">
+          <div class="compare__caption compare__caption--new">
+            <span class="compare__dot compare__dot--new" aria-hidden="true"></span>
+            Compass &middot; next Tuesday
+          </div>
+          <div class="browser browser--new" role="img" aria-label="A modern Scout unit website hosted on Compass: clean type, dark forest hero, photo gallery, HTTPS, SSO">
+            <div class="browser__chrome browser__chrome--new">
+              <span class="browser__bullet" style="background:#fb6964;"></span>
+              <span class="browser__bullet" style="background:#fdc14b;"></span>
+              <span class="browser__bullet" style="background:#34c64c;"></span>
+              <div class="browser__url browser__url--new">
+                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#3d6b3a" stroke-width="3" aria-hidden="true">
+                  <path d="M12 22s8-4 8-12V5l-8-3-8 3v5c0 8 8 12 8 12z" />
+                </svg>
+                troop12.compass.app
+              </div>
+            </div>
+            <div class="newsite">
+              <div class="newsite__header">
+                <div class="newsite__brand">Troop 12 &middot; <em>Anytown</em></div>
+                <div class="newsite__nav">
+                  <span>About</span><span>Calendar</span><span>Photos</span><span>Join</span>
+                </div>
+              </div>
+              <div class="newsite__hero">
+                <div class="newsite__hero-glow" aria-hidden="true"></div>
+                <div class="newsite__hero-kicker">This Friday</div>
+                <div class="newsite__hero-title">Spring Campout &mdash;<br />Birch Lake State Park</div>
+                <div class="newsite__hero-meta">
+                  Fri 5:30 PM &middot; 18 going &middot; permission slip + $35 due Thursday
+                </div>
+                <div class="newsite__hero-cta">Sign &middot; RSVP &middot; Pay &rarr;</div>
+              </div>
+              <div class="newsite__photos" aria-hidden="true">
+                <div class="newsite__photo newsite__photo--accent"></div>
+                <div class="newsite__photo newsite__photo--sky"></div>
+                <div class="newsite__photo newsite__photo--ember"></div>
+              </div>
+              <div class="newsite__footer">
+                <span>Hosted with Compass</span>
+                <span>HTTPS &middot; SSO &middot; Privacy controls</span>
+              </div>
+            </div>
+          </div>
+          <p class="compare__note compare__note--new">
+            <span aria-hidden="true">&#9679;</span>
+            Mobile-first. HTTPS-only. SAML / OIDC SSO. Two-deep messaging audit. Per-scout
+            photo privacy. Migrates from your old hosting in an afternoon.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         8. CTA — closing pitch with a 30-day-free pill, oversized headline
+         (italic-+-accent on the closing phrase), dual CTAs.
+         Mirrors marketing-balanced.jsx CTA (lines 325–336).
+         ================================================================== -->
+    <section id="cta" class="cta" aria-labelledby="cta-title">
+      <div class="cta__pill">Free for 30 days</div>
+      <h2 id="cta-title" class="cta__title">
+        Set up your troop's home base <em>before next week's meeting.</em>
+      </h2>
+      <div class="cta__buttons">
+        <a href="/signup.html" class="btn btn--ink btn--pill btn--lg">Start free trial &rarr;</a>
+        <a href="mailto:hello@compass.app" class="btn btn--ghost btn--pill btn--lg">Talk to a person</a>
+      </div>
+      <div class="cta__fine">No credit card &middot; cancel anytime &middot; we'll migrate your old site for free</div>
+    </section>
+  </main>
+
+  <!-- ====================================================================
+       9. Footer — wordmark + copyright + required disclaimer.
+       ==================================================================== -->
+  <footer id="field-notes" class="footer" role="contentinfo">
+    <div class="footer__inner">
+      <a href="#" class="wordmark wordmark--small" aria-label="Compass">
+        <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+          <circle cx="20" cy="20" r="18.5" fill="none" stroke="#0d130d" stroke-width="1.25" />
+          <circle cx="20" cy="20" r="11" fill="none" stroke="#0d130d" stroke-width="0.75" opacity="0.4" />
+          <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#c8e94a" />
+          <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="#0d130d" opacity="0.85" />
+          <circle cx="20" cy="20" r="1.6" fill="#0d130d" />
+        </svg>
+        <span>Compass<span class="accent">.</span></span>
+      </a>
+      <div class="footer__copy">
+        &copy; 2026 Compass &middot; Independent &middot; Not affiliated with Scouting America or BSA.
+      </div>
     </div>
-  </section>
-
-</main>
-
-<footer class="site-footer">
-  <div class="wrap foot">
-    <div class="foot-brand">
-      <strong>Compass</strong>
-      <p>A modern website platform for Scout units. Independently built. Scouter‑run.</p>
-    </div>
-    <nav aria-label="Product">
-      <h4>Product</h4>
-      <a href="#features">Features</a>
-      <a href="#pricing">Pricing</a>
-      <a href="demo/">Live demo</a>
-      <a href="signup.html">Sign up</a>
-    </nav>
-    <nav aria-label="Company">
-      <h4>Company</h4>
-      <a href="#">About</a>
-      <a href="#">Blog</a>
-      <a href="#">Contact</a>
-      <a href="login.html">Sign in</a>
-    </nav>
-    <nav aria-label="Legal">
-      <h4>Legal</h4>
-      <a href="#">Privacy</a>
-      <a href="#">Terms</a>
-      <a href="#">Youth protection</a>
-      <a href="#">Status</a>
-    </nav>
-  </div>
-  <div class="wrap foot-bottom">
-    <small>&copy; <span id="yr"></span> Compass. Not affiliated with Scouting America.</small>
-  </div>
-</footer>
-
-<script src="script.js"></script>
+  </footer>
 </body>
 </html>

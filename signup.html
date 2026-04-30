@@ -1,145 +1,186 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Start your unit's site — Compass</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Start your unit's site on Compass. We provision your subdomain and email you a setup link." />
+  <title>Start your unit's site · Compass</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+  <a class="skip-link" href="#main">Skip to main content</a>
 
-<header class="site-header">
-  <div class="bar wrap">
-    <a class="brand" href="index.html">
-      <span class="brand-mark" aria-hidden="true">
-        <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3 4 28h24z"/><path d="M16 12v10"/><path d="M11 22h10"/></svg>
-      </span>
-      <span class="brand-text">
-        <strong>Compass</strong>
-        <small>Websites for every troop</small>
-      </span>
-    </a>
-    <nav class="nav" aria-label="Primary">
-      <ul>
-        <li><a href="index.html#features">Features</a></li>
-        <li><a href="index.html#pricing">Pricing</a></li>
-        <li><a href="login.html">Sign in</a></li>
-      </ul>
-    </nav>
-  </div>
-</header>
-
-<main>
-<section class="form-page">
-  <div class="form-card">
-    <h1>Start your unit's site</h1>
-    <p class="lede muted">Tell us about your unit. We'll provision your site at <code>&lt;unit&gt;.compass.app</code> and email you a setup link.</p>
-
-    <a class="btn google-btn block" href="/auth/google/start?next=/signup.html">
-      <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
-        <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.49h4.84c-.21 1.13-.84 2.08-1.79 2.72v2.26h2.9c1.7-1.56 2.69-3.87 2.69-6.63z"/>
-        <path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.9-2.26c-.81.54-1.84.86-3.06.86-2.36 0-4.36-1.6-5.07-3.74H.96v2.34A9 9 0 0 0 9 18z"/>
-        <path fill="#FBBC05" d="M3.93 10.68A5.4 5.4 0 0 1 3.64 9c0-.58.1-1.15.29-1.68V4.98H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.02l2.97-2.34z"/>
-        <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A8.99 8.99 0 0 0 9 0 9 9 0 0 0 .96 4.98l2.97 2.34C4.64 5.18 6.64 3.58 9 3.58z"/>
+  <header class="topnav" role="banner">
+    <a href="/" class="wordmark" aria-label="Compass — home">
+      <svg width="32" height="32" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="18.5" fill="none" stroke="#0d130d" stroke-width="1.25" />
+        <circle cx="20" cy="20" r="11" fill="none" stroke="#0d130d" stroke-width="0.75" opacity="0.4" />
+        <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#c8e94a" />
+        <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="#0d130d" opacity="0.85" />
+        <path d="M37 20 L20 22.4 L22.4 20 L20 17.6 Z" fill="#0d130d" opacity="0.5" />
+        <path d="M3 20 L20 17.6 L17.6 20 L20 22.4 Z" fill="#0d130d" opacity="0.5" />
+        <circle cx="20" cy="20" r="1.6" fill="#0d130d" />
       </svg>
-      <span>Continue with Google</span>
+      <span>Compass<span class="accent">.</span></span>
     </a>
-    <p class="muted small center" style="margin:.4rem 0 1.25rem">
-      Sign in with Google, then come back to fill in your unit's details.
-    </p>
 
-    <div class="divider"><span>or with email + password</span></div>
+    <nav class="topnav__anchors" aria-label="Primary">
+      <a href="/#product">The Product</a>
+      <a href="/#pricing">Pricing</a>
+      <a href="/#security">Security</a>
+    </nav>
 
-    <form id="signup-form" autocomplete="on">
-      <div class="form-row">
-        <label>Unit type
-          <select name="unitType" required>
-            <option value="">Choose…</option>
-            <option>Troop</option>
-            <option>Pack</option>
-            <option>Crew</option>
-            <option>Ship</option>
-            <option>Post</option>
-          </select>
-        </label>
-        <label>Unit number
-          <input name="unitNumber" type="text" required pattern="\d{1,5}[A-Za-z]?" placeholder="e.g. 100" />
-        </label>
+    <div class="topnav__actions">
+      <a href="/login.html" class="topnav__signin">Sign in</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="form-page">
+      <div class="form-shell">
+        <div class="form-card">
+          <div class="form-eyebrow">&sect; Get started</div>
+          <h1 class="form-title">Start your unit's <em>home base.</em></h1>
+          <p class="form-lede">
+            Tell us about your unit and we'll provision your site at
+            <code class="form-code">&lt;unit&gt;.compass.app</code>. You'll get a setup
+            link by email within a minute.
+          </p>
+
+          <a class="btn btn--google btn--full" href="/auth/google/start?next=/signup.html">
+            <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
+              <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.49h4.84c-.21 1.13-.84 2.08-1.79 2.72v2.26h2.9c1.7-1.56 2.69-3.87 2.69-6.63z"/>
+              <path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.9-2.26c-.81.54-1.84.86-3.06.86-2.36 0-4.36-1.6-5.07-3.74H.96v2.34A9 9 0 0 0 9 18z"/>
+              <path fill="#FBBC05" d="M3.93 10.68A5.4 5.4 0 0 1 3.64 9c0-.58.1-1.15.29-1.68V4.98H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.02l2.97-2.34z"/>
+              <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A8.99 8.99 0 0 0 9 0 9 9 0 0 0 .96 4.98l2.97 2.34C4.64 5.18 6.64 3.58 9 3.58z"/>
+            </svg>
+            <span>Continue with Google</span>
+          </a>
+          <p class="form-hint">Sign in with Google, then come back to fill in your unit's details.</p>
+
+          <div class="form-divider"><span>or with email + password</span></div>
+
+          <form id="signup-form" autocomplete="on" novalidate>
+            <div class="form-row">
+              <label class="form-field">
+                <span class="form-label">Unit type</span>
+                <select name="unitType" required>
+                  <option value="">Choose&hellip;</option>
+                  <option>Troop</option>
+                  <option>Pack</option>
+                  <option>Crew</option>
+                  <option>Ship</option>
+                  <option>Post</option>
+                </select>
+              </label>
+              <label class="form-field">
+                <span class="form-label">Unit number</span>
+                <input name="unitNumber" type="text" required pattern="\d{1,5}[A-Za-z]?" placeholder="e.g. 100" />
+              </label>
+            </div>
+
+            <label class="form-field">
+              <span class="form-label">Charter organization</span>
+              <input name="charterOrg" type="text" required placeholder="e.g. First Lutheran Church" />
+            </label>
+
+            <div class="form-row">
+              <label class="form-field">
+                <span class="form-label">City</span>
+                <input name="city" type="text" required placeholder="e.g. New Hope" />
+              </label>
+              <label class="form-field">
+                <span class="form-label">State</span>
+                <input name="state" type="text" required maxlength="2" placeholder="e.g. MN" />
+              </label>
+            </div>
+
+            <div class="form-row">
+              <label class="form-field">
+                <span class="form-label">Council</span>
+                <input name="council" type="text" placeholder="e.g. Northern Star Council" />
+              </label>
+              <label class="form-field">
+                <span class="form-label">District</span>
+                <input name="district" type="text" placeholder="e.g. District K" />
+              </label>
+            </div>
+
+            <div class="form-row">
+              <label class="form-field">
+                <span class="form-label">Meeting day</span>
+                <input name="meetingDay" type="text" placeholder="e.g. Mondays" />
+              </label>
+              <label class="form-field">
+                <span class="form-label">Meeting time</span>
+                <input name="meetingTime" type="text" placeholder="e.g. 7:00 PM" />
+              </label>
+            </div>
+
+            <label class="form-field">
+              <span class="form-label">Year founded <span class="form-optional">(optional)</span></span>
+              <input name="founded" type="text" pattern="\d{4}" placeholder="e.g. 1972" />
+            </label>
+
+            <hr class="form-divider-line" />
+
+            <label class="form-field">
+              <span class="form-label">Your name <span class="form-optional">(founding leader)</span></span>
+              <input name="scoutmasterName" type="text" required autocomplete="name" />
+            </label>
+            <label class="form-field">
+              <span class="form-label">Your email</span>
+              <input name="scoutmasterEmail" type="email" required autocomplete="email" />
+            </label>
+
+            <label class="form-field">
+              <span class="form-label">Plan</span>
+              <select name="plan">
+                <option value="patrol">Patrol &mdash; Free (up to 25 Scouts)</option>
+                <option value="troop" selected>Troop &mdash; $12/mo (30-day trial)</option>
+                <option value="council">Council &mdash; Custom</option>
+              </select>
+            </label>
+
+            <button class="btn btn--ink btn--full btn--lg" type="submit">Create my site &rarr;</button>
+            <p class="form-fine">
+              By creating a site you agree to our <a href="#">Terms</a> and
+              <a href="#">Privacy Policy</a>.
+            </p>
+
+            <div id="signup-result" class="form-result" hidden></div>
+          </form>
+        </div>
       </div>
+    </section>
+  </main>
 
-      <label>Charter organization
-        <input name="charterOrg" type="text" required placeholder="e.g. First Lutheran Church" />
-      </label>
-
-      <div class="form-row">
-        <label>City
-          <input name="city" type="text" required placeholder="e.g. New Hope" />
-        </label>
-        <label>State
-          <input name="state" type="text" required maxlength="2" placeholder="e.g. MN" />
-        </label>
+  <footer class="footer">
+    <div class="footer__inner">
+      <a href="/" class="wordmark wordmark--small" aria-label="Compass">
+        <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+          <circle cx="20" cy="20" r="18.5" fill="none" stroke="#0d130d" stroke-width="1.25" />
+          <circle cx="20" cy="20" r="11" fill="none" stroke="#0d130d" stroke-width="0.75" opacity="0.4" />
+          <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#c8e94a" />
+          <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="#0d130d" opacity="0.85" />
+          <circle cx="20" cy="20" r="1.6" fill="#0d130d" />
+        </svg>
+        <span>Compass<span class="accent">.</span></span>
+      </a>
+      <div class="footer__copy">
+        &copy; <span id="yr">2026</span> Compass &middot; Independent &middot; Not affiliated with Scouting America or BSA.
       </div>
+    </div>
+  </footer>
 
-      <div class="form-row">
-        <label>Council
-          <input name="council" type="text" placeholder="e.g. Northern Star Council" />
-        </label>
-        <label>District
-          <input name="district" type="text" placeholder="e.g. District K" />
-        </label>
-      </div>
-
-      <div class="form-row">
-        <label>Meeting day
-          <input name="meetingDay" type="text" placeholder="e.g. Mondays" />
-        </label>
-        <label>Meeting time
-          <input name="meetingTime" type="text" placeholder="e.g. 7:00 PM" />
-        </label>
-      </div>
-
-      <label>Year founded (optional)
-        <input name="founded" type="text" pattern="\d{4}" placeholder="e.g. 1972" />
-      </label>
-
-      <hr style="border:0;border-top:1px solid #eef0e7;margin:1.5rem 0" />
-
-      <label>Your name (founding leader)
-        <input name="scoutmasterName" type="text" required autocomplete="name" />
-      </label>
-      <label>Your email
-        <input name="scoutmasterEmail" type="email" required autocomplete="email" />
-      </label>
-
-      <label>Plan
-        <select name="plan">
-          <option value="patrol">Patrol — Free (up to 25 Scouts)</option>
-          <option value="troop">Troop — $9/mo (30-day trial)</option>
-          <option value="council">Council — Custom</option>
-        </select>
-      </label>
-
-      <button class="btn primary lg block" type="submit">Create my site</button>
-      <p class="muted small center" style="margin-top:.75rem">
-        By creating a site you agree to our <a href="#">Terms</a> and
-        <a href="#">Privacy Policy</a>.
-      </p>
-
-      <div id="signup-result" class="form-result" hidden></div>
-    </form>
-  </div>
-</section>
-</main>
-
-<footer class="site-footer">
-  <div class="wrap foot-bottom" style="border:0;margin:0;padding:1.5rem 1.25rem">
-    <small>&copy; <span id="yr"></span> Compass. Not affiliated with Scouting America.</small>
-  </div>
-</footer>
-
-<script src="script.js"></script>
+  <script src="/script.js"></script>
 </body>
 </html>

@@ -39,9 +39,17 @@ aren't entering the same data in two places.
 ```
 .
 ├── index.html / signup.html / login.html / styles.css / script.js
-│       Marketing site (apex / www)
+│       Marketing site (apex / www) — Compass design, Forest & Ember palette
 ├── demo/
-│       Sample tenant site — fictional "Sample Troop 100"
+│       Static-asset bucket served to every tenant subdomain (until the
+│       per-unit template swap lands in alignment step 3, this folder is
+│       both the demo content AND the live tenant CSS / JS source)
+├── unit-site/ admin/ security/ mobile/
+│       Locked-design recreations of the public unit site, admin dashboard,
+│       security & trust page, and parent mobile app — design-source-of-truth,
+│       each with its own README and Vitest smoke suite. The marketing
+│       prototype was promoted to the apex in alignment step 2 and no
+│       longer lives in its own folder.
 ├── server/
 │   ├── index.js          App entry; routes by Host header → org (Prisma lookup)
 │   ├── provision.js      Validates, derives slug, creates Org row

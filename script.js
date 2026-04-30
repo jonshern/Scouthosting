@@ -1,50 +1,69 @@
-// Mobile nav toggle
-const toggle = document.querySelector(".nav-toggle");
-const nav = document.querySelector("#nav");
-if (toggle && nav) {
-  toggle.addEventListener("click", () => {
-    const open = nav.classList.toggle("open");
-    toggle.setAttribute("aria-expanded", String(open));
-  });
-  // Close menu when a link is tapped
-  nav.addEventListener("click", (e) => {
-    if (e.target.tagName === "A") {
-      nav.classList.remove("open");
-      toggle.setAttribute("aria-expanded", "false");
-    }
-  });
-}
+// Apex page behaviors. Three things:
+//   1. Footer year (every page that has <span id="yr">)
+//   2. Hide the Google sign-in button if the server isn't configured for it
+//   3. Login slug form — forward to <slug>.<APEX_DOMAIN>/login
+//   4. Signup form — POST to /api/provision and surface result inline
 
-// Footer year
+// 1. Footer year
 const yr = document.getElementById("yr");
 if (yr) yr.textContent = new Date().getFullYear();
 
-// Hide the Google sign-in button if the server isn't configured for it.
+// 2. Auth providers — hide Continue-with-Google buttons if the server
+//    isn't configured. Fail open (leave the button) on network error.
 async function checkAuthProviders() {
-  const buttons = document.querySelectorAll("a.google-btn");
+  const buttons = document.querySelectorAll("a.btn--google");
   if (buttons.length === 0) return;
   try {
     const r = await fetch("/api/auth/providers");
     if (!r.ok) return;
     const { providers } = await r.json();
-    if (!providers?.google) buttons.forEach((b) => (b.style.display = "none"));
+    if (!providers?.google) {
+      buttons.forEach((b) => (b.style.display = "none"));
+      // Hide the surrounding hint / divider too if they're now adjacent to
+      // the form with nothing between.
+      buttons.forEach((b) => {
+        const hint = b.nextElementSibling;
+        if (hint && hint.classList.contains("form-hint")) hint.style.display = "none";
+        const divider = hint?.nextElementSibling || b.nextElementSibling;
+        if (divider && divider.classList.contains("form-divider")) divider.style.display = "none";
+      });
+    }
   } catch {
-    // Fail open — leave the button; clicking it shows a friendly error page.
+    // Fail open.
   }
 }
 checkAuthProviders();
 
-// Signup form (signup.html) — POSTs to the provisioning endpoint.
+// 3. Login slug form — forward to the unit's subdomain.
+const loginSlugForm = document.getElementById("login-slug-form");
+if (loginSlugForm) {
+  loginSlugForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const slug = (loginSlugForm.elements.namedItem("slug")?.value || "")
+      .trim()
+      .toLowerCase();
+    if (!slug) return;
+    // Same-host fallback for dev (localhost): use *.localhost so the
+    // server's APEX_HOSTS check sees it as a tenant subdomain.
+    const apex = location.hostname.endsWith("localhost")
+      ? "localhost"
+      : "compass.app";
+    location.href = `${location.protocol}//${slug}.${apex}/login`;
+  });
+}
+
+// 4. Signup form — POST JSON to /api/provision and render the result.
 const signupForm = document.getElementById("signup-form");
 if (signupForm) {
   signupForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const result = document.getElementById("signup-result");
     result.hidden = true;
-    result.classList.remove("err");
+    result.classList.remove("form-result--err");
 
     const data = Object.fromEntries(new FormData(signupForm).entries());
     const submitBtn = signupForm.querySelector('button[type="submit"]');
+    const originalLabel = submitBtn.textContent;
     submitBtn.disabled = true;
     submitBtn.textContent = "Provisioning…";
 
@@ -59,19 +78,19 @@ if (signupForm) {
         throw new Error((body.errors || ["Something went wrong."]).join(" "));
       }
       result.innerHTML = `
-        <strong>${body.tenant.displayName} is live.</strong>
+        <strong>${body.tenant.displayName} is live.</strong><br/>
         Your site: <a href="${body.url}">${body.url}</a><br/>
         We've sent a setup email to <code>${body.tenant.scoutmasterEmail}</code>.
       `;
       result.hidden = false;
       signupForm.reset();
     } catch (err) {
-      result.classList.add("err");
+      result.classList.add("form-result--err");
       result.innerHTML = `<strong>Couldn't provision your site.</strong> ${err.message}`;
       result.hidden = false;
     } finally {
       submitBtn.disabled = false;
-      submitBtn.textContent = "Create my site";
+      submitBtn.textContent = originalLabel;
     }
   });
 }
