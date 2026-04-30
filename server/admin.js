@@ -1198,10 +1198,17 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
       </div>
     </li>`;
 
+  const subscribeUrl = `https://${req.org.slug}.${process.env.APEX_DOMAIN || "compass.app"}/calendar.ics`;
   const body = `
     <h1>Calendar</h1>
-    <p class="muted">Members can <strong>subscribe</strong> to your event feed and have it on their phone calendar automatically.</p>
-    <p class="muted small">Subscription URL: <code>${escape(`https://${req.org.slug}.${process.env.APEX_DOMAIN || "compass.app"}/calendar.ics`)}</code></p>
+    <p class="muted">Members can <strong>subscribe</strong> to your event feed and have every event you publish show up on their phone calendar automatically.</p>
+    <div class="card" style="margin-bottom:1rem;background:#faf3e3;border:1px solid #c8e94a">
+      <div class="row" style="align-items:center;gap:.6rem">
+        <code style="flex:1;background:#fff;padding:.45rem .65rem;border-radius:6px;border:1px solid #d4c8a8;overflow:auto;white-space:nowrap">${escape(subscribeUrl)}</code>
+        <button type="button" class="btn btn-ghost small" onclick="navigator.clipboard.writeText('${escape(subscribeUrl)}').then(()=>{this.textContent='Copied'},()=>{this.textContent='Copy failed'})">Copy</button>
+      </div>
+      <p class="muted small" style="margin:.5rem 0 0">Share this URL in a welcome email or post it on your public site. Google Calendar / Apple Calendar / Outlook all accept it via "Subscribe to calendar from URL". Updates fan out automatically when the calendar refreshes (typically every few hours).</p>
+    </div>
 
     <h2 style="margin-top:1.25rem">New event</h2>
     ${eventForm({ event: null, action: "/admin/events", submitLabel: "Create event" })}
