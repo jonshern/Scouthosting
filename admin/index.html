@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Compass admin dashboard prototype — Tuesday evening view for a unit committee chair. Calendar, roster, messages, photos, forms, money." />
+  <title>Compass · Admin · Troop 12</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+    rel="stylesheet"
+  />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <!-- ====================================================================
+       1. Top nav — wordmark + section tabs (Overview is current) +
+       notification bell, search, avatar.
+       Mirrors admin-pages.jsx → AdminBalanced top nav (lines 183–197).
+       ==================================================================== -->
+  <header class="topnav" role="banner">
+    <div class="topnav__brand">
+      <a href="#" class="wordmark" aria-label="Compass — admin">
+        <svg width="28" height="28" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+          <circle cx="20" cy="20" r="18.5" fill="none" stroke="#0d130d" stroke-width="1.25" />
+          <circle cx="20" cy="20" r="11" fill="none" stroke="#0d130d" stroke-width="0.75" opacity="0.4" />
+          <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#c8e94a" />
+          <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="#0d130d" opacity="0.85" />
+          <circle cx="20" cy="20" r="1.6" fill="#0d130d" />
+        </svg>
+        <span>Compass<span class="accent">.</span></span>
+      </a>
+      <nav class="topnav__sections" aria-label="Admin sections">
+        <a href="#main" class="topnav__section topnav__section--active" aria-current="page">Overview</a>
+        <a href="#calendar">Calendar</a>
+        <a href="#roster">Roster</a>
+        <a href="#messages">Messages</a>
+        <a href="#photos">Photos</a>
+        <a href="#forms">Forms</a>
+        <a href="#money">Money</a>
+      </nav>
+    </div>
+
+    <div class="topnav__actions" aria-label="Account">
+      <button class="iconbtn" type="button" aria-label="Notifications">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      </button>
+      <button class="iconbtn" type="button" aria-label="Search">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      </button>
+      <span class="avatar avatar--accent" aria-label="Signed in as Jenna M., committee chair">JM</span>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ==================================================================
+         2. Greeting block — dark forest card, oversized italic-+-accent
+         headline, kicker pill, deadline subhead, dual CTAs.
+         Mirrors AdminBalanced title block (lines 200–211).
+         ================================================================== -->
+    <section class="greeting" aria-labelledby="greeting-title">
+      <div class="greeting__copy">
+        <div class="greeting__pill">
+          <span class="greeting__pill-dot" aria-hidden="true"></span>
+          Troop 12 &middot; This week
+        </div>
+        <h1 id="greeting-title" class="greeting__title">
+          Tuesday<span class="greeting__title-italic">, evening.</span>
+        </h1>
+        <p class="greeting__sub">
+          High-Adventure closes RSVPs Friday &middot; 14 families haven't replied &middot;
+          Court of Honor in 2 weeks
+        </p>
+      </div>
+      <div class="greeting__actions">
+        <button class="btn btn--ghost-light btn--pill" type="button">Send reminder</button>
+        <button class="btn btn--accent btn--pill" type="button">+ New event</button>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         3. Stats row — 4 cards, color-coded top borders, oversized
+         display-number, eyebrow label tinted to the same tone.
+         Mirrors AdminBalanced stats grid (lines 213–228).
+         ================================================================== -->
+    <section class="stats" aria-label="Unit at a glance">
+      <article class="stat stat--sky">
+        <div class="stat__label">Scouts active</div>
+        <div class="stat__num">32</div>
+        <div class="stat__sub">+3 this month</div>
+      </article>
+      <article class="stat stat--accent">
+        <div class="stat__label">RSVPs needed</div>
+        <div class="stat__num">14</div>
+        <div class="stat__sub">High-Adventure closes Fri</div>
+      </article>
+      <article class="stat stat--butter">
+        <div class="stat__label">Account</div>
+        <div class="stat__num">$4,218</div>
+        <div class="stat__sub">$1,240 dues outstanding</div>
+      </article>
+      <article class="stat stat--raspberry">
+        <div class="stat__label">Unread</div>
+        <div class="stat__num">7</div>
+        <div class="stat__sub">oldest 2d ago</div>
+      </article>
+    </section>
+
+    <!-- ==================================================================
+         4. Two-column body — calendar (left) + activity feed (right).
+         Each block has a section eyebrow + display headline.
+         Mirrors AdminBalanced body grid (lines 230–279).
+         ================================================================== -->
+    <div class="body">
+      <!-- Calendar column -->
+      <section id="calendar" class="board" aria-labelledby="calendar-title">
+        <div class="section-eyebrow">&sect; Calendar</div>
+        <h2 id="calendar-title" class="board__title">What's coming up.</h2>
+
+        <ol class="agenda">
+          <li class="agenda__item agenda__item--sky">
+            <div class="agenda__date">May 04</div>
+            <div class="agenda__copy">
+              <div class="agenda__name">PLC meeting</div>
+              <div class="agenda__sub">Mon &middot; 6:30 PM &middot; Scout Room</div>
+            </div>
+            <div class="agenda__rsvp">
+              <div class="agenda__rsvp-meta">8 of 12 replied</div>
+              <div class="agenda__rsvp-bar" role="progressbar" aria-label="8 of 12 replied" aria-valuemin="0" aria-valuemax="12" aria-valuenow="8">
+                <div class="agenda__rsvp-fill" style="width:66.6%"></div>
+              </div>
+            </div>
+          </li>
+
+          <li class="agenda__item agenda__item--accent">
+            <div class="agenda__date">May 09</div>
+            <div class="agenda__copy">
+              <div class="agenda__name">Boundary Waters Trek</div>
+              <div class="agenda__sub">Sat &middot; 6:00 AM &middot; Ely, MN</div>
+            </div>
+            <div class="agenda__rsvp">
+              <div class="agenda__rsvp-meta">18 of 22 replied</div>
+              <div class="agenda__rsvp-bar" role="progressbar" aria-label="18 of 22 replied" aria-valuemin="0" aria-valuemax="22" aria-valuenow="18">
+                <div class="agenda__rsvp-fill" style="width:81.8%"></div>
+              </div>
+            </div>
+          </li>
+
+          <li class="agenda__item agenda__item--raspberry">
+            <div class="agenda__date">May 11</div>
+            <div class="agenda__copy">
+              <div class="agenda__name">May Court of Honor</div>
+              <div class="agenda__sub">Mon &middot; 7:00 PM &middot; Sanctuary</div>
+            </div>
+            <div class="agenda__rsvp">
+              <div class="agenda__rsvp-meta">34 of 42 replied</div>
+              <div class="agenda__rsvp-bar" role="progressbar" aria-label="34 of 42 replied" aria-valuemin="0" aria-valuemax="42" aria-valuenow="34">
+                <div class="agenda__rsvp-fill" style="width:81.0%"></div>
+              </div>
+            </div>
+          </li>
+
+          <li class="agenda__item agenda__item--plum">
+            <div class="agenda__date">May 15</div>
+            <div class="agenda__copy">
+              <div class="agenda__name">Spring Camporee</div>
+              <div class="agenda__sub">Wed &middot; weekend &middot; Tomahawk</div>
+            </div>
+            <div class="agenda__rsvp">
+              <div class="agenda__rsvp-meta">12 of 18 replied</div>
+              <div class="agenda__rsvp-bar" role="progressbar" aria-label="12 of 18 replied" aria-valuemin="0" aria-valuemax="18" aria-valuenow="12">
+                <div class="agenda__rsvp-fill" style="width:66.6%"></div>
+              </div>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <!-- Activity column -->
+      <section id="messages" class="board" aria-labelledby="activity-title">
+        <div class="section-eyebrow">&sect; Activity</div>
+        <h2 id="activity-title" class="board__title">The last few hours.</h2>
+
+        <ul class="activity">
+          <li class="activity__row">
+            <span class="activity__icon activity__icon--teal" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+            </span>
+            <div class="activity__copy">
+              <div class="activity__line"><span class="activity__who">Sara Park</span> <span class="activity__what">paid $85 toward High-Adventure</span></div>
+              <div class="activity__when">5 minutes ago</div>
+            </div>
+          </li>
+
+          <li class="activity__row">
+            <span class="activity__icon activity__icon--accent" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </span>
+            <div class="activity__copy">
+              <div class="activity__line"><span class="activity__who">Megan O'Brien</span> <span class="activity__what">said yes to High-Adventure for Liam</span></div>
+              <div class="activity__when">14 minutes</div>
+            </div>
+          </li>
+
+          <li class="activity__row">
+            <span class="activity__icon activity__icon--raspberry" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
+            </span>
+            <div class="activity__copy">
+              <div class="activity__line"><span class="activity__who">Eric Schmidt</span> <span class="activity__what">replied to "gear check Friday"</span></div>
+              <div class="activity__when">32 min</div>
+            </div>
+          </li>
+
+          <li class="activity__row">
+            <span class="activity__icon activity__icon--butter" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="18" x="5" y="3" rx="2"/><path d="M9 7h6"/><path d="M9 11h6"/><path d="M9 15h4"/></svg>
+            </span>
+            <div class="activity__copy">
+              <div class="activity__line"><span class="activity__who">Wen Chen</span> <span class="activity__what">submitted health form</span></div>
+              <div class="activity__when">1 hour</div>
+            </div>
+          </li>
+
+          <li class="activity__row">
+            <span class="activity__icon activity__icon--sky" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
+            </span>
+            <div class="activity__copy">
+              <div class="activity__line"><span class="activity__who">Linh Tran</span> <span class="activity__what">asked a question</span></div>
+              <div class="activity__when">2 hours</div>
+            </div>
+          </li>
+
+          <li class="activity__row">
+            <span class="activity__icon activity__icon--plum" aria-hidden="true">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-10 5L2 7"/></svg>
+            </span>
+            <div class="activity__copy">
+              <div class="activity__line"><span class="activity__who">You</span> <span class="activity__what">sent High-Adventure gear-check email</span></div>
+              <div class="activity__when">4 hours</div>
+            </div>
+          </li>
+        </ul>
+      </section>
+    </div>
+
+    <!-- ==================================================================
+         5. Roster strip — table of seven scouts with patrol chips, rank,
+         age, parent. README calls this out as a separate admin view; we
+         include a condensed strip on the dashboard as a preview.
+         ROSTER data mirrors the JSX top-of-file constant (lines 4–14).
+         ================================================================== -->
+    <section id="roster" class="roster" aria-labelledby="roster-title">
+      <header class="roster__head">
+        <div>
+          <div class="section-eyebrow">&sect; Roster</div>
+          <h2 id="roster-title" class="board__title">
+            32 scouts, <em>three patrols.</em>
+          </h2>
+        </div>
+        <a href="#" class="roster__link">Manage roster &rarr;</a>
+      </header>
+
+      <table class="roster__table">
+        <thead>
+          <tr>
+            <th scope="col">Scout</th>
+            <th scope="col">Patrol</th>
+            <th scope="col">Rank</th>
+            <th scope="col">Age</th>
+            <th scope="col">Parent / Guardian</th>
+            <th scope="col" class="roster__cell--right">Last seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="roster__cell--scout">
+              <span class="avatar avatar--small avatar--primary" aria-hidden="true">MP</span>
+              <span class="roster__name">Mason Park</span>
+            </td>
+            <td><span class="chip chip--patrol">Eagle</span></td>
+            <td class="roster__cell--soft">Life</td>
+            <td class="roster__cell--soft">16</td>
+            <td class="roster__cell--soft">Joel &amp; Sara Park</td>
+            <td class="roster__cell--right roster__cell--muted">2h ago</td>
+          </tr>
+          <tr>
+            <td class="roster__cell--scout">
+              <span class="avatar avatar--small avatar--primary" aria-hidden="true">LO</span>
+              <span class="roster__name">Liam O'Brien</span>
+            </td>
+            <td><span class="chip chip--patrol">Eagle</span></td>
+            <td class="roster__cell--soft">Star</td>
+            <td class="roster__cell--soft">15</td>
+            <td class="roster__cell--soft">Megan O'Brien</td>
+            <td class="roster__cell--right roster__cell--muted">1d</td>
+          </tr>
+          <tr>
+            <td class="roster__cell--scout">
+              <span class="avatar avatar--small avatar--primary" aria-hidden="true">OS</span>
+              <span class="roster__name">Owen Schmidt</span>
+            </td>
+            <td><span class="chip chip--patrol">Hawk</span></td>
+            <td class="roster__cell--soft">Life</td>
+            <td class="roster__cell--soft">16</td>
+            <td class="roster__cell--soft">Eric Schmidt</td>
+            <td class="roster__cell--right roster__cell--muted">4h</td>
+          </tr>
+          <tr>
+            <td class="roster__cell--scout">
+              <span class="avatar avatar--small avatar--primary" aria-hidden="true">ET</span>
+              <span class="roster__name">Ethan Tran</span>
+            </td>
+            <td><span class="chip chip--patrol">Hawk</span></td>
+            <td class="roster__cell--soft">1st Cl</td>
+            <td class="roster__cell--soft">14</td>
+            <td class="roster__cell--soft">Linh Tran</td>
+            <td class="roster__cell--right roster__cell--muted">3d</td>
+          </tr>
+          <tr>
+            <td class="roster__cell--scout">
+              <span class="avatar avatar--small avatar--primary" aria-hidden="true">NG</span>
+              <span class="roster__name">Noah Garcia</span>
+            </td>
+            <td><span class="chip chip--patrol">Wolf</span></td>
+            <td class="roster__cell--soft">Star</td>
+            <td class="roster__cell--soft">15</td>
+            <td class="roster__cell--soft">Carlos &amp; Maria G.</td>
+            <td class="roster__cell--right roster__cell--muted">12m</td>
+          </tr>
+          <tr>
+            <td class="roster__cell--scout">
+              <span class="avatar avatar--small avatar--primary" aria-hidden="true">HC</span>
+              <span class="roster__name">Henry Chen</span>
+            </td>
+            <td><span class="chip chip--patrol">Wolf</span></td>
+            <td class="roster__cell--soft">2nd Cl</td>
+            <td class="roster__cell--soft">13</td>
+            <td class="roster__cell--soft">Wen Chen</td>
+            <td class="roster__cell--right roster__cell--muted">6h</td>
+          </tr>
+          <tr>
+            <td class="roster__cell--scout">
+              <span class="avatar avatar--small avatar--primary" aria-hidden="true">IW</span>
+              <span class="roster__name">Isaac White</span>
+            </td>
+            <td><span class="chip chip--patrol">Eagle</span></td>
+            <td class="roster__cell--soft">Eagle</td>
+            <td class="roster__cell--soft">17</td>
+            <td class="roster__cell--soft">David White</td>
+            <td class="roster__cell--right roster__cell--muted">today</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+
+  <footer class="footer" role="contentinfo">
+    <div class="footer__inner">
+      <span>Compass admin &middot; <em>Troop 12</em> &middot; signed in as Jenna M.</span>
+      <span class="footer__disclaimer">Independent &middot; Not affiliated with Scouting America or BSA.</span>
+    </div>
+  </footer>
+</body>
+</html>
