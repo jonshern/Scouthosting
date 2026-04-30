@@ -22,6 +22,7 @@ import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dieta
 import { reconcilePositionTerm as reconcileTerm } from "../lib/positionTerms.js";
 import { makeUnsubToken } from "../lib/unsubToken.js";
 import { scoutbookUrl } from "../lib/scoutbook.js";
+import { sendOverdueReminders } from "../lib/loanReminders.js";
 import { tallyCredits, formatCsvRow } from "../lib/credits.js";
 import { recordAudit } from "../lib/audit.js";
 import {
@@ -4905,10 +4906,17 @@ adminRouter.get("/equipment/loans", requireLeader, async (req, res) => {
   const open = await prisma.equipmentLoan.findMany({
     where: { orgId: req.org.id, returnedAt: null },
     orderBy: { checkedOutAt: "asc" },
-    include: { equipment: { select: { id: true, name: true } } },
+    include: {
+      equipment: { select: { id: true, name: true } },
+      member: { select: { email: true, commPreference: true } },
+    },
   });
   const fmt = (d) => new Date(d).toISOString().slice(0, 10);
   const today = new Date();
+  const flash = req.query.reminded
+    ? renderFlash(req.query)
+    : "";
+  let overdueCount = 0;
   const items = open
     .map((l) => {
       const days = Math.max(
@@ -4916,6 +4924,10 @@ adminRouter.get("/equipment/loans", requireLeader, async (req, res) => {
         Math.floor((today.getTime() - new Date(l.checkedOutAt).getTime()) / 86400000),
       );
       const overdue = l.dueAt && new Date(l.dueAt) < today;
+      if (overdue) overdueCount += 1;
+      const reminderLine = l.lastReminderAt
+        ? ` · reminded ${escape(fmt(l.lastReminderAt))}`
+        : "";
       return `
       <li>
         <div style="flex:1">
@@ -4925,7 +4937,7 @@ adminRouter.get("/equipment/loans", requireLeader, async (req, res) => {
               l.dueAt
                 ? ` · due ${escape(fmt(l.dueAt))}${overdue ? ` <span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">overdue</span>` : ""}`
                 : ""
-            }
+            }${reminderLine}
           </p>
         </div>
         <form class="inline" method="post" action="/admin/equipment/${escape(l.equipment.id)}/loans/${escape(l.id)}/return">
@@ -4935,13 +4947,54 @@ adminRouter.get("/equipment/loans", requireLeader, async (req, res) => {
     })
     .join("");
 
+  const remindForm = overdueCount
+    ? `<form method="post" action="/admin/equipment/loans/remind" style="margin:.6rem 0 1rem">
+         <button class="btn btn-secondary" type="submit">
+           Send return-reminders (${overdueCount} overdue)
+         </button>
+         <span class="muted small" style="margin-left:.5rem">
+           Borrowers with an email get a polite nudge. 24-hour throttle so the
+           same loan isn't pinged twice in one day.
+         </span>
+       </form>`
+    : "";
+
   const body = `
     <a class="back" href="/admin/equipment" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Equipment</a>
     <h1>Open loans</h1>
     <p class="muted">Everything that's currently checked out, oldest first. Click an item to open its loan history.</p>
+    ${flash}
+    ${remindForm}
     ${open.length ? `<ul class="items">${items}</ul>` : `<div class="empty">Nothing is currently out.</div>`}
   `;
   res.type("html").send(layout({ title: "Open loans", org: req.org, user: req.user, body }));
+});
+
+function renderFlash(q) {
+  const sent = Number(q.reminded) || 0;
+  const skipped = Number(q.skipped) || 0;
+  const throttled = Number(q.throttled) || 0;
+  const failed = Number(q.failed) || 0;
+  const parts = [`<strong>${sent}</strong> reminder${sent === 1 ? "" : "s"} sent`];
+  if (throttled) parts.push(`${throttled} skipped (already nudged in the last 24h)`);
+  if (skipped) parts.push(`${skipped} couldn't be reached (no email on file)`);
+  if (failed) parts.push(`${failed} failed`);
+  return `<div class="flash" style="background:#e3f29b;border:1px solid #c8e94a;border-radius:8px;padding:.65rem .85rem;margin:.6rem 0">${parts.join(" · ")}</div>`;
+}
+
+// Send polite return-reminder emails to every overdue borrower.
+adminRouter.post("/equipment/loans/remind", requireLeader, async (req, res) => {
+  const result = await sendOverdueReminders({
+    org: req.org,
+    user: req.user,
+  });
+  const qs = new URLSearchParams({
+    reminded: String(result.sent.length),
+    skipped: String(result.skipped.length),
+    throttled: String(result.throttled.length),
+    failed: String(result.errors.length),
+  });
+  res.redirect(`/admin/equipment/loans?${qs.toString()}`);
 });
 
 adminRouter.post("/equipment/:id", requireLeader, async (req, res) => {
