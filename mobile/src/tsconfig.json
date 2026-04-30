@@ -1,0 +1,14 @@
+{
+  "// note": "Standalone tsconfig used by vitest's tsconfck discovery so it doesn't walk up to mobile/tsconfig.json (which extends expo/tsconfig.base — only available after `npm install` inside mobile/). The real app build still uses the parent tsconfig.json; Expo's metro/babel pipeline ignores this one.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "jsx": "react-jsx",
+    "types": ["node"]
+  },
+  "include": ["**/*.ts", "**/*.tsx"]
+}

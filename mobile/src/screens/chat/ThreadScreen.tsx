@@ -1,268 +1,308 @@
-// Thread — high fidelity. Persistent green TWO-DEEP banner, message
-// bubbles with leader-name raspberry coloring + role badges, reactions,
-// pinned packing list, and a mock compose row.
-//
-// The display headline at the top of the screen uses the signature
-// italic + chartreuse-fill treatment.
+// Patrol / troop thread screen — wired to the live JSON API. Fetches
+// the channel + last 50 messages, polls every 5s for new ones (SSE
+// replaces this in PR D), and surfaces server-reported state for the
+// suspended-channel banner. The composer is hidden when canPost=false
+// (suspended or archived channels).
 
-import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
+import { useRoute, type RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRoute } from '@react-navigation/native';
 
-import { Avatar, Icon } from '../../theme/atoms';
-import { TwoDeepBanner } from '../../components/TwoDeepBanner';
 import { MessageBubble } from '../../components/MessageBubble';
 import { fontFamilies, palette, radius, spacing } from '../../theme/tokens';
+import type { ChatStackParamList } from '../../navigation/types';
+import { useAuth } from '../../state/AuthContext';
+import { getChannel, sendMessage } from '../../api/channels';
+import { ApiError } from '../../api/client';
+import type { ChannelDto, MessageDto } from '../../api/types';
 
-type Msg = React.ComponentProps<typeof MessageBubble>;
+const POLL_INTERVAL_MS = 5000;
 
-const MESSAGES: Msg[] = [
-  {
-    side: 'left',
-    who: 'Mr. Avery',
-    role: 'SM',
-    isLeader: true,
-    text: 'Hey Hawks — packing list for Friday is pinned. Sleeping bag rated 30°F minimum.',
-    timestamp: '3:14 PM',
-    avatarColor: palette.plum,
-  },
-  {
-    side: 'left',
-    who: 'Sam',
-    age: 14,
-    text: 'who has the dutch oven from last time?',
-    timestamp: '3:42 PM',
-    avatarColor: palette.sky,
-  },
-  {
-    side: 'left',
-    who: 'Max',
-    age: 12,
-    text: "i thought Jamie did?",
-    timestamp: '3:43 PM',
-    avatarColor: palette.teal,
-    reactions: [{ emoji: '👍', count: 2 }],
-  },
-  {
-    side: 'left',
-    who: 'Jamie',
-    age: 13,
-    text: "yeah it's in my garage. i'll bring it Friday",
-    timestamp: '3:51 PM',
-    avatarColor: palette.ember,
-    reactions: [{ emoji: '🙏', count: 4 }],
-  },
-  {
-    side: 'left',
-    who: 'Sam',
-    age: 14,
-    timestamp: '4:02 PM',
-    avatarColor: palette.sky,
-    photoSubject: 'forest',
-    photoCaption: 'spotted at the trailhead',
-  },
-  {
-    side: 'right',
-    who: 'Alex (you)',
-    text: 'Friday looks great — 60 and sunny.',
-    timestamp: '4:08 PM',
-  },
-  {
-    side: 'left',
-    who: 'Mr. Brooks',
-    role: 'ASM',
-    isLeader: true,
-    text: '@Sam can you confirm whether Henry\'s patrol is borrowing our trail stove?',
-    timestamp: '4:11 PM',
-    avatarColor: palette.raspberry,
-  },
-];
+function fmtTimestamp(iso: string): string {
+  const d = new Date(iso);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) {
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
 
-export function ThreadScreen() {
-  const route = useRoute();
-  const params = route.params as { channelName?: string } | undefined;
-  const channelName = params?.channelName ?? 'Hawk Patrol';
+function initialsFor(name: string): string {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((s) => s[0]?.toUpperCase() || '')
+      .join('') || '·'
+  );
+}
+
+export default function ThreadScreen() {
+  const route = useRoute<RouteProp<ChatStackParamList, 'Thread'>>();
+  const auth = useAuth();
+  const [channel, setChannel] = useState<ChannelDto | null>(null);
+  const [messages, setMessages] = useState<MessageDto[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [draft, setDraft] = useState('');
+  const [sending, setSending] = useState(false);
+  const scrollRef = useRef<ScrollView | null>(null);
+
+  const channelId = route.params.channelId;
+  const myUserId = auth.state.status === 'signed-in' ? auth.state.profile.userId : null;
+
+  const refresh = useCallback(async () => {
+    const client = auth.client();
+    if (!client) return;
+    try {
+      const data = await getChannel(client, channelId);
+      setChannel(data.channel);
+      setMessages(data.messages);
+      setError(null);
+    } catch (e: any) {
+      setError(e?.message || 'Could not load thread.');
+    }
+  }, [auth, channelId]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  // Lightweight polling. SSE in PR D replaces this with sub-second push.
+  useEffect(() => {
+    const id = setInterval(refresh, POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [refresh]);
+
+  // Auto-scroll to the bottom when the message list grows.
+  useEffect(() => {
+    const t = setTimeout(() => scrollRef.current?.scrollToEnd({ animated: false }), 50);
+    return () => clearTimeout(t);
+  }, [messages.length]);
+
+  const onSend = useCallback(async () => {
+    const client = auth.client();
+    const body = draft.trim();
+    if (!client || !body || !channel) return;
+    setSending(true);
+    try {
+      const r = await sendMessage(client, channel.id, body);
+      setMessages((prev) => [...prev, r.message]);
+      setDraft('');
+    } catch (e: any) {
+      if (e instanceof ApiError && e.code === 'channel_suspended') {
+        setError('Channel is paused — a leader needs to restore two-deep before posts can land.');
+      } else {
+        setError(e?.message || 'Could not send.');
+      }
+      void refresh();
+    } finally {
+      setSending(false);
+    }
+  }, [auth, draft, channel, refresh]);
+
+  if (!channel && !error) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.loading}><ActivityIndicator color={palette.primary} /></View>
+      </SafeAreaView>
+    );
+  }
+
+  const canPost = channel?.canPost ?? false;
+  const youthChannel = !!channel && (channel.kind === 'patrol' || channel.kind === 'troop' || channel.kind === 'event');
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      {/* Top bar */}
-      <View style={styles.topBar}>
-        <Pressable>
-          <Icon name="chevronLeft" size={22} color={palette.primary} strokeWidth={2.4} />
-        </Pressable>
-        <Avatar initials="HP" size={36} bg={palette.primary} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.topTitle}>{channelName}</Text>
-          <Text style={styles.topSub}>8 scouts · 2 leaders · Troop 12</Text>
-        </View>
+    <SafeAreaView style={styles.safe}>
+      <View style={styles.header}>
+        <Text style={styles.title}>{channel?.name || route.params.channelName}</Text>
+        {channel?.isSuspended ? (
+          <Text style={styles.suspended}>
+            ⏸ Suspended — {(channel.suspendedReason || 'YPT compliance').replace(/-/g, ' ')}
+          </Text>
+        ) : youthChannel ? (
+          <Text style={styles.twoDeep}>🛡 Two-deep watching</Text>
+        ) : null}
       </View>
 
-      {/* Hero headline */}
-      <View style={styles.heroBlock}>
-        <Text style={styles.heroEyebrow}>PATROL · TROOP 12</Text>
-        <Text style={styles.heroLine}>
-          Pack <Text style={styles.heroAccent}>tight</Text>, sleep <Text style={styles.heroAccent}>warm</Text>.
-        </Text>
-      </View>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          ref={scrollRef}
+          style={styles.flex}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          {messages.length === 0 ? (
+            <Text style={styles.empty}>No messages yet — say hello.</Text>
+          ) : null}
+          {messages.map((m) => {
+            const isMine = !!m.author && myUserId === m.author.id;
+            const isSystem = !m.author;
+            return (
+              <MessageBubble
+                key={m.id}
+                side={isMine ? 'right' : 'left'}
+                who={m.author?.displayName || 'system'}
+                text={m.deleted ? '(deleted)' : (m.body || '')}
+                timestamp={fmtTimestamp(m.createdAt)}
+                isMeta={isSystem}
+                avatarInitials={initialsFor(m.author?.displayName || 'S')}
+              />
+            );
+          })}
+        </ScrollView>
 
-      {/* Two-deep banner */}
-      <TwoDeepBanner
-        leaderOne="Mr. Avery"
-        leaderTwo="Mr. Brooks"
-        variant="compact"
-      />
-
-      {/* Pinned packing list */}
-      <View style={styles.pin}>
-        <Icon name="pin" size={14} color={palette.ember} strokeWidth={2} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.pinTitle}>Pinned: Spring Campout packing list</Text>
-          <Text style={styles.pinSub}>Mr. Avery · 2d ago · tap to view</Text>
-        </View>
-        <Icon name="chevron" size={14} color={palette.inkMuted} strokeWidth={2} />
-      </View>
-
-      {/* Messages */}
-      <ScrollView contentContainerStyle={styles.messages}>
-        {MESSAGES.map((m, i) => (
-          <MessageBubble key={i} {...m} />
-        ))}
-      </ScrollView>
-
-      {/* Compose */}
-      <View style={styles.compose}>
-        <View style={styles.composeAdd}>
-          <Icon name="plus" size={16} color={palette.inkSoft} strokeWidth={2} />
-        </View>
-        <View style={styles.composeInput}>
-          <Text style={styles.composePlaceholder}>Message Hawk Patrol…</Text>
-        </View>
-        <Pressable style={styles.composeSend}>
-          <Icon name="send" size={16} color={palette.ink} strokeWidth={2} />
-        </Pressable>
-      </View>
+        {canPost ? (
+          <View style={styles.composer}>
+            <TextInput
+              style={styles.input}
+              placeholder="Type a message…"
+              placeholderTextColor={palette.inkMuted}
+              value={draft}
+              onChangeText={setDraft}
+              multiline
+              maxLength={10000}
+              editable={!sending}
+            />
+            <Pressable
+              onPress={onSend}
+              disabled={sending || !draft.trim()}
+              style={({ pressed }) => [
+                styles.sendBtn,
+                (sending || !draft.trim()) && styles.sendBtnDisabled,
+                pressed && styles.sendBtnPressed,
+              ]}
+            >
+              {sending ? (
+                <ActivityIndicator color={palette.bg} />
+              ) : (
+                <Text style={styles.sendText}>Send</Text>
+              )}
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.lockedNote}>
+            <Text style={styles.lockedText}>
+              {channel?.archivedAt
+                ? 'This channel has been archived.'
+                : 'Posting is paused for now.'}
+            </Text>
+          </View>
+        )}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    borderBottomWidth: 1,
+  flex: { flex: 1 },
+  header: {
+    paddingHorizontal: spacing.screen,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
     borderBottomColor: palette.line,
-    backgroundColor: palette.surface,
+    borderBottomWidth: 1,
   },
-  topTitle: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 14,
-    fontWeight: '700',
-    color: palette.ink,
-  },
-  topSub: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 11,
-    color: palette.inkMuted,
-  },
-  heroBlock: {
-    paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
-    backgroundColor: palette.bg,
-  },
-  heroEyebrow: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 10,
-    fontWeight: '700',
-    color: palette.inkMuted,
-    letterSpacing: 1.6,
-    marginBottom: 4,
-  },
-  heroLine: {
+  title: {
     fontFamily: fontFamilies.display,
     fontSize: 22,
     color: palette.ink,
-    letterSpacing: -0.3,
+    letterSpacing: -0.4,
   },
-  heroAccent: {
-    fontStyle: 'italic',
-    backgroundColor: palette.accent,
-    color: palette.ink,
-  },
-  pin: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 10,
-    backgroundColor: `${palette.butter}33`,
-    borderBottomWidth: 1,
-    borderBottomColor: `${palette.butter}66`,
-  },
-  pinTitle: {
+  suspended: {
+    marginTop: 4,
     fontFamily: fontFamilies.ui,
     fontSize: 12,
-    fontWeight: '700',
-    color: palette.ink,
+    color: palette.danger,
+    fontWeight: '600',
   },
-  pinSub: {
+  twoDeep: {
+    marginTop: 4,
     fontFamily: fontFamilies.ui,
-    fontSize: 11,
-    color: palette.inkSoft,
-    marginTop: 1,
+    fontSize: 12,
+    color: palette.success,
+    fontWeight: '600',
   },
-  messages: {
-    paddingHorizontal: spacing.md,
-    paddingTop: spacing.md,
-    paddingBottom: spacing.sm,
+  scrollContent: {
+    padding: spacing.screen,
+    gap: spacing.md,
   },
-  compose: {
+  empty: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 14,
+    color: palette.inkMuted,
+    textAlign: 'center',
+    marginTop: spacing.lg,
+  },
+  error: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 13,
+    color: palette.danger,
+    backgroundColor: palette.raspberrySoft,
+    padding: spacing.sm,
+    borderRadius: radius.cardSm,
+    marginBottom: spacing.md,
+  },
+  loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  composer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: 10,
-    borderTopWidth: 1,
+    gap: spacing.sm,
+    padding: spacing.md,
     borderTopColor: palette.line,
+    borderTopWidth: 1,
     backgroundColor: palette.surface,
   },
-  composeAdd: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: palette.bg,
-    borderWidth: 1,
-    borderColor: palette.line,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  composeInput: {
+  input: {
     flex: 1,
+    minHeight: 40,
+    maxHeight: 120,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    fontFamily: fontFamilies.ui,
+    fontSize: 14,
+    color: palette.ink,
     backgroundColor: palette.bg,
+    borderRadius: radius.input,
     borderWidth: 1,
     borderColor: palette.line,
-    borderRadius: 18,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
   },
-  composePlaceholder: {
+  sendBtn: {
+    paddingHorizontal: spacing.lg,
+    justifyContent: 'center',
+    backgroundColor: palette.ink,
+    borderRadius: radius.input,
+  },
+  sendBtnDisabled: { opacity: 0.5 },
+  sendBtnPressed: { backgroundColor: palette.primaryHover },
+  sendText: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.bg,
+  },
+  lockedNote: {
+    padding: spacing.lg,
+    backgroundColor: palette.surface,
+    borderTopColor: palette.line,
+    borderTopWidth: 1,
+  },
+  lockedText: {
     fontFamily: fontFamilies.ui,
     fontSize: 13,
     color: palette.inkMuted,
-  },
-  composeSend: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: palette.accent,
-    alignItems: 'center',
-    justifyContent: 'center',
+    textAlign: 'center',
   },
 });
-
-export default ThreadScreen;
