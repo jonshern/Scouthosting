@@ -134,6 +134,7 @@ model User {
   channelMemberships ChannelMember[]
   messages           Message[]
   reactions          Reaction[]
+  uploadedPhotos     Photo[]
 }
 
 // External identity provider linkage. One User can have multiple
@@ -384,20 +385,36 @@ model Album {
 model Photo {
   id           String    @id @default(cuid())
   orgId        String
-  albumId      String
+  // Albums are the public-gallery surface. Chat-attached photos live
+  // outside any album (albumId=null) and are reached via the chat
+  // surface only — the /uploads route's auth check looks up the
+  // attached message and confirms the viewer can read its channel.
+  albumId      String?
+  // Set when this photo is attached to a chat Message. Mutually
+  // exclusive with albumId — a photo is either gallery-context or
+  // chat-context. The /uploads route uses the populated side to
+  // authorize. Setting deletedAt on the Message soft-deletes the
+  // photo from chat without losing the file (audit retention).
+  messageId    String?
   filename     String
   originalName String?
   mimeType     String
   sizeBytes    Int
   caption      String?
   takenAt      DateTime?
+  width        Int?
+  height       Int?
   sortOrder    Int       @default(0)
+  uploaderUserId String?
   createdAt    DateTime  @default(now())
 
-  org   Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  album Album @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  org      Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  album    Album?   @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  message  Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  uploader User?    @relation(fields: [uploaderUserId], references: [id], onDelete: SetNull)
 
   @@index([orgId, albumId, sortOrder])
+  @@index([orgId, messageId])
 }
 
 model Form {
@@ -1204,6 +1221,7 @@ model Message {
   channel   Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
   author    User?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
   reactions Reaction[]
+  photos    Photo[]
 
   @@index([channelId, createdAt])
 }

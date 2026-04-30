@@ -60,6 +60,29 @@ function renderReactions(m: MessageDto, onReact: (id: string, emoji: string) => 
   );
 }
 
+function renderPhoto(m: MessageDto, hostBaseUrl: string) {
+  if (m.attachment?.kind !== 'photo') return null;
+  const p = m.attachment;
+  if (p.deleted) {
+    return (
+      <View style={chatStyles.photoDeleted}>
+        <Text style={chatStyles.photoDeletedText}>📷 (photo removed)</Text>
+      </View>
+    );
+  }
+  const src = p.url.startsWith('http') ? p.url : hostBaseUrl + p.url;
+  // We use a JSX <Image> from react-native here; the styling lets it
+  // scale to its intrinsic aspect ratio while capping width.
+  const Image = require('react-native').Image;
+  const aspect = p.width && p.height ? p.width / p.height : 4 / 3;
+  return (
+    <View style={chatStyles.photoBlock}>
+      <Image source={{ uri: src }} style={[chatStyles.photoImg, { aspectRatio: aspect }]} />
+      {p.caption ? <Text style={chatStyles.photoCaption}>{p.caption}</Text> : null}
+    </View>
+  );
+}
+
 function renderRsvp(m: MessageDto, onRsvp: (id: string, response: RsvpResponse) => void) {
   if (m.attachment?.kind !== 'rsvp') return null;
   const e = m.attachment;
@@ -170,6 +193,11 @@ export default function ThreadScreen() {
 
   const channelId = route.params.channelId;
   const myUserId = auth.state.status === 'signed-in' ? auth.state.profile.userId : null;
+  // Host base for photo URLs — server returns "/uploads/<filename>"
+  // (relative); prepend the active org's host so <Image> can resolve it.
+  const hostBaseUrl = auth.state.status === 'signed-in'
+    ? `https://${auth.state.activeOrg.orgSlug}.${process.env.EXPO_PUBLIC_COMPASS_APEX || 'compass.app'}`
+    : '';
 
   const refresh = useCallback(async () => {
     const client = auth.client();
@@ -306,6 +334,7 @@ export default function ThreadScreen() {
                 />
                 {m.attachment?.kind === 'poll' ? renderPoll(m, onVote) : null}
                 {m.attachment?.kind === 'rsvp' ? renderRsvp(m, onRsvp) : null}
+                {m.attachment?.kind === 'photo' ? renderPhoto(m, hostBaseUrl) : null}
                 {m.reactions.length > 0 || !m.deleted ? renderReactions(m, onReact) : null}
               </View>
             );
@@ -618,3 +647,41 @@ const rsvpStyles = StyleSheet.create({
 
 // Merge into the chatStyles export so renderRsvp's references resolve.
 Object.assign(chatStyles, rsvpStyles);
+
+const photoStyles = StyleSheet.create({
+  photoBlock: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    maxWidth: 360,
+  },
+  photoImg: {
+    width: '100%',
+    borderRadius: radius.cardSm,
+    borderWidth: 1,
+    borderColor: palette.line,
+  },
+  photoCaption: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 12,
+    color: palette.inkSoft,
+    marginTop: 4,
+  },
+  photoDeleted: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    padding: spacing.sm,
+    backgroundColor: palette.lineSoft,
+    borderRadius: radius.cardSm,
+    borderWidth: 1,
+    borderColor: palette.line,
+    borderStyle: 'dashed',
+  },
+  photoDeletedText: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 13,
+    color: palette.inkMuted,
+    fontStyle: 'italic',
+  },
+});
+
+Object.assign(chatStyles, photoStyles);

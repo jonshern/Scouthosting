@@ -1969,14 +1969,41 @@ app.get("/uploads/:filename", async (req, res) => {
   // Photos first.
   const photo = await prisma.photo.findFirst({
     where: { orgId: req.org.id, filename },
-    include: { album: { select: { visibility: true } } },
+    include: {
+      album: { select: { visibility: true } },
+      message: { select: { id: true, channelId: true } },
+    },
   });
   if (photo) {
-    if (photo.album.visibility === "members" && !req.user) {
-      return res.status(403).send("Members only");
+    // Chat-attached photo — authorize via channel membership rather
+    // than album visibility.
+    if (photo.message) {
+      if (!req.user) return res.redirect(`/login?next=/uploads/${filename}`);
+      const role = await roleInOrg(req.user.id, req.org.id);
+      if (!role) return res.status(403).send("Members only");
+      // Leader-only channels gate by role; everything else is fine
+      // for any org member who can read the channel.
+      const channel = await prisma.channel.findUnique({
+        where: { id: photo.message.channelId },
+        select: { kind: true },
+      });
+      if (channel?.kind === "leaders" && role !== "leader" && role !== "admin") {
+        return res.status(403).send("Members only");
+      }
+    } else if (photo.album) {
+      if (photo.album.visibility === "members" && !req.user) {
+        return res.status(403).send("Members only");
+      }
+    } else {
+      // Orphan photo (uploaded but never linked). Only the uploader can
+      // read it back, and only briefly — should be janitor-ed by a
+      // future cron.
+      if (!req.user || photo.uploaderUserId !== req.user.id) {
+        return res.status(403).send("Members only");
+      }
     }
     res.set("Content-Type", photo.mimeType);
-    res.set("Cache-Control", "public, max-age=86400");
+    res.set("Cache-Control", photo.message ? "private, max-age=300" : "public, max-age=86400");
     return storage.readStream(req.org.id, photo.filename).pipe(res);
   }
 

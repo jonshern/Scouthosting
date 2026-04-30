@@ -10,9 +10,13 @@
 // the caller has an OrgMembership in that org. Cross-org requests fail
 // with 404 (not 403) so we don't leak channel existence.
 
+import path from "node:path";
+import crypto from "node:crypto";
 import { Router } from "express";
+import multer from "multer";
 import { prisma } from "../lib/db.js";
 import { lucia } from "../lib/auth.js";
+import { moveFromTemp } from "../lib/storage.js";
 import { issueToken, verifyToken, revokeToken } from "../lib/apiToken.js";
 import {
   assertChannelTwoDeep,
@@ -133,6 +137,15 @@ function serializeAttachment(att, viewerUserId) {
     // client just sees `kind: "rsvp"` + eventId.
     return { kind: "rsvp", eventId: att.eventId };
   }
+  if (att.kind === "photo") {
+    // Skeleton — enrichPhotoAttachments() fills in url + mimeType +
+    // dimensions. Until enrichment runs, just photoId + caption.
+    return {
+      kind: "photo",
+      photoId: att.photoId,
+      caption: att.caption || null,
+    };
+  }
   return att;
 }
 
@@ -142,6 +155,14 @@ function serializeAttachment(att, viewerUserId) {
  * Single round-trip per query (groupBy + findMany in parallel) so a
  * page of 50 messages doesn't fan out to 100+ tiny queries.
  */
+async function enrichAttachments(messages, orgId, viewerUserId) {
+  await Promise.all([
+    enrichRsvpAttachments(messages, orgId, viewerUserId),
+    enrichPhotoAttachments(messages, orgId),
+  ]);
+  return messages;
+}
+
 async function enrichRsvpAttachments(messages, orgId, viewerUserId) {
   const eventIds = new Set();
   for (const m of messages) {
@@ -207,6 +228,49 @@ async function enrichRsvpAttachments(messages, orgId, viewerUserId) {
       cost: ev.cost,
       tally,
       myResponse: myMap.get(ev.id) || null,
+    };
+  }
+  return messages;
+}
+
+/**
+ * Patches every kind:"photo" attachment with the linked Photo's
+ * filename + mime + dimensions. Same single-round-trip shape as
+ * enrichRsvpAttachments. Photos that have been deleted (or never
+ * existed) render as { kind:"photo", deleted:true } so the chat
+ * history doesn't break.
+ */
+async function enrichPhotoAttachments(messages, orgId) {
+  const photoIds = new Set();
+  for (const m of messages) {
+    if (m.attachment?.kind === "photo" && m.attachment.photoId) {
+      photoIds.add(m.attachment.photoId);
+    }
+  }
+  if (!photoIds.size) return messages;
+
+  const photos = await prisma.photo.findMany({
+    where: { id: { in: [...photoIds] }, orgId },
+    select: { id: true, filename: true, mimeType: true, width: true, height: true, sizeBytes: true },
+  });
+  const map = new Map(photos.map((p) => [p.id, p]));
+  for (const m of messages) {
+    if (m.attachment?.kind !== "photo") continue;
+    const p = map.get(m.attachment.photoId);
+    if (!p) {
+      m.attachment = { kind: "photo", photoId: m.attachment.photoId, deleted: true };
+      continue;
+    }
+    m.attachment = {
+      kind: "photo",
+      photoId: p.id,
+      url: `/uploads/${p.filename}`,
+      mimeType: p.mimeType,
+      width: p.width,
+      height: p.height,
+      sizeBytes: p.sizeBytes,
+      caption: m.attachment.caption || null,
+      deleted: false,
     };
   }
   return messages;
@@ -353,7 +417,7 @@ apiRouter.get("/channels/:id", resolveApiUser, async (req, res) => {
   });
 
   const serialized = messages.reverse().map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id }));
-  await enrichRsvpAttachments(serialized, channel.orgId, req.apiUser.id);
+  await enrichAttachments(serialized, channel.orgId, req.apiUser.id);
   res.json({
     channel: serializeChannel(channel, { membership }),
     messages: serialized,
@@ -391,7 +455,7 @@ apiRouter.get("/channels/:id/messages", resolveApiUser, async (req, res) => {
   });
 
   const serialized = messages.reverse().map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id }));
-  await enrichRsvpAttachments(serialized, channel.orgId, req.apiUser.id);
+  await enrichAttachments(serialized, channel.orgId, req.apiUser.id);
   res.json({
     messages: serialized,
     hasMore: messages.length === MESSAGE_PAGE,
@@ -447,9 +511,24 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
     });
   }
 
-  // Optional inline attachment — for v1 this is the poll attachment.
-  // Future shapes (RSVP card, photo) reuse the same column.
+  // Optional inline attachment — poll, rsvp, or photo. The same column
+  // carries any of them.
   const attachment = parseAttachmentJson(req.body?.attachment);
+
+  // For kind=photo, validate that the photo belongs to this org and is
+  // still orphan (not yet linked). Reject otherwise so a malicious
+  // client can't claim someone else's photo.
+  if (attachment?.kind === "photo") {
+    const photo = await prisma.photo.findFirst({
+      where: { id: attachment.photoId, orgId: channel.orgId },
+      select: { id: true, messageId: true, uploaderUserId: true },
+    });
+    if (!photo) return res.status(404).json({ error: "photo_not_found" });
+    if (photo.messageId) return res.status(409).json({ error: "photo_already_linked" });
+    if (photo.uploaderUserId && photo.uploaderUserId !== req.apiUser.id) {
+      return res.status(403).json({ error: "photo_not_yours" });
+    }
+  }
 
   const message = await prisma.message.create({
     data: {
@@ -463,8 +542,18 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
       reactions: { select: { emoji: true, userId: true } },
     },
   });
+
+  // Link the photo to the freshly-created message so /uploads/:filename
+  // can authorize via channel membership and so the photo gets cleaned
+  // up if the message is later deleted.
+  if (attachment?.kind === "photo") {
+    await prisma.photo.update({
+      where: { id: attachment.photoId },
+      data: { messageId: message.id },
+    });
+  }
   const dto = serializeMessage(message, { viewerUserId: req.apiUser.id });
-  await enrichRsvpAttachments([dto], channel.orgId, req.apiUser.id);
+  await enrichAttachments([dto], channel.orgId, req.apiUser.id);
   // Fan out to every SSE subscriber on this channel. Best-effort —
   // failures inside subscribers don't bubble up to the POST response.
   // NOTE: the SSE fan-out uses the *poster's* viewer perspective for
@@ -558,7 +647,7 @@ apiRouter.post("/messages/:id/reactions", resolveApiUser, async (req, res) => {
     },
   });
   const dto = serializeMessage(fresh, { viewerUserId: req.apiUser.id });
-  await enrichRsvpAttachments([dto], channel.orgId, req.apiUser.id);
+  await enrichAttachments([dto], channel.orgId, req.apiUser.id);
   try {
     publishMessage(channel.id, dto);
   } catch (e) {
@@ -599,6 +688,7 @@ function parseAttachmentJson(raw) {
   if (!obj || typeof obj !== "object") return null;
   if (obj.kind === "poll") return normalizePollAttachment(obj);
   if (obj.kind === "rsvp") return normalizeRsvpAttachment(obj);
+  if (obj.kind === "photo") return normalizePhotoAttachment(obj);
   return null;
 }
 
@@ -606,6 +696,13 @@ function normalizeRsvpAttachment(obj) {
   const eventId = typeof obj.eventId === "string" ? obj.eventId.trim() : "";
   if (!eventId) return null;
   return { kind: "rsvp", eventId };
+}
+
+function normalizePhotoAttachment(obj) {
+  const photoId = typeof obj.photoId === "string" ? obj.photoId.trim() : "";
+  if (!photoId) return null;
+  const caption = typeof obj.caption === "string" ? obj.caption.trim().slice(0, 280) : "";
+  return { kind: "photo", photoId, caption };
 }
 
 function normalizePollAttachment(obj) {
@@ -697,7 +794,7 @@ apiRouter.post("/messages/:id/poll/vote", resolveApiUser, async (req, res) => {
     },
   });
   const dto = serializeMessage(fresh, { viewerUserId: userId });
-  await enrichRsvpAttachments([dto], channel.orgId, userId);
+  await enrichAttachments([dto], channel.orgId, userId);
   try { publishMessage(channel.id, dto); } catch { /* ignore */ }
   res.json({ message: dto });
 });
@@ -799,7 +896,7 @@ apiRouter.post("/messages/:id/rsvp", resolveApiUser, async (req, res) => {
     },
   });
   const dto = serializeMessage(fresh, { viewerUserId: req.apiUser.id });
-  await enrichRsvpAttachments([dto], channel.orgId, req.apiUser.id);
+  await enrichAttachments([dto], channel.orgId, req.apiUser.id);
   try { publishMessage(channel.id, dto); } catch { /* ignore */ }
   res.json({ message: dto });
 });
@@ -871,6 +968,65 @@ apiRouter.get("/channels/:id/stream", resolveApiUser, async (req, res) => {
   };
   req.on("close", cleanup);
   res.on("close", cleanup);
+});
+
+/* ------------------------------------------------------------------ */
+/* Photo attachments                                                   */
+/* ------------------------------------------------------------------ */
+
+const PHOTO_MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+const PHOTO_MIMES = new Set(["image/jpeg", "image/png", "image/webp", "image/heic", "image/heif", "image/gif"]);
+
+const photoUpload = multer({
+  dest: process.env.UPLOAD_TMP || "/tmp/compass-uploads",
+  limits: { fileSize: PHOTO_MAX_BYTES, files: 1 },
+  fileFilter(req, file, cb) {
+    if (!PHOTO_MIMES.has(file.mimetype)) {
+      return cb(new Error("Unsupported file type"));
+    }
+    cb(null, true);
+  },
+});
+
+// POST /api/v1/channels/:id/photos — multipart single file. Creates an
+// orphan Photo row (messageId=null), moves the temp file to per-org
+// storage, and returns { id, filename }. The client then sends a normal
+// /messages POST with attachment={kind:"photo", photoId}; we link them
+// at send time. Orphan photos older than 1 hour get garbage-collected
+// by a future janitor (deferred — first-pass: orphans accumulate but
+// don't hurt anyone).
+apiRouter.post("/channels/:id/photos", resolveApiUser, photoUpload.single("photo"), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "no_file" });
+
+  const channel = await prisma.channel.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, orgId: true, kind: true, archivedAt: true, isSuspended: true },
+  });
+  if (!channel || channel.archivedAt) return res.status(404).json({ error: "not_found" });
+  const membership = await membershipFor(req.apiUser.id, channel.orgId);
+  if (!membership) return res.status(404).json({ error: "not_found" });
+  if (channel.isSuspended) return res.status(409).json({ error: "channel_suspended" });
+
+  // Generate a per-org filename. Keeps the original extension but uses
+  // a random cuid-ish core so listing the storage directory doesn't
+  // leak filenames or upload order.
+  const ext = (path.extname(req.file.originalname) || ".jpg").toLowerCase().slice(0, 8);
+  const filename = `${crypto.randomBytes(16).toString("hex")}${ext}`;
+  await moveFromTemp(channel.orgId, filename, req.file.path);
+
+  const photo = await prisma.photo.create({
+    data: {
+      orgId: channel.orgId,
+      filename,
+      originalName: req.file.originalname?.slice(0, 200) || null,
+      mimeType: req.file.mimetype,
+      sizeBytes: req.file.size,
+      uploaderUserId: req.apiUser.id,
+    },
+    select: { id: true, filename: true, mimeType: true, sizeBytes: true },
+  });
+
+  res.status(201).json({ photo });
 });
 
 // JSON 404 fallthrough — catches /api/v1/* paths the router didn't handle.

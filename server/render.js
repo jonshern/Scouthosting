@@ -1365,6 +1365,8 @@ export function renderChatPage(org, { needsSignIn, notAMember } = {}) {
               <button class="btn primary" type="submit">Send</button>
               <button class="btn ghost" type="button" id="chat-poll-btn" title="Add a poll">📊 Poll</button>
               <button class="btn ghost" type="button" id="chat-rsvp-btn" title="Embed an event RSVP">🗓 Event</button>
+              <label class="btn ghost" for="chat-photo-input" title="Attach a photo" style="cursor:pointer">📷 Photo</label>
+              <input type="file" id="chat-photo-input" accept="image/*" hidden>
             </div>
           </form>
         </main>
@@ -1446,6 +1448,10 @@ const CHAT_STYLES = `
   .chat-rsvp-glyph { font-size: 14px; }
   .chat-rsvp-count { font-size: 12px; color: #5a6258; font-variant-numeric: tabular-nums; }
   .chat-rsvp-btn.is-mine .chat-rsvp-count { color: #0e3320; }
+  .chat-photo { margin-top: .45rem; max-width: 360px; }
+  .chat-photo img { display: block; max-width: 100%; height: auto; border-radius: 10px; border: 1px solid #d4c8a8; cursor: zoom-in; }
+  .chat-photo-caption { font-size: 12px; color: #5a6258; margin-top: .25rem; }
+  .chat-photo-deleted { background: #faf3e3; border: 1px dashed #d4c8a8; padding: .65rem; border-radius: 8px; color: #5a6258; font-style: italic; font-size: 13px; }
   @media (max-width: 720px) {
     .chat-shell { grid-template-columns: 1fr; min-height: auto; }
     .chat-sidebar { border-right: 0; border-bottom: 1px solid #e6dcc0; max-height: 200px; overflow-y: auto; }
@@ -1622,7 +1628,24 @@ function renderAttachmentBlock(m) {
   if (!m.attachment) return '';
   if (m.attachment.kind === 'poll') return renderPollAttachment(m);
   if (m.attachment.kind === 'rsvp') return renderRsvpAttachment(m);
+  if (m.attachment.kind === 'photo') return renderPhotoAttachment(m);
   return '';
+}
+
+function renderPhotoAttachment(m) {
+  const p = m.attachment;
+  if (p.deleted) {
+    return '<div class="chat-photo chat-photo-deleted">📷 (photo removed)</div>';
+  }
+  const captionHtml = p.caption ? '<div class="chat-photo-caption">' + escapeHtml(p.caption) + '</div>' : '';
+  return (
+    '<div class="chat-photo">' +
+      '<a href="' + escapeHtml(p.url) + '" target="_blank" rel="noopener">' +
+        '<img src="' + escapeHtml(p.url) + '" alt="' + escapeHtml(p.caption || 'photo') + '" loading="lazy">' +
+      '</a>' +
+      captionHtml +
+    '</div>'
+  );
 }
 
 function renderPollAttachment(m) {
@@ -1903,6 +1926,58 @@ if (pollBtn) {
       return;
     }
     const { message } = await r.json();
+    renderMessages([message], false);
+  });
+}
+
+// Photo upload — pick a file, POST it as multipart, then send a chat
+// message with the kind:"photo" attachment referencing the new photo.
+const photoInput = document.getElementById('chat-photo-input');
+if (photoInput) {
+  photoInput.addEventListener('change', async () => {
+    if (!activeChannelId) return;
+    const file = photoInput.files?.[0];
+    if (!file) return;
+    photoInput.value = ''; // allow re-uploading the same file
+    const fd = new FormData();
+    fd.append('photo', file);
+    let upload;
+    try {
+      const r = await fetch('/api/v1/channels/' + encodeURIComponent(activeChannelId) + '/photos', {
+        method: 'POST',
+        credentials: 'same-origin',
+        body: fd,
+      });
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        alert('Upload failed: ' + (err.error || r.status));
+        return;
+      }
+      upload = await r.json();
+    } catch (e) {
+      alert('Upload failed: ' + e.message);
+      return;
+    }
+    const caption = window.prompt('Caption (optional):', '') || '';
+    const send = await fetch('/api/v1/channels/' + encodeURIComponent(activeChannelId) + '/messages', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        body: caption.trim() || '📷',
+        attachment: {
+          kind: 'photo',
+          photoId: upload.photo.id,
+          caption,
+        },
+      }),
+    });
+    if (!send.ok) {
+      const err = await send.json().catch(() => ({}));
+      alert('Couldn\\'t post photo: ' + (err.error || send.status));
+      return;
+    }
+    const { message } = await send.json();
     renderMessages([message], false);
   });
 }
