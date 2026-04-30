@@ -88,7 +88,8 @@ function serializeChannel(c, { membership } = {}) {
   };
 }
 
-function serializeMessage(m) {
+function serializeMessage(m, opts = {}) {
+  const reactions = serializeReactions(m.reactions, opts.viewerUserId);
   return {
     id: m.id,
     channelId: m.channelId,
@@ -100,7 +101,51 @@ function serializeMessage(m) {
     author: m.author
       ? { id: m.author.id, displayName: m.author.displayName }
       : null,
+    attachment: m.deletedAt ? null : serializeAttachment(m.attachmentJson, opts.viewerUserId),
+    reactions,
   };
+}
+
+// Privacy-conscious attachment serializer. For polls we expose option
+// counts + whether the viewer voted; we deliberately don't ship the
+// raw userId arrays so peer-pressure dynamics don't surface in the
+// client. A future leader-only "who voted what" view can pull the raw
+// votes server-side.
+function serializeAttachment(att, viewerUserId) {
+  if (!att || typeof att !== "object") return null;
+  if (att.kind !== "poll") return att;
+  return {
+    kind: "poll",
+    question: att.question,
+    closesAt: att.closesAt || null,
+    allowMulti: !!att.allowMulti,
+    options: (att.options || []).map((o) => ({
+      id: o.id,
+      label: o.label,
+      count: (o.votes || []).length,
+      youVoted: !!viewerUserId && (o.votes || []).includes(viewerUserId),
+    })),
+  };
+}
+
+// Group raw Reaction rows into one bucket per emoji with a count and a
+// `youReacted` flag the client can use to highlight the user's own
+// reactions. Stable order: most-popular first, ties broken by emoji
+// codepoint so the client doesn't bounce on equal-weight emojis.
+function serializeReactions(rows, viewerUserId) {
+  if (!rows || !rows.length) return [];
+  const buckets = new Map();
+  for (const r of rows) {
+    if (!buckets.has(r.emoji)) {
+      buckets.set(r.emoji, { emoji: r.emoji, count: 0, youReacted: false });
+    }
+    const b = buckets.get(r.emoji);
+    b.count += 1;
+    if (viewerUserId && r.userId === viewerUserId) b.youReacted = true;
+  }
+  return [...buckets.values()].sort((a, b) =>
+    b.count - a.count || a.emoji.localeCompare(b.emoji),
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -217,12 +262,15 @@ apiRouter.get("/channels/:id", resolveApiUser, async (req, res) => {
     where: { channelId: channel.id },
     orderBy: { createdAt: "desc" },
     take: MESSAGE_PAGE,
-    include: { author: { select: { id: true, displayName: true } } },
+    include: {
+      author: { select: { id: true, displayName: true } },
+      reactions: { select: { emoji: true, userId: true } },
+    },
   });
 
   res.json({
     channel: serializeChannel(channel, { membership }),
-    messages: messages.reverse().map(serializeMessage),
+    messages: messages.reverse().map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id })),
     hasMore: messages.length === MESSAGE_PAGE,
   });
 });
@@ -250,11 +298,14 @@ apiRouter.get("/channels/:id/messages", resolveApiUser, async (req, res) => {
     where: { channelId: channel.id, ...(cursor || {}) },
     orderBy: { createdAt: "desc" },
     take: MESSAGE_PAGE,
-    include: { author: { select: { id: true, displayName: true } } },
+    include: {
+      author: { select: { id: true, displayName: true } },
+      reactions: { select: { emoji: true, userId: true } },
+    },
   });
 
   res.json({
-    messages: messages.reverse().map(serializeMessage),
+    messages: messages.reverse().map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id })),
     hasMore: messages.length === MESSAGE_PAGE,
   });
 });
@@ -308,15 +359,23 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
     });
   }
 
+  // Optional inline attachment — for v1 this is the poll attachment.
+  // Future shapes (RSVP card, photo) reuse the same column.
+  const attachment = parseAttachmentJson(req.body?.attachment);
+
   const message = await prisma.message.create({
     data: {
       channelId: channel.id,
       authorId: req.apiUser.id,
       body,
+      attachmentJson: attachment,
     },
-    include: { author: { select: { id: true, displayName: true } } },
+    include: {
+      author: { select: { id: true, displayName: true } },
+      reactions: { select: { emoji: true, userId: true } },
+    },
   });
-  const dto = serializeMessage(message);
+  const dto = serializeMessage(message, { viewerUserId: req.apiUser.id });
   // Fan out to every SSE subscriber on this channel. Best-effort —
   // failures inside subscribers don't bubble up to the POST response.
   try {
@@ -325,6 +384,219 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
     console.warn(`[realtime] publishMessage failed: ${e.message}`);
   }
   res.status(201).json({ message: dto });
+});
+
+/* ------------------------------------------------------------------ */
+/* Reactions                                                           */
+/* ------------------------------------------------------------------ */
+
+const MAX_EMOJI_LEN = 32;
+
+// POST /api/v1/messages/:id/reactions — toggle a reaction. Body:
+// { emoji: "👍" }. Idempotent: if the (message, user, emoji) row
+// exists we delete it (un-react); otherwise we create it.
+apiRouter.post("/messages/:id/reactions", resolveApiUser, async (req, res) => {
+  const emoji = String(req.body?.emoji || "").trim().slice(0, MAX_EMOJI_LEN);
+  if (!emoji) return res.status(400).json({ error: "missing_emoji" });
+
+  const message = await prisma.message.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, channelId: true, deletedAt: true },
+  });
+  if (!message) return res.status(404).json({ error: "not_found" });
+  if (message.deletedAt) return res.status(409).json({ error: "deleted" });
+
+  // Authorize the viewer against the channel's org.
+  const channel = await prisma.channel.findUnique({
+    where: { id: message.channelId },
+    select: { id: true, orgId: true, kind: true, archivedAt: true, isSuspended: true },
+  });
+  if (!channel || channel.archivedAt) return res.status(404).json({ error: "not_found" });
+  const membership = await membershipFor(req.apiUser.id, channel.orgId);
+  if (!membership) return res.status(404).json({ error: "not_found" });
+  if (channel.kind === "leaders" && membership.role !== "leader" && membership.role !== "admin") {
+    return res.status(404).json({ error: "not_found" });
+  }
+  if (channel.kind !== "troop" && channel.kind !== "leaders") {
+    const member = await prisma.channelMember.findFirst({
+      where: { channelId: channel.id, userId: req.apiUser.id },
+      select: { id: true },
+    });
+    if (!member && membership.role !== "leader" && membership.role !== "admin") {
+      return res.status(404).json({ error: "not_found" });
+    }
+  }
+  // Reactions are read-only on suspended channels — don't let a member
+  // pile-react during a YPT incident.
+  if (channel.isSuspended) {
+    return res.status(409).json({ error: "channel_suspended", reason: channel.suspendedReason });
+  }
+
+  const existing = await prisma.reaction.findUnique({
+    where: {
+      messageId_userId_emoji: {
+        messageId: message.id,
+        userId: req.apiUser.id,
+        emoji,
+      },
+    },
+    select: { messageId: true },
+  });
+  if (existing) {
+    await prisma.reaction.delete({
+      where: {
+        messageId_userId_emoji: { messageId: message.id, userId: req.apiUser.id, emoji },
+      },
+    });
+  } else {
+    await prisma.reaction.create({
+      data: { messageId: message.id, userId: req.apiUser.id, emoji },
+    });
+  }
+
+  // Re-fetch the full message + reactions and fan out so every SSE
+  // subscriber updates the bucket counts.
+  const fresh = await prisma.message.findUnique({
+    where: { id: message.id },
+    include: {
+      author: { select: { id: true, displayName: true } },
+      reactions: { select: { emoji: true, userId: true } },
+    },
+  });
+  const dto = serializeMessage(fresh, { viewerUserId: req.apiUser.id });
+  try {
+    publishMessage(channel.id, dto);
+  } catch (e) {
+    console.warn(`[realtime] publishMessage failed: ${e.message}`);
+  }
+  res.json({ message: dto });
+});
+
+/* ------------------------------------------------------------------ */
+/* Polls                                                               */
+/* ------------------------------------------------------------------ */
+
+// Poll attachment shape (lives in Message.attachmentJson):
+//   {
+//     kind: "poll",
+//     question: string,
+//     options: [{ id: string, label: string, votes: string[] /* userIds */ }],
+//     closesAt: ISO string | null,
+//     allowMulti: boolean,
+//   }
+//
+// Votes mutate the JSON in-place. Server is the source of truth; the
+// client gets the updated message DTO via the SSE channel.
+
+const POLL_MAX_OPTIONS = 12;
+const POLL_MAX_QUESTION_LEN = 280;
+const POLL_MAX_OPTION_LEN = 80;
+
+function parseAttachmentJson(raw) {
+  if (raw == null) return null;
+  // Accept either an inline object or a stringified JSON for ergonomics
+  // (the web client sends an object; multipart-form clients might send
+  // a string).
+  let obj = raw;
+  if (typeof raw === "string") {
+    try { obj = JSON.parse(raw); } catch { return null; }
+  }
+  if (!obj || typeof obj !== "object") return null;
+  if (obj.kind === "poll") return normalizePollAttachment(obj);
+  return null;
+}
+
+function normalizePollAttachment(obj) {
+  const question = String(obj.question || "").trim().slice(0, POLL_MAX_QUESTION_LEN);
+  const optionsRaw = Array.isArray(obj.options) ? obj.options.slice(0, POLL_MAX_OPTIONS) : [];
+  const options = optionsRaw
+    .map((o, i) => {
+      const label = typeof o === "string"
+        ? o
+        : String(o?.label ?? "");
+      const trimmed = label.trim().slice(0, POLL_MAX_OPTION_LEN);
+      if (!trimmed) return null;
+      return {
+        id: typeof o?.id === "string" && /^[A-Za-z0-9_-]+$/.test(o.id) ? o.id : `o${i + 1}`,
+        label: trimmed,
+        votes: [],
+      };
+    })
+    .filter(Boolean);
+  if (!question || options.length < 2) return null;
+  return {
+    kind: "poll",
+    question,
+    options,
+    closesAt: obj.closesAt ? String(obj.closesAt) : null,
+    allowMulti: !!obj.allowMulti,
+  };
+}
+
+// POST /api/v1/messages/:id/poll/vote — { optionId }. Toggles the
+// caller's vote on the named option. Honors poll.allowMulti and
+// poll.closesAt.
+apiRouter.post("/messages/:id/poll/vote", resolveApiUser, async (req, res) => {
+  const optionId = String(req.body?.optionId || "").trim();
+  if (!optionId) return res.status(400).json({ error: "missing_option" });
+
+  const message = await prisma.message.findUnique({
+    where: { id: req.params.id },
+    select: {
+      id: true,
+      channelId: true,
+      attachmentJson: true,
+      deletedAt: true,
+    },
+  });
+  if (!message || message.deletedAt) return res.status(404).json({ error: "not_found" });
+  const poll = message.attachmentJson;
+  if (!poll || poll.kind !== "poll") {
+    return res.status(409).json({ error: "not_a_poll" });
+  }
+  if (poll.closesAt && new Date(poll.closesAt) < new Date()) {
+    return res.status(409).json({ error: "poll_closed" });
+  }
+
+  const channel = await prisma.channel.findUnique({
+    where: { id: message.channelId },
+    select: { id: true, orgId: true, kind: true, archivedAt: true, isSuspended: true },
+  });
+  if (!channel || channel.archivedAt) return res.status(404).json({ error: "not_found" });
+  const membership = await membershipFor(req.apiUser.id, channel.orgId);
+  if (!membership) return res.status(404).json({ error: "not_found" });
+  if (channel.isSuspended) {
+    return res.status(409).json({ error: "channel_suspended", reason: channel.suspendedReason });
+  }
+
+  // Mutate the in-memory copy then write back.
+  const target = (poll.options || []).find((o) => o.id === optionId);
+  if (!target) return res.status(404).json({ error: "unknown_option" });
+  const userId = req.apiUser.id;
+  const had = (target.votes || []).includes(userId);
+  if (had) {
+    target.votes = (target.votes || []).filter((v) => v !== userId);
+  } else {
+    if (!poll.allowMulti) {
+      // Pull the user out of every other option first (single-vote mode).
+      for (const o of poll.options) {
+        if (o.id !== optionId) o.votes = (o.votes || []).filter((v) => v !== userId);
+      }
+    }
+    target.votes = [...(target.votes || []), userId];
+  }
+
+  const fresh = await prisma.message.update({
+    where: { id: message.id },
+    data: { attachmentJson: poll },
+    include: {
+      author: { select: { id: true, displayName: true } },
+      reactions: { select: { emoji: true, userId: true } },
+    },
+  });
+  const dto = serializeMessage(fresh, { viewerUserId: userId });
+  try { publishMessage(channel.id, dto); } catch { /* ignore */ }
+  res.json({ message: dto });
 });
 
 /* ------------------------------------------------------------------ */

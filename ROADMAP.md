@@ -627,7 +627,9 @@ read-only until the threshold is restored.
       + an Expo prebuild). **PR D3** layers on Postgres `LISTEN/NOTIFY`
       for multi-instance deployments — single instance is sub-second
       already.
-- [ ] Reactions, polls, event-channel embeds, attachments. **PR E.**
+- [x] **Reactions + polls.** Tap any message bucket to toggle a 👍 / ❤️ / 🔥 / etc.; the existing `Reaction` model (composite PK `messageId+userId+emoji`) does the de-dup in the DB. Polls are a `Message.attachmentJson` shape: `{ kind: "poll", question, options[], closesAt, allowMulti }` — leaders compose them via the chat composer's "📊 Poll" button. **Privacy default**: the serialized poll exposes `{ count, youVoted }` per option, NOT the raw voter userId list — peer-pressure dynamics shouldn't leak out of the channel. New endpoints `POST /api/v1/messages/:id/reactions` and `POST /api/v1/messages/:id/poll/vote` (idempotent toggles); both fan out the updated message DTO over the SSE channel so every connected client patches in place. Web `/chat` and mobile `ThreadScreen` both render reactions + polls. 24 new tests (170 server total).
+- [ ] Event-channel RSVP embeds. **PR E2.**
+- [ ] Photo attachments. **PR F.**
 - [ ] Push notifications + TestFlight pipeline. **PR C2 / C3.**
 - [ ] Mobile SSE consumption (react-native-sse). **PR D2.**
 - [ ] Postgres `LISTEN/NOTIFY` cross-process bridge. **PR D3.**
