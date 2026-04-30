@@ -504,9 +504,19 @@ we build goes through the comms / operations filter first.
       existing `smtp` driver; a native SES API path is a future-when-
       orgs-need-IAM-instead-of-SMTP-creds upgrade.)
 - [ ] DKIM, SPF, DMARC for the org's outbound domain
-- [ ] Bounce + complaint webhooks (Resend supports via Svix-signed
-      webhook; would auto-mark `Member.emailUnsubscribed` and surface
-      complaint state)
+- [x] **Bounce + complaint webhooks (Resend).** New
+      `POST /api/webhooks/resend` route verifies the Svix-style
+      `svix-id` / `svix-timestamp` / `svix-signature` headers
+      (HMAC-SHA256 over `${id}.${timestamp}.${rawBody}`, 5-minute
+      timestamp tolerance, multi-token support for key rotation).
+      `email.bounced` and `email.complained` events flip
+      `Member.bouncedAt` + `Member.emailUnsubscribed` for every
+      Member row in any org with that email; the existing
+      `audienceFor` filter then drops them from future broadcasts.
+      Member edit page surfaces a red "Email is bouncing" banner
+      with the provider's classification + a Clear bounce flag
+      action that resets the state once the leader confirms the
+      address is fixed. Audit-logged. 16 unit tests.
 - [ ] Throttling and abuse protection
 - [x] **One-click unsubscribe per recipient** — every broadcast email
       carries a per-member signed `unsubscribe` link in the footer + the

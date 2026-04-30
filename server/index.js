@@ -15,6 +15,7 @@ import { securityHeaders } from "../lib/securityHeaders.js";
 import { honeypotFields, verifyHoneypot } from "../lib/honeypot.js";
 import { apiRouter } from "./api.js";
 import { issueToken } from "../lib/apiToken.js";
+import { verifyResendSignature, normalizeResendEvent } from "../lib/resendWebhook.js";
 
 // Buckets: tight on auth surfaces (login/signup are the brute-force
 // targets), looser on /api/provision since legitimate provisioning is
@@ -94,7 +95,14 @@ app.set("trust proxy", 1);
 app.disable("x-powered-by");
 app.use(securityHeaders);
 app.use(originAuth);
-app.use(express.json());
+// Raw body is captured on req.rawBody so signed-webhook handlers
+// (e.g. /api/webhooks/resend) can verify the HMAC over the exact
+// bytes the provider sent, rather than re-serializing req.body.
+app.use(express.json({
+  verify: (req, _res, buf) => {
+    if (buf && buf.length) req.rawBody = buf;
+  },
+}));
 app.use(express.urlencoded({ extended: true }));
 app.use(attachSession);
 app.use(csrfMiddleware);
@@ -129,6 +137,47 @@ app.use((req, res, next) => {
 /* ------------------ JSON API (mobile + external) ------------------ */
 
 app.use("/api/v1", apiRouter);
+
+/* ------------------ Mail provider webhooks ----------------------- */
+
+// POST /api/webhooks/resend — Svix-signed event from Resend. Bounces
+// and complaints flip Member.bouncedAt + Member.emailUnsubscribed so
+// audienceFor stops including the address in future broadcasts.
+//
+// We respond 200 even on no-op events (delivered / opened / clicked) so
+// Resend doesn't retry; we 401 on missing/bad signature so a misconfig
+// surfaces in their delivery dashboard.
+app.post("/api/webhooks/resend", async (req, res) => {
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!secret) {
+    // No secret = webhooks aren't configured for this deployment.
+    // Refuse anything that arrives so a stale URL can't muck with state.
+    return res.status(503).json({ error: "webhook_not_configured" });
+  }
+  const v = verifyResendSignature(req.headers, req.rawBody || JSON.stringify(req.body || {}), secret);
+  if (!v.ok) return res.status(401).json({ error: "bad_signature", reason: v.reason });
+
+  const event = normalizeResendEvent(req.body);
+  if (!event.kind || !event.email) {
+    // Delivered / sent / opened / clicked — just ack so Resend stops retrying.
+    return res.json({ ok: true, ignored: true });
+  }
+
+  // Find every Member across every org with this email; mark them all.
+  // (One household can have the same email recorded on multiple Member
+  // rows — parents who admin two units.)
+  const updated = await prisma.member.updateMany({
+    where: { email: event.email },
+    data: {
+      bouncedAt: new Date(),
+      bounceReason: event.reason,
+      emailUnsubscribed: true,
+      unsubscribedAt: new Date(),
+    },
+  });
+
+  res.json({ ok: true, kind: event.kind, email: event.email, affected: updated.count });
+});
 
 /* ------------------ Provisioning API ------------------------------ */
 

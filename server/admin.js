@@ -2536,6 +2536,20 @@ async function memberForm({ member, action, submitLabel, orgId }) {
         <label style="margin:0;flex:1">Email<input name="email" type="email" maxlength="120" value="${v("email")}"></label>
         <label style="margin:0;flex:1">Phone<input name="phone" type="tel" maxlength="40" value="${v("phone")}"></label>
       </div>
+      ${
+        member.bouncedAt
+          ? `<p style="background:#fbe8e3;border:1px solid #f0bcb1;border-radius:8px;padding:.55rem .75rem;color:#7d2614;font-size:.92rem">
+               <strong>Email is bouncing</strong> · ${escape(member.bounceReason || "no reason given")} ·
+               last seen ${escape(new Date(member.bouncedAt).toLocaleString("en-US"))}.
+               <span class="muted">Future broadcasts skip this address until you fix it and clear the flag.</span>
+             </p>
+             <div class="row" style="margin-bottom:.6rem">
+               <form class="inline" method="post" action="/admin/members/${escape(member.id)}/clear-bounce">
+                 <button class="btn btn-ghost small" type="submit">Clear bounce flag</button>
+               </form>
+             </div>`
+          : ""
+      }
       <div class="row">
         <label style="margin:0;flex:1">Patrol<input name="patrol" type="text" maxlength="40" value="${v("patrol")}"></label>
         <label style="margin:0;flex:1">Position<input name="position" type="text" maxlength="60" placeholder="e.g. SPL, Scoutmaster" value="${v("position")}"></label>
@@ -3929,6 +3943,24 @@ adminRouter.post("/members/:id/positions/:termId/end", requireLeader, async (req
 adminRouter.post("/members/:id/positions/:termId/delete", requireLeader, async (req, res) => {
   await prisma.positionTerm.deleteMany({
     where: { id: req.params.termId, orgId: req.org.id, memberId: req.params.id },
+  });
+  res.redirect(`/admin/members/${req.params.id}/edit`);
+});
+
+// Clear a previously-set bounce flag. Resets emailUnsubscribed too —
+// the leader has decided the address is fixed, so we trust them.
+adminRouter.post("/members/:id/clear-bounce", requireLeader, async (req, res) => {
+  await prisma.member.updateMany({
+    where: { id: req.params.id, orgId: req.org.id },
+    data: { bouncedAt: null, bounceReason: null, emailUnsubscribed: false, unsubscribedAt: null },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Member",
+    entityId: req.params.id,
+    action: "clear-bounce",
+    summary: "Bounce + unsubscribe flags cleared",
   });
   res.redirect(`/admin/members/${req.params.id}/edit`);
 });
