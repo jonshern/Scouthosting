@@ -45,7 +45,32 @@ export type PollAttachment = {
   allowMulti: boolean;
 };
 
-export type MessageAttachment = PollAttachment | null;
+export type RsvpResponse = "yes" | "maybe" | "no";
+
+export type RsvpTally = { yes: number; maybe: number; no: number };
+
+export type RsvpAttachment =
+  | {
+      kind: "rsvp";
+      eventId: string;
+      deleted: false;
+      title: string;
+      startsAt: string;
+      endsAt: string | null;
+      location: string | null;
+      cost: number | null;
+      tally: RsvpTally;
+      myResponse: RsvpResponse | null;
+    }
+  | {
+      kind: "rsvp";
+      eventId: string;
+      deleted: true;
+      tally: RsvpTally;
+      myResponse: RsvpResponse | null;
+    };
+
+export type MessageAttachment = PollAttachment | RsvpAttachment | null;
 
 export type MessageDto = {
   id: string;

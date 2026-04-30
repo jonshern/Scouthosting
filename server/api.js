@@ -113,19 +113,103 @@ function serializeMessage(m, opts = {}) {
 // votes server-side.
 function serializeAttachment(att, viewerUserId) {
   if (!att || typeof att !== "object") return null;
-  if (att.kind !== "poll") return att;
-  return {
-    kind: "poll",
-    question: att.question,
-    closesAt: att.closesAt || null,
-    allowMulti: !!att.allowMulti,
-    options: (att.options || []).map((o) => ({
-      id: o.id,
-      label: o.label,
-      count: (o.votes || []).length,
-      youVoted: !!viewerUserId && (o.votes || []).includes(viewerUserId),
-    })),
-  };
+  if (att.kind === "poll") {
+    return {
+      kind: "poll",
+      question: att.question,
+      closesAt: att.closesAt || null,
+      allowMulti: !!att.allowMulti,
+      options: (att.options || []).map((o) => ({
+        id: o.id,
+        label: o.label,
+        count: (o.votes || []).length,
+        youVoted: !!viewerUserId && (o.votes || []).includes(viewerUserId),
+      })),
+    };
+  }
+  if (att.kind === "rsvp") {
+    // Skeleton — enrichRsvpAttachments() fills in event meta + tally +
+    // myResponse via a follow-up DB pass. Until enrichment runs, the
+    // client just sees `kind: "rsvp"` + eventId.
+    return { kind: "rsvp", eventId: att.eventId };
+  }
+  return att;
+}
+
+/**
+ * Walks a list of serialized messages and patches every rsvp attachment
+ * with live event meta + tally counts + the viewer's current response.
+ * Single round-trip per query (groupBy + findMany in parallel) so a
+ * page of 50 messages doesn't fan out to 100+ tiny queries.
+ */
+async function enrichRsvpAttachments(messages, orgId, viewerUserId) {
+  const eventIds = new Set();
+  for (const m of messages) {
+    if (m.attachment?.kind === "rsvp" && m.attachment.eventId) {
+      eventIds.add(m.attachment.eventId);
+    }
+  }
+  if (!eventIds.size) return messages;
+
+  const ids = [...eventIds];
+  const [events, tallies, myRsvps] = await Promise.all([
+    prisma.event.findMany({
+      where: { id: { in: ids }, orgId },
+      select: { id: true, title: true, startsAt: true, endsAt: true, location: true, cost: true },
+    }),
+    prisma.rsvp.groupBy({
+      by: ["eventId", "response"],
+      where: { eventId: { in: ids }, orgId },
+      _count: { _all: true },
+    }),
+    viewerUserId
+      ? prisma.rsvp.findMany({
+          where: { eventId: { in: ids }, orgId, userId: viewerUserId },
+          select: { eventId: true, response: true },
+        })
+      : Promise.resolve([]),
+  ]);
+  const eventMap = new Map(events.map((e) => [e.id, e]));
+  const tallyMap = new Map();
+  for (const t of tallies) {
+    if (!tallyMap.has(t.eventId)) tallyMap.set(t.eventId, { yes: 0, maybe: 0, no: 0 });
+    const bucket = tallyMap.get(t.eventId);
+    if (t.response === "yes") bucket.yes = t._count._all;
+    else if (t.response === "maybe") bucket.maybe = t._count._all;
+    else if (t.response === "no") bucket.no = t._count._all;
+  }
+  const myMap = new Map(myRsvps.map((r) => [r.eventId, r.response]));
+
+  for (const m of messages) {
+    if (m.attachment?.kind !== "rsvp") continue;
+    const ev = eventMap.get(m.attachment.eventId);
+    const tally = tallyMap.get(m.attachment.eventId) || { yes: 0, maybe: 0, no: 0 };
+    if (!ev) {
+      // Event was deleted after the embed was posted. Surface a tombstone
+      // rather than a 404 — the chat history remains readable.
+      m.attachment = {
+        kind: "rsvp",
+        eventId: m.attachment.eventId,
+        deleted: true,
+        tally,
+        myResponse: myMap.get(m.attachment.eventId) || null,
+      };
+      continue;
+    }
+    m.attachment = {
+      kind: "rsvp",
+      eventId: ev.id,
+      deleted: false,
+      title: ev.title,
+      startsAt: ev.startsAt,
+      endsAt: ev.endsAt,
+      location: ev.location,
+      cost: ev.cost,
+      tally,
+      myResponse: myMap.get(ev.id) || null,
+    };
+  }
+  return messages;
 }
 
 // Group raw Reaction rows into one bucket per emoji with a count and a
@@ -268,9 +352,11 @@ apiRouter.get("/channels/:id", resolveApiUser, async (req, res) => {
     },
   });
 
+  const serialized = messages.reverse().map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id }));
+  await enrichRsvpAttachments(serialized, channel.orgId, req.apiUser.id);
   res.json({
     channel: serializeChannel(channel, { membership }),
-    messages: messages.reverse().map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id })),
+    messages: serialized,
     hasMore: messages.length === MESSAGE_PAGE,
   });
 });
@@ -304,8 +390,10 @@ apiRouter.get("/channels/:id/messages", resolveApiUser, async (req, res) => {
     },
   });
 
+  const serialized = messages.reverse().map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id }));
+  await enrichRsvpAttachments(serialized, channel.orgId, req.apiUser.id);
   res.json({
-    messages: messages.reverse().map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id })),
+    messages: serialized,
     hasMore: messages.length === MESSAGE_PAGE,
   });
 });
@@ -376,8 +464,14 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
     },
   });
   const dto = serializeMessage(message, { viewerUserId: req.apiUser.id });
+  await enrichRsvpAttachments([dto], channel.orgId, req.apiUser.id);
   // Fan out to every SSE subscriber on this channel. Best-effort —
   // failures inside subscribers don't bubble up to the POST response.
+  // NOTE: the SSE fan-out uses the *poster's* viewer perspective for
+  // myResponse — that's intentional for v1 since each subscriber will
+  // re-fetch on its next page load and see its own perspective. A
+  // perfect fix is to fan out the un-enriched DTO and let each client
+  // enrich locally; deferred until the SSE event volume justifies it.
   try {
     publishMessage(channel.id, dto);
   } catch (e) {
@@ -464,6 +558,7 @@ apiRouter.post("/messages/:id/reactions", resolveApiUser, async (req, res) => {
     },
   });
   const dto = serializeMessage(fresh, { viewerUserId: req.apiUser.id });
+  await enrichRsvpAttachments([dto], channel.orgId, req.apiUser.id);
   try {
     publishMessage(channel.id, dto);
   } catch (e) {
@@ -503,7 +598,14 @@ function parseAttachmentJson(raw) {
   }
   if (!obj || typeof obj !== "object") return null;
   if (obj.kind === "poll") return normalizePollAttachment(obj);
+  if (obj.kind === "rsvp") return normalizeRsvpAttachment(obj);
   return null;
+}
+
+function normalizeRsvpAttachment(obj) {
+  const eventId = typeof obj.eventId === "string" ? obj.eventId.trim() : "";
+  if (!eventId) return null;
+  return { kind: "rsvp", eventId };
 }
 
 function normalizePollAttachment(obj) {
@@ -595,6 +697,109 @@ apiRouter.post("/messages/:id/poll/vote", resolveApiUser, async (req, res) => {
     },
   });
   const dto = serializeMessage(fresh, { viewerUserId: userId });
+  await enrichRsvpAttachments([dto], channel.orgId, userId);
+  try { publishMessage(channel.id, dto); } catch { /* ignore */ }
+  res.json({ message: dto });
+});
+
+/* ------------------------------------------------------------------ */
+/* Upcoming-events list (chat composer's RSVP picker)                  */
+/* ------------------------------------------------------------------ */
+
+// GET /api/v1/orgs/:orgId/upcoming-events — minimal shape for the
+// "pick an event to RSVP-embed" picker. Limited to next 60 days,
+// 25 events. Auth: any org member (ChannelMember check would be
+// per-channel; this is a cross-channel picker so we only require
+// org-level membership).
+apiRouter.get("/orgs/:orgId/upcoming-events", resolveApiUser, async (req, res) => {
+  const orgId = req.params.orgId;
+  const membership = await membershipFor(req.apiUser.id, orgId);
+  if (!membership) return res.status(404).json({ error: "not_a_member" });
+
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 60 * 24 * 60 * 60 * 1000);
+  const events = await prisma.event.findMany({
+    where: {
+      orgId,
+      startsAt: { gte: now, lte: horizon },
+    },
+    orderBy: { startsAt: "asc" },
+    take: 25,
+    select: { id: true, title: true, startsAt: true, location: true },
+  });
+  res.json({ events });
+});
+
+/* ------------------------------------------------------------------ */
+/* RSVP embeds                                                          */
+/* ------------------------------------------------------------------ */
+
+const RSVP_RESPONSES = ["yes", "maybe", "no"];
+
+// POST /api/v1/messages/:id/rsvp — body: { response: 'yes'|'maybe'|'no' }.
+// Upserts the Rsvp row for the (eventId, userId). Idempotent on
+// re-tap of the same response (no-op + 200). Re-tapping a different
+// response updates in place. Fans the updated message DTO over SSE.
+apiRouter.post("/messages/:id/rsvp", resolveApiUser, async (req, res) => {
+  const response = String(req.body?.response || "").trim().toLowerCase();
+  if (!RSVP_RESPONSES.includes(response)) {
+    return res.status(400).json({ error: "invalid_response" });
+  }
+
+  const message = await prisma.message.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, channelId: true, attachmentJson: true, deletedAt: true },
+  });
+  if (!message || message.deletedAt) return res.status(404).json({ error: "not_found" });
+  const att = message.attachmentJson;
+  if (!att || att.kind !== "rsvp" || !att.eventId) {
+    return res.status(409).json({ error: "not_an_rsvp" });
+  }
+
+  const channel = await prisma.channel.findUnique({
+    where: { id: message.channelId },
+    select: { id: true, orgId: true, archivedAt: true, isSuspended: true, kind: true },
+  });
+  if (!channel || channel.archivedAt) return res.status(404).json({ error: "not_found" });
+  const membership = await membershipFor(req.apiUser.id, channel.orgId);
+  if (!membership) return res.status(404).json({ error: "not_found" });
+  if (channel.isSuspended) {
+    return res.status(409).json({ error: "channel_suspended", reason: channel.suspendedReason });
+  }
+
+  // Confirm the linked event still exists + is in this org.
+  const event = await prisma.event.findFirst({
+    where: { id: att.eventId, orgId: channel.orgId },
+    select: { id: true },
+  });
+  if (!event) return res.status(404).json({ error: "event_deleted" });
+
+  const displayName = req.apiUser.displayName || req.apiUser.email || "Unknown";
+  await prisma.rsvp.upsert({
+    where: {
+      eventId_userId: { eventId: event.id, userId: req.apiUser.id },
+    },
+    create: {
+      orgId: channel.orgId,
+      eventId: event.id,
+      userId: req.apiUser.id,
+      name: displayName,
+      email: req.apiUser.email || null,
+      response,
+    },
+    update: { response, name: displayName },
+  });
+
+  // Re-fetch the message + reactions and serialize + enrich.
+  const fresh = await prisma.message.findUnique({
+    where: { id: message.id },
+    include: {
+      author: { select: { id: true, displayName: true } },
+      reactions: { select: { emoji: true, userId: true } },
+    },
+  });
+  const dto = serializeMessage(fresh, { viewerUserId: req.apiUser.id });
+  await enrichRsvpAttachments([dto], channel.orgId, req.apiUser.id);
   try { publishMessage(channel.id, dto); } catch { /* ignore */ }
   res.json({ message: dto });
 });

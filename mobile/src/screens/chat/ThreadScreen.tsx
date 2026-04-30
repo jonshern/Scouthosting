@@ -23,7 +23,8 @@ import { MessageBubble } from '../../components/MessageBubble';
 import { fontFamilies, palette, radius, spacing } from '../../theme/tokens';
 import type { ChatStackParamList } from '../../navigation/types';
 import { useAuth } from '../../state/AuthContext';
-import { getChannel, sendMessage, toggleReaction, votePoll } from '../../api/channels';
+import { getChannel, sendMessage, toggleReaction, votePoll, setRsvpResponse } from '../../api/channels';
+import type { RsvpResponse } from '../../api/types';
 import { ApiError } from '../../api/client';
 import type { ChannelDto, MessageDto } from '../../api/types';
 
@@ -55,6 +56,57 @@ function renderReactions(m: MessageDto, onReact: (id: string, emoji: string) => 
           <Text style={chatStyles.reactionCount}>{r.count}</Text>
         </Pressable>
       ))}
+    </View>
+  );
+}
+
+function renderRsvp(m: MessageDto, onRsvp: (id: string, response: RsvpResponse) => void) {
+  if (m.attachment?.kind !== 'rsvp') return null;
+  const e = m.attachment;
+  if (e.deleted) {
+    return (
+      <View style={[chatStyles.rsvpCard, chatStyles.rsvpCardDeleted]}>
+        <Text style={chatStyles.rsvpTitle}>🗓 Event removed</Text>
+        <Text style={chatStyles.rsvpMeta}>The original event was deleted.</Text>
+      </View>
+    );
+  }
+  const start = new Date(e.startsAt);
+  const dateLine =
+    start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
+    ' · ' +
+    start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const my = e.myResponse;
+  const Btn = ({ resp, label, glyph }: { resp: RsvpResponse; label: string; glyph: string }) => {
+    const mine = my === resp;
+    return (
+      <Pressable
+        onPress={() => onRsvp(m.id, resp)}
+        style={({ pressed }) => [
+          chatStyles.rsvpBtn,
+          mine && chatStyles.rsvpBtnMine,
+          pressed && { opacity: 0.85 },
+        ]}
+      >
+        <Text style={chatStyles.rsvpGlyph}>{glyph}</Text>
+        <Text style={[chatStyles.rsvpLabel, mine && chatStyles.rsvpLabelMine]}>{label}</Text>
+        <Text style={[chatStyles.rsvpCount, mine && chatStyles.rsvpCountMine]}>{e.tally[resp] || 0}</Text>
+      </Pressable>
+    );
+  };
+  return (
+    <View style={chatStyles.rsvpCard}>
+      <Text style={chatStyles.rsvpTitle}>🗓 {e.title}</Text>
+      <Text style={chatStyles.rsvpMeta}>
+        {dateLine}
+        {e.location ? ' · ' + e.location : ''}
+        {e.cost ? ' · $' + e.cost : ''}
+      </Text>
+      <View style={chatStyles.rsvpActions}>
+        <Btn resp="yes" label="Going" glyph="✅" />
+        <Btn resp="maybe" label="Maybe" glyph="🤔" />
+        <Btn resp="no" label="Can't" glyph="🚫" />
+      </View>
     </View>
   );
 }
@@ -191,6 +243,17 @@ export default function ThreadScreen() {
     }
   }, [auth, refresh]);
 
+  const onRsvp = useCallback(async (messageId: string, response: RsvpResponse) => {
+    const client = auth.client();
+    if (!client) return;
+    try {
+      const r = await setRsvpResponse(client, messageId, response);
+      setMessages((prev) => prev.map((mm) => (mm.id === r.message.id ? r.message : mm)));
+    } catch {
+      void refresh();
+    }
+  }, [auth, refresh]);
+
   if (!channel && !error) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -242,6 +305,7 @@ export default function ThreadScreen() {
                   avatarInitials={initialsFor(m.author?.displayName || 'S')}
                 />
                 {m.attachment?.kind === 'poll' ? renderPoll(m, onVote) : null}
+                {m.attachment?.kind === 'rsvp' ? renderRsvp(m, onRsvp) : null}
                 {m.reactions.length > 0 || !m.deleted ? renderReactions(m, onReact) : null}
               </View>
             );
@@ -487,3 +551,70 @@ const chatStyles = StyleSheet.create({
     marginTop: 4,
   },
 });
+
+const rsvpStyles = StyleSheet.create({
+  rsvpCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.line,
+    borderRadius: radius.cardSm,
+  },
+  rsvpCardDeleted: {
+    backgroundColor: palette.lineSoft,
+  },
+  rsvpTitle: {
+    fontFamily: fontFamilies.display,
+    fontSize: 17,
+    color: palette.ink,
+  },
+  rsvpMeta: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 12,
+    color: palette.inkSoft,
+    marginTop: 2,
+    marginBottom: spacing.sm,
+  },
+  rsvpActions: {
+    flexDirection: 'row',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  rsvpBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    backgroundColor: palette.lineSoft,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: palette.line,
+  },
+  rsvpBtnMine: {
+    backgroundColor: palette.accentSoft,
+    borderColor: palette.accent,
+  },
+  rsvpGlyph: { fontSize: 14 },
+  rsvpLabel: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 13,
+    color: palette.ink,
+  },
+  rsvpLabelMine: {
+    color: palette.primary,
+    fontWeight: '600',
+  },
+  rsvpCount: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 12,
+    color: palette.inkSoft,
+    fontVariant: ['tabular-nums'],
+  },
+  rsvpCountMine: { color: palette.primary },
+});
+
+// Merge into the chatStyles export so renderRsvp's references resolve.
+Object.assign(chatStyles, rsvpStyles);

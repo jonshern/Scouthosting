@@ -8,6 +8,7 @@ import type {
   ChannelDetailResponse,
   MessagesPageResponse,
   SendMessageResponse,
+  RsvpResponse,
 } from "./types";
 
 export function listChannels(opts: ClientOptions, orgId: string): Promise<ChannelsListResponse> {
@@ -60,4 +61,29 @@ export function votePoll(
     method: "POST",
     body: { optionId },
   });
+}
+
+export function setRsvpResponse(
+  opts: ClientOptions,
+  messageId: string,
+  response: RsvpResponse,
+): Promise<SendMessageResponse> {
+  return apiRequest<SendMessageResponse>(opts, `/messages/${messageId}/rsvp`, {
+    method: "POST",
+    body: { response },
+  });
+}
+
+export type UpcomingEventDto = {
+  id: string;
+  title: string;
+  startsAt: string;
+  location: string | null;
+};
+
+export function listUpcomingEvents(
+  opts: ClientOptions,
+  orgId: string,
+): Promise<{ events: UpcomingEventDto[] }> {
+  return apiRequest(opts, `/orgs/${orgId}/upcoming-events`);
 }
