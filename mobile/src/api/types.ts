@@ -70,7 +70,25 @@ export type RsvpAttachment =
       myResponse: RsvpResponse | null;
     };
 
-export type MessageAttachment = PollAttachment | RsvpAttachment | null;
+export type PhotoAttachment =
+  | {
+      kind: "photo";
+      photoId: string;
+      url: string;
+      mimeType: string;
+      width: number | null;
+      height: number | null;
+      sizeBytes: number;
+      caption: string | null;
+      deleted: false;
+    }
+  | {
+      kind: "photo";
+      photoId: string;
+      deleted: true;
+    };
+
+export type MessageAttachment = PollAttachment | RsvpAttachment | PhotoAttachment | null;
 
 export type MessageDto = {
   id: string;

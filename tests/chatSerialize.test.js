@@ -75,6 +75,13 @@ function serializeAttachment(att, viewerUserId) {
   if (att.kind === "rsvp") {
     return { kind: "rsvp", eventId: att.eventId };
   }
+  if (att.kind === "photo") {
+    return {
+      kind: "photo",
+      photoId: att.photoId,
+      caption: att.caption || null,
+    };
+  }
   return att;
 }
 
@@ -82,6 +89,13 @@ function normalizeRsvpAttachment(obj) {
   const eventId = typeof obj.eventId === "string" ? obj.eventId.trim() : "";
   if (!eventId) return null;
   return { kind: "rsvp", eventId };
+}
+
+function normalizePhotoAttachment(obj) {
+  const photoId = typeof obj.photoId === "string" ? obj.photoId.trim() : "";
+  if (!photoId) return null;
+  const caption = typeof obj.caption === "string" ? obj.caption.trim().slice(0, 280) : "";
+  return { kind: "photo", photoId, caption };
 }
 
 /* ------------------------------------------------------------------ */
@@ -278,5 +292,48 @@ describe("normalizeRsvpAttachment", () => {
     expect(normalizeRsvpAttachment({ eventId: "" })).toBeNull();
     expect(normalizeRsvpAttachment({ eventId: 123 })).toBeNull();
     expect(normalizeRsvpAttachment({ eventId: "   " })).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* normalizePhotoAttachment                                            */
+/* ------------------------------------------------------------------ */
+
+describe("normalizePhotoAttachment", () => {
+  it("keeps the photoId + caption", () => {
+    expect(normalizePhotoAttachment({ photoId: "p-1", caption: "Spring campout" }))
+      .toEqual({ kind: "photo", photoId: "p-1", caption: "Spring campout" });
+  });
+
+  it("trims caption + caps at 280 chars", () => {
+    const long = "x".repeat(400);
+    const out = normalizePhotoAttachment({ photoId: "p-1", caption: long });
+    expect(out.caption).toHaveLength(280);
+  });
+
+  it("defaults caption to empty string when missing", () => {
+    expect(normalizePhotoAttachment({ photoId: "p-1" })).toEqual({
+      kind: "photo",
+      photoId: "p-1",
+      caption: "",
+    });
+  });
+
+  it("rejects missing or non-string photoId", () => {
+    expect(normalizePhotoAttachment({})).toBeNull();
+    expect(normalizePhotoAttachment({ photoId: "" })).toBeNull();
+    expect(normalizePhotoAttachment({ photoId: 42 })).toBeNull();
+  });
+});
+
+describe("serializeAttachment — photo skeleton", () => {
+  it("ships photoId + caption (enrichPhotoAttachments adds the URL)", () => {
+    const out = serializeAttachment({ kind: "photo", photoId: "p1", caption: "hi" }, "u1");
+    expect(out).toEqual({ kind: "photo", photoId: "p1", caption: "hi" });
+  });
+
+  it("normalizes empty/missing caption to null on output", () => {
+    const out = serializeAttachment({ kind: "photo", photoId: "p1", caption: "" }, "u1");
+    expect(out.caption).toBeNull();
   });
 });
