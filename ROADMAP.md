@@ -550,6 +550,47 @@ we build goes through the comms / operations filter first.
       (shipped in #3).
 - [ ] Forums
 
+## Phase 10.5 — Group chat (in progress)
+
+The capstone comms feature. Channel-based threaded chat with strict
+YPT (Youth Protection Training) enforcement: any channel containing
+youth must have ≥2 YPT-current adult leaders, or it auto-suspends to
+read-only until the threshold is restored.
+
+- [x] **Schema + YPT primitives** — `Channel` (kind: patrol / troop /
+      parents / leaders / event / custom), `ChannelMember` (auto- vs.
+      manually-managed flag), `Message` (soft-delete for 7-year audit
+      retention), `Reaction`. `ApiToken` for the mobile app's bearer-
+      token auth. `OrgMembership.yptCurrentUntil`. Migration
+      `20260430150000_chat_and_tokens`.
+- [x] **`lib/chat.js`** — pure-functional with injectable Prisma so the
+      tests cover every YPT branch without a DB:
+      `checkChannelTwoDeep`, `assertChannelTwoDeep` (auto-suspends),
+      `suspendChannel` / `unsuspendChannel`, `ensureChannel`,
+      `reconcileChannelMembers` (preserves manual moderator overrides),
+      `provisionStandingChannels`, `provisionEventChannel`,
+      `archiveEndedEventChannels`. **27 unit tests.**
+- [x] **`lib/apiToken.js`** — sha256-hashed at rest; raw shown on
+      issue exactly once. `Bearer compass_pat_<hex>` accepted. **13
+      unit tests.**
+- [x] **JSON API** at `/api/v1/`:
+        POST   /auth/token            — exchange Lucia session → bearer
+        DELETE /auth/token/:id        — revoke
+        GET    /auth/me               — sanity check
+        GET    /channels?orgId=       — list visible channels
+        GET    /channels/:id          — channel + last 50 messages
+        GET    /channels/:id/messages?before=<msgId> — paginate older
+        POST   /channels/:id/messages — send (passes through YPT guard)
+      Auth middleware accepts Lucia session OR bearer token; mobile
+      app uses bearer, web fallback uses session.
+- [ ] Web admin oversight at `/admin/channels` (list, suspend toggle,
+      compliance status), parent web fallback at `/chat`. **PR B.**
+- [ ] Mobile app wiring — connect the existing `mobile/` scaffold to
+      the API, add Expo push notifications, TestFlight build. **PR C.**
+- [ ] Real-time delivery — SSE on `/api/v1/channels/:id/stream` backed
+      by Postgres `LISTEN/NOTIFY`. **PR D.**
+- [ ] Reactions, polls, event-channel embeds, attachments. **PR E.**
+
 ## Phase 11 — Customization & domains
 
 - [ ] Theme editor (color, banner, logo)

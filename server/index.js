@@ -13,6 +13,7 @@ import { csrfMiddleware, csrfProtect, csrfHtmlInjector } from "../lib/csrf.js";
 import { rateLimit } from "../lib/rateLimit.js";
 import { securityHeaders } from "../lib/securityHeaders.js";
 import { honeypotFields, verifyHoneypot } from "../lib/honeypot.js";
+import { apiRouter } from "./api.js";
 
 // Buckets: tight on auth surfaces (login/signup are the brute-force
 // targets), looser on /api/provision since legitimate provisioning is
@@ -122,6 +123,10 @@ app.use((req, res, next) => {
     index: "index.html",
   })(req, res, next);
 });
+
+/* ------------------ JSON API (mobile + external) ------------------ */
+
+app.use("/api/v1", apiRouter);
 
 /* ------------------ Provisioning API ------------------------------ */
 
