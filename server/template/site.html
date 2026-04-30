@@ -1,70 +1,71 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>{{DISPLAY_NAME}} — Scouts BSA, {{CITY}}, {{STATE}}</title>
 <meta name="description" content="{{DISPLAY_NAME}}, sponsored by {{CHARTER_ORG}} in {{CITY}}, {{STATE}}. {{COUNCIL}} · {{DISTRICT}}." />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css" />
 <style>
-  :root { --green-700: {{PRIMARY_COLOR}}; --gold: {{ACCENT_COLOR}}; }
+  /* Per-org brand override — Page model exposes color pickers for these. */
+  :root { --primary: {{PRIMARY_COLOR}}; --accent: {{ACCENT_COLOR}}; }
 </style>
 </head>
 <body>
 
-<a class="skip" href="#main">Skip to content</a>
+<a class="skip-link" href="#main">Skip to content</a>
 
 {{DEMO_BANNER}}
 
-<header class="site-header" id="top">
-  <div class="bar">
-    <a class="brand" href="#top">
+<!-- ====================================================================
+     Top bar — Compass wordmark + unit name + city/est + nav links.
+     Mirrors unit-site/index.html top bar.
+     ==================================================================== -->
+<header class="topbar" id="top" role="banner">
+  <div class="topbar__brand">
+    <a href="#top" class="wordmark" aria-label="{{DISPLAY_NAME}} home">
       <span class="brand-mark" aria-hidden="true">{{BRAND_MARK}}</span>
-      <span class="brand-text">
-        <strong>{{DISPLAY_NAME}}</strong>
-        <small>Scouts BSA · {{CITY}}, {{STATE}}</small>
-      </span>
+      <span>{{DISPLAY_NAME}}</span>
     </a>
-
-    <button class="nav-toggle" aria-expanded="false" aria-controls="nav" aria-label="Open menu">
-      <span></span><span></span><span></span>
-    </button>
-
-    <nav id="nav" class="nav" aria-label="Primary">
-      <ul>
-        <li><a href="#about">About</a></li>
-        <li><a href="/events">Calendar</a></li>
-        <li><a href="/posts">Posts</a></li>
-        <li><a href="#gallery">Photos</a></li>
-        <li><a href="/forms">Forms</a></li>
-        <li><a href="/members">Directory</a></li>
-        {{NAV_CUSTOM}}
-        <li><a href="#contact">Contact</a></li>
-        {{NAV_AUTH}}
-      </ul>
-    </nav>
+    <span class="topbar__divider" aria-hidden="true">·</span>
+    <span class="topbar__meta">{{CITY}}, {{STATE}}{{FOUNDED_LINE}}</span>
   </div>
+  <nav class="topbar__nav" aria-label="Primary">
+    <a href="#about">About</a>
+    <a href="/events">Calendar</a>
+    <a href="/posts">Posts</a>
+    <a href="#gallery">Photos</a>
+    <a href="/forms">Forms</a>
+    <a href="/members">Directory</a>
+    {{NAV_CUSTOM}}
+    <a href="#contact">Contact</a>
+    {{NAV_AUTH}}
+  </nav>
 </header>
 
 <main id="main">
 
-  <section class="hero">
-    <div class="hero-inner">
-      <p class="eyebrow">{{CHARTER_ORG}} · {{COUNCIL}} · {{DISTRICT}}</p>
-      <h1>{{HERO_HEADLINE}}</h1>
-      <p class="lede">{{HERO_LEDE}}</p>
-      <div class="hero-cta">
-        <a class="btn primary" href="#join">Visit a meeting</a>
-        <a class="btn ghost" href="#calendar">See what's coming up</a>
+  <!-- ==================================================================
+       Hero — dark forest band with oversized italic numeric watermark.
+       ================================================================== -->
+  <section class="hero" aria-labelledby="hero-headline">
+    <span class="hero__watermark" aria-hidden="true">{{UNIT_NUMBER}}</span>
+    <div class="hero__inner">
+      <div class="hero__kicker">
+        <span class="hero__kicker-dot" aria-hidden="true"></span>
+        {{CHARTER_ORG}} · {{COUNCIL}}
       </div>
-      <dl class="stats">
-        <div><dt>Founded</dt><dd>{{FOUNDED}}</dd></div>
-        <div><dt>Meetings</dt><dd>{{MEETING_DAY}} · {{MEETING_TIME}}</dd></div>
-        <div><dt>Charter</dt><dd>{{CHARTER_ORG}}</dd></div>
-      </dl>
+      <h1 id="hero-headline" class="hero__headline">
+        {{HERO_HEADLINE}}
+      </h1>
+      <p class="hero__body">{{HERO_LEDE}}</p>
+      <div class="hero__ctas">
+        <a class="btn btn--accent" href="#join">Visit a meeting</a>
+        <a class="btn btn--ghost-light" href="/events">See what's coming up</a>
+      </div>
     </div>
   </section>
 
@@ -72,34 +73,56 @@
 
   {{FEED}}
 
-  <section id="about" class="section">
-    <div class="wrap two-col">
-      <div>
-        <h2>About our {{UNIT_TYPE}}</h2>
-        <div class="prose">{{ABOUT_BODY}}</div>
-      </div>
-      <aside class="card facts">
-        <h3>Quick facts</h3>
-        <dl>
-          <div><dt>Where we meet</dt><dd>{{MEETING_LOCATION}}</dd></div>
-          <div><dt>When</dt><dd>{{MEETING_DAY}}, {{MEETING_TIME}}</dd></div>
-          <div><dt>Who</dt><dd>Scouts ages 11–17 (5th grade and up)</dd></div>
-          <div><dt>Council</dt><dd>{{COUNCIL}}, {{DISTRICT}}</dd></div>
-        </dl>
-      </aside>
+  <!-- ==================================================================
+       About + sponsor card — drop-cap About paragraph + sidebar dl.
+       ================================================================== -->
+  <section id="about" class="about">
+    <div>
+      <div class="section-eyebrow">§ About the {{UNIT_TYPE}}</div>
+      <h2 class="about__title">What we're <em>about.</em></h2>
+      <div class="about__body">{{ABOUT_BODY}}</div>
     </div>
+    <aside class="sponsor-card" aria-label="Charter, council, meeting info">
+      <div class="sponsor-card__label">Chartered by</div>
+      <div class="sponsor-card__name">{{CHARTER_ORG}}</div>
+      <dl>
+        <div>
+          <dt>Where we meet</dt>
+          <dd>{{MEETING_LOCATION}}</dd>
+        </div>
+        <div>
+          <dt>When</dt>
+          <dd>{{MEETING_DAY}} · {{MEETING_TIME}}</dd>
+        </div>
+        <div>
+          <dt>Council</dt>
+          <dd>{{COUNCIL}}, {{DISTRICT}}</dd>
+        </div>
+        <div>
+          <dt>Scoutmaster</dt>
+          <dd>{{SCOUTMASTER_NAME}}</dd>
+        </div>
+      </dl>
+    </aside>
   </section>
 
   {{EVENTS}}
 
   {{GALLERY}}
 
-  <section id="advancement" class="section alt">
-    <div class="wrap">
-      <header class="section-head">
-        <h2>Advancement</h2>
-        <p>Ranks, merit badges, and partials live in <strong>Scoutbook</strong> — the official Scouting America system. Your unit leader can help you get set up there.</p>
-      </header>
+  <!-- ==================================================================
+       Advancement — Scoutbook deep-link. We don't compete with Scoutbook;
+       we point to it.
+       ================================================================== -->
+  <section id="advancement" class="band-dark advancement">
+    <div class="advancement__inner">
+      <div class="section-eyebrow section-eyebrow--accent">§ Advancement</div>
+      <h2 class="advancement__title">Ranks &amp; merit badges live in <em>Scoutbook.</em></h2>
+      <p class="advancement__lede">
+        Compass owns the troop's communication and operations layer. Scouting America's official
+        advancement system &mdash; Scoutbook &mdash; is where ranks, merit badges, and partials are
+        recorded. Your unit leader can help you get set up there.
+      </p>
       <ol class="rank-trail" aria-label="Scouts BSA rank progression">
         <li><span>Scout</span></li>
         <li><span>Tenderfoot</span></li>
@@ -107,63 +130,79 @@
         <li><span>First Class</span></li>
         <li><span>Star</span></li>
         <li><span>Life</span></li>
-        <li class="eagle"><span>Eagle</span></li>
+        <li class="rank-trail__eagle"><span>Eagle</span></li>
       </ol>
-      <p style="margin-top:1.25rem"><a class="btn ghost" href="https://scoutbook.scouting.org/" target="_blank" rel="noopener">Open Scoutbook ↗</a></p>
+      <p class="advancement__cta">
+        <a class="btn btn--accent" href="https://scoutbook.scouting.org/" target="_blank" rel="noopener">Open Scoutbook ↗</a>
+      </p>
     </div>
   </section>
 
-  <section id="resources" class="section">
-    <div class="wrap">
-      <header class="section-head">
-        <h2>Forms &amp; resources</h2>
-        <p>Permission slips, medical forms, bylaws — everything a parent needs.</p>
-      </header>
-      <p><a class="btn ghost" href="/forms">Browse forms &amp; documents →</a></p>
-    </div>
+  <!-- ==================================================================
+       Resources / Members / Join — three quick callouts.
+       ================================================================== -->
+  <section id="resources" class="callouts">
+    <article class="callout callout--accent">
+      <div class="section-eyebrow">§ Forms &amp; resources</div>
+      <h2 class="callout__title">Permission slips, medical forms, bylaws.</h2>
+      <p>Everything a parent needs &mdash; one click away.</p>
+      <p><a class="btn btn--ink" href="/forms">Browse forms &rarr;</a></p>
+    </article>
+    <article id="members" class="callout callout--sky">
+      <div class="section-eyebrow">§ Members</div>
+      <h2 class="callout__title">Family directory &amp; patrol rosters.</h2>
+      <p>Visible to signed-in members of the {{UNIT_TYPE}}.</p>
+      <p><a class="btn btn--ink" href="/members">View directory &rarr;</a></p>
+    </article>
+    <article id="join" class="callout callout--ember">
+      <div class="section-eyebrow">§ New to Scouting?</div>
+      <h2 class="callout__title">Curious? Come visit.</h2>
+      <div class="prose">{{JOIN_BODY}}</div>
+      <p><a class="btn btn--ink" href="#contact">Email the Scoutmaster &rarr;</a></p>
+    </article>
   </section>
 
-  <section id="members" class="section alt">
-    <div class="wrap">
-      <header class="section-head">
-        <h2>Members</h2>
-      </header>
-      <p>Family directory, contact info, and patrol rosters — visible to signed-in members.</p>
-      <p><a class="btn ghost" href="/members">View directory</a></p>
-    </div>
-  </section>
-
-  <section id="join" class="section">
-    <div class="wrap join">
-      <div>
-        <h2>Curious? Come visit.</h2>
-        <div class="prose">{{JOIN_BODY}}</div>
-        <p><a class="btn primary" href="#contact">Email the Scoutmaster</a></p>
-      </div>
-    </div>
-  </section>
-
-  <section id="contact" class="section alt">
-    <div class="wrap">
-      <h2>Get in touch</h2>
-      <div class="prose">{{CONTACT_NOTE}}</div>
+  <!-- ==================================================================
+       Contact — emails for Scoutmaster + Committee Chair.
+       ================================================================== -->
+  <section id="contact" class="contact band-dark">
+    <div class="contact__inner">
+      <div class="section-eyebrow section-eyebrow--accent">§ Get in touch</div>
+      <h2 class="contact__title">Reach the <em>{{UNIT_TYPE}}.</em></h2>
+      <div class="contact__note prose">{{CONTACT_NOTE}}</div>
       <ul class="contact-list">
-        <li><strong>Scoutmaster ({{SCOUTMASTER_NAME}}):</strong> <a href="mailto:{{SCOUTMASTER_EMAIL}}">{{SCOUTMASTER_EMAIL}}</a></li>
-        <li><strong>Committee Chair:</strong> <a href="mailto:{{COMMITTEE_EMAIL}}">{{COMMITTEE_EMAIL}}</a></li>
+        <li>
+          <span class="contact-list__role">Scoutmaster</span>
+          <span class="contact-list__name">{{SCOUTMASTER_NAME}}</span>
+          <a class="contact-list__email" href="mailto:{{SCOUTMASTER_EMAIL}}">{{SCOUTMASTER_EMAIL}}</a>
+        </li>
+        <li>
+          <span class="contact-list__role">Committee Chair</span>
+          <span class="contact-list__name">&mdash;</span>
+          <a class="contact-list__email" href="mailto:{{COMMITTEE_EMAIL}}">{{COMMITTEE_EMAIL}}</a>
+        </li>
       </ul>
     </div>
   </section>
 
 </main>
 
-<footer class="site-footer">
-  <div class="wrap foot">
-    <div>
-      <strong>{{DISPLAY_NAME}}</strong><br/>
-      {{CHARTER_ORG}} · {{CITY}}, {{STATE}}<br/>
-      {{COUNCIL}} · {{DISTRICT}}
+<!-- ====================================================================
+     Footer
+     ==================================================================== -->
+<footer class="footer" role="contentinfo">
+  <div class="footer__inner">
+    <div class="footer__top">
+      <div class="footer__brand">
+        <strong>{{DISPLAY_NAME}}</strong><br/>
+        {{CHARTER_ORG}} · {{CITY}}, {{STATE}}<br/>
+        {{COUNCIL}} · {{DISTRICT}}
+      </div>
+      <small class="footer__powered">Powered by <a href="https://compass.app/">Compass</a></small>
     </div>
-    <small>Powered by <a href="https://compass.app/">Compass</a></small>
+    <div class="footer__copy">
+      &copy; <span id="yr">2026</span> {{DISPLAY_NAME}} &middot; Independent &middot; Not affiliated with Scouting America or BSA.
+    </div>
   </div>
 </footer>
 
