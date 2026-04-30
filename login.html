@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Sign in — Scouthosting</title>
+<title>Sign in — Compass</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600;700;800&display=swap" rel="stylesheet">
@@ -18,7 +18,7 @@
         <svg viewBox="0 0 32 32" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3 4 28h24z"/><path d="M16 12v10"/><path d="M11 22h10"/></svg>
       </span>
       <span class="brand-text">
-        <strong>Scouthosting</strong>
+        <strong>Compass</strong>
         <small>Websites for every troop</small>
       </span>
     </a>
@@ -50,11 +50,11 @@
 
     <div class="divider"><span>or with your unit's address</span></div>
 
-    <form onsubmit="event.preventDefault(); const slug=this.slug.value.trim().toLowerCase(); if(slug) location.href='https://'+slug+'.scouthosting.com/login';">
+    <form onsubmit="event.preventDefault(); const slug=this.slug.value.trim().toLowerCase(); if(slug) location.href='https://'+slug+'.compass.app/login';">
       <label>Your unit's site
         <div style="display:flex;align-items:stretch;gap:.4rem;margin-top:.3rem">
           <input name="slug" type="text" required pattern="[a-z0-9-]+" placeholder="troop100" style="margin-top:0" />
-          <span style="display:inline-flex;align-items:center;padding:.65rem .85rem;border:1px solid var(--ink-300);border-left:0;border-radius:0 8px 8px 0;color:var(--ink-500);background:var(--tan-50);font-size:.92rem">.scouthosting.com</span>
+          <span style="display:inline-flex;align-items:center;padding:.65rem .85rem;border:1px solid var(--ink-300);border-left:0;border-radius:0 8px 8px 0;color:var(--ink-500);background:var(--tan-50);font-size:.92rem">.compass.app</span>
         </div>
       </label>
 
@@ -71,7 +71,7 @@
 
 <footer class="site-footer">
   <div class="wrap foot-bottom" style="border:0;margin:0;padding:1.5rem 1.25rem">
-    <small>&copy; <span id="yr"></span> Scouthosting. Not affiliated with Scouting America.</small>
+    <small>&copy; <span id="yr"></span> Compass. Not affiliated with Scouting America.</small>
   </div>
 </footer>
 

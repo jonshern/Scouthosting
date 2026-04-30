@@ -35,7 +35,7 @@ const VALID_PLANS = ["patrol", "troop", "council"];
 const RESERVED_SLUGS = new Set([
   "www", "admin", "api", "app", "assets", "blog", "console",
   "dashboard", "demo", "docs", "help", "login", "mail", "marketing",
-  "scouthosting", "signup", "static", "status", "support",
+  "compass", "scouthosting", "signup", "static", "status", "support",
 ]);
 
 export function validateProvisionInput(body = {}) {
@@ -79,7 +79,8 @@ export async function provisionOrg(input) {
 
   const existing = await prisma.org.findUnique({ where: { slug } });
   if (existing) {
-    throw new Error(`A site already exists at ${slug}.scouthosting.com.`);
+    const apex = process.env.APEX_DOMAIN || "compass.app";
+    throw new Error(`A site already exists at ${slug}.${apex}.`);
   }
 
   const charterOrg = input.charterOrg.trim();
@@ -134,7 +135,7 @@ if (isMain) {
   try {
     const org = await provisionOrg(input);
     console.log(`✓ Provisioned ${org.displayName}`);
-    console.log(`  URL:    https://${org.slug}.scouthosting.com`);
+    console.log(`  URL:    https://${org.slug}.${process.env.APEX_DOMAIN || "compass.app"}`);
     console.log(`  Slug:   ${org.slug}`);
     console.log(`  Plan:   ${org.plan}`);
   } catch (err) {

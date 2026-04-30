@@ -17,9 +17,9 @@ describe("multi-tenant routing", () => {
   beforeEach(resetDb);
 
   it("apex (no subdomain) serves the marketing index", async () => {
-    const r = await request.get("/").set("Host", "scouthosting.com");
+    const r = await request.get("/").set("Host", "compass.app");
     expect(r.status).toBe(200);
-    expect(r.text).toMatch(/Scouthosting/i);
+    expect(r.text).toMatch(/Compass/i);
   });
 
   it("known subdomain renders the org template, not the marketing page", async () => {
@@ -31,7 +31,7 @@ describe("multi-tenant routing", () => {
   it("unknown subdomain returns the friendly 404, not the marketing site", async () => {
     const r = await request.get("/").set("Host", "nonexistent.localhost");
     expect(r.status).toBe(404);
-    expect(r.text).toMatch(/No Scouthosting site/i);
+    expect(r.text).toMatch(/No Compass site/i);
   });
 
   it("photo URLs are scoped to the org — cross-org filename returns 404", async () => {

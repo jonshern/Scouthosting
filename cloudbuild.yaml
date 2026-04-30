@@ -9,6 +9,12 @@
 #   _REGION   — e.g. us-central1 (defaults below)
 #   _REPO     — Artifact Registry repo name; default "scouthosting"
 #   _SERVICE  — Cloud Run service name; default "scouthosting-prod-app"
+#
+# The "scouthosting" prefix on the GCP resources is a deliberate hold-over
+# during the Compass rebrand — these names refer to real Artifact Registry
+# repos and Cloud Run services. Renaming requires a coordinated cloud-side
+# migration; until then, the deploy pipeline keeps targeting the existing
+# resources.
 
 substitutions:
   _REGION: us-central1

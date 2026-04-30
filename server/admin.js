@@ -51,7 +51,7 @@ const ALLOWED_MIME = new Set([
 ]);
 
 const upload = multer({
-  dest: path.resolve(process.env.UPLOAD_TMP || "/tmp/scouthosting-uploads"),
+  dest: path.resolve(process.env.UPLOAD_TMP || "/tmp/compass-uploads"),
   limits: { fileSize: 10 * 1024 * 1024, files: 20 }, // 10MB per file, 20 per request
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_MIME.has(file.mimetype)) cb(null, true);
@@ -92,7 +92,7 @@ const csvUpload = multer({
 });
 
 const documentUpload = multer({
-  dest: path.resolve(process.env.UPLOAD_TMP || "/tmp/scouthosting-uploads"),
+  dest: path.resolve(process.env.UPLOAD_TMP || "/tmp/compass-uploads"),
   limits: { fileSize: 25 * 1024 * 1024, files: 1 }, // 25MB single document
   fileFilter: (_req, file, cb) => {
     if (ALLOWED_DOC_MIME.has(file.mimetype)) cb(null, true);
@@ -230,12 +230,12 @@ ${body}
 
 function loginPage({ org, error }) {
   const errHtml = error ? `<div class="flash flash-err">${escape(error)}</div>` : "";
-  const apex = escape(process.env.APEX_DOMAIN || "scouthosting.com");
+  const apex = escape(process.env.APEX_DOMAIN || "compass.app");
   // Google OAuth lives on the apex (single redirect URI). The callback sets
   // a session cookie scoped to COOKIE_DOMAIN; in production that's
-  // `.scouthosting.com` so the cookie is valid on this org subdomain too.
+  // `.compass.app` so the cookie is valid on this org subdomain too.
   const googleHtml = googleConfigured
-    ? `<a class="btn-google" href="https://${apex}/auth/google/start?next=${encodeURIComponent(`https://${org.slug}.${process.env.APEX_DOMAIN || "scouthosting.com"}/admin`)}">
+    ? `<a class="btn-google" href="https://${apex}/auth/google/start?next=${encodeURIComponent(`https://${org.slug}.${process.env.APEX_DOMAIN || "compass.app"}/admin`)}">
   <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
     <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.49h4.84c-.21 1.13-.84 2.08-1.79 2.72v2.26h2.9c1.7-1.56 2.69-3.87 2.69-6.63z"/>
     <path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.9-2.26c-.81.54-1.84.86-3.06.86-2.36 0-4.36-1.6-5.07-3.74H.96v2.34A9 9 0 0 0 9 18z"/>
@@ -466,7 +466,7 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
       </div>
       <div class="row">
         <button class="btn btn-primary" type="submit">Save theme</button>
-        <a class="btn btn-ghost" style="margin-left:auto" href="/admin/theme/reset" onclick="return confirm('Reset to the default Scouthosting green + gold?')">Reset to defaults</a>
+        <a class="btn btn-ghost" style="margin-left:auto" href="/admin/theme/reset" onclick="return confirm('Reset to the default Compass evergreen + chartreuse?')">Reset to defaults</a>
       </div>
     </form>
 
@@ -1190,7 +1190,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
   const body = `
     <h1>Calendar</h1>
     <p class="muted">Members can <strong>subscribe</strong> to your event feed and have it on their phone calendar automatically.</p>
-    <p class="muted small">Subscription URL: <code>${escape(`https://${req.org.slug}.${process.env.APEX_DOMAIN || "scouthosting.com"}/calendar.ics`)}</code></p>
+    <p class="muted small">Subscription URL: <code>${escape(`https://${req.org.slug}.${process.env.APEX_DOMAIN || "compass.app"}/calendar.ics`)}</code></p>
 
     <h2 style="margin-top:1.25rem">New event</h2>
     ${eventForm({ event: null, action: "/admin/events", submitLabel: "Create event" })}
@@ -1340,7 +1340,7 @@ adminRouter.post("/events/:id/reminder", requireLeader, async (req, res) => {
     (m) => m.email && (m.commPreference === "email" || m.commPreference === "both")
   );
 
-  const apex = process.env.APEX_DOMAIN || "scouthosting.com";
+  const apex = process.env.APEX_DOMAIN || "compass.app";
   const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
   const base = `${protocol}://${req.org.slug}.${apex}${
     process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : ""
@@ -3433,6 +3433,9 @@ adminRouter.get("/export.json", requireLeader, async (req, res) => {
   });
 
   const dump = {
+    // Schema string is a stable contract for future importers. Kept on the
+    // legacy prefix to match any downstream tooling already shipped against
+    // it; bump to compass/v2 only with a coordinated migration.
     schema: "scouthosting/v1",
     exportedAt: new Date().toISOString(),
     org,
@@ -4081,7 +4084,7 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
   // "via" pattern: leader's display name in the visible From, our
   // verified domain in the addr-spec so DKIM/SPF still passes. Replies
   // route to the leader directly via Reply-To.
-  const apex = process.env.APEX_DOMAIN || "scouthosting.com";
+  const apex = process.env.APEX_DOMAIN || "compass.app";
   const fromAddr = `noreply@${req.org.slug}.${apex}`;
   const fromName = `${req.user.displayName.replace(/[<>"]/g, "")} (via ${req.org.displayName.replace(/[<>"]/g, "")})`;
   const orgHost = `${req.org.slug}.${apex}`;
