@@ -23,7 +23,7 @@ import { MessageBubble } from '../../components/MessageBubble';
 import { fontFamilies, palette, radius, spacing } from '../../theme/tokens';
 import type { ChatStackParamList } from '../../navigation/types';
 import { useAuth } from '../../state/AuthContext';
-import { getChannel, sendMessage } from '../../api/channels';
+import { getChannel, sendMessage, toggleReaction, votePoll } from '../../api/channels';
 import { ApiError } from '../../api/client';
 import type { ChannelDto, MessageDto } from '../../api/types';
 
@@ -36,6 +36,63 @@ function fmtTimestamp(iso: string): string {
     return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   }
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function renderReactions(m: MessageDto, onReact: (id: string, emoji: string) => void) {
+  return (
+    <View style={chatStyles.reactionsRow}>
+      {m.reactions.map((r) => (
+        <Pressable
+          key={r.emoji}
+          onPress={() => onReact(m.id, r.emoji)}
+          style={({ pressed }) => [
+            chatStyles.reactionChip,
+            r.youReacted && chatStyles.reactionChipMine,
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Text style={chatStyles.reactionEmoji}>{r.emoji}</Text>
+          <Text style={chatStyles.reactionCount}>{r.count}</Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+}
+
+function renderPoll(m: MessageDto, onVote: (id: string, optionId: string) => void) {
+  if (m.attachment?.kind !== 'poll') return null;
+  const p = m.attachment;
+  const total = p.options.reduce((s, o) => s + o.count, 0);
+  const closed = p.closesAt && new Date(p.closesAt) < new Date();
+  return (
+    <View style={chatStyles.pollCard}>
+      <Text style={chatStyles.pollQuestion}>📊 {p.question}</Text>
+      {p.options.map((o) => {
+        const pct = total ? Math.round((o.count / total) * 100) : 0;
+        return (
+          <Pressable
+            key={o.id}
+            disabled={!!closed}
+            onPress={() => onVote(m.id, o.id)}
+            style={({ pressed }) => [
+              chatStyles.pollOption,
+              o.youVoted && chatStyles.pollOptionMine,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <View style={[chatStyles.pollBar, { width: `${pct}%` }, o.youVoted && chatStyles.pollBarMine]} />
+            <Text style={chatStyles.pollLabel}>{o.label}</Text>
+            <Text style={chatStyles.pollCount}>{o.count}</Text>
+          </Pressable>
+        );
+      })}
+      <Text style={chatStyles.pollMeta}>
+        {total} vote{total === 1 ? '' : 's'}
+        {closed ? ' · closed' : p.closesAt ? ` · closes ${new Date(p.closesAt).toLocaleString()}` : ''}
+        {p.allowMulti ? ' · multi-select' : ''}
+      </Text>
+    </View>
+  );
 }
 
 function initialsFor(name: string): string {
@@ -110,6 +167,30 @@ export default function ThreadScreen() {
     }
   }, [auth, draft, channel, refresh]);
 
+  // Tap a reaction bucket to toggle. SSE re-broadcast updates the row;
+  // here we also patch the local copy in case polling is racing.
+  const onReact = useCallback(async (messageId: string, emoji: string) => {
+    const client = auth.client();
+    if (!client) return;
+    try {
+      const r = await toggleReaction(client, messageId, emoji);
+      setMessages((prev) => prev.map((mm) => (mm.id === r.message.id ? r.message : mm)));
+    } catch {
+      void refresh();
+    }
+  }, [auth, refresh]);
+
+  const onVote = useCallback(async (messageId: string, optionId: string) => {
+    const client = auth.client();
+    if (!client) return;
+    try {
+      const r = await votePoll(client, messageId, optionId);
+      setMessages((prev) => prev.map((mm) => (mm.id === r.message.id ? r.message : mm)));
+    } catch {
+      void refresh();
+    }
+  }, [auth, refresh]);
+
   if (!channel && !error) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -151,15 +232,18 @@ export default function ThreadScreen() {
             const isMine = !!m.author && myUserId === m.author.id;
             const isSystem = !m.author;
             return (
-              <MessageBubble
-                key={m.id}
-                side={isMine ? 'right' : 'left'}
-                who={m.author?.displayName || 'system'}
-                text={m.deleted ? '(deleted)' : (m.body || '')}
-                timestamp={fmtTimestamp(m.createdAt)}
-                isMeta={isSystem}
-                avatarInitials={initialsFor(m.author?.displayName || 'S')}
-              />
+              <View key={m.id}>
+                <MessageBubble
+                  side={isMine ? 'right' : 'left'}
+                  who={m.author?.displayName || 'system'}
+                  text={m.deleted ? '(deleted)' : (m.body || '')}
+                  timestamp={fmtTimestamp(m.createdAt)}
+                  isMeta={isSystem}
+                  avatarInitials={initialsFor(m.author?.displayName || 'S')}
+                />
+                {m.attachment?.kind === 'poll' ? renderPoll(m, onVote) : null}
+                {m.reactions.length > 0 || !m.deleted ? renderReactions(m, onReact) : null}
+              </View>
             );
           })}
         </ScrollView>
@@ -304,5 +388,102 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: palette.inkMuted,
     textAlign: 'center',
+  },
+});
+
+const chatStyles = StyleSheet.create({
+  reactionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingHorizontal: spacing.lg,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  reactionChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: palette.lineSoft,
+    borderWidth: 1,
+    borderColor: palette.line,
+  },
+  reactionChipMine: {
+    backgroundColor: palette.accentSoft,
+    borderColor: palette.accent,
+  },
+  reactionEmoji: { fontSize: 13 },
+  reactionCount: {
+    fontSize: 11,
+    color: palette.inkSoft,
+    fontFamily: fontFamilies.ui,
+    fontVariant: ['tabular-nums'],
+  },
+  pollCard: {
+    marginHorizontal: spacing.lg,
+    marginBottom: spacing.md,
+    padding: spacing.md,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.line,
+    borderRadius: radius.cardSm,
+  },
+  pollQuestion: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 14,
+    fontWeight: '600',
+    color: palette.ink,
+    marginBottom: spacing.sm,
+  },
+  pollOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.cardSm,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.lineSoft,
+    marginBottom: 6,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  pollOptionMine: {
+    borderColor: palette.accent,
+    backgroundColor: palette.accentSoft,
+  },
+  pollBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(200, 233, 74, 0.3)',
+  },
+  pollBarMine: {
+    backgroundColor: 'rgba(200, 233, 74, 0.55)',
+  },
+  pollLabel: {
+    flex: 1,
+    fontFamily: fontFamilies.ui,
+    fontSize: 13,
+    color: palette.ink,
+  },
+  pollCount: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 12,
+    color: palette.inkSoft,
+    fontVariant: ['tabular-nums'],
+    minWidth: 20,
+    textAlign: 'right',
+  },
+  pollMeta: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 11,
+    color: palette.inkMuted,
+    marginTop: 4,
   },
 });

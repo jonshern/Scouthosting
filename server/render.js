@@ -1361,7 +1361,10 @@ export function renderChatPage(org, { needsSignIn, notAMember } = {}) {
           <ol class="chat-messages" id="chat-messages"></ol>
           <form class="chat-form" id="chat-form" hidden>
             <textarea name="body" rows="2" placeholder="Type a message…" maxlength="10000" required></textarea>
-            <button class="btn primary" type="submit">Send</button>
+            <div class="chat-form-actions">
+              <button class="btn primary" type="submit">Send</button>
+              <button class="btn ghost" type="button" id="chat-poll-btn" title="Add a poll">📊 Poll</button>
+            </div>
           </form>
         </main>
       </div>
@@ -1407,10 +1410,33 @@ const CHAT_STYLES = `
   .chat-messages .ts { font-size: 11px; color: #5a6258; margin-top: .1rem; }
   .chat-form { display: flex; gap: .4rem; padding: .65rem 1rem; border-top: 1px solid #e6dcc0; align-items: flex-end; }
   .chat-form textarea { flex: 1; resize: vertical; min-height: 44px; padding: .55rem .65rem; border: 1px solid #d4c8a8; border-radius: 8px; font-family: inherit; font-size: 14px; }
-  .chat-form button { align-self: stretch; }
+  .chat-form-actions { display: flex; flex-direction: column; gap: .35rem; }
+  .chat-form-actions button { white-space: nowrap; }
+  .chat-reactions { display: flex; flex-wrap: wrap; gap: .25rem; margin-top: .35rem; }
+  .chat-reaction { display: inline-flex; align-items: center; gap: .25rem; padding: .15rem .5rem; background: #faf3e3; border: 1px solid #e6dcc0; border-radius: 999px; font-size: 12px; cursor: pointer; line-height: 1.2; }
+  .chat-reaction:hover { background: #f1ead5; }
+  .chat-reaction.is-mine { background: #e3f29b; border-color: #c8e94a; color: #0e3320; font-weight: 600; }
+  .chat-reaction-count { font-size: 11px; color: #5a6258; font-variant-numeric: tabular-nums; }
+  .chat-reaction.is-mine .chat-reaction-count { color: #0e3320; }
+  .chat-reaction-add { background: transparent; color: #5a6258; padding: .15rem .5rem; }
+  .chat-reaction-add:hover { background: #f4ecdc; color: #0e3320; }
+  .chat-poll { background: #fff; border: 1px solid #d4c8a8; border-radius: 10px; padding: .65rem .85rem; margin-top: .45rem; }
+  .chat-poll-question { font-weight: 600; font-size: 14px; color: #0d130d; margin-bottom: .5rem; }
+  .chat-poll-options { display: grid; gap: .35rem; }
+  .chat-poll-option { position: relative; display: flex; align-items: center; gap: .5rem; padding: .45rem .65rem; border: 1px solid #d4c8a8; background: #faf3e3; border-radius: 8px; font-size: 13px; cursor: pointer; overflow: hidden; }
+  .chat-poll-option:hover:not(:disabled) { border-color: #0e3320; }
+  .chat-poll-option.is-mine { border-color: #c8e94a; background: #e3f29b; }
+  .chat-poll-option.is-closed { cursor: default; opacity: .85; }
+  .chat-poll-bar { position: absolute; left: 0; top: 0; bottom: 0; background: rgba(200,233,74,0.3); pointer-events: none; }
+  .chat-poll-option.is-mine .chat-poll-bar { background: rgba(200,233,74,0.55); }
+  .chat-poll-label { position: relative; flex: 1; }
+  .chat-poll-count { position: relative; font-size: 12px; color: #5a6258; font-variant-numeric: tabular-nums; min-width: 1.5rem; text-align: right; }
+  .chat-poll-meta { font-size: 11px; color: #5a6258; margin-top: .35rem; }
   @media (max-width: 720px) {
     .chat-shell { grid-template-columns: 1fr; min-height: auto; }
     .chat-sidebar { border-right: 0; border-bottom: 1px solid #e6dcc0; max-height: 200px; overflow-y: auto; }
+    .chat-form { flex-direction: column; align-items: stretch; }
+    .chat-form-actions { flex-direction: row; }
   }
 `;
 
@@ -1518,20 +1544,137 @@ async function loadMessages() {
   renderMessages(data.messages, /* replace */ true);
 }
 
+// Map of message id → <li> so SSE re-broadcasts (on reaction toggle /
+// poll vote) update in place rather than appending duplicates.
+const messageLis = new Map();
+
 function renderMessages(list, replace) {
-  if (replace) messagesEl.innerHTML = '';
+  if (replace) {
+    messagesEl.innerHTML = '';
+    messageLis.clear();
+  }
   for (const m of list) {
-    const li = document.createElement('li');
+    let li = messageLis.get(m.id);
+    if (!li) {
+      li = document.createElement('li');
+      messagesEl.appendChild(li);
+      messageLis.set(m.id, li);
+    }
+    li.className = '';
     if (!m.author) li.classList.add('system');
     if (m.deleted) li.classList.add('deleted');
-    const author = m.author?.displayName || 'system';
-    li.innerHTML = '<span class="author">' + escapeHtml(author) + '</span>' +
-      '<div class="body">' + escapeHtml(m.deleted ? '(deleted)' : m.body) + '</div>' +
-      '<span class="ts">' + escapeHtml(fmtTime(m.createdAt)) + '</span>';
-    messagesEl.appendChild(li);
+    li.dataset.messageId = m.id;
+    li.innerHTML = renderMessageInner(m);
+    wireMessageActions(li, m);
     lastMessageId = m.id;
   }
   messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function renderMessageInner(m) {
+  const author = m.author?.displayName || 'system';
+  const bodyHtml = m.deleted
+    ? '<em class="muted">(deleted)</em>'
+    : escapeHtml(m.body || '');
+  const reactionsHtml = renderReactionsBlock(m);
+  const attachmentHtml = renderAttachmentBlock(m);
+  return (
+    '<span class="author">' + escapeHtml(author) + '</span>' +
+    '<div class="body">' + bodyHtml + '</div>' +
+    attachmentHtml +
+    reactionsHtml +
+    '<span class="ts">' + escapeHtml(fmtTime(m.createdAt)) + '</span>'
+  );
+}
+
+function renderReactionsBlock(m) {
+  const list = (m.reactions || []);
+  const buckets = list.map((r) => {
+    const cls = 'chat-reaction' + (r.youReacted ? ' is-mine' : '');
+    return (
+      '<button type="button" class="' + cls + '" data-emoji="' + escapeHtml(r.emoji) + '">' +
+        '<span>' + escapeHtml(r.emoji) + '</span>' +
+        '<span class="chat-reaction-count">' + r.count + '</span>' +
+      '</button>'
+    );
+  }).join('');
+  // Always render the picker ("+") so users can react to anything.
+  const picker =
+    '<button type="button" class="chat-reaction chat-reaction-add" data-emoji-picker="1" aria-label="Add reaction">+</button>';
+  return '<div class="chat-reactions">' + buckets + picker + '</div>';
+}
+
+function renderAttachmentBlock(m) {
+  if (!m.attachment || m.attachment.kind !== 'poll') return '';
+  const p = m.attachment;
+  const total = (p.options || []).reduce((s, o) => s + (o.count || 0), 0);
+  const closed = p.closesAt && new Date(p.closesAt) < new Date();
+  const optionsHtml = (p.options || []).map((o) => {
+    const count = o.count || 0;
+    const pct = total ? Math.round((count / total) * 100) : 0;
+    const cls = 'chat-poll-option' + (o.youVoted ? ' is-mine' : '') + (closed ? ' is-closed' : '');
+    return (
+      '<button type="button" class="' + cls + '" data-poll-option="' + escapeHtml(o.id) + '"' + (closed ? ' disabled' : '') + '>' +
+        '<span class="chat-poll-bar" style="width:' + pct + '%"></span>' +
+        '<span class="chat-poll-label">' + escapeHtml(o.label) + '</span>' +
+        '<span class="chat-poll-count">' + count + '</span>' +
+      '</button>'
+    );
+  }).join('');
+  return (
+    '<div class="chat-poll" data-message-id="' + escapeHtml(m.id) + '">' +
+      '<div class="chat-poll-question">📊 ' + escapeHtml(p.question) + '</div>' +
+      '<div class="chat-poll-options">' + optionsHtml + '</div>' +
+      '<div class="chat-poll-meta">' + total + ' vote' + (total === 1 ? '' : 's') +
+        (closed ? ' · closed' : (p.closesAt ? ' · closes ' + escapeHtml(new Date(p.closesAt).toLocaleString()) : '')) +
+        (p.allowMulti ? ' · multi-select' : '') +
+      '</div>' +
+    '</div>'
+  );
+}
+
+function wireMessageActions(li, m) {
+  // Reaction toggles
+  for (const btn of li.querySelectorAll('.chat-reaction[data-emoji]')) {
+    btn.addEventListener('click', () => toggleReaction(m.id, btn.dataset.emoji));
+  }
+  const addBtn = li.querySelector('[data-emoji-picker]');
+  if (addBtn) {
+    addBtn.addEventListener('click', async () => {
+      // Tiny picker: prompt() is intentionally minimalist for v1.
+      const emoji = window.prompt('React with emoji (e.g. 👍, 🔥, ❤️)');
+      if (!emoji) return;
+      await toggleReaction(m.id, emoji.trim());
+    });
+  }
+  // Poll vote buttons
+  for (const btn of li.querySelectorAll('.chat-poll-option[data-poll-option]')) {
+    btn.addEventListener('click', () => votePoll(m.id, btn.dataset.pollOption));
+  }
+}
+
+async function toggleReaction(messageId, emoji) {
+  if (!emoji) return;
+  try {
+    await fetch('/api/v1/messages/' + encodeURIComponent(messageId) + '/reactions', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emoji }),
+    });
+    // SSE will fan out the updated message; no local mutation needed.
+  } catch { /* ignore */ }
+}
+
+async function votePoll(messageId, optionId) {
+  try {
+    await fetch('/api/v1/messages/' + encodeURIComponent(messageId) + '/poll/vote', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ optionId }),
+    });
+  } catch { /* ignore */ }
 }
 
 // Open an SSE subscription to the active channel. EventSource auths via
@@ -1639,6 +1782,50 @@ formEl.addEventListener('submit', async (e) => {
     ta.focus();
   }
 });
+
+// Poll composer. Single-screen prompt() chain — minimal but works on
+// every platform. A richer modal can replace this in PR E2.
+const pollBtn = document.getElementById('chat-poll-btn');
+if (pollBtn) {
+  pollBtn.addEventListener('click', async () => {
+    if (!activeChannelId) return;
+    const question = window.prompt('Poll question (e.g. "What should we cook Friday?")');
+    if (!question || !question.trim()) return;
+    const optionsRaw = window.prompt('Options, one per line (2–12):', 'Tacos\\nPasta\\nChicken & rice');
+    if (!optionsRaw) return;
+    const options = optionsRaw
+      .split(/\\r?\\n/)
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 12);
+    if (options.length < 2) {
+      alert('A poll needs at least 2 options.');
+      return;
+    }
+    const allowMulti = window.confirm('Allow multiple votes per person? (OK = yes, Cancel = single-vote)');
+    const r = await fetch('/api/v1/channels/' + encodeURIComponent(activeChannelId) + '/messages', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        body: '📊 ' + question,
+        attachment: {
+          kind: 'poll',
+          question,
+          options: options.map((label, i) => ({ id: 'o' + (i + 1), label })),
+          allowMulti,
+        },
+      }),
+    });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      alert('Couldn\\'t create poll: ' + (data.error || r.status));
+      return;
+    }
+    const { message } = await r.json();
+    renderMessages([message], false);
+  });
+}
 
 void loadChannels();
 `;

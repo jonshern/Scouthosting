@@ -32,9 +32,32 @@ export function sendMessage(
   opts: ClientOptions,
   channelId: string,
   body: string,
+  attachment?: unknown,
 ): Promise<SendMessageResponse> {
   return apiRequest<SendMessageResponse>(opts, `/channels/${channelId}/messages`, {
     method: "POST",
-    body: { body },
+    body: attachment !== undefined ? { body, attachment } : { body },
+  });
+}
+
+export function toggleReaction(
+  opts: ClientOptions,
+  messageId: string,
+  emoji: string,
+): Promise<SendMessageResponse> {
+  return apiRequest<SendMessageResponse>(opts, `/messages/${messageId}/reactions`, {
+    method: "POST",
+    body: { emoji },
+  });
+}
+
+export function votePoll(
+  opts: ClientOptions,
+  messageId: string,
+  optionId: string,
+): Promise<SendMessageResponse> {
+  return apiRequest<SendMessageResponse>(opts, `/messages/${messageId}/poll/vote`, {
+    method: "POST",
+    body: { optionId },
   });
 }

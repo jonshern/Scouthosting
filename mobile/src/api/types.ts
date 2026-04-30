@@ -24,6 +24,29 @@ export type MessageAuthorDto = {
   displayName: string;
 };
 
+export type ReactionBucket = {
+  emoji: string;
+  count: number;
+  youReacted: boolean;
+};
+
+export type PollOptionDto = {
+  id: string;
+  label: string;
+  count: number;
+  youVoted: boolean;
+};
+
+export type PollAttachment = {
+  kind: "poll";
+  question: string;
+  options: PollOptionDto[];
+  closesAt: string | null;
+  allowMulti: boolean;
+};
+
+export type MessageAttachment = PollAttachment | null;
+
 export type MessageDto = {
   id: string;
   channelId: string;
@@ -33,6 +56,8 @@ export type MessageDto = {
   createdAt: string;
   editedAt: string | null;
   author: MessageAuthorDto | null;
+  attachment: MessageAttachment;
+  reactions: ReactionBucket[];
 };
 
 export type MeDto = {
