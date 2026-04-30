@@ -583,8 +583,20 @@ read-only until the threshold is restored.
         POST   /channels/:id/messages — send (passes through YPT guard)
       Auth middleware accepts Lucia session OR bearer token; mobile
       app uses bearer, web fallback uses session.
-- [ ] Web admin oversight at `/admin/channels` (list, suspend toggle,
-      compliance status), parent web fallback at `/chat`. **PR B.**
+- [x] **Web admin oversight + parent web fallback** —
+      `/admin/channels` lists every channel grouped by kind with
+      member/message/last-active counts; per-channel detail page shows
+      member roster + recent messages + per-channel YPT compliance
+      summary + suspend / unsuspend / archive controls. Unsuspend
+      refuses to lift the suspension if YPT still doesn't pass.
+      `/admin/ypt` lets leaders set `yptCurrentUntil` per
+      OrgMembership; saving re-runs the YPT guard on every channel that
+      user belongs to so suspension state catches up immediately.
+      `/chat` parent web client is a thin JS module over `/api/v1`
+      (5-second polling for v1 — SSE drops it to sub-second in PR D).
+      Tenant-site primary nav gets a "Chat" link. Standing channels
+      (troop / parents / leaders / per-patrol) provisioned via a one-
+      click admin action — idempotent, safe to re-run.
 - [ ] Mobile app wiring — connect the existing `mobile/` scaffold to
       the API, add Expo push notifications, TestFlight build. **PR C.**
 - [ ] Real-time delivery — SSE on `/api/v1/channels/:id/stream` backed
