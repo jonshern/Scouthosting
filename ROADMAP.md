@@ -611,10 +611,26 @@ read-only until the threshold is restored.
       (Home, Calendar, Photos, Profile) stay mock until those features
       have a backend. Push notifications + TestFlight pipeline are PR
       C2 / C3.
-- [ ] Real-time delivery — SSE on `/api/v1/channels/:id/stream` backed
-      by Postgres `LISTEN/NOTIFY`. **PR D.**
+- [x] **Real-time delivery (web).** New `lib/realtime.js` is an
+      in-process EventEmitter pub/sub keyed by `channelId`. Server
+      routes that mutate channel state — `POST /messages`,
+      `suspendChannel`, `unsuspendChannel` — publish events; the new
+      `GET /api/v1/channels/:id/stream` endpoint registers an SSE
+      subscriber so every connected client gets sub-second fan-out.
+      EventSource auths via Lucia cookie OR `?access_token=` (since
+      EventSource can't set headers); 25-second SSE comment heartbeats
+      keep proxies from closing the connection. The web `/chat` client
+      switched from 5-second polling to EventSource + auto-reconnect;
+      a fallback path keeps polling every 10 seconds if the browser
+      refuses EventSource. 12 new tests on the pub/sub. **PR D2** wires
+      the same stream into the mobile client (needs `react-native-sse`
+      + an Expo prebuild). **PR D3** layers on Postgres `LISTEN/NOTIFY`
+      for multi-instance deployments — single instance is sub-second
+      already.
 - [ ] Reactions, polls, event-channel embeds, attachments. **PR E.**
 - [ ] Push notifications + TestFlight pipeline. **PR C2 / C3.**
+- [ ] Mobile SSE consumption (react-native-sse). **PR D2.**
+- [ ] Postgres `LISTEN/NOTIFY` cross-process bridge. **PR D3.**
 
 ## Phase 11 — Customization & domains
 

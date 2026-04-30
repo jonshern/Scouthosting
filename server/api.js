@@ -18,6 +18,7 @@ import {
   assertChannelTwoDeep,
   checkChannelTwoDeep,
 } from "../lib/chat.js";
+import { publishMessage, subscribe as subscribeRealtime } from "../lib/realtime.js";
 
 export const apiRouter = Router();
 
@@ -28,10 +29,18 @@ const MESSAGE_PAGE = 50;
 /* ------------------------------------------------------------------ */
 
 async function resolveApiUser(req, res, next) {
-  // Bearer-token path first (mobile / external).
-  const auth = req.headers.authorization || "";
-  if (/^Bearer\s+/i.test(auth)) {
-    const v = await verifyToken(auth, prisma);
+  // Bearer-token path first (mobile / external). EventSource can't
+  // set Authorization headers, so we also accept ?access_token= in
+  // the query string for SSE — same hash check, same storage.
+  const headerAuth = req.headers.authorization || "";
+  const queryToken = typeof req.query.access_token === "string" ? req.query.access_token : "";
+  const bearerLike = /^Bearer\s+/i.test(headerAuth)
+    ? headerAuth
+    : queryToken
+      ? `Bearer ${queryToken}`
+      : "";
+  if (bearerLike) {
+    const v = await verifyToken(bearerLike, prisma);
     if (!v) return res.status(401).json({ error: "invalid_token" });
     const user = await prisma.user.findUnique({
       where: { id: v.userId },
@@ -307,7 +316,84 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
     },
     include: { author: { select: { id: true, displayName: true } } },
   });
-  res.status(201).json({ message: serializeMessage(message) });
+  const dto = serializeMessage(message);
+  // Fan out to every SSE subscriber on this channel. Best-effort —
+  // failures inside subscribers don't bubble up to the POST response.
+  try {
+    publishMessage(channel.id, dto);
+  } catch (e) {
+    console.warn(`[realtime] publishMessage failed: ${e.message}`);
+  }
+  res.status(201).json({ message: dto });
+});
+
+/* ------------------------------------------------------------------ */
+/* SSE stream                                                          */
+/* ------------------------------------------------------------------ */
+
+const SSE_HEARTBEAT_MS = 25_000;
+
+// GET /api/v1/channels/:id/stream — Server-Sent Events keyed by channelId.
+// Auth via Lucia session OR ?access_token=<bearer> (EventSource can't set
+// headers). Heartbeat every 25 seconds prevents proxies + Cloudflare from
+// closing the connection. On disconnect we clean up the in-process
+// subscriber.
+apiRouter.get("/channels/:id/stream", resolveApiUser, async (req, res) => {
+  const channel = await prisma.channel.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, orgId: true, kind: true, archivedAt: true },
+  });
+  if (!channel) return res.status(404).json({ error: "not_found" });
+
+  const membership = await membershipFor(req.apiUser.id, channel.orgId);
+  if (!membership) return res.status(404).json({ error: "not_found" });
+
+  if (channel.kind === "leaders" && membership.role !== "leader" && membership.role !== "admin") {
+    return res.status(404).json({ error: "not_found" });
+  }
+  if (channel.kind !== "troop" && channel.kind !== "leaders") {
+    const member = await prisma.channelMember.findFirst({
+      where: { channelId: channel.id, userId: req.apiUser.id },
+    });
+    if (!member && membership.role !== "leader" && membership.role !== "admin") {
+      return res.status(404).json({ error: "not_found" });
+    }
+  }
+
+  // SSE preamble. Disable nginx-style proxy buffering with X-Accel-Buffering.
+  res.set({
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache, no-transform",
+    Connection: "keep-alive",
+    "X-Accel-Buffering": "no",
+  });
+  res.flushHeaders?.();
+  // Initial event so the client knows the subscription is live.
+  res.write(`event: hello\ndata: ${JSON.stringify({ channelId: channel.id })}\n\n`);
+
+  const send = (eventName, data) => {
+    if (res.writableEnded) return;
+    res.write(`event: ${eventName}\n`);
+    res.write(`data: ${JSON.stringify(data)}\n\n`);
+  };
+
+  const unsubscribe = subscribeRealtime(channel.id, (event) => {
+    send(event.type, event);
+  });
+
+  const heartbeat = setInterval(() => {
+    if (res.writableEnded) return;
+    // Comment-only event keeps the connection warm without firing a
+    // client-side message handler. SSE comments start with ":" per spec.
+    res.write(`: heartbeat ${Date.now()}\n\n`);
+  }, SSE_HEARTBEAT_MS);
+
+  const cleanup = () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  };
+  req.on("close", cleanup);
+  res.on("close", cleanup);
 });
 
 // JSON 404 fallthrough — catches /api/v1/* paths the router didn't handle.

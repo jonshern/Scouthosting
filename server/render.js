@@ -1429,8 +1429,10 @@ const bannerEl = document.getElementById('chat-banner');
 const formEl = document.getElementById('chat-form');
 
 let activeChannelId = null;
-let pollTimer = null;
 let lastMessageId = null;
+// EventSource holding the SSE connection for the active channel.
+// Recreated on every channel switch + on visibility-change reconnect.
+let stream = null;
 
 const KIND_LABEL = {
   patrol: 'Patrol',
@@ -1500,7 +1502,7 @@ async function selectChannel(id, summary) {
     bannerEl.textContent = 'This channel is paused. ' + (summary.suspendedReason ? '(' + summary.suspendedReason.replace(/-/g, ' ') + ')' : '');
   }
   await loadMessages();
-  startPolling();
+  startStream();
 }
 
 async function loadMessages() {
@@ -1532,14 +1534,66 @@ function renderMessages(list, replace) {
   messagesEl.scrollTop = messagesEl.scrollHeight;
 }
 
-function startPolling() {
-  if (pollTimer) clearInterval(pollTimer);
-  pollTimer = setInterval(pollNew, 5000);
+// Open an SSE subscription to the active channel. EventSource auths via
+// the existing Lucia cookie (credentials: 'same-origin' equivalent —
+// EventSource sends cookies by default for same-origin URLs). Browsers
+// auto-reconnect when the connection drops; we just need to handle the
+// onmessage / typed event handlers.
+function startStream() {
+  stopStream();
+  if (!activeChannelId) return;
+  const url = '/api/v1/channels/' + encodeURIComponent(activeChannelId) + '/stream';
+  try {
+    stream = new EventSource(url, { withCredentials: true });
+  } catch {
+    // Fall back to a polling refresh every 10s if the browser refuses
+    // EventSource. Older browsers, some embedded webviews.
+    stream = null;
+    setTimeout(refreshOnly, 10000);
+    return;
+  }
+  stream.addEventListener('message', (ev) => {
+    try {
+      const event = JSON.parse(ev.data);
+      if (event.message) renderMessages([event.message], false);
+    } catch { /* ignore malformed event */ }
+  });
+  stream.addEventListener('suspended', () => {
+    void loadChannels();
+    if (formEl) formEl.hidden = true;
+    bannerEl.hidden = false;
+    bannerEl.textContent = 'Channel paused — a leader needs to restore two-deep.';
+  });
+  stream.addEventListener('unsuspended', () => {
+    void loadChannels();
+    if (formEl) formEl.hidden = false;
+    bannerEl.hidden = true;
+  });
+  stream.addEventListener('archived', () => {
+    void loadChannels();
+    if (formEl) formEl.hidden = true;
+    bannerEl.hidden = false;
+    bannerEl.textContent = 'This channel has been archived.';
+  });
+  stream.addEventListener('error', () => {
+    // EventSource auto-reconnects on transient errors; if it drops
+    // permanently (auth revoked, channel deleted), stop trying.
+    if (stream && stream.readyState === EventSource.CLOSED) {
+      stopStream();
+    }
+  });
 }
 
-async function pollNew() {
-  if (!activeChannelId || !lastMessageId) return;
-  // Fetch the latest page; we drop anything <= lastMessageId.
+function stopStream() {
+  if (stream) {
+    try { stream.close(); } catch { /* ignore */ }
+    stream = null;
+  }
+}
+
+async function refreshOnly() {
+  // Best-effort polling fallback when EventSource isn't available.
+  if (!activeChannelId) return;
   const r = await fetch('/api/v1/channels/' + encodeURIComponent(activeChannelId), {
     credentials: 'same-origin',
   });
@@ -1552,8 +1606,7 @@ async function pollNew() {
     else if (seen) fresh.push(m);
   }
   if (fresh.length) renderMessages(fresh, false);
-  // Refresh the channel list periodically so suspension state syncs.
-  void loadChannels();
+  if (!stream) setTimeout(refreshOnly, 10000);
 }
 
 formEl.addEventListener('submit', async (e) => {
