@@ -471,14 +471,16 @@ operations hub. Scoutbook is the advancement source of truth.
 ## Phase 10 — Operations
 
 - [x] **Equipment / Quartermaster catalog** — `Equipment` model with
-      condition, location, current holder, notes; admin CRUD.
-- [x] **Equipment check-out workflow** — `EquipmentLoan` model with
-      open / returned states, optional `dueAt`. Equipment list shows an
-      "out" badge per item; the edit page exposes loan history,
-      check-out form (Member dropdown or free-form name), and
-      mark-returned action. New `/admin/equipment/loans` roster lists
-      every open loan with overdue flagging.
-- [ ] Return-reminder emails on overdue loans
+      condition, location, notes; admin CRUD. (Inventory tracking
+      itself is on probation per the comms-focus pivot — a unit's
+      equipment list is the *least* communication-shaped feature in
+      the catalog. Keeping it for now since it's small and inert; can
+      be removed later if it doesn't earn its keep.)
+- ~~Equipment check-out workflow~~ — **removed.** Loans / borrower
+  tracking / return reminders are not communication-shaped enough to
+  belong here. Real units will use a shared spreadsheet or pen-and-
+  paper for this, and we'd rather build the things that improve how
+  they actually talk to each other.
 - [x] **Training History per leader** — `Training` model with course
       name, completedAt, optional expiresAt. Member edit page shows the
       list and a course-name datalist auto-completing common BSA
