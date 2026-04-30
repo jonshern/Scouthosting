@@ -1,18 +1,24 @@
 # Compass Roadmap
 
-**Compass is the planning and communication hub for Scout units** —
-troops, Cub Scout packs, Venturing crews, Sea Scout ships. Each unit gets a
-modern, mobile-first website plus a private member hub: calendar, photos,
-forms, group email, trip & meal planning, and a CMS leaders can actually use.
+**Compass is the communication hub for Scout units** — troops, Cub Scout
+packs, Venturing crews, Sea Scout ships. The Evite + SignUpGenius +
+Mailchimp + 2008-vintage hosting platform every unit currently duct-tapes
+together, replaced by one tool. Calendar with RSVPs and payment, sign-up
+sheets for potlucks and drivers, group email and SMS, photos with
+per-scout privacy controls, public homepage. Built for the way volunteer
+units actually run.
 
-**Scoutbook handles advancement.** We don't compete with it; we deep-link
-into it and surface read-only summaries when BSA's API allows. That keeps
-leaders out of double-entry and lets us focus on what units complain
-about — the operational stuff Scoutbook doesn't cover.
+**Scoutbook handles advancement, and we don't try to compete with it.**
+Scouting America's official tool already tracks ranks, merit badges,
+partials, and awards — for free, with one login the families already have.
+Anything we re-implement is double-entry for leaders. Compass deep-links to
+Scoutbook from every Scout profile and focuses on the stuff Scoutbook
+deliberately doesn't cover: the parent group-text, the campout RSVP, the
+potluck sign-up, the Sunday-evening cancellation, the weekly newsletter.
 
 The product replaces TroopWebHost (and Patrol-style Google Sites duct tape)
-with one tool that's nice to use on a phone, fast to set up, and deliberately
-narrow on advancement.
+with one tool that's nice to use on a phone, fast to set up, and
+deliberately narrow on advancement. *Troops who communicate well, succeed.*
 
 ---
 
@@ -349,31 +355,65 @@ Distinct from generic events: campouts and trips need provisioning logic.
       file upload alongside the existing paste field. memoryStorage
       (2 MB cap) so the temp-file dance is skipped.
 
-## Positioning vs. Scoutbook
+## Positioning — communication, not advancement
 
-**Scoutbook (scoutbook.scouting.org) is the official Scouting America system
-for advancement tracking — ranks, merit badges, partials, awards, and the
-companion Scouting mobile app for Scouts and parents.** Merit Badge Counselor
-data lives in the related Scoutbook Plus product. Both feed Internet
-Advancement, the registrar-of-record system used by councils.
+The thesis: **troops who communicate well, succeed.** Compass is the
+communication and operations hub a volunteer-run Scout unit needs in 2026
+— the parent group-text replacement, the campout RSVP, the potluck sign-up,
+the Sunday-evening cancellation, the weekly newsletter, the public
+homepage. The Evite + SignUpGenius + Mailchimp + 2008-vintage hosting
+platform, replaced by one tool that's actually built for the way these
+units run.
 
-Compass **does not** build a parallel advancement tracker. Anything we
-re-implement is double-entry for leaders and a losing fight against the
-official tool. Instead:
+**Scoutbook (scoutbook.scouting.org) is the official Scouting America
+system for advancement tracking — ranks, merit badges, partials, awards.**
+It works. It's free for chartered units. There's no reason to compete with
+it. Anything we re-implement is double-entry for leaders and a losing
+fight against the official tool.
 
-- **Scoutbook is the system of record** for advancement. Compass
-  deep-links to it from every Scout profile, the Eagle list, and the
-  advancement summary.
-- When BSA's API permits, we **read** advancement progress (ranks, MB
-  partials, who's close to completing what) and surface summary dashboards.
-  CSV import from Scoutbook reports is the fallback.
-- We **own the operations layer around** advancement: Eagle project
-  workflow, troop's preferred Merit Badge Counselor list, Court of Honor
-  ceremony planning, service-hour / camping-night / hiking-mile capture
-  from our calendar (which we then push to Scoutbook).
+So Compass:
 
-This sharpens our positioning: Compass is the troop's communication and
-operations hub. Scoutbook is the advancement source of truth.
+- **Defers to Scoutbook** for the advancement-of-record. Every Scout
+  profile in Compass deep-links to that Scout's Scoutbook page so a
+  parent or leader is one click from the source of truth.
+- **Does not** build a parallel rank / merit-badge tracker. Period.
+- **Focuses on what Scoutbook deliberately doesn't cover** — the
+  operational + communication layer that makes a unit run. Calendar
+  with RSVP / payment / carpools, sign-up sheets for potlucks and
+  drivers, group email + SMS, photos with per-scout privacy controls,
+  the public homepage families see when they Google "Scouts BSA Anytown".
+- **Treats advancement-adjacent tooling as Scoutbook flow-improvers,
+  not replacements** — service-hour capture from our calendar that
+  pushes to Scoutbook (CSV today, API later when BSA permits) is fine;
+  a parallel rank dashboard is not.
+
+The marketing site's "What we don't do" band makes this explicit so a
+committee chair shopping around in five minutes never confuses Compass
+for an advancement product.
+
+### What this means for the roadmap
+
+Several Phase 5 / Phase 6 modules drift toward Scoutbook-replacement
+territory and are flagged for review:
+
+- **Eagle list + project workflow.** Mostly OK — the public Eagle list
+  is real public-facing content (it's literally on most troop sites);
+  the project workflow is operational glue. But "advancement summary
+  dashboards" on the same model would cross the line.
+- **Merit Badge Counselor list.** On probation. Scoutbook Plus has the
+  national directory; ours is the *troop's preferred* list, which is
+  mildly useful, but not core comms.
+- **Position-of-Responsibility tracking.** On probation — Scoutbook
+  records this for advancement credit. Our tenure history is the only
+  reason this lives here separately, and that's thin.
+- **Training history per leader.** On probation — same Scoutbook overlap.
+  YPT-expired flagging on a campout roster is the only piece that's
+  uniquely operational.
+- **OA elections workflow.** On probation — lodge handles this; we
+  duplicated it. Real OA-compliant elections live in the lodge tooling.
+
+These aren't deleted yet, but they don't get new features. Anything new
+we build goes through the comms / operations filter first.
 
 ## Phase 6 — Scoutbook integration + ceremony tooling
 
