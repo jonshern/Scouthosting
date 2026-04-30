@@ -487,12 +487,26 @@ we build goes through the comms / operations filter first.
       surfaces work unchanged. (`lib/newsletter.js` — composeNewsletter
       + renderNewsletterHtml, both pure-functional with injectable
       Prisma so 16 unit tests cover them without touching a DB.)
-- [ ] AWS SES driver
+- [x] **SMS via Twilio** respecting `smsOptIn` and `commPreference`.
+      `lib/sms.js` exposes a `console` driver (default) and a `twilio`
+      driver that calls Twilio's REST `Messages` endpoint with a
+      single `fetch` (no SDK). Phone normalization handles US 10/11-
+      digit + E.164. Falls back to console + a clear warning if any
+      of `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM`
+      is missing. Wired into the broadcast composer + audience preview.
+- [x] **Per-member message history** at `/admin/members/:id/messages`.
+      Lists every MailLog (broadcast or newsletter) where the member
+      appears in the recipient snapshot — useful answer to "what have
+      we said to the Schmidt family lately?" Bounded look-back (500
+      rows) with an Older paginator; status / channel / audience tags
+      per row. Linked from the member edit page.
+- [ ] AWS SES driver. (Amazon SES SMTP is already covered by the
+      existing `smtp` driver; a native SES API path is a future-when-
+      orgs-need-IAM-instead-of-SMTP-creds upgrade.)
 - [ ] DKIM, SPF, DMARC for the org's outbound domain
-- [ ] SMS via Twilio respecting `smsOptIn` (the schema and audience
-      filtering already handle this; just need the driver)
-- [ ] Inbox + per-member email thread view
-- [ ] Bounce + complaint webhooks
+- [ ] Bounce + complaint webhooks (Resend supports via Svix-signed
+      webhook; would auto-mark `Member.emailUnsubscribed` and surface
+      complaint state)
 - [ ] Throttling and abuse protection
 - [x] **One-click unsubscribe per recipient** — every broadcast email
       carries a per-member signed `unsubscribe` link in the footer + the
