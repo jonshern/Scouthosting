@@ -107,6 +107,7 @@ model Org {
   oaCandidates   OaCandidate[]
   videos         Video[]
   newsletters    Newsletter[]
+  channels       Channel[]
 
   @@index([plan])
 }
@@ -129,6 +130,10 @@ model User {
   rsvps         Rsvp[]
   slotAssignments SlotAssignment[]
   newsletters     Newsletter[]
+  apiTokens          ApiToken[]
+  channelMemberships ChannelMember[]
+  messages           Message[]
+  reactions          Reaction[]
 }
 
 // External identity provider linkage. One User can have multiple
@@ -153,11 +158,17 @@ model OAuthAccount {
 // who serves at council level, etc.). Each membership has a role within
 // that org.
 model OrgMembership {
-  id        String   @id @default(cuid())
-  userId    String
-  orgId     String
-  role      Role     @default(parent)
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  userId          String
+  orgId           String
+  role            Role     @default(parent)
+  // YPT (Youth Protection Training) status. A leader/admin is "current"
+  // if yptCurrentUntil is in the future. Drives the two-deep guard on
+  // every chat-channel write where youth are present.
+  // Leader-entered for v1 (CSV import / manual edit). The BSA training
+  // roster scrape is a separate fight.
+  yptCurrentUntil DateTime?
+  createdAt       DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   org  Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
@@ -272,6 +283,7 @@ model Event {
   cohAwards CohAward[]
   rides     CarRide[]
   reimbursements Reimbursement[]
+  channel   Channel?
 
   @@index([orgId, startsAt])
 }
@@ -1095,4 +1107,118 @@ model Video {
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId, sortOrder])
+}
+
+// API tokens for the mobile app + future external clients. Issued by an
+// authenticated user via /api/v1/auth/token; the raw token is shown to
+// the caller exactly once and only the SHA-256 hash is stored. Verifying
+// is constant-time-equal of the hash on the incoming bearer.
+//
+// One user can have many active tokens (one per device). Revoking a token
+// stamps revokedAt; no client-side cleanup required.
+model ApiToken {
+  id         String   @id @default(cuid())
+  userId     String
+  name       String
+  tokenHash  String   @unique
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// Group-chat channel. Always belongs to an org. The kind drives both the
+// auto-creation rules and the YPT two-deep enforcement:
+//
+//   patrol  — youth + ≥2 YPT-current adults; one per Member.patrol
+//   troop   — every member of the org
+//   parents — parents + leaders (no youth)
+//   leaders — registered leaders only (no youth, no parents)
+//   event   — auto-archives 24h after the event ends
+//   custom  — leader-created ad-hoc thread
+//
+// `isSuspended` flips to true the moment the YPT guard sees fewer than
+// two current adults in a youth-containing channel. Suspended channels
+// are read-only until the threshold is restored.
+model Channel {
+  id              String   @id @default(cuid())
+  orgId           String
+  kind            String   // patrol | troop | parents | leaders | event | custom
+  name            String
+  patrolName      String?  // for kind=patrol; matches Member.patrol
+  eventId         String?  @unique  // for kind=event; one channel per event
+  isSuspended     Boolean  @default(false)
+  suspendedReason String?
+  archivedAt      DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  org      Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event    Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  members  ChannelMember[]
+  messages Message[]
+
+  @@index([orgId, kind])
+  @@index([orgId, archivedAt])
+}
+
+// User-to-channel join row. Auto-managed by the channel reconciler for
+// patrol / troop / parents / leaders / event channels — addedAutomatically
+// is true for those. Manual moderator additions / removals carry false so
+// the reconciler doesn't undo a leader's deliberate override.
+model ChannelMember {
+  id                 String   @id @default(cuid())
+  channelId          String
+  userId             String
+  role               String   @default("member") // member | moderator
+  joinedAt           DateTime @default(now())
+  mutedUntil         DateTime?
+  addedAutomatically Boolean  @default(true)
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([userId])
+}
+
+// Chat message. Soft-delete via deletedAt so the 7-year audit retention
+// for youth-containing threads stays intact. attachmentJson is a small
+// embedded structure for poll cards / RSVP cards / photo refs — keeping
+// it as Json lets us evolve the embed shape without a migration each
+// time.
+model Message {
+  id             String   @id @default(cuid())
+  channelId      String
+  authorId       String?
+  body           String
+  attachmentJson Json?
+  pinned         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  editedAt       DateTime?
+  deletedAt      DateTime?
+
+  channel   Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  author    User?      @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  reactions Reaction[]
+
+  @@index([channelId, createdAt])
+}
+
+// Emoji reaction. Composite primary key (messageId, userId, emoji) so a
+// user can react with the same emoji at most once per message.
+model Reaction {
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, userId, emoji])
+  @@index([messageId])
 }
