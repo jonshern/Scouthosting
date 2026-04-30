@@ -22,6 +22,7 @@ import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dieta
 import { reconcilePositionTerm as reconcileTerm } from "../lib/positionTerms.js";
 import { makeUnsubToken } from "../lib/unsubToken.js";
 import { scoutbookUrl } from "../lib/scoutbook.js";
+import { composeNewsletter, renderNewsletterHtml } from "../lib/newsletter.js";
 import { tallyCredits, formatCsvRow } from "../lib/credits.js";
 import { recordAudit } from "../lib/audit.js";
 import {
@@ -212,6 +213,7 @@ form.inline{display:inline}
     <a href="/admin/treasurer">Treasurer report</a>
     <a href="/admin/surveys">Surveys</a>
     <a href="/admin/email">Email broadcast</a>
+    <a href="/admin/newsletters">Newsletters</a>
     <a href="/" target="_blank">View public site ↗</a>
   </nav>
   <div class="me">
@@ -6585,6 +6587,527 @@ adminRouter.get("/surveys/:id/responses.csv", requireLeader, async (req, res) =>
     .set("Content-Disposition", `attachment; filename="survey-${safe}.csv"`)
     .send(csv);
 });
+
+/* ------------------------------------------------------------------ */
+/* Newsletters                                                         */
+/* ------------------------------------------------------------------ */
+
+const NEWSLETTER_VISIBILITY = ["members", "public"];
+
+function renderNewsletterStatusTag(n) {
+  if (n.status === "sent") {
+    const when = n.publishedAt
+      ? new Date(n.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+      : "";
+    return `<span class="tag" style="background:#e3f29b;border-color:#c8e94a;color:#0e3320">sent · ${escape(when)}</span>`;
+  }
+  return `<span class="tag" style="background:#fbf8ee;border-color:#eef0e7;color:#5a6258">draft</span>`;
+}
+
+adminRouter.get("/newsletters", requireLeader, async (req, res) => {
+  const issues = await prisma.newsletter.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ status: "asc" }, { publishedAt: "desc" }, { updatedAt: "desc" }],
+    include: { author: { select: { displayName: true } } },
+  });
+  const rows = issues
+    .map(
+      (n) => `
+      <li>
+        <div style="flex:1">
+          <h3 style="margin:0"><a href="/admin/newsletters/${escape(n.id)}/edit">${escape(n.title)}</a></h3>
+          <p class="muted small" style="margin:.1rem 0 0">
+            ${renderNewsletterStatusTag(n)}
+            · ${n.includedPostIds.length} post${n.includedPostIds.length === 1 ? "" : "s"}
+            · ${n.includedEventIds.length} event${n.includedEventIds.length === 1 ? "" : "s"}
+            ${n.author ? ` · by ${escape(n.author.displayName)}` : ""}
+          </p>
+        </div>
+        <div class="row">
+          <a class="btn btn-ghost small" href="/admin/newsletters/${escape(n.id)}/edit">${n.status === "sent" ? "View" : "Edit"}</a>
+        </div>
+      </li>`,
+    )
+    .join("");
+
+  const body = `
+    <h1>Newsletters</h1>
+    <p class="muted">The recurring digest you email families. Auto-composes from recent posts and upcoming events; you write the intro and decide who's in the audience.</p>
+    <p style="margin:.6rem 0 1rem"><a class="btn btn-primary" href="/admin/newsletters/new">Compose new issue</a></p>
+    ${issues.length ? `<ul class="items">${rows}</ul>` : `<div class="empty">No newsletters yet. Compose your first issue when you're ready.</div>`}
+  `;
+  res.type("html").send(layout({ title: "Newsletters", org: req.org, user: req.user, body }));
+});
+
+adminRouter.get("/newsletters/new", requireLeader, async (req, res) => {
+  const composed = await composeNewsletter({
+    orgId: req.org.id,
+    prismaClient: prisma,
+  });
+  const [patrols, subgroups] = await Promise.all([
+    prisma.member.findMany({
+      where: { orgId: req.org.id, patrol: { not: null } },
+      distinct: ["patrol"],
+      select: { patrol: true },
+      orderBy: { patrol: "asc" },
+    }),
+    prisma.subgroup.findMany({ where: { orgId: req.org.id }, orderBy: { name: "asc" } }),
+  ]);
+  const composerBody = newsletterComposerHtml({
+    title: composed.suggestedTitle,
+    intro: composed.suggestedIntro,
+    posts: composed.posts,
+    events: composed.events,
+    audience: "everyone",
+    audiencePatrol: "",
+    visibility: "members",
+    selectedPostIds: composed.posts.map((p) => p.id),
+    selectedEventIds: composed.events.map((e) => e.id),
+    patrols,
+    subgroups,
+    formAction: "/admin/newsletters",
+    submitLabel: "Save draft",
+    statusBlock: "",
+    deleteAction: null,
+    sendAction: null,
+  });
+  res.type("html").send(layout({ title: "Compose newsletter", org: req.org, user: req.user, body: composerBody }));
+});
+
+adminRouter.post("/newsletters", requireLeader, async (req, res) => {
+  const data = newsletterFromBody(req.body);
+  if (!data.title) return res.redirect("/admin/newsletters/new");
+  const created = await prisma.newsletter.create({
+    data: {
+      orgId: req.org.id,
+      authorId: req.user.id,
+      ...data,
+    },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Newsletter",
+    entityId: created.id,
+    action: "create",
+    summary: created.title,
+  });
+  res.redirect(`/admin/newsletters/${created.id}/edit`);
+});
+
+adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
+  const issue = await prisma.newsletter.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    include: { author: { select: { displayName: true } } },
+  });
+  if (!issue) return res.status(404).send("Not found");
+
+  const [posts, events, patrols, subgroups] = await Promise.all([
+    prisma.post.findMany({
+      where: { orgId: req.org.id },
+      orderBy: { publishedAt: "desc" },
+      take: 20,
+      include: {
+        author: { select: { displayName: true } },
+        photos: {
+          take: 1,
+          orderBy: { sortOrder: "asc" },
+          select: { filename: true, caption: true },
+        },
+      },
+    }),
+    prisma.event.findMany({
+      where: { orgId: req.org.id, startsAt: { gte: new Date() } },
+      orderBy: { startsAt: "asc" },
+      take: 30,
+    }),
+    prisma.member.findMany({
+      where: { orgId: req.org.id, patrol: { not: null } },
+      distinct: ["patrol"],
+      select: { patrol: true },
+      orderBy: { patrol: "asc" },
+    }),
+    prisma.subgroup.findMany({ where: { orgId: req.org.id }, orderBy: { name: "asc" } }),
+  ]);
+
+  const statusBlock = issue.status === "sent"
+    ? `<div class="card" style="background:#e3f29b;border:1px solid #c8e94a"><strong>Sent ${escape(new Date(issue.publishedAt).toLocaleString("en-US"))}</strong>${issue.author ? ` by ${escape(issue.author.displayName)}` : ""}.${issue.mailLogId ? ` <a href="/admin/email/sent">See in mail history →</a>` : ""}</div>`
+    : "";
+
+  const composerBody = newsletterComposerHtml({
+    title: issue.title,
+    intro: issue.intro,
+    posts,
+    events,
+    audience: issue.audience,
+    audiencePatrol: issue.audiencePatrol || "",
+    visibility: issue.visibility,
+    selectedPostIds: issue.includedPostIds,
+    selectedEventIds: issue.includedEventIds,
+    patrols,
+    subgroups,
+    formAction: `/admin/newsletters/${escape(issue.id)}`,
+    submitLabel: issue.status === "sent" ? "Save edits (already sent)" : "Save draft",
+    statusBlock,
+    deleteAction: issue.status === "sent" ? null : `/admin/newsletters/${escape(issue.id)}/delete`,
+    sendAction: issue.status === "sent" ? null : `/admin/newsletters/${escape(issue.id)}/send`,
+    previewLink: `/admin/newsletters/${escape(issue.id)}/preview`,
+    readonly: issue.status === "sent",
+  });
+
+  res.type("html").send(layout({ title: "Edit newsletter", org: req.org, user: req.user, body: composerBody }));
+});
+
+adminRouter.post("/newsletters/:id", requireLeader, async (req, res) => {
+  const issue = await prisma.newsletter.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, status: true },
+  });
+  if (!issue) return res.status(404).send("Not found");
+  if (issue.status === "sent") {
+    // Allow editing the title/intro on a sent issue (fix typos in the
+    // archive) but never re-send. Audience/recipient state is frozen.
+    const data = newsletterFromBody(req.body);
+    await prisma.newsletter.update({
+      where: { id: issue.id },
+      data: { title: data.title, intro: data.intro, visibility: data.visibility },
+    });
+    return res.redirect(`/admin/newsletters/${issue.id}/edit`);
+  }
+  const data = newsletterFromBody(req.body);
+  await prisma.newsletter.update({
+    where: { id: issue.id },
+    data,
+  });
+  res.redirect(`/admin/newsletters/${issue.id}/edit`);
+});
+
+adminRouter.post("/newsletters/:id/delete", requireLeader, async (req, res) => {
+  const issue = await prisma.newsletter.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, status: true, title: true },
+  });
+  if (!issue || issue.status === "sent") return res.redirect("/admin/newsletters");
+  await prisma.newsletter.delete({ where: { id: issue.id } });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Newsletter",
+    entityId: issue.id,
+    action: "delete",
+    summary: issue.title,
+  });
+  res.redirect("/admin/newsletters");
+});
+
+adminRouter.get("/newsletters/:id/preview", requireLeader, async (req, res) => {
+  const issue = await prisma.newsletter.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!issue) return res.status(404).send("Not found");
+  const [posts, events] = await Promise.all([
+    issue.includedPostIds.length
+      ? prisma.post.findMany({
+          where: { id: { in: issue.includedPostIds }, orgId: req.org.id },
+          include: { author: { select: { displayName: true } } },
+        })
+      : [],
+    issue.includedEventIds.length
+      ? prisma.event.findMany({
+          where: { id: { in: issue.includedEventIds }, orgId: req.org.id },
+        })
+      : [],
+  ]);
+  // Re-sort to match the included-id order so the leader sees what they
+  // composed, not whatever the DB returns.
+  const orderedPosts = issue.includedPostIds
+    .map((id) => posts.find((p) => p.id === id))
+    .filter(Boolean);
+  const orderedEvents = issue.includedEventIds
+    .map((id) => events.find((e) => e.id === id))
+    .filter(Boolean);
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const baseUrl = `https://${req.org.slug}.${apex}`;
+  const { html } = renderNewsletterHtml({
+    org: req.org,
+    newsletter: issue,
+    posts: orderedPosts,
+    events: orderedEvents,
+    baseUrl,
+  });
+  res.type("html").send(html);
+});
+
+adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
+  const issue = await prisma.newsletter.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!issue) return res.status(404).send("Not found");
+  if (issue.status === "sent") return res.redirect(`/admin/newsletters/${issue.id}/edit`);
+
+  // Resolve included posts + events at send time (fresh URLs / titles).
+  const [posts, events, recipients] = await Promise.all([
+    issue.includedPostIds.length
+      ? prisma.post.findMany({
+          where: { id: { in: issue.includedPostIds }, orgId: req.org.id },
+          include: { author: { select: { displayName: true } } },
+        })
+      : [],
+    issue.includedEventIds.length
+      ? prisma.event.findMany({
+          where: { id: { in: issue.includedEventIds }, orgId: req.org.id },
+        })
+      : [],
+    audienceFor(req.org.id, issue.audience, issue.audiencePatrol),
+  ]);
+
+  const orderedPosts = issue.includedPostIds
+    .map((id) => posts.find((p) => p.id === id))
+    .filter(Boolean);
+  const orderedEvents = issue.includedEventIds
+    .map((id) => events.find((e) => e.id === id))
+    .filter(Boolean);
+
+  const emailRecipients = emailableMembers(recipients);
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const orgHost = `${req.org.slug}.${apex}`;
+  const baseUrl = `https://${orgHost}`;
+  const { html, text } = renderNewsletterHtml({
+    org: req.org,
+    newsletter: issue,
+    posts: orderedPosts,
+    events: orderedEvents,
+    baseUrl,
+  });
+
+  const fromAddr = `noreply@${orgHost}`;
+  const fromName = `${req.org.displayName.replace(/[<>"]/g, "")}`;
+  const messages = emailRecipients.map((m) => {
+    const token = makeUnsubToken({ memberId: m.id, orgId: req.org.id });
+    const unsubUrl = `${baseUrl}/unsubscribe/${token}`;
+    const headers = {
+      "List-Unsubscribe": `<${unsubUrl}?one_click=1>`,
+      "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+    };
+    const personalText = `${text}\n\nUnsubscribe: ${unsubUrl}`;
+    const personalHtml = html.replace(
+      "</body>",
+      `<p style="font-size:11px;color:#5a6258;text-align:center;margin-top:18px"><a href="${escape(unsubUrl)}" style="color:#5a6258">Unsubscribe</a></p></body>`,
+    );
+    return {
+      to: m.email,
+      subject: issue.title,
+      text: personalText,
+      html: personalHtml,
+      from: `${fromName} <${fromAddr}>`,
+      replyTo: req.user.email,
+      headers,
+    };
+  });
+
+  const result = messages.length
+    ? await sendBatch(messages)
+    : { sent: 0, errors: [] };
+
+  // Record a MailLog row so the newsletter shows up in /admin/email/sent
+  // alongside one-off broadcasts. Recipient snapshot keeps history honest
+  // even if the directory changes later.
+  const mailLog = await prisma.mailLog.create({
+    data: {
+      orgId: req.org.id,
+      authorId: req.user.id,
+      subject: issue.title,
+      body: issue.intro,
+      channel: "email",
+      audienceLabel: describeNewsletterAudience(issue),
+      recipientCount: result.sent,
+      status: result.errors.length ? (result.sent ? "partial" : "failed") : "sent",
+      errors: result.errors.length ? JSON.stringify(result.errors) : null,
+      recipients: emailRecipients.map((m) => ({
+        name: `${m.firstName} ${m.lastName}`,
+        email: m.email,
+        channel: "email",
+      })),
+    },
+  });
+
+  await prisma.newsletter.update({
+    where: { id: issue.id },
+    data: {
+      status: "sent",
+      publishedAt: new Date(),
+      mailLogId: mailLog.id,
+    },
+  });
+
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Newsletter",
+    entityId: issue.id,
+    action: "send",
+    summary: `${issue.title} → ${result.sent} recipient${result.sent === 1 ? "" : "s"}`,
+  });
+
+  res.redirect(`/admin/newsletters/${issue.id}/edit`);
+});
+
+function describeNewsletterAudience(n) {
+  if (n.audience === "patrol") return `Patrol: ${n.audiencePatrol || "—"}`;
+  if (typeof n.audience === "string" && n.audience.startsWith("subgroup:")) return `Subgroup`;
+  if (n.audience === "adults") return "Adults";
+  if (n.audience === "youth") return "Youth";
+  return "Everyone";
+}
+
+function newsletterFromBody(body) {
+  const title = String(body?.title || "").trim().slice(0, 200);
+  const intro = String(body?.intro || "").trim().slice(0, 5000);
+  const audience = String(body?.audience || "everyone");
+  const audiencePatrol = audience === "patrol" ? String(body?.audiencePatrol || "").trim() || null : null;
+  const visibility = NEWSLETTER_VISIBILITY.includes(body?.visibility) ? body.visibility : "members";
+  const includedPostIds = Array.isArray(body?.includedPostIds)
+    ? body.includedPostIds.filter((s) => typeof s === "string" && s.length)
+    : typeof body?.includedPostIds === "string"
+      ? [body.includedPostIds]
+      : [];
+  const includedEventIds = Array.isArray(body?.includedEventIds)
+    ? body.includedEventIds.filter((s) => typeof s === "string" && s.length)
+    : typeof body?.includedEventIds === "string"
+      ? [body.includedEventIds]
+      : [];
+  return {
+    title,
+    intro,
+    audience,
+    audiencePatrol,
+    visibility,
+    includedPostIds,
+    includedEventIds,
+  };
+}
+
+function newsletterComposerHtml({
+  title,
+  intro,
+  posts,
+  events,
+  audience,
+  audiencePatrol,
+  visibility,
+  selectedPostIds,
+  selectedEventIds,
+  patrols,
+  subgroups,
+  formAction,
+  submitLabel,
+  statusBlock,
+  deleteAction,
+  sendAction,
+  previewLink,
+  readonly = false,
+}) {
+  const selPosts = new Set(selectedPostIds);
+  const selEvents = new Set(selectedEventIds);
+  const audSel = (v) => (audience === v ? " selected" : "");
+  const subSel = (id) => (audience === `subgroup:${id}` ? " selected" : "");
+  const patrolOpts = patrols
+    .map((p) => `<option value="${escape(p.patrol)}"${audiencePatrol === p.patrol ? " selected" : ""}>${escape(p.patrol)}</option>`)
+    .join("");
+  const subgroupOpts = subgroups
+    .map((g) => `<option value="subgroup:${escape(g.id)}"${subSel(g.id)}>${escape(g.name)}</option>`)
+    .join("");
+  const fmtDate = (d) =>
+    new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const postChecks = posts.length
+    ? posts
+        .map(
+          (p) => `
+          <label class="row" style="align-items:flex-start;gap:.6rem;padding:.4rem 0;border-top:1px solid #eef0e7">
+            <input type="checkbox" name="includedPostIds" value="${escape(p.id)}"${selPosts.has(p.id) ? " checked" : ""}${readonly ? " disabled" : ""} style="margin-top:.25rem">
+            <span style="flex:1">
+              <strong>${escape(p.title || "(untitled)")}</strong>
+              <span class="muted small"> · ${escape(fmtDate(p.publishedAt))}${p.author?.displayName ? ` · ${escape(p.author.displayName)}` : ""}</span>
+            </span>
+          </label>`,
+        )
+        .join("")
+    : `<p class="muted small">No posts in the lookback window.</p>`;
+  const eventChecks = events.length
+    ? events
+        .map(
+          (e) => `
+          <label class="row" style="align-items:flex-start;gap:.6rem;padding:.4rem 0;border-top:1px solid #eef0e7">
+            <input type="checkbox" name="includedEventIds" value="${escape(e.id)}"${selEvents.has(e.id) ? " checked" : ""}${readonly ? " disabled" : ""} style="margin-top:.25rem">
+            <span style="flex:1">
+              <strong>${escape(e.title)}</strong>
+              <span class="muted small"> · ${escape(fmtDate(e.startsAt))}${e.location ? ` · ${escape(e.location)}` : ""}</span>
+            </span>
+          </label>`,
+        )
+        .join("")
+    : `<p class="muted small">Nothing on the calendar yet.</p>`;
+
+  return `
+    <a class="back" href="/admin/newsletters" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Newsletters</a>
+    <h1>${readonly ? "Newsletter" : "Compose newsletter"}</h1>
+    ${statusBlock || ""}
+    <form class="card" method="post" action="${formAction}">
+      <label>Title<input name="title" type="text" required maxlength="200" value="${escape(title)}"${readonly ? " readonly" : ""}></label>
+      <label>Intro <span class="muted small">(markdown supported)</span>
+        <textarea name="intro" rows="5" maxlength="5000"${readonly ? " readonly" : ""}>${escape(intro)}</textarea>
+      </label>
+      <div class="row">
+        <label style="margin:0;flex:1">Audience
+          <select name="audience"${readonly ? " disabled" : ""}>
+            <option value="everyone"${audSel("everyone")}>Everyone</option>
+            <option value="adults"${audSel("adults")}>Adults only</option>
+            <option value="youth"${audSel("youth")}>Youth only</option>
+            <option value="patrol"${audSel("patrol")}>Specific patrol</option>
+            ${subgroups.length ? `<optgroup label="Saved subgroups">${subgroupOpts}</optgroup>` : ""}
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Patrol (if "Specific patrol")
+          <select name="audiencePatrol"${readonly ? " disabled" : ""}>
+            <option value="">—</option>
+            ${patrolOpts}
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Public archive
+          <select name="visibility"${readonly ? " disabled" : ""}>
+            <option value="members"${visibility === "members" ? " selected" : ""}>Members only</option>
+            <option value="public"${visibility === "public" ? " selected" : ""}>Public</option>
+          </select>
+        </label>
+      </div>
+
+      <h3 style="margin-top:1.5rem">Recent posts to include</h3>
+      ${postChecks}
+
+      <h3 style="margin-top:1.5rem">Upcoming events to include</h3>
+      ${eventChecks}
+
+      <div class="row" style="margin-top:1.25rem">
+        ${!readonly ? `<button class="btn btn-primary" type="submit">${escape(submitLabel)}</button>` : ""}
+        ${previewLink ? `<a class="btn btn-ghost" href="${previewLink}" target="_blank" rel="noopener">Preview</a>` : ""}
+      </div>
+    </form>
+
+    ${
+      sendAction || deleteAction
+        ? `<div class="row" style="margin-top:.6rem">
+            ${sendAction ? `<form class="inline" method="post" action="${sendAction}" onsubmit="return confirm('Send this newsletter to the audience now?')">
+              <button class="btn btn-primary" type="submit">Send now</button>
+            </form>` : ""}
+            ${deleteAction ? `<form class="inline" method="post" action="${deleteAction}" onsubmit="return confirm('Delete this draft? This cannot be undone.')">
+              <button class="btn btn-danger" type="submit">Delete draft</button>
+            </form>` : ""}
+          </div>
+          <p class="muted small" style="margin-top:.4rem">${sendAction ? "Send-now uses the most recent saved state. Edit and save first if you want changes to land in the email." : ""}</p>`
+        : ""
+    }
+  `;
+}
 
 /* ------------------------------------------------------------------ */
 /* Multer error handler — turns oversized/wrong-type into a flash      */
