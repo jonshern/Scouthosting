@@ -96,7 +96,6 @@ model Org {
   eagleProjects EagleProject[]
   cohAwards     CohAward[]
   positionTerms PositionTerm[]
-  equipmentLoans EquipmentLoan[]
   trainings     Training[]
   subgroups     Subgroup[]
   auditLogs     AuditLog[]
@@ -225,7 +224,6 @@ model Member {
   org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   rsvps Rsvp[]
   positionTerms PositionTerm[]
-  equipmentLoans EquipmentLoan[]
   trainings     Training[]
   meritBadgeCounselors MeritBadgeCounselor[]
   oaCandidacies        OaCandidate[]
@@ -635,38 +633,10 @@ model Equipment {
   updatedAt   DateTime @updatedAt
 
   org   Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  loans EquipmentLoan[]
   gearItems GearItem[]
 
   @@index([orgId, category])
   @@index([orgId, location])
-}
-
-// Equipment check-out trail. An open loan (returnedAt = null) means
-// the item is currently out; closing it on return preserves the
-// history for the Quartermaster's audit. Borrowers can either be
-// linked Members (preferred) or free-form names — leaders sometimes
-// loan gear to parents who aren't on the roster.
-model EquipmentLoan {
-  id            String    @id @default(cuid())
-  orgId         String
-  equipmentId   String
-  memberId      String?
-  borrowerName  String
-  borrowerEmail String?
-  checkedOutAt  DateTime  @default(now())
-  dueAt         DateTime?
-  returnedAt    DateTime?
-  notes         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  org       Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
-  member    Member?   @relation(fields: [memberId], references: [id], onDelete: SetNull)
-
-  @@index([orgId, equipmentId, checkedOutAt])
-  @@index([orgId, returnedAt])
 }
 
 // Custom page — extra content pages beyond the home page (e.g. History,

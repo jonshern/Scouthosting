@@ -140,58 +140,48 @@
     </section>
 
     <!-- ==================================================================
-         4. Features — four editorial blocks. Alternating image / text
-         layout, oversized italic numerals (01–04) in the section's accent
-         tone, image labelled with a colored chip in the corner.
+         3.5 Positioning — "Not another Scoutbook." Explicit anti-goal so
+         the next reader (typically a committee chair shopping around)
+         knows we don't try to replace the BSA's advancement tool. The
+         operational stuff Scoutbook doesn't cover — that's our lane.
+         ================================================================== -->
+    <section class="positioning" aria-labelledby="positioning-title">
+      <div class="positioning__inner">
+        <div class="section-eyebrow">&sect; What we don't do</div>
+        <h2 id="positioning-title" class="positioning__title">
+          <em>Scoutbook</em> handles ranks. Compass handles <em>everything else.</em>
+        </h2>
+        <p class="positioning__body">
+          Scouting America already has Scoutbook for ranks, merit badges, partials,
+          and awards. Compass doesn't try to compete with it &mdash; we deep-link
+          from every Scout profile so leaders aren't entering the same data twice.
+        </p>
+        <p class="positioning__body">
+          What we focus on instead is the stuff Scoutbook doesn't cover &mdash;
+          <strong>the parent group-text, the campout RSVP, the potluck sign-up, the
+          Sunday-evening cancellation, the weekly newsletter</strong>. The
+          communication layer that makes a unit feel run rather than rumored.
+          <em>Troops who communicate well, succeed.</em>
+        </p>
+      </div>
+    </section>
+
+    <!-- ==================================================================
+         4. Features — four editorial blocks. Communication leads (01).
+         Alternating image / text layout, oversized italic numerals
+         (01–04) in the section's accent tone, image labelled with a
+         colored chip in the corner.
          Mirrors marketing-balanced.jsx features (lines 74–110).
          ================================================================== -->
     <section id="product" class="features" aria-labelledby="features-title">
       <header class="features__head">
         <div class="section-eyebrow">&sect; The Product</div>
         <h2 id="features-title" class="features__title">
-          Built around the four things <em>volunteers actually need.</em>
+          Built around the four ways your troop <em>actually communicates.</em>
         </h2>
       </header>
 
-      <article class="feature feature--01" data-tone="sky">
-        <div class="feature__media">
-          <div class="photo photo--forest photo--sky photo--feature">
-            <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d="M0 75 L15 45 L25 60 L40 30 L55 55 L70 35 L85 50 L100 40 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
-            </svg>
-          </div>
-          <span class="feature__chip">CALENDAR</span>
-        </div>
-        <div class="feature__copy">
-          <div class="feature__num">01</div>
-          <h3 class="feature__title">A calendar that handles RSVPs, money, and rides.</h3>
-          <p class="feature__body">
-            Publish a campout, attach the permission slip, accept payment, and assign carpools
-            &mdash; without a single PDF email.
-          </p>
-        </div>
-      </article>
-
-      <article class="feature feature--02" data-tone="accent">
-        <div class="feature__copy">
-          <div class="feature__num">02</div>
-          <h3 class="feature__title">A public homepage that recruits new families.</h3>
-          <p class="feature__body">
-            Pick from six templates, drop in your troop number, and you're live on a custom
-            subdomain. Scouts can edit it during a Tuesday meeting.
-          </p>
-        </div>
-        <div class="feature__media">
-          <div class="photo photo--troop photo--accent photo--feature">
-            <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
-              <path d="M0 70 Q50 55 100 70 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
-            </svg>
-          </div>
-          <span class="feature__chip">WEBSITE</span>
-        </div>
-      </article>
-
-      <article class="feature feature--03" data-tone="raspberry">
+      <article class="feature feature--01" data-tone="raspberry">
         <div class="feature__media">
           <div class="photo photo--campfire photo--raspberry photo--feature">
             <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -201,24 +191,38 @@
           <span class="feature__chip">MESSAGES</span>
         </div>
         <div class="feature__copy">
-          <div class="feature__num">03</div>
-          <h3 class="feature__title">Email &amp; text that families actually read.</h3>
+          <div class="feature__num">01</div>
+          <h3 class="feature__title">Email &amp; SMS that families actually read.</h3>
           <p class="feature__body">
-            Send a Sunday update or a 7am cancellation. Threaded replies. SMS for urgent.
-            No more "did you get the flier?"
+            The parent group-text replacement. Send a Sunday update, a 7am
+            cancellation, or the weekly newsletter. SMS for urgent. Threaded
+            replies. No more <em>"did you get the flier?"</em>
           </p>
         </div>
       </article>
 
-      <article class="feature feature--04" data-tone="plum">
+      <article class="feature feature--02" data-tone="sky">
         <div class="feature__copy">
-          <div class="feature__num">04</div>
-          <h3 class="feature__title">A photo library worth scrolling through.</h3>
+          <div class="feature__num">02</div>
+          <h3 class="feature__title">RSVPs, sign-ups, and money in one tap.</h3>
           <p class="feature__body">
-            Drop 200 phone photos in after Friday's campout. Auto-organized by event. Families
-            can request blurs on faces.
+            The Evite + SignUpGenius replacement. Publish a campout, attach the
+            permission slip, accept Stripe payment, and assign carpools &mdash;
+            without a single PDF email. Slot sign-ups for potlucks, drivers, and
+            "who's bringing the cobbler" come built in.
           </p>
         </div>
+        <div class="feature__media">
+          <div class="photo photo--forest photo--sky photo--feature">
+            <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d="M0 75 L15 45 L25 60 L40 30 L55 55 L70 35 L85 50 L100 40 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+            </svg>
+          </div>
+          <span class="feature__chip">CALENDAR</span>
+        </div>
+      </article>
+
+      <article class="feature feature--03" data-tone="plum">
         <div class="feature__media">
           <div class="photo photo--canoe photo--plum photo--feature">
             <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
@@ -226,6 +230,35 @@
             </svg>
           </div>
           <span class="feature__chip">MEMORIES</span>
+        </div>
+        <div class="feature__copy">
+          <div class="feature__num">03</div>
+          <h3 class="feature__title">A photo library worth scrolling through.</h3>
+          <p class="feature__body">
+            Drop 200 phone photos in after Friday's campout. Auto-organized by
+            event. Per-scout privacy controls so families decide what's
+            published, what's family-only, and whose face gets blurred.
+          </p>
+        </div>
+      </article>
+
+      <article class="feature feature--04" data-tone="accent">
+        <div class="feature__copy">
+          <div class="feature__num">04</div>
+          <h3 class="feature__title">A public homepage that recruits new families.</h3>
+          <p class="feature__body">
+            Drop in your troop number and you're live on a custom subdomain.
+            The "modern" alternative to the 2008-vintage site that's been
+            scaring crossover families away for fifteen years.
+          </p>
+        </div>
+        <div class="feature__media">
+          <div class="photo photo--troop photo--accent photo--feature">
+            <svg class="photo__svg" viewBox="0 0 100 100" preserveAspectRatio="none">
+              <path d="M0 70 Q50 55 100 70 L100 100 L0 100 Z" fill="#fff" opacity="0.55" />
+            </svg>
+          </div>
+          <span class="feature__chip">WEBSITE</span>
         </div>
       </article>
     </section>

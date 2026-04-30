@@ -32,6 +32,40 @@ describe("marketing / index.html", () => {
     );
   });
 
+  it("renders the 'Not another Scoutbook' positioning band", () => {
+    // The band sits between the stats strip and the four feature blocks.
+    // Its job is to make the comms-not-advancement positioning explicit so
+    // a committee chair shopping in five minutes never confuses Compass
+    // for an advancement product.
+    expect(html).toMatch(/<section[^>]*class="[^"]*positioning/);
+    expect(html).toMatch(/id="positioning-title"/);
+    // Tone-locked phrase from the design brief.
+    expect(html).toContain("handles ranks");
+    expect(html).toContain("everything else");
+    // Comms-shaped examples called out by name.
+    expect(html).toMatch(/parent group-text/i);
+    expect(html).toMatch(/campout RSVP/i);
+    expect(html).toMatch(/potluck sign-up/i);
+    expect(html).toMatch(/weekly newsletter/i);
+    // The thesis line.
+    expect(html).toMatch(/Troops who communicate well, succeed\./i);
+  });
+
+  it("leads the four feature blocks with Messages, not Calendar", () => {
+    // Comms-first ordering: Messages = 01, Calendar = 02, Photos = 03,
+    // Website = 04. The Evite/SignUpGenius framing lives on Calendar.
+    const messagesIdx = html.indexOf("MESSAGES");
+    const calendarIdx = html.indexOf("CALENDAR");
+    const memoriesIdx = html.indexOf("MEMORIES");
+    const websiteIdx = html.indexOf("WEBSITE");
+    expect(messagesIdx).toBeGreaterThan(0);
+    expect(messagesIdx).toBeLessThan(calendarIdx);
+    expect(calendarIdx).toBeLessThan(memoriesIdx);
+    expect(memoriesIdx).toBeLessThan(websiteIdx);
+    // Concrete competitor framing on the Calendar block.
+    expect(html).toMatch(/Evite \+ SignUpGenius/);
+  });
+
   it("uses the locked Forest & Ember palette as CSS custom properties", () => {
     expect(html).toMatch(/<link[^>]+href=["']styles\.css["']/);
     expect(css).toContain("#0e3320"); // primary — deep evergreen

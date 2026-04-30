@@ -519,6 +519,61 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 /* -------------------------------------------------------------------------
+   Positioning band — "Not another Scoutbook." Editorial centered band
+   between the stats strip and the four feature blocks. Cream surface
+   (no dark inversion) so it reads as continuation of the page rather
+   than a separate section.
+   ------------------------------------------------------------------------- */
+.positioning {
+  padding: 80px 56px 16px;
+  max-width: var(--max-w);
+  margin: 0 auto;
+}
+
+.positioning__inner {
+  max-width: 880px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.positioning__title {
+  font-family: var(--font-display);
+  font-size: 56px;
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.025em;
+  margin: 0 0 24px;
+  color: var(--ink);
+}
+
+.positioning__title em {
+  font-style: italic;
+  color: var(--primary);
+}
+
+.positioning__body {
+  font-size: 17px;
+  line-height: 1.6;
+  color: var(--ink-soft);
+  margin: 0 0 16px;
+  text-align: left;
+}
+
+.positioning__body:last-child { margin-bottom: 0; }
+
+.positioning__body strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.positioning__body em {
+  font-family: var(--font-display);
+  font-style: italic;
+  color: var(--primary);
+  font-size: 1.05em;
+}
+
+/* -------------------------------------------------------------------------
    Migration band
    ------------------------------------------------------------------------- */
 .migration {
@@ -1229,6 +1284,9 @@ button { font-family: inherit; cursor: pointer; }
   .pricing { padding: 64px 32px; }
   .pricing__grid { grid-template-columns: 1fr; }
 
+  .positioning { padding: 64px 32px 8px; }
+  .positioning__title { font-size: 40px; }
+
   .compare { padding: 64px 32px; }
   .compare__grid { grid-template-columns: 1fr; }
 
@@ -1279,6 +1337,9 @@ button { font-family: inherit; cursor: pointer; }
   .migration__list { grid-template-columns: 1fr; }
 
   .pricing { padding: 48px 20px; }
+
+  .positioning { padding: 48px 20px 4px; }
+  .positioning__title { font-size: 28px; }
 
   .compare { padding: 48px 20px; }
 

@@ -3373,7 +3373,6 @@ adminRouter.get("/export.json", requireLeader, async (req, res) => {
     eagleProjects,
     cohAwards,
     equipment,
-    equipmentLoans,
     trainings,
     positionTerms,
     subgroups,
@@ -3411,7 +3410,6 @@ adminRouter.get("/export.json", requireLeader, async (req, res) => {
     prisma.eagleProject.findMany({ where }),
     prisma.cohAward.findMany({ where }),
     prisma.equipment.findMany({ where }),
-    prisma.equipmentLoan.findMany({ where }),
     prisma.training.findMany({ where }),
     prisma.positionTerm.findMany({ where }),
     prisma.subgroup.findMany({ where }),
@@ -3465,7 +3463,6 @@ adminRouter.get("/export.json", requireLeader, async (req, res) => {
     eagleProjects,
     cohAwards,
     equipment,
-    equipmentLoans,
     trainings,
     positionTerms,
     subgroups,
@@ -4627,13 +4624,6 @@ adminRouter.get("/equipment", requireLeader, async (req, res) => {
   const items = await prisma.equipment.findMany({
     where: { orgId: req.org.id },
     orderBy: [{ category: "asc" }, { name: "asc" }],
-    include: {
-      loans: {
-        where: { returnedAt: null },
-        orderBy: { checkedOutAt: "desc" },
-        take: 1,
-      },
-    },
   });
   const byCat = {};
   for (const it of items) {
@@ -4650,18 +4640,13 @@ adminRouter.get("/equipment", requireLeader, async (req, res) => {
       ? `<span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">fair</span>`
       : "";
 
-  const fmtShort = (d) => new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
   const renderRow = (it) => {
-    const loan = it.loans?.[0];
-    const out = loan
-      ? `<span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">out · ${escape(loan.borrowerName)} since ${escape(fmtShort(loan.checkedOutAt))}</span>`
-      : "";
     return `
     <li>
       <div style="flex:1">
         <h3>${escape(it.name)}${
       it.quantity > 1 ? ` <span class="tag">×${it.quantity}</span>` : ""
-    } ${conditionTag(it.condition)} ${out}</h3>
+    } ${conditionTag(it.condition)}</h3>
         <p class="muted small">
           ${it.location ? `<span class="tag">${escape(it.location)}</span>` : ""}
           ${it.serialOrTag ? `<span class="tag">${escape(it.serialOrTag)}</span>` : ""}
@@ -4690,11 +4675,9 @@ adminRouter.get("/equipment", requireLeader, async (req, res) => {
     (c) => `<option value="${escape(c)}">${escape(c)}</option>`
   ).join("");
 
-  const outNow = items.filter((it) => it.loans?.length).length;
   const body = `
     <h1>Equipment</h1>
-    <p class="muted">Permanent troop inventory — what's in the trailer, who's borrowed what, and what needs repair. Distinct from the per-trip packing list on each Trip plan.</p>
-    ${outNow > 0 ? `<p class="muted small"><strong>${outNow}</strong> item${outNow === 1 ? " is" : "s are"} currently checked out. <a href="/admin/equipment/loans">See all open loans →</a></p>` : ""}
+    <p class="muted">Permanent troop inventory — what's in the trailer, what needs repair. Distinct from the per-trip packing list on each Trip plan.</p>
 
     <form class="card" method="post" action="/admin/equipment">
       <h2 style="margin-top:0">Add an item</h2>
@@ -4743,18 +4726,8 @@ adminRouter.post("/equipment", requireLeader, async (req, res) => {
 adminRouter.get("/equipment/:id/edit", requireLeader, async (req, res) => {
   const it = await prisma.equipment.findFirst({
     where: { id: req.params.id, orgId: req.org.id },
-    include: {
-      loans: {
-        orderBy: [{ returnedAt: { sort: "asc", nulls: "first" } }, { checkedOutAt: "desc" }],
-      },
-    },
   });
   if (!it) return res.status(404).send("Not found");
-  const members = await prisma.member.findMany({
-    where: { orgId: req.org.id },
-    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    select: { id: true, firstName: true, lastName: true },
-  });
   const v = (k) => escape(it[k] ?? "");
   const sel = (cond) => (cond ? " selected" : "");
   const catOpts = EQUIP_CATEGORIES.map(
@@ -4763,40 +4736,6 @@ adminRouter.get("/equipment/:id/edit", requireLeader, async (req, res) => {
   const condOpts = EQUIP_CONDITIONS.map(
     (c) => `<option value="${escape(c)}"${sel(it.condition === c)}>${escape(c)}</option>`
   ).join("");
-  const fmt = (d) => (d ? new Date(d).toISOString().slice(0, 10) : "");
-
-  const memberOpts = members
-    .map((m) => `<option value="${escape(m.id)}">${escape(m.firstName)} ${escape(m.lastName)}</option>`)
-    .join("");
-
-  const loanRows = it.loans
-    .map((l) => {
-      const open = l.returnedAt == null;
-      return `
-      <li class="row" style="align-items:center;gap:.5rem">
-        <div style="flex:1">
-          <strong>${escape(l.borrowerName)}</strong>${open ? ` <span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">out</span>` : ""}
-          <div class="muted small">
-            Out ${escape(fmt(l.checkedOutAt))}${l.dueAt ? ` · due ${escape(fmt(l.dueAt))}` : ""}${
-              l.returnedAt ? ` · returned ${escape(fmt(l.returnedAt))}` : ""
-            }${l.notes ? ` · ${escape(l.notes)}` : ""}
-          </div>
-        </div>
-        ${
-          open
-            ? `<form class="inline" method="post" action="/admin/equipment/${escape(it.id)}/loans/${escape(l.id)}/return">
-                 <button class="btn btn-primary small" type="submit">Mark returned</button>
-               </form>`
-            : ""
-        }
-        <form class="inline" method="post" action="/admin/equipment/${escape(it.id)}/loans/${escape(l.id)}/delete" onsubmit="return confirm('Delete this loan record?')">
-          <button class="btn btn-danger small" type="submit">×</button>
-        </form>
-      </li>`;
-    })
-    .join("");
-
-  const openLoanCount = it.loans.filter((l) => l.returnedAt == null).length;
 
   const body = `
     <a class="back" href="/admin/equipment" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Equipment</a>
@@ -4818,130 +4757,8 @@ adminRouter.get("/equipment/:id/edit", requireLeader, async (req, res) => {
         <a class="btn btn-ghost" href="/admin/equipment">Cancel</a>
       </div>
     </form>
-
-    <h2 style="margin-top:1.5rem">Loan history</h2>
-    ${
-      openLoanCount > 0
-        ? `<p class="muted small">${openLoanCount} open loan${openLoanCount === 1 ? "" : "s"}.</p>`
-        : ""
-    }
-    ${it.loans.length ? `<ul class="items">${loanRows}</ul>` : `<div class="empty">No loans recorded yet.</div>`}
-
-    <form class="card" method="post" action="/admin/equipment/${escape(it.id)}/loans">
-      <h3 style="margin-top:0">Check out</h3>
-      <p class="muted small">Pick a member from the roster, or enter a free-form name (e.g. a parent who isn't on the roster).</p>
-      <div class="row">
-        <label style="margin:0;flex:1">Member<select name="memberId"><option value="">— pick a member —</option>${memberOpts}</select></label>
-        <label style="margin:0;flex:1">…or free-form name<input name="borrowerName" type="text" maxlength="80"></label>
-      </div>
-      <div class="row">
-        <label style="margin:0;flex:1">Borrower email (optional)<input name="borrowerEmail" type="email" maxlength="120"></label>
-        <label style="margin:0;flex:1">Due back (optional)<input name="dueAt" type="date"></label>
-      </div>
-      <label>Notes<textarea name="notes" rows="2" maxlength="200"></textarea></label>
-      <button class="btn btn-primary" type="submit">Check out</button>
-    </form>
   `;
   res.type("html").send(layout({ title: "Edit equipment", org: req.org, user: req.user, body }));
-});
-
-// Open a new loan. Borrower can be a roster member or a free-form name.
-adminRouter.post("/equipment/:id/loans", requireLeader, async (req, res) => {
-  const it = await prisma.equipment.findFirst({
-    where: { id: req.params.id, orgId: req.org.id },
-    select: { id: true },
-  });
-  if (!it) return res.status(404).send("Not found");
-
-  let memberId = (req.body?.memberId || "").trim() || null;
-  let borrowerName = (req.body?.borrowerName || "").trim() || null;
-  if (memberId) {
-    const m = await prisma.member.findFirst({
-      where: { id: memberId, orgId: req.org.id },
-      select: { firstName: true, lastName: true },
-    });
-    if (!m) memberId = null;
-    else if (!borrowerName) borrowerName = `${m.firstName} ${m.lastName}`;
-  }
-  if (!borrowerName) return res.redirect(`/admin/equipment/${it.id}/edit`);
-
-  const dueAt = parseDate(req.body?.dueAt);
-  await prisma.equipmentLoan.create({
-    data: {
-      orgId: req.org.id,
-      equipmentId: it.id,
-      memberId,
-      borrowerName,
-      borrowerEmail: (req.body?.borrowerEmail || "").trim().toLowerCase() || null,
-      dueAt: dueAt || null,
-      notes: (req.body?.notes || "").trim() || null,
-    },
-  });
-  res.redirect(`/admin/equipment/${it.id}/edit`);
-});
-
-adminRouter.post("/equipment/:id/loans/:loanId/return", requireLeader, async (req, res) => {
-  await prisma.equipmentLoan.updateMany({
-    where: {
-      id: req.params.loanId,
-      orgId: req.org.id,
-      equipmentId: req.params.id,
-      returnedAt: null,
-    },
-    data: { returnedAt: new Date() },
-  });
-  res.redirect(`/admin/equipment/${req.params.id}/edit`);
-});
-
-adminRouter.post("/equipment/:id/loans/:loanId/delete", requireLeader, async (req, res) => {
-  await prisma.equipmentLoan.deleteMany({
-    where: { id: req.params.loanId, orgId: req.org.id, equipmentId: req.params.id },
-  });
-  res.redirect(`/admin/equipment/${req.params.id}/edit`);
-});
-
-// Currently-out roster across all equipment.
-adminRouter.get("/equipment/loans", requireLeader, async (req, res) => {
-  const open = await prisma.equipmentLoan.findMany({
-    where: { orgId: req.org.id, returnedAt: null },
-    orderBy: { checkedOutAt: "asc" },
-    include: { equipment: { select: { id: true, name: true } } },
-  });
-  const fmt = (d) => new Date(d).toISOString().slice(0, 10);
-  const today = new Date();
-  const items = open
-    .map((l) => {
-      const days = Math.max(
-        0,
-        Math.floor((today.getTime() - new Date(l.checkedOutAt).getTime()) / 86400000),
-      );
-      const overdue = l.dueAt && new Date(l.dueAt) < today;
-      return `
-      <li>
-        <div style="flex:1">
-          <h3 style="margin:0"><a href="/admin/equipment/${escape(l.equipment.id)}/edit">${escape(l.equipment.name)}</a></h3>
-          <p class="muted small" style="margin:.1rem 0 0">
-            ${escape(l.borrowerName)} · out ${escape(fmt(l.checkedOutAt))} (${days}d)${
-              l.dueAt
-                ? ` · due ${escape(fmt(l.dueAt))}${overdue ? ` <span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">overdue</span>` : ""}`
-                : ""
-            }
-          </p>
-        </div>
-        <form class="inline" method="post" action="/admin/equipment/${escape(l.equipment.id)}/loans/${escape(l.id)}/return">
-          <button class="btn btn-primary small" type="submit">Mark returned</button>
-        </form>
-      </li>`;
-    })
-    .join("");
-
-  const body = `
-    <a class="back" href="/admin/equipment" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Equipment</a>
-    <h1>Open loans</h1>
-    <p class="muted">Everything that's currently checked out, oldest first. Click an item to open its loan history.</p>
-    ${open.length ? `<ul class="items">${items}</ul>` : `<div class="empty">Nothing is currently out.</div>`}
-  `;
-  res.type("html").send(layout({ title: "Open loans", org: req.org, user: req.user, body }));
 });
 
 adminRouter.post("/equipment/:id", requireLeader, async (req, res) => {
