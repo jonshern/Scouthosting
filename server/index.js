@@ -41,6 +41,8 @@ import {
   renderMbcList,
   renderReimburseForm,
   renderVideoGallery,
+  renderNewsletterArchive,
+  renderNewsletterPage,
 } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
@@ -1000,6 +1002,85 @@ app.get("/posts/:id", async (req, res, next) => {
   res
     .set("Content-Type", "text/html; charset=utf-8")
     .send(renderPostDetail(req.org, post, { user: req.user, role }));
+});
+
+/* ------------------ Newsletter archive (per-tenant) -------------- */
+
+app.get("/newsletters", async (req, res, next) => {
+  if (!req.org) return next();
+  const role = req.user ? await roleInOrg(req.user.id, req.org.id) : null;
+  const visibility = role ? ["members", "public"] : ["public"];
+  const issues = await prisma.newsletter.findMany({
+    where: {
+      orgId: req.org.id,
+      status: "sent",
+      visibility: { in: visibility },
+    },
+    orderBy: { publishedAt: "desc" },
+    take: 50,
+    include: { author: { select: { displayName: true } } },
+  });
+  // Members-only archive with no signed-in user → show the sign-in nudge
+  // unless there are public issues to show. (If the unit publishes any
+  // issue publicly we still want an archive for them.)
+  if (!issues.length && !req.user) {
+    return res
+      .status(401)
+      .type("html")
+      .send(renderNewsletterArchive(req.org, [], { needsSignIn: true }));
+  }
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderNewsletterArchive(req.org, issues));
+});
+
+app.get("/newsletters/:id", async (req, res, next) => {
+  if (!req.org) return next();
+  const issue = await prisma.newsletter.findFirst({
+    where: { id: req.params.id, orgId: req.org.id, status: "sent" },
+    include: { author: { select: { displayName: true } } },
+  });
+  if (!issue) return res.status(404).send("Newsletter not found");
+
+  if (issue.visibility === "members") {
+    if (!req.user) {
+      return res
+        .status(401)
+        .type("html")
+        .send(renderNewsletterPage({ org: req.org, newsletter: issue, posts: [], events: [], needsSignIn: true }));
+    }
+    const role = await roleInOrg(req.user.id, req.org.id);
+    if (!role) {
+      return res
+        .status(403)
+        .type("html")
+        .send(renderNewsletterPage({ org: req.org, newsletter: issue, posts: [], events: [], notAMember: true }));
+    }
+  }
+
+  const [posts, events] = await Promise.all([
+    issue.includedPostIds.length
+      ? prisma.post.findMany({
+          where: { id: { in: issue.includedPostIds }, orgId: req.org.id },
+          include: { author: { select: { displayName: true } } },
+        })
+      : [],
+    issue.includedEventIds.length
+      ? prisma.event.findMany({
+          where: { id: { in: issue.includedEventIds }, orgId: req.org.id },
+        })
+      : [],
+  ]);
+  const orderedPosts = issue.includedPostIds
+    .map((id) => posts.find((p) => p.id === id))
+    .filter(Boolean);
+  const orderedEvents = issue.includedEventIds
+    .map((id) => events.find((e) => e.id === id))
+    .filter(Boolean);
+
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderNewsletterPage({ org: req.org, newsletter: issue, posts: orderedPosts, events: orderedEvents }));
 });
 
 // Post a comment. Sign-in required; auto-creates a parent membership

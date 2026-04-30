@@ -106,6 +106,7 @@ model Org {
   oaElections    OaElection[]
   oaCandidates   OaCandidate[]
   videos         Video[]
+  newsletters    Newsletter[]
 
   @@index([plan])
 }
@@ -127,6 +128,7 @@ model User {
   oauthAccounts OAuthAccount[]
   rsvps         Rsvp[]
   slotAssignments SlotAssignment[]
+  newsletters     Newsletter[]
 }
 
 // External identity provider linkage. One User can have multiple
@@ -424,6 +426,48 @@ model MailLog {
   // Recipient snapshot — JSON array of { name, email, phone, channel } so the
   // history shows who got the message even if directory entries change later.
   recipients      Json
+}
+
+// Newsletter — a recurring digest the unit emails its families. Distinct
+// from a one-off broadcast (MailLog) because newsletters are composed
+// editorially: the leader writes a short intro, then auto-includes
+// recent posts + upcoming events. Each Newsletter row is one issue, with
+// a snapshot of which posts/events made it in. The actual send still
+// goes through sendBatch() and records a MailLog row, so existing
+// audit / history surfaces work unchanged.
+model Newsletter {
+  id               String   @id @default(cuid())
+  orgId            String
+  authorId         String?
+  title            String   // "Weekly Digest, May 4"
+  // Markdown — leader's framing paragraph at the top of the issue.
+  intro            String
+  // Snapshot of which Posts + Events were included when the issue was
+  // composed. Stored as ID arrays; the renderer pulls the live rows at
+  // render time so URLs stay current.
+  includedPostIds  String[] @default([])
+  includedEventIds String[] @default([])
+  // Same audience values as the broadcast composer — "everyone" / "adults"
+  // / "youth" / "patrol" (with audiencePatrol set) / "subgroup:<id>".
+  audience         String   @default("everyone")
+  audiencePatrol   String?
+  status           String   @default("draft")  // draft | sent
+  publishedAt      DateTime?
+  // The MailLog row created when this issue was sent. Null for drafts.
+  // Lets the admin Newsletter detail link straight to the recipient list
+  // and bounce/complaint state.
+  mailLogId        String?  @unique
+  // Public archive visibility. "members" gates /newsletters behind login,
+  // "public" lets the page show on the unit's public site like Posts.
+  visibility       String   @default("members") // members | public
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  org    Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, publishedAt])
+  @@index([orgId, status])
 }
 
 // CMS: per-org editable home-page content. Single record per org for now;

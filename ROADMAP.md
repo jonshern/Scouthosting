@@ -475,6 +475,18 @@ we build goes through the comms / operations filter first.
 - [x] Send history view at /admin/email/sent
 - [x] **Real mail drivers** — Resend (HTTP) and SMTP (Nodemailer); both
       fall back to console with a clear warning if env vars missing
+- [x] **Newsletters** — recurring digest the unit emails its families,
+      distinct from one-off broadcasts. The leader writes a short intro,
+      then auto-includes recent posts (default 14d lookback) + upcoming
+      events (default 30d lookahead); each issue snapshots its included
+      ids so the archived issue stays accurate. Admin CRUD at
+      `/admin/newsletters` with composer / preview / send. Public
+      members-only archive at `/newsletters` with public-or-members
+      visibility per issue. Send goes through the same `sendBatch` /
+      `MailLog` infrastructure as broadcasts so unsubscribe + history
+      surfaces work unchanged. (`lib/newsletter.js` — composeNewsletter
+      + renderNewsletterHtml, both pure-functional with injectable
+      Prisma so 16 unit tests cover them without touching a DB.)
 - [ ] AWS SES driver
 - [ ] DKIM, SPF, DMARC for the org's outbound domain
 - [ ] SMS via Twilio respecting `smsOptIn` (the schema and audience

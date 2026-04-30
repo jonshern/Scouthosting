@@ -1314,6 +1314,151 @@ export function renderPostsList(org, posts) {
   return pageShell(org, "Posts", body);
 }
 
+/* ------------------------------------------------------------------ */
+/* Newsletter archive                                                   */
+/* ------------------------------------------------------------------ */
+
+export function renderNewsletterArchive(org, issues, { needsSignIn, notAMember } = {}) {
+  if (needsSignIn) {
+    const body = `
+      <section class="event-list">
+        <a class="back" href="/">← Home</a>
+        <h1>Newsletters</h1>
+        <p class="muted">Sign in to read past issues of ${escapeHtml(org.displayName)}'s newsletter.</p>
+        <p style="margin-top:1rem"><a class="btn primary" href="/login?next=/newsletters">Sign in</a></p>
+      </section>`;
+    return pageShell(org, "Newsletters", body);
+  }
+  if (notAMember) {
+    const body = `
+      <section class="event-list">
+        <a class="back" href="/">← Home</a>
+        <h1>Newsletters</h1>
+        <p class="muted">This archive is members-only. Once you're added to ${escapeHtml(org.displayName)} you'll be able to read past issues here.</p>
+      </section>`;
+    return pageShell(org, "Newsletters", body);
+  }
+
+  const items = issues.length
+    ? `<ul class="newsletter-list">${issues
+        .map(
+          (n) => `
+        <li>
+          <a href="/newsletters/${escapeHtml(n.id)}">
+            <strong>${escapeHtml(n.title)}</strong>
+            <span class="muted small"> · ${escapeHtml(
+              new Date(n.publishedAt).toLocaleDateString("en-US", {
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              }),
+            )}${n.author?.displayName ? ` · ${escapeHtml(n.author.displayName)}` : ""}</span>
+          </a>
+        </li>`,
+        )
+        .join("")}</ul>`
+    : `<p class="muted">No newsletters yet.</p>`;
+
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/">← Home</a>
+      <h1>Newsletters</h1>
+      <p class="muted">The recurring digest of what's happening at ${escapeHtml(org.displayName)}.</p>
+      ${items}
+    </section>
+    <style>
+      .newsletter-list { list-style:none; padding:0; margin:1.5rem 0; display:grid; gap:.5rem; }
+      .newsletter-list li { background:#fff; border:1px solid #eef0e7; border-radius:10px; padding:.85rem 1.1rem; }
+      .newsletter-list a { display:block; color:inherit; text-decoration:none; }
+      .newsletter-list a:hover { color:#1d6b39; }
+    </style>`;
+  return pageShell(org, "Newsletters", body);
+}
+
+export function renderNewsletterPage({
+  org,
+  newsletter,
+  posts,
+  events,
+  needsSignIn,
+  notAMember,
+}) {
+  if (needsSignIn) {
+    const body = `
+      <section class="event-list">
+        <a class="back" href="/newsletters">← Newsletters</a>
+        <h1>Members-only newsletter</h1>
+        <p class="muted">This issue is members-only. Sign in to read it.</p>
+        <p style="margin-top:1rem"><a class="btn primary" href="/login?next=/newsletters/${escapeHtml(newsletter.id)}">Sign in</a></p>
+      </section>`;
+    return pageShell(org, newsletter.title, body);
+  }
+  if (notAMember) {
+    const body = `
+      <section class="event-list">
+        <a class="back" href="/newsletters">← Newsletters</a>
+        <h1>Members only</h1>
+        <p class="muted">This issue is restricted to members of ${escapeHtml(org.displayName)}.</p>
+      </section>`;
+    return pageShell(org, newsletter.title, body);
+  }
+
+  const introHtml = textToHtml(newsletter.intro || "");
+  const postsHtml = posts.length
+    ? `<h2>Recent posts</h2>
+       <ul class="newsletter-posts">${posts
+         .map(
+           (p) => `
+         <li>
+           <a href="/posts/${escapeHtml(p.id)}"><strong>${escapeHtml(p.title || "(untitled)")}</strong></a>
+           <span class="muted small"> · ${escapeHtml(
+             new Date(p.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+           )}${p.author?.displayName ? ` · ${escapeHtml(p.author.displayName)}` : ""}</span>
+         </li>`,
+         )
+         .join("")}</ul>`
+    : "";
+  const eventsHtml = events.length
+    ? `<h2>On the calendar</h2>
+       <ul class="newsletter-events">${events
+         .map(
+           (e) => `
+         <li>
+           <a href="/events/${escapeHtml(e.id)}">
+             <strong>${escapeHtml(e.title)}</strong>
+             <span class="muted small"> · ${escapeHtml(
+               new Date(e.startsAt).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
+             )}${e.location ? ` · ${escapeHtml(e.location)}` : ""}</span>
+           </a>
+         </li>`,
+         )
+         .join("")}</ul>`
+    : "";
+
+  const body = `
+    <section class="event-list">
+      <a class="back" href="/newsletters">← Newsletters</a>
+      <h1>${escapeHtml(newsletter.title)}</h1>
+      <p class="muted small">${escapeHtml(
+        new Date(newsletter.publishedAt).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        }),
+      )}${newsletter.author?.displayName ? ` · ${escapeHtml(newsletter.author.displayName)}` : ""}</p>
+      <div class="prose" style="margin:1.5rem 0">${introHtml}</div>
+      ${postsHtml}
+      ${eventsHtml}
+    </section>
+    <style>
+      .newsletter-posts, .newsletter-events { list-style:none; padding:0; margin:.75rem 0 1.5rem; display:grid; gap:.4rem; }
+      .newsletter-posts li, .newsletter-events li { background:#fff; border:1px solid #eef0e7; border-radius:8px; padding:.65rem .85rem; }
+      .newsletter-posts a, .newsletter-events a { color:inherit; text-decoration:none; }
+      .newsletter-posts a:hover, .newsletter-events a:hover { color:#1d6b39; }
+    </style>`;
+  return pageShell(org, newsletter.title, body);
+}
+
 export function renderPostDetail(org, post, ctx = {}) {
   const body = `
     <section class="event-list">
