@@ -23,6 +23,14 @@ import { reconcilePositionTerm as reconcileTerm } from "../lib/positionTerms.js"
 import { makeUnsubToken } from "../lib/unsubToken.js";
 import { scoutbookUrl } from "../lib/scoutbook.js";
 import { composeNewsletter, renderNewsletterHtml } from "../lib/newsletter.js";
+import {
+  checkChannelTwoDeep,
+  suspendChannel,
+  unsuspendChannel,
+  provisionStandingChannels,
+  archiveEndedEventChannels,
+  CHANNEL_KINDS,
+} from "../lib/chat.js";
 import { tallyCredits, formatCsvRow } from "../lib/credits.js";
 import { recordAudit } from "../lib/audit.js";
 import {
@@ -214,6 +222,7 @@ form.inline{display:inline}
     <a href="/admin/surveys">Surveys</a>
     <a href="/admin/email">Email broadcast</a>
     <a href="/admin/newsletters">Newsletters</a>
+    <a href="/admin/channels">Channels</a>
     <a href="/" target="_blank">View public site ↗</a>
   </nav>
   <div class="me">
@@ -7108,6 +7117,419 @@ function newsletterComposerHtml({
     }
   `;
 }
+
+/* ------------------------------------------------------------------ */
+/* Group chat — admin oversight                                        */
+/* ------------------------------------------------------------------ */
+
+function channelKindLabel(kind) {
+  return ({
+    patrol: "Patrol",
+    troop: "All members",
+    parents: "Parents",
+    leaders: "Leaders only",
+    event: "Event",
+    custom: "Custom",
+  })[kind] || kind;
+}
+
+function channelStatusBadge(c) {
+  if (c.archivedAt) {
+    return `<span class="tag" style="opacity:.6">archived</span>`;
+  }
+  if (c.isSuspended) {
+    return `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">suspended${c.suspendedReason ? `: ${escape(c.suspendedReason.replace(/-/g, " "))}` : ""}</span>`;
+  }
+  return `<span class="tag" style="background:#e3f29b;border-color:#c8e94a;color:#0e3320">active</span>`;
+}
+
+adminRouter.get("/channels", requireLeader, async (req, res) => {
+  const channels = await prisma.channel.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ kind: "asc" }, { archivedAt: "asc" }, { name: "asc" }],
+    include: {
+      _count: { select: { members: true, messages: true } },
+    },
+  });
+
+  // Fetch the latest message timestamp for each channel in one round-trip.
+  const lastByChannel = await prisma.message.groupBy({
+    by: ["channelId"],
+    where: { channelId: { in: channels.map((c) => c.id) } },
+    _max: { createdAt: true },
+  });
+  const lastMap = new Map(
+    lastByChannel.map((r) => [r.channelId, r._max.createdAt]),
+  );
+
+  const overdueArchivedRaw = await archiveEndedEventChannels({
+    prismaClient: prisma,
+  });
+  const archivedNote = overdueArchivedRaw.archived
+    ? `<p class="muted small" style="margin:.4rem 0">Auto-archived ${overdueArchivedRaw.archived} event channel${overdueArchivedRaw.archived === 1 ? "" : "s"} whose event ended &gt; 24 hours ago.</p>`
+    : "";
+
+  const fmtRel = (d) => {
+    if (!d) return "—";
+    const ms = Date.now() - new Date(d).getTime();
+    if (ms < 60_000) return "just now";
+    if (ms < 3_600_000) return `${Math.floor(ms / 60_000)}m ago`;
+    if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+    return `${Math.floor(ms / 86_400_000)}d ago`;
+  };
+
+  const groups = {};
+  for (const c of channels) {
+    const k = c.kind;
+    if (!groups[k]) groups[k] = [];
+    groups[k].push(c);
+  }
+
+  const renderRow = (c) => `
+    <li>
+      <div style="flex:1">
+        <h3 style="margin:0">
+          <a href="/admin/channels/${escape(c.id)}">${escape(c.name)}</a>
+          ${channelStatusBadge(c)}
+        </h3>
+        <p class="muted small" style="margin:.1rem 0 0">
+          ${c._count.members} member${c._count.members === 1 ? "" : "s"}
+          · ${c._count.messages} message${c._count.messages === 1 ? "" : "s"}
+          · last ${escape(fmtRel(lastMap.get(c.id)))}
+          ${c.patrolName ? ` · ${escape(c.patrolName)} patrol` : ""}
+        </p>
+      </div>
+      <a class="btn btn-ghost small" href="/admin/channels/${escape(c.id)}">Open</a>
+    </li>`;
+
+  const sectionFor = (kind, label) =>
+    groups[kind] && groups[kind].length
+      ? `<h2 style="margin-top:1.5rem">${escape(label)} <span class="muted small" style="font-weight:400">(${groups[kind].length})</span></h2>
+         <ul class="items">${groups[kind].map(renderRow).join("")}</ul>`
+      : "";
+
+  const body = `
+    <h1>Channels</h1>
+    <p class="muted">Group chat oversight. Channels are auto-managed: <strong>troop / parents / leaders</strong> are global, <strong>patrol</strong> follows <code>Member.patrol</code>, <strong>event</strong> auto-archives 24h after the event ends. Manual additions and custom channels are listed below the auto-managed ones.</p>
+    ${archivedNote}
+    <p style="margin:.6rem 0 1rem">
+      <a class="btn btn-primary" href="/admin/channels/provision" onclick="return confirm('Re-run channel auto-provisioning? Idempotent — adds anything missing, doesn\\'t remove anything.')">Provision standing channels</a>
+      <a class="btn btn-ghost" href="/admin/ypt" style="margin-left:.4rem">Manage YPT status →</a>
+    </p>
+    ${sectionFor("troop", "All-members")}
+    ${sectionFor("parents", channelKindLabel("parents"))}
+    ${sectionFor("leaders", channelKindLabel("leaders"))}
+    ${sectionFor("patrol", "Patrol channels")}
+    ${sectionFor("event", "Event channels")}
+    ${sectionFor("custom", "Custom channels")}
+    ${channels.length === 0 ? `<div class="empty">No channels yet. Click <em>Provision standing channels</em> to create the troop / parents / leaders + per-patrol channels for this org.</div>` : ""}
+  `;
+  res.type("html").send(layout({ title: "Channels", org: req.org, user: req.user, body }));
+});
+
+adminRouter.get("/channels/provision", requireLeader, async (req, res) => {
+  await provisionStandingChannels({ org: req.org, prismaClient: prisma });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Channel",
+    action: "provision",
+    summary: "Standing channels reconciled",
+  });
+  res.redirect("/admin/channels");
+});
+
+adminRouter.get("/channels/:id", requireLeader, async (req, res) => {
+  const channel = await prisma.channel.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    include: {
+      members: {
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              displayName: true,
+              memberships: {
+                where: { orgId: req.org.id },
+                select: { role: true, yptCurrentUntil: true },
+              },
+            },
+          },
+        },
+        orderBy: { joinedAt: "asc" },
+      },
+    },
+  });
+  if (!channel) return res.status(404).send("Not found");
+
+  const messages = await prisma.message.findMany({
+    where: { channelId: channel.id },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: { author: { select: { displayName: true } } },
+  });
+
+  const yptCheck = await checkChannelTwoDeep(channel.id, { prismaClient: prisma });
+
+  const memberRows = channel.members
+    .map((cm) => {
+      const om = cm.user.memberships[0];
+      const role = om?.role || "—";
+      const yptOk = role === "leader" || role === "admin"
+        ? om?.yptCurrentUntil && new Date(om.yptCurrentUntil) > new Date()
+        : null;
+      const yptBadge = yptOk === null
+        ? ""
+        : yptOk
+          ? `<span class="tag" style="background:#e3f29b;border-color:#c8e94a;color:#0e3320">YPT current</span>`
+          : `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">YPT expired/missing</span>`;
+      return `
+        <li>
+          <div style="flex:1">
+            <strong>${escape(cm.user.displayName)}</strong>
+            <span class="tag">${escape(role)}</span>
+            ${yptBadge}
+            ${cm.role === "moderator" ? `<span class="tag">moderator</span>` : ""}
+            ${!cm.addedAutomatically ? `<span class="tag">manual</span>` : ""}
+            <div class="muted small">${escape(cm.user.email)}</div>
+          </div>
+        </li>`;
+    })
+    .join("");
+
+  const messageRows = messages.length
+    ? messages
+        .reverse()
+        .map(
+          (m) => `
+        <li>
+          <div style="flex:1">
+            <strong>${escape(m.author?.displayName || "(system)")}</strong>
+            <span class="muted small">${escape(new Date(m.createdAt).toLocaleString("en-US"))}</span>
+            <p style="margin:.2rem 0 0">${m.deletedAt ? `<em class="muted">(deleted)</em>` : escape(m.body)}</p>
+          </div>
+        </li>`,
+        )
+        .join("")
+    : `<p class="muted small">No messages yet.</p>`;
+
+  const yptBlock = yptCheck.ok
+    ? `<p class="muted small">YPT: ${yptCheck.hasYouth ? `${yptCheck.currentAdultCount} current adults watching this youth-containing channel.` : `Channel contains no youth — two-deep check skipped.`}</p>`
+    : `<p style="background:#fbe8e3;border:1px solid #f0bcb1;border-radius:8px;padding:.65rem .85rem;color:#7d2614">
+         <strong>YPT compliance:</strong> ${escape(yptCheck.reason.replace(/-/g, " "))}.
+         The channel is suspended until two YPT-current adult leaders are members.
+         Adjust YPT dates on <a href="/admin/ypt">Manage YPT status</a>.
+       </p>`;
+
+  const actionForms = channel.archivedAt
+    ? `<p class="muted small">Archived ${escape(new Date(channel.archivedAt).toLocaleDateString("en-US"))}.</p>`
+    : `
+      <form class="inline" method="post" action="/admin/channels/${escape(channel.id)}/${channel.isSuspended ? "unsuspend" : "suspend"}">
+        <button class="btn ${channel.isSuspended ? "btn-primary" : "btn-danger"} small" type="submit">${channel.isSuspended ? "Unsuspend" : "Suspend"}</button>
+      </form>
+      ${channel.kind === "custom" ? `<form class="inline" method="post" action="/admin/channels/${escape(channel.id)}/archive" onsubmit="return confirm('Archive this channel? Members will no longer see it.')">
+        <button class="btn btn-ghost small" type="submit">Archive</button>
+      </form>` : ""}
+    `;
+
+  const body = `
+    <a class="back" href="/admin/channels" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Channels</a>
+    <h1>${escape(channel.name)}</h1>
+    <p class="muted">
+      <span class="tag">${escape(channelKindLabel(channel.kind))}</span>
+      ${channelStatusBadge(channel)}
+      ${channel.patrolName ? ` · ${escape(channel.patrolName)} patrol` : ""}
+      ${channel.eventId ? ` · linked to event` : ""}
+    </p>
+    ${yptBlock}
+    <div class="row" style="margin:.6rem 0 1rem">${actionForms}</div>
+
+    <h2>Members <span class="muted small" style="font-weight:400">(${channel.members.length})</span></h2>
+    <ul class="items">${memberRows || `<li class="empty">No members yet — try <a href="/admin/channels/provision">re-provisioning</a>.</li>`}</ul>
+
+    <h2 style="margin-top:1.5rem">Recent messages <span class="muted small" style="font-weight:400">(last 50)</span></h2>
+    <ul class="items">${messageRows}</ul>
+  `;
+  res.type("html").send(layout({ title: channel.name, org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/channels/:id/suspend", requireLeader, async (req, res) => {
+  const channel = await prisma.channel.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!channel) return res.status(404).send("Not found");
+  await suspendChannel(channel.id, "manual", {
+    prismaClient: prisma,
+    org: req.org,
+    user: req.user,
+  });
+  res.redirect(`/admin/channels/${channel.id}`);
+});
+
+adminRouter.post("/channels/:id/unsuspend", requireLeader, async (req, res) => {
+  const channel = await prisma.channel.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, kind: true },
+  });
+  if (!channel) return res.status(404).send("Not found");
+  // Re-check before lifting — if YPT still doesn't pass, refuse.
+  const check = await checkChannelTwoDeep(channel.id, { prismaClient: prisma });
+  if (!check.ok) {
+    return res
+      .status(409)
+      .type("html")
+      .send(
+        layout({
+          title: "Can't unsuspend",
+          org: req.org,
+          user: req.user,
+          body: `<h1>Can't unsuspend</h1>
+            <p>This channel still doesn't meet two-deep: <strong>${escape(check.reason.replace(/-/g, " "))}</strong>.</p>
+            <p>Add a second YPT-current adult leader to the channel before unsuspending.</p>
+            <p><a class="btn btn-ghost" href="/admin/channels/${escape(channel.id)}">← Back</a></p>`,
+        }),
+      );
+  }
+  await unsuspendChannel(channel.id, {
+    prismaClient: prisma,
+    org: req.org,
+    user: req.user,
+  });
+  res.redirect(`/admin/channels/${channel.id}`);
+});
+
+adminRouter.post("/channels/:id/archive", requireLeader, async (req, res) => {
+  const channel = await prisma.channel.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, kind: true, name: true },
+  });
+  if (!channel) return res.status(404).send("Not found");
+  if (channel.kind !== "custom" && channel.kind !== "event") {
+    return res
+      .status(400)
+      .send("Only custom and event channels can be archived.");
+  }
+  await prisma.channel.update({
+    where: { id: channel.id },
+    data: { archivedAt: new Date() },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Channel",
+    entityId: channel.id,
+    action: "archive",
+    summary: channel.name,
+  });
+  res.redirect("/admin/channels");
+});
+
+/* ------------------------------------------------------------------ */
+/* YPT status entry                                                    */
+/* ------------------------------------------------------------------ */
+
+adminRouter.get("/ypt", requireLeader, async (req, res) => {
+  const memberships = await prisma.orgMembership.findMany({
+    where: { orgId: req.org.id, role: { in: ["leader", "admin"] } },
+    include: { user: { select: { id: true, email: true, displayName: true } } },
+    orderBy: { user: { displayName: "asc" } },
+  });
+  const fmt = (d) => (d ? new Date(d).toISOString().slice(0, 10) : "");
+  const today = new Date();
+
+  const rows = memberships
+    .map((m) => {
+      const expired = !m.yptCurrentUntil || new Date(m.yptCurrentUntil) <= today;
+      const tag = !m.yptCurrentUntil
+        ? `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">missing</span>`
+        : expired
+          ? `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">expired</span>`
+          : new Date(m.yptCurrentUntil).getTime() - today.getTime() < 60 * 86400000
+            ? `<span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">expiring &lt; 60d</span>`
+            : `<span class="tag" style="background:#e3f29b;border-color:#c8e94a;color:#0e3320">current</span>`;
+      return `
+        <tr>
+          <td><strong>${escape(m.user.displayName)}</strong>${tag}<br><span class="muted small">${escape(m.user.email)} · ${escape(m.role)}</span></td>
+          <td>
+            <form method="post" action="/admin/ypt/${escape(m.id)}" class="row" style="gap:.4rem">
+              <input type="date" name="yptCurrentUntil" value="${escape(fmt(m.yptCurrentUntil))}" />
+              <button class="btn btn-primary small" type="submit">Save</button>
+              ${m.yptCurrentUntil ? `<button class="btn btn-ghost small" type="submit" name="clear" value="1">Clear</button>` : ""}
+            </form>
+          </td>
+        </tr>`;
+    })
+    .join("");
+
+  const body = `
+    <a class="back" href="/admin/channels" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Channels</a>
+    <h1>YPT status</h1>
+    <p class="muted">Youth Protection Training expiration date per registered leader. Drives the two-deep guard on every chat-channel write where youth are present. Leader-entered for v1; the BSA training-roster scrape is a separate fight.</p>
+    ${memberships.length ? `<table class="items" style="width:100%;border-collapse:collapse">
+      <thead><tr><th style="text-align:left;padding:.4rem 0">Leader</th><th style="text-align:left;padding:.4rem 0">YPT current until</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>` : `<div class="empty">No leaders or admins in this org yet.</div>`}
+  `;
+  res.type("html").send(layout({ title: "YPT status", org: req.org, user: req.user, body }));
+});
+
+adminRouter.post("/ypt/:membershipId", requireLeader, async (req, res) => {
+  const membership = await prisma.orgMembership.findFirst({
+    where: { id: req.params.membershipId, orgId: req.org.id },
+    select: { id: true, userId: true },
+  });
+  if (!membership) return res.status(404).send("Not found");
+  const clear = req.body?.clear === "1";
+  const raw = String(req.body?.yptCurrentUntil || "").trim();
+  let yptCurrentUntil = null;
+  if (!clear && raw) {
+    const d = new Date(raw + "T00:00:00Z");
+    if (Number.isNaN(d.getTime())) {
+      return res.redirect("/admin/ypt");
+    }
+    yptCurrentUntil = d;
+  }
+  await prisma.orgMembership.update({
+    where: { id: membership.id },
+    data: { yptCurrentUntil },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "OrgMembership",
+    entityId: membership.id,
+    action: "ypt-update",
+    summary: yptCurrentUntil ? `current until ${yptCurrentUntil.toISOString().slice(0, 10)}` : "cleared",
+  });
+
+  // Re-reconcile every channel this user belongs to so suspension state
+  // tracks the new YPT date immediately.
+  const channelMemberships = await prisma.channelMember.findMany({
+    where: { userId: membership.userId },
+    select: { channelId: true },
+  });
+  for (const cm of channelMemberships) {
+    const ch = await prisma.channel.findUnique({
+      where: { id: cm.channelId },
+      select: { orgId: true },
+    });
+    if (ch?.orgId !== req.org.id) continue;
+    const check = await checkChannelTwoDeep(cm.channelId, { prismaClient: prisma });
+    if (!check.ok) {
+      await suspendChannel(cm.channelId, check.reason, { prismaClient: prisma });
+    } else {
+      // Auto-clear suspension when YPT update restores two-deep.
+      await prisma.channel.updateMany({
+        where: { id: cm.channelId, isSuspended: true },
+        data: { isSuspended: false, suspendedReason: null },
+      });
+    }
+  }
+
+  res.redirect("/admin/ypt");
+});
 
 /* ------------------------------------------------------------------ */
 /* Multer error handler — turns oversized/wrong-type into a flash      */

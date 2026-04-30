@@ -44,6 +44,7 @@ import {
   renderVideoGallery,
   renderNewsletterArchive,
   renderNewsletterPage,
+  renderChatPage,
 } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
@@ -1454,6 +1455,29 @@ app.get("/members", async (req, res, next) => {
   res
     .set("Content-Type", "text/html; charset=utf-8")
     .send(renderDirectory(req.org, members, { role }));
+});
+
+// Parent web chat fallback. Browser client talks to /api/v1 over the
+// existing Lucia session cookie. Mobile-app users get the same channels
+// via the bearer-token path.
+app.get("/chat", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) {
+    return res
+      .status(401)
+      .type("html")
+      .send(renderChatPage(req.org, { needsSignIn: true }));
+  }
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (!role) {
+    return res
+      .status(403)
+      .type("html")
+      .send(renderChatPage(req.org, { notAMember: true }));
+  }
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderChatPage(req.org));
 });
 
 // Public event detail.

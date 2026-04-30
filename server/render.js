@@ -1315,6 +1315,283 @@ export function renderPostsList(org, posts) {
 }
 
 /* ------------------------------------------------------------------ */
+/* Chat — parent web fallback                                          */
+/* ------------------------------------------------------------------ */
+
+export function renderChatPage(org, { needsSignIn, notAMember } = {}) {
+  if (needsSignIn) {
+    const body = `
+      <section class="event-list">
+        <a class="back" href="/">← Home</a>
+        <h1>Chat</h1>
+        <p class="muted">Sign in to chat with the rest of ${escapeHtml(org.displayName)}.</p>
+        <p style="margin-top:1rem"><a class="btn primary" href="/login?next=/chat">Sign in</a></p>
+      </section>`;
+    return pageShell(org, "Chat", body);
+  }
+  if (notAMember) {
+    const body = `
+      <section class="event-list">
+        <a class="back" href="/">← Home</a>
+        <h1>Chat</h1>
+        <p class="muted">Chat is members-only. Once a leader adds you to ${escapeHtml(org.displayName)}, you'll be able to read and post here.</p>
+      </section>`;
+    return pageShell(org, "Chat", body);
+  }
+
+  // The page is mostly a thin client over /api/v1. The browser already
+  // carries the Lucia session cookie, so resolveApiUser accepts it as
+  // auth and we don't need a bearer token in the web client.
+  const orgId = String(org.id);
+  const body = `
+    <section class="chat" id="chat-root" data-org-id="${escapeHtml(orgId)}">
+      <a class="back" href="/">← Home</a>
+      <h1>Chat</h1>
+      <p class="muted small">If you'd rather use a phone, the Compass mobile app talks to the same channels.</p>
+      <div class="chat-shell">
+        <aside class="chat-sidebar" aria-label="Channels">
+          <ul id="chat-channels" class="chat-channels"></ul>
+        </aside>
+        <main class="chat-main" aria-live="polite">
+          <header class="chat-header" id="chat-header">
+            <h2 id="chat-title">Pick a channel</h2>
+            <div class="chat-status" id="chat-status"></div>
+          </header>
+          <div id="chat-banner" class="chat-banner" hidden></div>
+          <ol class="chat-messages" id="chat-messages"></ol>
+          <form class="chat-form" id="chat-form" hidden>
+            <textarea name="body" rows="2" placeholder="Type a message…" maxlength="10000" required></textarea>
+            <button class="btn primary" type="submit">Send</button>
+          </form>
+        </main>
+      </div>
+    </section>
+    <style>${CHAT_STYLES}</style>
+    <script type="module">${chatClientScript()}</script>`;
+  return pageShell(org, "Chat", body);
+}
+
+const CHAT_STYLES = `
+  .chat { padding-bottom: 2rem; }
+  .chat-shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+    border: 1px solid #d4c8a8;
+    border-radius: 12px;
+    overflow: hidden;
+    background: #fff;
+    min-height: 480px;
+  }
+  .chat-sidebar { border-right: 1px solid #e6dcc0; background: #faf3e3; }
+  .chat-channels { list-style: none; margin: 0; padding: .4rem; display: grid; gap: .15rem; }
+  .chat-channels li { padding: .5rem .65rem; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .chat-channels li:hover { background: #f1ead5; }
+  .chat-channels li.is-active { background: #0e3320; color: #fff; }
+  .chat-channels li.is-active .chat-meta { color: rgba(255,255,255,.7); }
+  .chat-channels .chat-meta { display: block; font-size: 11px; color: #5a6258; }
+  .chat-main { display: flex; flex-direction: column; min-height: 480px; }
+  .chat-header { padding: .75rem 1rem; border-bottom: 1px solid #e6dcc0; }
+  .chat-header h2 { margin: 0; font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 22px; }
+  .chat-status { font-size: 12px; color: #5a6258; margin-top: .15rem; }
+  .chat-status .ok { color: #3d6b3a; }
+  .chat-status .warn { color: #a82e1d; }
+  .chat-banner { background: #fbe8e3; border: 1px solid #f0bcb1; color: #7d2614; padding: .65rem .85rem; margin: .65rem 1rem; border-radius: 8px; font-size: 13px; }
+  .chat-messages { list-style: none; margin: 0; padding: 1rem; flex: 1; display: flex; flex-direction: column; gap: .65rem; overflow-y: auto; max-height: 60vh; }
+  .chat-messages li { display: grid; grid-template-columns: minmax(0, 1fr); gap: .15rem; }
+  .chat-messages .author { font-size: 12px; color: #5a6258; font-weight: 600; }
+  .chat-messages .body { background: #f4ecdc; border-radius: 10px; padding: .55rem .75rem; font-size: 14px; line-height: 1.45; word-wrap: break-word; white-space: pre-wrap; }
+  .chat-messages li.system .body { background: #fff7e6; font-style: italic; color: #7d5a00; }
+  .chat-messages li.deleted .body { font-style: italic; color: #5a6258; }
+  .chat-messages .ts { font-size: 11px; color: #5a6258; margin-top: .1rem; }
+  .chat-form { display: flex; gap: .4rem; padding: .65rem 1rem; border-top: 1px solid #e6dcc0; align-items: flex-end; }
+  .chat-form textarea { flex: 1; resize: vertical; min-height: 44px; padding: .55rem .65rem; border: 1px solid #d4c8a8; border-radius: 8px; font-family: inherit; font-size: 14px; }
+  .chat-form button { align-self: stretch; }
+  @media (max-width: 720px) {
+    .chat-shell { grid-template-columns: 1fr; min-height: auto; }
+    .chat-sidebar { border-right: 0; border-bottom: 1px solid #e6dcc0; max-height: 200px; overflow-y: auto; }
+  }
+`;
+
+function chatClientScript() {
+  // Stringified module: client polls the JSON API at /api/v1, since SSE
+  // is a follow-up PR. ~5s poll is fine for v1; SSE drops the latency to
+  // sub-second once it lands.
+  return `
+const root = document.getElementById('chat-root');
+const orgId = root?.dataset.orgId;
+const channelsEl = document.getElementById('chat-channels');
+const messagesEl = document.getElementById('chat-messages');
+const headerTitle = document.getElementById('chat-title');
+const statusEl = document.getElementById('chat-status');
+const bannerEl = document.getElementById('chat-banner');
+const formEl = document.getElementById('chat-form');
+
+let activeChannelId = null;
+let pollTimer = null;
+let lastMessageId = null;
+
+const KIND_LABEL = {
+  patrol: 'Patrol',
+  troop: 'All members',
+  parents: 'Parents',
+  leaders: 'Leaders',
+  event: 'Event',
+  custom: 'Custom',
+};
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) {
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+async function loadChannels() {
+  const r = await fetch('/api/v1/channels?orgId=' + encodeURIComponent(orgId), {
+    credentials: 'same-origin',
+  });
+  if (!r.ok) {
+    channelsEl.innerHTML = '<li class="muted small">' + escapeHtml('Couldn\\'t load channels.') + '</li>';
+    return;
+  }
+  const data = await r.json();
+  channelsEl.innerHTML = data.channels.map((c) => {
+    const status = c.isSuspended ? ' (paused)' : c.archivedAt ? ' (archived)' : '';
+    return '<li data-channel-id="' + escapeHtml(c.id) + '" class="' + (c.id === activeChannelId ? 'is-active' : '') + '">' +
+      '<strong>' + escapeHtml(c.name) + '</strong>' + escapeHtml(status) +
+      '<span class="chat-meta">' + escapeHtml(KIND_LABEL[c.kind] || c.kind) + '</span>' +
+    '</li>';
+  }).join('');
+  for (const li of channelsEl.querySelectorAll('li[data-channel-id]')) {
+    li.addEventListener('click', () => selectChannel(li.dataset.channelId, data.channels.find((x) => x.id === li.dataset.channelId)));
+  }
+  if (!activeChannelId && data.channels.length) {
+    selectChannel(data.channels[0].id, data.channels[0]);
+  }
+}
+
+function setActiveStyles() {
+  for (const li of channelsEl.querySelectorAll('li')) {
+    li.classList.toggle('is-active', li.dataset.channelId === activeChannelId);
+  }
+}
+
+async function selectChannel(id, summary) {
+  activeChannelId = id;
+  lastMessageId = null;
+  setActiveStyles();
+  headerTitle.textContent = summary?.name || 'Channel';
+  statusEl.innerHTML = '';
+  bannerEl.hidden = true;
+  messagesEl.innerHTML = '';
+  formEl.hidden = !(summary?.canPost);
+  if (summary?.isSuspended) {
+    bannerEl.hidden = false;
+    bannerEl.textContent = 'This channel is paused. ' + (summary.suspendedReason ? '(' + summary.suspendedReason.replace(/-/g, ' ') + ')' : '');
+  }
+  await loadMessages();
+  startPolling();
+}
+
+async function loadMessages() {
+  if (!activeChannelId) return;
+  const r = await fetch('/api/v1/channels/' + encodeURIComponent(activeChannelId), {
+    credentials: 'same-origin',
+  });
+  if (!r.ok) {
+    messagesEl.innerHTML = '<li class="system"><div class="body">' + escapeHtml('Couldn\\'t load this channel.') + '</div></li>';
+    return;
+  }
+  const data = await r.json();
+  renderMessages(data.messages, /* replace */ true);
+}
+
+function renderMessages(list, replace) {
+  if (replace) messagesEl.innerHTML = '';
+  for (const m of list) {
+    const li = document.createElement('li');
+    if (!m.author) li.classList.add('system');
+    if (m.deleted) li.classList.add('deleted');
+    const author = m.author?.displayName || 'system';
+    li.innerHTML = '<span class="author">' + escapeHtml(author) + '</span>' +
+      '<div class="body">' + escapeHtml(m.deleted ? '(deleted)' : m.body) + '</div>' +
+      '<span class="ts">' + escapeHtml(fmtTime(m.createdAt)) + '</span>';
+    messagesEl.appendChild(li);
+    lastMessageId = m.id;
+  }
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function startPolling() {
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(pollNew, 5000);
+}
+
+async function pollNew() {
+  if (!activeChannelId || !lastMessageId) return;
+  // Fetch the latest page; we drop anything <= lastMessageId.
+  const r = await fetch('/api/v1/channels/' + encodeURIComponent(activeChannelId), {
+    credentials: 'same-origin',
+  });
+  if (!r.ok) return;
+  const data = await r.json();
+  const fresh = [];
+  let seen = false;
+  for (const m of data.messages) {
+    if (m.id === lastMessageId) seen = true;
+    else if (seen) fresh.push(m);
+  }
+  if (fresh.length) renderMessages(fresh, false);
+  // Refresh the channel list periodically so suspension state syncs.
+  void loadChannels();
+}
+
+formEl.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  if (!activeChannelId) return;
+  const ta = formEl.elements.namedItem('body');
+  const body = String(ta.value || '').trim();
+  if (!body) return;
+  ta.disabled = true;
+  try {
+    const r = await fetch('/api/v1/channels/' + encodeURIComponent(activeChannelId) + '/messages', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body }),
+    });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      bannerEl.hidden = false;
+      bannerEl.textContent = data.error === 'channel_suspended'
+        ? 'Channel is paused (' + (data.reason || 'YPT compliance') + '). Reach out to a leader.'
+        : 'Couldn\\'t send: ' + (data.error || r.status);
+      return;
+    }
+    const { message } = await r.json();
+    renderMessages([message], false);
+    ta.value = '';
+  } finally {
+    ta.disabled = false;
+    ta.focus();
+  }
+});
+
+void loadChannels();
+`;
+}
+
+/* ------------------------------------------------------------------ */
 /* Newsletter archive                                                   */
 /* ------------------------------------------------------------------ */
 
