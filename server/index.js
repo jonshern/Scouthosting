@@ -61,9 +61,9 @@ const ROOT = path.resolve(__dirname, "..");
 /* ------------------------------------------------------------------ */
 
 const APEX_HOSTS = new Set([
-  (process.env.APEX_DOMAIN || "scouthosting.com").toLowerCase(),
-  `www.${process.env.APEX_DOMAIN || "scouthosting.com"}`.toLowerCase(),
-  "scouthosting.local",
+  (process.env.APEX_DOMAIN || "compass.app").toLowerCase(),
+  `www.${process.env.APEX_DOMAIN || "compass.app"}`.toLowerCase(),
+  "compass.local",
   "localhost",
 ]);
 
@@ -137,7 +137,7 @@ app.post("/api/provision", provisionLimiter, async (req, res) => {
         displayName: org.displayName,
         scoutmasterEmail: org.scoutmasterEmail,
       },
-      url: `https://${org.slug}.${process.env.APEX_DOMAIN || "scouthosting.com"}`,
+      url: `https://${org.slug}.${process.env.APEX_DOMAIN || "compass.app"}`,
       message: `Site provisioned for ${org.displayName}.`,
     });
   } catch (err) {
@@ -229,6 +229,10 @@ app.get("/api/auth/me", (req, res) => {
 
 /* ------------------ Google OAuth --------------------------------- */
 
+// Cookie names kept on the legacy prefix for back-compat — see lib/auth.js
+// for the deferred-rename note. Renaming these mid-flight only invalidates
+// in-flight OAuth attempts (not long-term sessions), but leaving them aligns
+// with the wider cookie-name freeze.
 const OAUTH_STATE_COOKIE = "scouthosting_oauth_state";
 const OAUTH_VERIFIER_COOKIE = "scouthosting_oauth_verifier";
 const OAUTH_NEXT_COOKIE = "scouthosting_oauth_next";
@@ -275,7 +279,7 @@ app.get("/auth/google/start", async (req, res) => {
   setShortCookie(res, OAUTH_VERIFIER_COOKIE, codeVerifier);
 
   // Stash the post-login redirect target if provided. Only same-host paths or
-  // recognized scouthosting hosts are honored at callback time.
+  // recognized Compass hosts are honored at callback time.
   const next = String(req.query.next || "").slice(0, 500);
   if (next) setShortCookie(res, OAUTH_NEXT_COOKIE, encodeURIComponent(next));
 
@@ -406,7 +410,7 @@ ${back}
 // signup so the new user is associated with this org.
 
 function publicLoginPage(org, { error, next, googleConfigured: gc, mode = "login" }) {
-  const apex = (process.env.APEX_DOMAIN || "scouthosting.com").toLowerCase();
+  const apex = (process.env.APEX_DOMAIN || "compass.app").toLowerCase();
   const escape = (s) =>
     String(s ?? "").replace(/[&<>"']/g, (c) => ({
       "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -655,7 +659,7 @@ async function sendVerifyEmail(org, user) {
     { kind: "verify", uid: user.id, email: user.email },
     { secret: AUTH_SECRET, ttlSeconds: 60 * 60 * 24 * 7 }
   );
-  const apex = process.env.APEX_DOMAIN || "scouthosting.com";
+  const apex = process.env.APEX_DOMAIN || "compass.app";
   const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
   const port = process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : "";
   const url = `${protocol}://${org.slug}.${apex}${port}/verify/${token}`;
@@ -707,7 +711,7 @@ app.post("/forgot", csrfProtect, async (req, res, next) => {
       { kind: "reset", uid: user.id, email: user.email, h: user.passwordHash?.slice(-12) || "" },
       { secret: AUTH_SECRET, ttlSeconds: 60 * 60 }
     );
-    const apex = process.env.APEX_DOMAIN || "scouthosting.com";
+    const apex = process.env.APEX_DOMAIN || "compass.app";
     const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
     const port =
       process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : "";
@@ -812,7 +816,7 @@ app.post("/magic", csrfProtect, async (req, res, next) => {
       { kind: "magic", uid: user.id, email: user.email },
       { secret: AUTH_SECRET, ttlSeconds: 60 * 15 }
     );
-    const apex = process.env.APEX_DOMAIN || "scouthosting.com";
+    const apex = process.env.APEX_DOMAIN || "compass.app";
     const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
     const port =
       process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : "";
@@ -1138,7 +1142,7 @@ app.get("/videos", async (req, res, next) => {
 // Reimbursement request form — member submits, treasurer reviews in
 // /admin/reimbursements. Receipt upload is optional but encouraged.
 const reimbursementUpload = multer({
-  dest: process.env.UPLOAD_TMP || "/tmp/scouthosting-uploads",
+  dest: process.env.UPLOAD_TMP || "/tmp/compass-uploads",
   limits: { fileSize: 10 * 1024 * 1024, files: 1 },
 });
 
@@ -1985,11 +1989,11 @@ app.use((req, res) => {
 });
 
 function orgNotFoundPage(slug) {
-  const apex = process.env.APEX_DOMAIN || "scouthosting.com";
+  const apex = process.env.APEX_DOMAIN || "compass.app";
   return `<!doctype html><meta charset="utf-8"><title>Site not found</title>
 <style>body{font-family:system-ui;max-width:560px;margin:6rem auto;padding:0 1.5rem;color:#15181c}
 a{color:#1d6b39}</style>
-<h1>No Scouthosting site at <code>${escapeHtml(slug)}</code></h1>
+<h1>No Compass site at <code>${escapeHtml(slug)}</code></h1>
 <p>This subdomain isn't registered. If this is your unit's site, it may not have
 been provisioned yet — or it may have been moved or deleted.</p>
 <p><a href="https://${apex}/">← Back to ${apex}</a> ·
@@ -2014,7 +2018,7 @@ const _isMain = process.argv[1] && path.resolve(process.argv[1]) === _fu(import.
 if (_isMain) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
-    console.log(`Scouthosting running on http://localhost:${PORT}`);
+    console.log(`Compass running on http://localhost:${PORT}`);
     console.log(`Marketing:  http://localhost:${PORT}/`);
     console.log(`Demo org:   http://troop100.localhost:${PORT}/`);
   });

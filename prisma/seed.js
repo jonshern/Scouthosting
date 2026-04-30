@@ -21,7 +21,7 @@ const DEMO = {
   unitType: "Troop",
   unitNumber: "100",
   displayName: "Sample Troop 100",
-  tagline: "A demo unit for showing what Scouthosting can do.",
+  tagline: "A demo unit for showing what Compass can do.",
   charterOrg: "Example Charter Organization",
   city: "Anytown",
   state: "USA",
@@ -71,7 +71,7 @@ async function seedPage(orgId) {
       orgId,
       heroHeadline: "Adventure, leadership, and the outdoors — since 2010.",
       heroLede:
-        "Sample Troop 100 is a demo unit on Scouthosting. Click around — every section here is real, just filled with placeholder content.",
+        "Sample Troop 100 is a demo unit on Compass. Click around — every section here is real, just filled with placeholder content.",
       aboutBody:
         "We meet every Monday at 7 PM at the Example Charter Organization. Scouts ages 11–17 are welcome to drop in for a meeting before joining.\n\n" +
         "We rotate one major outdoor adventure per year — Philmont, Sea Base, Boundary Waters, jamborees — and a service project every quarter.\n\n" +
@@ -439,7 +439,7 @@ async function seedAnnouncements(orgId) {
     {
       title: "Welcome to our new website!",
       body:
-        "We've moved to Scouthosting — same troop, faster site, easier to update.\n\n" +
+        "We've moved to Compass — same troop, faster site, easier to update.\n\n" +
         "Leaders can post announcements like this from the admin dashboard.",
       pinned: true,
     },

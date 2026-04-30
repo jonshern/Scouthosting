@@ -1,4 +1,4 @@
-# Scouthosting
+# Compass
 
 **The planning and communication hub for Scout units** — troops, Cub Scout
 packs, Venturing crews, Sea Scout ships. Each unit gets a modern,
@@ -6,8 +6,13 @@ mobile-first website plus a private member hub: calendar, photos, forms,
 group email, trip & meal planning, and a CMS leaders can actually use.
 
 Scoutbook (Scouting America's official tool) handles advancement.
-Scouthosting deep-links into it instead of competing with it, so leaders
+Compass deep-links into it instead of competing with it, so leaders
 aren't entering the same data in two places.
+
+> Repo and several internal identifiers (cookie names, GCP resource names,
+> the iCal UID host) are still on the legacy `scouthosting` prefix —
+> deferred renames; see `lib/auth.js`, `lib/calendar.js`, `cloudbuild.yaml`,
+> and `infra/README.md` for the rationale.
 
 > Status: **Phase 2 + first slice of MVP-2 done.** Marketing site, signup,
 > multi-tenant routing, Postgres / Prisma, Lucia auth, and a per-org
@@ -60,12 +65,12 @@ aren't entering the same data in two places.
 
 ### Multi-tenancy
 
-Every unit gets its own subdomain: `troop100.scouthosting.com`,
-`pack577.scouthosting.com`, etc. Express resolves the request's `Host`
+Every unit gets its own subdomain: `troop100.compass.app`,
+`pack577.compass.app`, etc. Express resolves the request's `Host`
 header to an `Org` row in Postgres on every request:
 
 - **Apex / `www` / unrecognized custom domain** → marketing site
-- **`<slug>.scouthosting.com`** or **matched `customDomain`** → templated org
+- **`<slug>.compass.app`** or **matched `customDomain`** → templated org
   site
 - **Unknown subdomain** → friendly 404 with a "start a site" CTA
 
@@ -162,7 +167,7 @@ The callback creates a `User` (or links by verified email if one exists),
 records an `OAuthAccount`, auto-grants admin in any org whose
 `scoutmasterEmail` matches, and redirects to `?next=<path>`.
 
-In production, set `COOKIE_DOMAIN=.scouthosting.com` so the session cookie
+In production, set `COOKIE_DOMAIN=.compass.app` so the session cookie
 set on the apex is valid on every org subdomain. (In dev, sign in directly
 on the org's `/admin/login` if needed.)
 
@@ -214,7 +219,7 @@ npm run db:reset     # drop + re-create + re-seed
 
 - **The demo org is fictional.** "Sample Troop 100" / "Example Charter
   Organization" / "Anytown, USA" are placeholders.
-- **Not affiliated with Scouting America.** Scouthosting is independent.
+- **Not affiliated with Scouting America.** Compass is independent.
 - **Secrets** — `.env` is git-ignored. Production secrets are managed by the
   deployment environment.
 

@@ -1455,9 +1455,9 @@ export function renderSite(org, extras = {}) {
     NAV_CUSTOM: raw(navCustom),
     DEMO_BANNER: org.isDemo
       ? raw(
-          `<div class="demo-banner" role="note"><strong>Scouthosting demo site.</strong> ${escapeHtml(
+          `<div class="demo-banner" role="note"><strong>Compass demo site.</strong> ${escapeHtml(
             org.displayName
-          )} is a fictional unit. <a href="https://${process.env.APEX_DOMAIN || "scouthosting.com"}/signup.html">Start one for your real troop →</a></div>`
+          )} is a fictional unit. <a href="https://${process.env.APEX_DOMAIN || "compass.app"}/signup.html">Start one for your real troop →</a></div>`
         )
       : "",
   };

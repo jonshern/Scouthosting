@@ -1,6 +1,6 @@
-# Scouthosting Roadmap
+# Compass Roadmap
 
-**Scouthosting is the planning and communication hub for Scout units** —
+**Compass is the planning and communication hub for Scout units** —
 troops, Cub Scout packs, Venturing crews, Sea Scout ships. Each unit gets a
 modern, mobile-first website plus a private member hub: calendar, photos,
 forms, group email, trip & meal planning, and a CMS leaders can actually use.
@@ -136,7 +136,7 @@ behind these.
 
 A user account is global. Roles attach via `OrgMembership` (one user, many
 orgs). Roles: `scout`, `parent`, `leader`, `admin`. A super-admin role for
-Scouthosting staff lives outside this model.
+Compass staff lives outside this model.
 
 - [x] Lucia auth on the control plane, sessions in `public.Session`
 - [x] argon2id password hashing (`@node-rs/argon2`)
@@ -162,11 +162,14 @@ Scouthosting staff lives outside this model.
 
 Captured in-flight; sequenced into the right phase later.
 
-- **Confirm product name & apex domain** before deploy. "Scouthosting" /
-  `scouthosting.com` is a placeholder used throughout marketing copy,
-  the ROADMAP, and the demo subdomain. The code uses `APEX_DOMAIN` as
-  an env var so renaming is cheap — find/replace marketing copy + flip
-  the env var. Decide before registering DNS so the value lands once.
+- ~~**Confirm product name & apex domain** before deploy.~~ DONE — name
+  is **Compass** and the default `APEX_DOMAIN` is `compass.app`. Cookie
+  names, the iCal UID host (RFC 5545 stability), the export-bundle schema
+  version, and several GCP resource names are intentionally still on the
+  legacy `scouthosting` prefix; flipping any of those signs users out,
+  duplicates calendar subscribers' events, breaks downstream importers,
+  or requires a coordinated cloud-side migration. They get a coordinated
+  rotation in a later pass.
 
 - ~~RSVP from inside the email.~~ DONE (admin Send-RSVP-reminder action,
   HMAC-signed `/rsvp/:token` endpoint).
@@ -257,7 +260,7 @@ The most-used feature. Match TroopWebHost's coverage, then exceed it.
       riders plan is in Phase 4.5.
 - [ ] **Two-way Google Calendar sync** (per-user) — additive; the ICS
       feed already covers the read path. This adds writes from inside
-      the user's Google Calendar back to Scouthosting.
+      the user's Google Calendar back to Compass.
 - [x] **Service-hour / camping-night / hiking-mile auto-tracking** —
       `Event.serviceHours`, `Event.campingNights`, `Event.hikingMiles`
       are per-attendee credits. `lib/credits.js#tallyCredits` sums them
@@ -354,11 +357,11 @@ companion Scouting mobile app for Scouts and parents.** Merit Badge Counselor
 data lives in the related Scoutbook Plus product. Both feed Internet
 Advancement, the registrar-of-record system used by councils.
 
-Scouthosting **does not** build a parallel advancement tracker. Anything we
+Compass **does not** build a parallel advancement tracker. Anything we
 re-implement is double-entry for leaders and a losing fight against the
 official tool. Instead:
 
-- **Scoutbook is the system of record** for advancement. Scouthosting
+- **Scoutbook is the system of record** for advancement. Compass
   deep-links to it from every Scout profile, the Eagle list, and the
   advancement summary.
 - When BSA's API permits, we **read** advancement progress (ranks, MB
@@ -369,8 +372,8 @@ official tool. Instead:
   ceremony planning, service-hour / camping-night / hiking-mile capture
   from our calendar (which we then push to Scoutbook).
 
-This sharpens our positioning: Scouthosting is the troop's communication
-and operations hub. Scoutbook is the advancement source of truth.
+This sharpens our positioning: Compass is the troop's communication and
+operations hub. Scoutbook is the advancement source of truth.
 
 ## Phase 6 — Scoutbook integration + ceremony tooling
 
@@ -399,7 +402,7 @@ and operations hub. Scoutbook is the advancement source of truth.
 - [x] **Court of Honor planning** — `CohAward` rows attach to a CoH
       event and drive the printable program.
 - [x] **Service-hour / camping-night / hiking-mile capture** from
-      Scouthosting's calendar with a one-click "send to Scoutbook" CSV
+      Compass's calendar with a one-click "send to Scoutbook" CSV
       export at `/admin/credits.csv`. Pushing directly to Internet
       Advancement is the still-open follow-up.
 - [ ] Push to Internet Advancement via the same CSV path
@@ -527,7 +530,7 @@ and operations hub. Scoutbook is the advancement source of truth.
 
 ## Non-goals (deliberately out of scope)
 
-- A general-purpose CMS — Scouthosting is opinionated for Scout units
+- A general-purpose CMS — Compass is opinionated for Scout units
 - A social network — we don't host public youth content beyond what a unit
   chooses to publish
 - Replacing official BSA registration — units still register through their

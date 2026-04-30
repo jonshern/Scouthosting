@@ -1,9 +1,12 @@
 # Copy to terraform.tfvars (gitignored) and fill in.
 
+# project_id is your real GCP project; the example "scouthosting-prod" is a
+# carry-over from the pre-rebrand resource name. New deployments can use
+# "compass-prod"; existing deployments keep targeting the established project.
 project_id  = "scouthosting-prod"
 region      = "us-central1"
 env         = "prod"
-apex_domain = "scouthosting.com"
+apex_domain = "compass.app"
 
 # Image must already be pushed before `terraform apply`. See infra/README.md.
 # Subsequent deploys are handled by Cloud Build (cloudbuild.yaml).
@@ -18,7 +21,7 @@ max_instances = 10
 
 # Mail (defaults to Resend; "console" disables real send for staging).
 # mail_driver = "resend"
-# mail_from   = "Scouthosting <noreply@scouthosting.com>"
+# mail_from   = "Compass <noreply@compass.app>"
 
 # ---------------------------------------------------------------------------
 # Cloudflare — replaces the GCP HTTPS load balancer, saves ~$36/mo

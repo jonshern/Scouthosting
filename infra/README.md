@@ -1,12 +1,14 @@
-# Scouthosting infrastructure
+# Compass infrastructure
 
-Terraform module for deploying Scouthosting.
+Terraform module for deploying Compass. (Resource names below preserve the
+legacy `scouthosting-*` prefix where the actual GCP/Cloud resources still
+use it; new deployments can substitute `compass-*`.)
 
 ## Active target: GCP + Cloudflare
 
 ```
 Internet
-   │  https://*.scouthosting.com
+   │  https://*.compass.app
    ▼
 Cloudflare  ── DNS, wildcard SSL, WAF, rate limit, edge cache, $0
    │  via CNAME → *.run.app, X-Origin-Auth header injected
@@ -79,7 +81,7 @@ gcloud services enable artifactregistry.googleapis.com cloudbuild.googleapis.com
 
 gcloud artifacts repositories create scouthosting \
   --repository-format=docker --location="$REGION" \
-  --description="Scouthosting container images"
+  --description="Compass container images"
 
 gcloud auth configure-docker "$REGION-docker.pkg.dev"
 ```
@@ -95,14 +97,14 @@ docker push "$IMAGE"
 
 ### 3. Add the apex domain to Cloudflare
 
-Sign in to Cloudflare → Add a Site → enter `scouthosting.com` → pick the
+Sign in to Cloudflare → Add a Site → enter `compass.app` → pick the
 free plan → follow Cloudflare's instructions to switch your registrar's
 nameservers. Once status is "Active":
 
 - Copy the **Zone ID** from the Overview page (right-side column)
 - Create an **API Token**: My Profile → API Tokens → Create
   - Permissions: `Zone — DNS — Edit`, `Zone — Zone Settings — Edit`
-  - Zone Resources: Include → Specific zone → `scouthosting.com`
+  - Zone Resources: Include → Specific zone → `compass.app`
 
 ### 4. Create app secrets in Secret Manager
 
@@ -153,10 +155,10 @@ This provisions:
 
 ```bash
 # Apex through Cloudflare → marketing site
-curl -s -o /dev/null -w '%{http_code}\n' https://scouthosting.com/
+curl -s -o /dev/null -w '%{http_code}\n' https://compass.app/
 
 # Demo tenant subdomain
-curl -s -o /dev/null -w '%{http_code}\n' https://troop100.scouthosting.com/
+curl -s -o /dev/null -w '%{http_code}\n' https://troop100.compass.app/
 
 # Direct hit on Cloud Run should now be 403 (no X-Origin-Auth header)
 curl -s -o /dev/null -w '%{http_code}\n' "$(terraform output -raw cloud_run_url)/"
