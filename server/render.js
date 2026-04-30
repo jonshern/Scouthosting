@@ -1364,6 +1364,7 @@ export function renderChatPage(org, { needsSignIn, notAMember } = {}) {
             <div class="chat-form-actions">
               <button class="btn primary" type="submit">Send</button>
               <button class="btn ghost" type="button" id="chat-poll-btn" title="Add a poll">📊 Poll</button>
+              <button class="btn ghost" type="button" id="chat-rsvp-btn" title="Embed an event RSVP">🗓 Event</button>
             </div>
           </form>
         </main>
@@ -1432,6 +1433,19 @@ const CHAT_STYLES = `
   .chat-poll-label { position: relative; flex: 1; }
   .chat-poll-count { position: relative; font-size: 12px; color: #5a6258; font-variant-numeric: tabular-nums; min-width: 1.5rem; text-align: right; }
   .chat-poll-meta { font-size: 11px; color: #5a6258; margin-top: .35rem; }
+  .chat-rsvp { background: #fff; border: 1px solid #d4c8a8; border-radius: 10px; padding: .75rem .85rem; margin-top: .45rem; }
+  .chat-rsvp-deleted { background: #faf3e3; }
+  .chat-rsvp-head { margin-bottom: .55rem; }
+  .chat-rsvp-title { font-family: 'Newsreader', Georgia, serif; font-size: 17px; color: #0d130d; text-decoration: none; font-weight: 500; }
+  .chat-rsvp-title:hover { color: #1d6b39; }
+  .chat-rsvp-meta { font-size: 12px; color: #5a6258; margin-top: 2px; }
+  .chat-rsvp-actions { display: flex; gap: .35rem; flex-wrap: wrap; }
+  .chat-rsvp-btn { display: inline-flex; align-items: center; gap: .35rem; padding: .35rem .7rem; border: 1px solid #d4c8a8; background: #faf3e3; border-radius: 999px; font-family: inherit; font-size: 13px; cursor: pointer; }
+  .chat-rsvp-btn:hover { border-color: #0e3320; }
+  .chat-rsvp-btn.is-mine { background: #e3f29b; border-color: #c8e94a; color: #0e3320; font-weight: 600; }
+  .chat-rsvp-glyph { font-size: 14px; }
+  .chat-rsvp-count { font-size: 12px; color: #5a6258; font-variant-numeric: tabular-nums; }
+  .chat-rsvp-btn.is-mine .chat-rsvp-count { color: #0e3320; }
   @media (max-width: 720px) {
     .chat-shell { grid-template-columns: 1fr; min-height: auto; }
     .chat-sidebar { border-right: 0; border-bottom: 1px solid #e6dcc0; max-height: 200px; overflow-y: auto; }
@@ -1605,7 +1619,13 @@ function renderReactionsBlock(m) {
 }
 
 function renderAttachmentBlock(m) {
-  if (!m.attachment || m.attachment.kind !== 'poll') return '';
+  if (!m.attachment) return '';
+  if (m.attachment.kind === 'poll') return renderPollAttachment(m);
+  if (m.attachment.kind === 'rsvp') return renderRsvpAttachment(m);
+  return '';
+}
+
+function renderPollAttachment(m) {
   const p = m.attachment;
   const total = (p.options || []).reduce((s, o) => s + (o.count || 0), 0);
   const closed = p.closesAt && new Date(p.closesAt) < new Date();
@@ -1633,6 +1653,51 @@ function renderAttachmentBlock(m) {
   );
 }
 
+function renderRsvpAttachment(m) {
+  const e = m.attachment;
+  if (e.deleted) {
+    return (
+      '<div class="chat-rsvp chat-rsvp-deleted">' +
+        '<div class="chat-rsvp-title">🗓 Event removed</div>' +
+        '<div class="chat-rsvp-meta">The original event was deleted. RSVP responses are preserved in the chat history.</div>' +
+      '</div>'
+    );
+  }
+  const start = new Date(e.startsAt);
+  const dateLine = start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) +
+    ' · ' + start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const tally = e.tally || { yes: 0, maybe: 0, no: 0 };
+  const my = e.myResponse;
+  const button = (resp, label, glyph) => {
+    const cls = 'chat-rsvp-btn' + (my === resp ? ' is-mine' : '');
+    return (
+      '<button type="button" class="' + cls + '" data-rsvp-response="' + resp + '">' +
+        '<span class="chat-rsvp-glyph">' + glyph + '</span>' +
+        '<span class="chat-rsvp-label">' + label + '</span>' +
+        '<span class="chat-rsvp-count">' + (tally[resp] || 0) + '</span>' +
+      '</button>'
+    );
+  };
+  return (
+    '<div class="chat-rsvp" data-message-id="' + escapeHtml(m.id) + '">' +
+      '<div class="chat-rsvp-head">' +
+        '<a class="chat-rsvp-title" href="/events/' + escapeHtml(e.eventId) + '" target="_blank" rel="noopener">' +
+          '🗓 ' + escapeHtml(e.title) +
+        '</a>' +
+        '<div class="chat-rsvp-meta">' + escapeHtml(dateLine) +
+          (e.location ? ' · ' + escapeHtml(e.location) : '') +
+          (e.cost ? ' · $' + e.cost : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="chat-rsvp-actions">' +
+        button('yes', 'Going', '✅') +
+        button('maybe', 'Maybe', '🤔') +
+        button('no', "Can't", '🚫') +
+      '</div>' +
+    '</div>'
+  );
+}
+
 function wireMessageActions(li, m) {
   // Reaction toggles
   for (const btn of li.querySelectorAll('.chat-reaction[data-emoji]')) {
@@ -1650,6 +1715,10 @@ function wireMessageActions(li, m) {
   // Poll vote buttons
   for (const btn of li.querySelectorAll('.chat-poll-option[data-poll-option]')) {
     btn.addEventListener('click', () => votePoll(m.id, btn.dataset.pollOption));
+  }
+  // RSVP buttons
+  for (const btn of li.querySelectorAll('.chat-rsvp-btn[data-rsvp-response]')) {
+    btn.addEventListener('click', () => rsvp(m.id, btn.dataset.rsvpResponse));
   }
 }
 
@@ -1673,6 +1742,17 @@ async function votePoll(messageId, optionId) {
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ optionId }),
+    });
+  } catch { /* ignore */ }
+}
+
+async function rsvp(messageId, response) {
+  try {
+    await fetch('/api/v1/messages/' + encodeURIComponent(messageId) + '/rsvp', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ response }),
     });
   } catch { /* ignore */ }
 }
@@ -1823,6 +1903,57 @@ if (pollBtn) {
       return;
     }
     const { message } = await r.json();
+    renderMessages([message], false);
+  });
+}
+
+// RSVP composer. Fetches upcoming events and prompts the leader to pick
+// one by index. Same minimalist prompt() flow as polls; a richer modal
+// can replace this once we have the components for it.
+const rsvpBtn = document.getElementById('chat-rsvp-btn');
+if (rsvpBtn) {
+  rsvpBtn.addEventListener('click', async () => {
+    if (!activeChannelId) return;
+    const r = await fetch('/api/v1/orgs/' + encodeURIComponent(orgId) + '/upcoming-events', {
+      credentials: 'same-origin',
+    });
+    if (!r.ok) {
+      alert('Couldn\\'t load events.');
+      return;
+    }
+    const data = await r.json();
+    if (!data.events || !data.events.length) {
+      alert('No upcoming events on the calendar to embed. Add one in /admin/events first.');
+      return;
+    }
+    const list = data.events.map((e, i) => {
+      const d = new Date(e.startsAt);
+      return (i + 1) + '. ' + e.title + ' — ' + d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }).join('\\n');
+    const choice = window.prompt('Pick an event (1–' + data.events.length + '):\\n\\n' + list, '1');
+    if (!choice) return;
+    const idx = parseInt(choice, 10) - 1;
+    const ev = data.events[idx];
+    if (!ev) {
+      alert('Pick a number from the list.');
+      return;
+    }
+    const note = window.prompt('Optional note to go with the RSVP card:', 'RSVP yes / maybe / no');
+    const send = await fetch('/api/v1/channels/' + encodeURIComponent(activeChannelId) + '/messages', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        body: note || ev.title,
+        attachment: { kind: 'rsvp', eventId: ev.id },
+      }),
+    });
+    if (!send.ok) {
+      const err = await send.json().catch(() => ({}));
+      alert('Couldn\\'t embed event: ' + (err.error || send.status));
+      return;
+    }
+    const { message } = await send.json();
     renderMessages([message], false);
   });
 }

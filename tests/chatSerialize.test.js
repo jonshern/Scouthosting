@@ -58,19 +58,30 @@ function normalizePollAttachment(obj) {
 
 function serializeAttachment(att, viewerUserId) {
   if (!att || typeof att !== "object") return null;
-  if (att.kind !== "poll") return att;
-  return {
-    kind: "poll",
-    question: att.question,
-    closesAt: att.closesAt || null,
-    allowMulti: !!att.allowMulti,
-    options: (att.options || []).map((o) => ({
-      id: o.id,
-      label: o.label,
-      count: (o.votes || []).length,
-      youVoted: !!viewerUserId && (o.votes || []).includes(viewerUserId),
-    })),
-  };
+  if (att.kind === "poll") {
+    return {
+      kind: "poll",
+      question: att.question,
+      closesAt: att.closesAt || null,
+      allowMulti: !!att.allowMulti,
+      options: (att.options || []).map((o) => ({
+        id: o.id,
+        label: o.label,
+        count: (o.votes || []).length,
+        youVoted: !!viewerUserId && (o.votes || []).includes(viewerUserId),
+      })),
+    };
+  }
+  if (att.kind === "rsvp") {
+    return { kind: "rsvp", eventId: att.eventId };
+  }
+  return att;
+}
+
+function normalizeRsvpAttachment(obj) {
+  const eventId = typeof obj.eventId === "string" ? obj.eventId.trim() : "";
+  if (!eventId) return null;
+  return { kind: "rsvp", eventId };
 }
 
 /* ------------------------------------------------------------------ */
@@ -205,7 +216,9 @@ describe("serializeAttachment", () => {
   });
 
   it("passes through unknown attachment kinds unchanged", () => {
-    const att = { kind: "rsvp", title: "Hike" };
+    // rsvp is a known kind now (covered separately); use a placeholder
+    // kind that the serializer doesn't have a case for.
+    const att = { kind: "future-feature", title: "Hike" };
     expect(serializeAttachment(att, "u1")).toEqual(att);
   });
 
@@ -242,5 +255,28 @@ describe("serializeAttachment", () => {
     };
     const out = serializeAttachment(att, null);
     expect(out.options[0].youVoted).toBe(false);
+  });
+
+  it("ships rsvp attachments as a skeleton (event meta is enriched in a follow-up DB pass)", () => {
+    const out = serializeAttachment({ kind: "rsvp", eventId: "evt1" }, "u1");
+    expect(out).toEqual({ kind: "rsvp", eventId: "evt1" });
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/* normalizeRsvpAttachment                                             */
+/* ------------------------------------------------------------------ */
+
+describe("normalizeRsvpAttachment", () => {
+  it("trims and keeps the eventId", () => {
+    expect(normalizeRsvpAttachment({ eventId: "  evt-123  " }))
+      .toEqual({ kind: "rsvp", eventId: "evt-123" });
+  });
+
+  it("rejects missing or non-string eventId", () => {
+    expect(normalizeRsvpAttachment({})).toBeNull();
+    expect(normalizeRsvpAttachment({ eventId: "" })).toBeNull();
+    expect(normalizeRsvpAttachment({ eventId: 123 })).toBeNull();
+    expect(normalizeRsvpAttachment({ eventId: "   " })).toBeNull();
   });
 });
