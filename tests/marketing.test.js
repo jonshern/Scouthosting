@@ -1,7 +1,8 @@
-// Smoke test for the Compass marketing site prototype.
+// Smoke test for the live Compass marketing page (apex /index.html).
 //
-// Mirrors unit-site/tests/smoke.test.js — zero deps beyond Vitest, reads the
-// static index.html via node:fs, asserts required strings + structure.
+// Promoted from the marketing/ prototype in alignment step 2 — the prototype
+// folder no longer exists; this test now guards the live page directly.
+// Zero deps beyond Vitest; reads the static index.html via node:fs.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
