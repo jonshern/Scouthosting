@@ -1436,6 +1436,7 @@ export function renderSite(org, extras = {}) {
     COUNCIL: org.council || "your council",
     DISTRICT: org.district || "your district",
     FOUNDED: org.founded || "—",
+    FOUNDED_LINE: org.founded ? ` · Est. ${org.founded}` : "",
     MEETING_DAY: org.meetingDay,
     MEETING_TIME: org.meetingTime,
     MEETING_LOCATION: org.meetingLocation || org.charterOrg,

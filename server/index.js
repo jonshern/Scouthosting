@@ -1897,7 +1897,11 @@ app.get("/uploads/:filename", async (req, res) => {
 app.get("*", async (req, res, next) => {
   if (!req.org) return next();
 
-  // Static assets for the tenant come from /demo/ — same look, neutral content.
+  // Static assets for the tenant come from /demo/ — this folder is the
+  // tenant-asset bucket (styles.css + script.js), not a standalone demo
+  // URL. The "see what a unit site looks like" preview lives in unit-site/
+  // and the canonical live demo is the seeded "Sample Troop 100" tenant
+  // on demo.<APEX_DOMAIN>.
   const ext = path.extname(req.path);
   if (ext && ext !== ".html") {
     const file = path.join(ROOT, "demo", req.path);

@@ -1,16 +1,6 @@
-const toggle = document.querySelector(".nav-toggle");
-const nav = document.querySelector("#nav");
-if (toggle && nav) {
-  toggle.addEventListener("click", () => {
-    const open = nav.classList.toggle("open");
-    toggle.setAttribute("aria-expanded", String(open));
-  });
-  nav.addEventListener("click", (e) => {
-    if (e.target.tagName === "A") {
-      nav.classList.remove("open");
-      toggle.setAttribute("aria-expanded", "false");
-    }
-  });
-}
+// Tenant page behaviors. Only one for now: the footer year.
+// The legacy hamburger-menu toggle was dropped — the new template's top
+// bar wraps responsively in CSS instead.
+
 const yr = document.getElementById("yr");
 if (yr) yr.textContent = new Date().getFullYear();
