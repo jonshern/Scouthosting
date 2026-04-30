@@ -264,9 +264,15 @@ The most-used feature. Match TroopWebHost's coverage, then exceed it.
 - [x] **Carpool sign-ups** — generic "Drivers" slot template still
       available for self-service "I can drive"; the dedicated rides +
       riders plan is in Phase 4.5.
-- [ ] **Two-way Google Calendar sync** (per-user) — additive; the ICS
-      feed already covers the read path. This adds writes from inside
-      the user's Google Calendar back to Compass.
+- ~~Two-way Google Calendar sync~~ — **scrapped.** The one-way
+  subscription via the existing `/calendar.ics` feed is the right
+  shape: parents add the URL once in Google / Apple / Outlook
+  Calendar and every event the unit publishes shows up automatically.
+  Two-way writes-back-from-personal-calendar would require per-user
+  OAuth, conflict resolution, and ongoing reconciliation for a use
+  case nobody actually has — leaders edit events in `/admin`, not in
+  their personal calendar. ICS subscribe URL is exposed in the admin
+  Events page header so leaders can share it with families.
 - [x] **Service-hour / camping-night / hiking-mile auto-tracking** —
       `Event.serviceHours`, `Event.campingNights`, `Event.hikingMiles`
       are per-attendee credits. `lib/credits.js#tallyCredits` sums them
