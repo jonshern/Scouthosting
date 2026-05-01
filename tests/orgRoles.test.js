@@ -9,13 +9,13 @@
 
 import { describe, it, expect } from "vitest";
 import {
+  UNIT_TYPES,
   SUBGROUP_PRESETS,
   POSITIONS,
   subgroupVocab,
   subgroupPresets,
   positionOptions,
-  hasFixedSubgroups,
-  seedSubgroupsForOrg,
+  buildSeedSubgroups,
 } from "../lib/orgRoles.js";
 
 describe("subgroupVocab", () => {
@@ -55,13 +55,6 @@ describe("subgroupPresets", () => {
     expect(subgroupPresets("Troop")).toEqual([]);
   });
 
-  it("hasFixedSubgroups is true for Pack and GirlScoutTroop, false for Troop", () => {
-    expect(hasFixedSubgroups("Pack")).toBe(true);
-    expect(hasFixedSubgroups("GirlScoutTroop")).toBe(true);
-    expect(hasFixedSubgroups("Troop")).toBe(false);
-    expect(hasFixedSubgroups("Crew")).toBe(false);
-  });
-
   it("locks the six Girl Scout levels in age order", () => {
     const presets = subgroupPresets("GirlScoutTroop");
     const labels = presets.map((p) => p.label);
@@ -73,6 +66,47 @@ describe("subgroupPresets", () => {
       "Senior",
       "Ambassador",
     ]);
+  });
+});
+
+describe("UNIT_TYPES export", () => {
+  it("includes every program Compass supports", () => {
+    expect(UNIT_TYPES).toContain("Troop");
+    expect(UNIT_TYPES).toContain("Pack");
+    expect(UNIT_TYPES).toContain("GirlScoutTroop");
+  });
+
+  it("is frozen so consumers can't accidentally mutate the canonical list", () => {
+    expect(Object.isFrozen(UNIT_TYPES)).toBe(true);
+  });
+});
+
+describe("buildSeedSubgroups (pure DTO builder, no DB)", () => {
+  it("builds six den DTOs for a Pack with patrol filter set", () => {
+    const seeds = buildSeedSubgroups("Pack");
+    expect(seeds).toHaveLength(6);
+    const lion = seeds.find((s) => s.name === "Lion Den");
+    expect(lion.patrols).toEqual(["Lion"]);
+    expect(lion.isYouth).toBe(true);
+    expect(lion.description).toMatch(/Lion \(K\)/);
+  });
+
+  it("builds six level DTOs for a Girl Scout Troop", () => {
+    const seeds = buildSeedSubgroups("GirlScoutTroop");
+    expect(seeds.map((s) => s.name)).toContain("Daisy Level");
+    expect(seeds.map((s) => s.name)).toContain("Ambassador Level");
+  });
+
+  it("returns [] for free-form unit types (Troop, Crew, Ship, Post)", () => {
+    for (const ut of ["Troop", "Crew", "Ship", "Post"]) {
+      expect(buildSeedSubgroups(ut)).toEqual([]);
+    }
+  });
+
+  it("DTO has no orgId — caller is responsible for adding it", () => {
+    for (const s of buildSeedSubgroups("Pack")) {
+      expect(s).not.toHaveProperty("orgId");
+    }
   });
 });
 
@@ -140,68 +174,3 @@ describe("positionOptions", () => {
   });
 });
 
-describe("seedSubgroupsForOrg", () => {
-  function fakePrisma() {
-    const subgroups = [];
-    return {
-      _subgroups: subgroups,
-      subgroup: {
-        createMany: async ({ data, skipDuplicates }) => {
-          for (const row of data) {
-            const exists = subgroups.some(
-              (s) => s.orgId === row.orgId && s.name === row.name,
-            );
-            if (exists && skipDuplicates) continue;
-            subgroups.push({ id: `sg-${subgroups.length}`, ...row });
-          }
-          return { count: data.length };
-        },
-        findMany: async ({ where }) =>
-          subgroups.filter(
-            (s) => s.orgId === where.orgId && where.name.in.includes(s.name),
-          ),
-      },
-    };
-  }
-
-  it("creates the six dens for a Cub Scout Pack", async () => {
-    const prisma = fakePrisma();
-    const org = { id: "o1", unitType: "Pack" };
-    const created = await seedSubgroupsForOrg({ prisma, org });
-    expect(created).toHaveLength(6);
-    const names = created.map((s) => s.name).sort();
-    expect(names).toContain("Lion Den");
-    expect(names).toContain("Arrow of Light Den");
-    // Each subgroup filters to its own preset patrol label.
-    const lion = created.find((s) => s.name === "Lion Den");
-    expect(lion.patrols).toEqual(["Lion"]);
-    expect(lion.isYouth).toBe(true);
-  });
-
-  it("creates the six levels for a Girl Scout Troop", async () => {
-    const prisma = fakePrisma();
-    const org = { id: "o1", unitType: "GirlScoutTroop" };
-    const created = await seedSubgroupsForOrg({ prisma, org });
-    expect(created).toHaveLength(6);
-    const names = created.map((s) => s.name);
-    expect(names).toContain("Daisy Level");
-    expect(names).toContain("Ambassador Level");
-  });
-
-  it("no-ops for free-form unit types (Troops, Crews, Ships, Posts)", async () => {
-    for (const ut of ["Troop", "Crew", "Ship", "Post"]) {
-      const prisma = fakePrisma();
-      const out = await seedSubgroupsForOrg({ prisma, org: { id: "o", unitType: ut } });
-      expect(out).toEqual([]);
-      expect(prisma._subgroups).toEqual([]);
-    }
-  });
-
-  it("is idempotent — second seeding doesn't double-insert", async () => {
-    const prisma = fakePrisma();
-    const org = { id: "o1", unitType: "Pack" };
-    await seedSubgroupsForOrg({ prisma, org });
-    await seedSubgroupsForOrg({ prisma, org });
-    expect(prisma._subgroups).toHaveLength(6);
-  });
-});

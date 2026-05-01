@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import "dotenv/config";
 
 import { prisma } from "../lib/db.js";
-import { seedSubgroupsForOrg } from "../lib/orgRoles.js";
+import { UNIT_TYPES, buildSeedSubgroups } from "../lib/orgRoles.js";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -30,7 +30,7 @@ const REQUIRED = [
   "scoutmasterEmail",
 ];
 
-const VALID_UNIT_TYPES = ["Troop", "Pack", "Crew", "Ship", "Post", "GirlScoutTroop"];
+const VALID_UNIT_TYPES = UNIT_TYPES;
 const VALID_PLANS = ["patrol", "troop", "council"];
 
 const RESERVED_SLUGS = new Set([
@@ -61,40 +61,39 @@ export function validateProvisionInput(body = {}) {
   return errors;
 }
 
-// Subdomain prefix per unit type. Most map to a lower-case form of the
-// enum value; Girl Scout troops get a "gstroop" prefix so we don't
-// collide with Scouts BSA "troop" slugs (different program, different
-// numbering — Troop 12 BSA and Girl Scout Troop 12 can both exist in
-// the same town).
-const SLUG_PREFIX = {
-  Troop: "troop",
-  Pack: "pack",
-  Crew: "crew",
-  Ship: "ship",
-  Post: "post",
-  GirlScoutTroop: "gstroop",
-};
-
-// Human-readable display name per unit type. We don't want
-// "GirlScoutTroop 12" leaking into emails or page titles.
-const DISPLAY_PREFIX = {
-  Troop: "Troop",
-  Pack: "Pack",
-  Crew: "Crew",
-  Ship: "Ship",
-  Post: "Post",
-  GirlScoutTroop: "Girl Scout Troop",
+// Per-unit-type slug + display prefix. Girl Scout troops use "gstroop"
+// so a town can host both Troop 12 (Scouts BSA) and Girl Scout Troop 12
+// without subdomain collision; their display name expands likewise so
+// "GirlScoutTroop 12" never leaks into emails or page titles.
+const UNIT_TYPE_META = {
+  Troop:          { slug: "troop",   display: "Troop" },
+  Pack:           { slug: "pack",    display: "Pack" },
+  Crew:           { slug: "crew",    display: "Crew" },
+  Ship:           { slug: "ship",    display: "Ship" },
+  Post:           { slug: "post",    display: "Post" },
+  GirlScoutTroop: { slug: "gstroop", display: "Girl Scout Troop" },
 };
 
 export function deriveSlug(unitType, unitNumber) {
-  const prefix = SLUG_PREFIX[unitType] || String(unitType).toLowerCase();
+  const prefix = UNIT_TYPE_META[unitType]?.slug || String(unitType).toLowerCase();
   const n = String(unitNumber).toLowerCase().replace(/\s+/g, "");
   return `${prefix}${n}`;
 }
 
 export function formatDisplayName(unitType, unitNumber) {
-  const prefix = DISPLAY_PREFIX[unitType] || String(unitType);
+  const prefix = UNIT_TYPE_META[unitType]?.display || String(unitType);
   return `${prefix} ${unitNumber}`;
+}
+
+// Persist the canonical Subgroup rows for a freshly-provisioned org.
+// Idempotent (skipDuplicates) so re-running on an existing org is safe.
+async function persistSeedSubgroups(org) {
+  const seeds = buildSeedSubgroups(org.unitType);
+  if (!seeds.length) return;
+  await prisma.subgroup.createMany({
+    data: seeds.map((s) => ({ ...s, orgId: org.id })),
+    skipDuplicates: true,
+  });
 }
 
 /**
@@ -142,10 +141,7 @@ export async function provisionOrg(input) {
     },
   });
 
-  // Seed canonical subgroups (Cub Scout dens, Girl Scout levels, etc.).
-  // Free-form unit types (Troops, Crews, Ships, Posts) get nothing here.
-  await seedSubgroupsForOrg({ prisma, org });
-
+  await persistSeedSubgroups(org);
   return org;
 }
 

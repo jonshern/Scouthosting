@@ -113,16 +113,16 @@ describe("greetingFor", () => {
 
 describe("categoryColor", () => {
   it("maps known categories to consistent tokens", () => {
-    expect(categoryColor("meeting")).toBe("var(--sky)");
-    expect(categoryColor("campout")).toBe("var(--accent)");
-    expect(categoryColor("court-of-honor")).toBe("var(--raspberry)");
+    expect(categoryColor("meeting")).toBe("sky");
+    expect(categoryColor("campout")).toBe("accent");
+    expect(categoryColor("court-of-honor")).toBe("raspberry");
   });
   it("normalises whitespace + case", () => {
-    expect(categoryColor("Court of Honor")).toBe("var(--raspberry)");
+    expect(categoryColor("Court of Honor")).toBe("raspberry");
   });
   it("falls back to primary for unknown categories", () => {
-    expect(categoryColor("not-a-real-category")).toBe("var(--primary)");
-    expect(categoryColor(null)).toBe("var(--primary)");
+    expect(categoryColor("not-a-real-category")).toBe("primary");
+    expect(categoryColor(null)).toBe("primary");
   });
 });
 
@@ -166,7 +166,7 @@ describe("buildDashboardModel", () => {
     expect(model.events).toHaveLength(1);
     expect(model.events[0].yes).toBe(2);
     expect(model.events[0].capacity).toBe(12);
-    expect(model.events[0].color).toBe("var(--sky)");
+    expect(model.events[0].color).toBe("sky");
   });
 
   it("aggregates pending reimbursement totals into the treasurer stat", async () => {

@@ -136,44 +136,33 @@ const escape = (s) =>
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
 
-// Resolve the patrol/den/etc value from a posted member form body. Pack
-// forms post `patrolPreset` (the chosen den) AND optionally `patrol` (the
-// free-form fallback when "Other…" is selected). Troop/Crew/Ship/Post
-// forms post only `patrol`. We collapse both shapes into one trimmed
-// string here so the rest of the handler doesn't care which field shape
-// it got.
+// Sentinel option value emitted by the den/level <select> when the
+// admin wants to type a name not on the canonical list. Both the form
+// renderer and the body parser key off this string.
+const OTHER_PRESET = "__other__";
+
 function resolvePatrolFromBody(body) {
   const preset = (body?.patrolPreset || "").trim();
-  if (preset && preset !== "__other__") return preset;
+  if (preset && preset !== OTHER_PRESET) return preset;
   return body?.patrol?.trim() || null;
 }
 
-// Render the position field for a Member edit form. Position vocabulary
-// depends on unit type (Cubmaster / Scoutmaster / Skipper / Advisor). We
-// use a `<datalist>` so admins get the typed suggestions but can still
-// type something custom — the saved value is whatever string ended up
-// in the input, so audits stay precise.
-function memberPositionField({ unitType, current }) {
-  const opts = positionOptions(unitType);
-  const datalist = opts
+function memberPositionField({ unitType, current, formId }) {
+  const listId = `position-options-${formId}`;
+  const datalist = positionOptions(unitType)
     .filter((o) => o !== "Other")
     .map((o) => `<option value="${escape(o)}">`)
     .join("");
-  return `<label style="margin:0;flex:1">Position<input name="position" type="text" maxlength="60" placeholder="Pick or type a custom title" list="position-options" value="${escape(current)}"><datalist id="position-options">${datalist}</datalist></label>`;
+  return `<label style="margin:0;flex:1">Position<input name="position" type="text" maxlength="60" placeholder="Pick or type a custom title" list="${escape(listId)}" value="${escape(current)}"><datalist id="${escape(listId)}">${datalist}</datalist></label>`;
 }
 
-// Render the subgroup (patrol/den/watch) field for a Member edit form.
-// For unit types with a fixed canonical list (Cub Scout dens) we render
-// a `<select>` with the preset names + an Other option that flips into a
-// free-form input via the small inline script. For free-form unit types
-// (Troops, etc.) we keep a plain text input — the unit picks patrol names.
-function memberSubgroupField({ unitType, current }) {
+function memberSubgroupField({ unitType, current, formId }) {
   const vocab = subgroupVocab(unitType);
-  const heading = vocab.heading.replace(/s$/, ""); // "Dens" → "Den" for the label
-  if (!hasFixedSubgroups(unitType)) {
+  const heading = vocab.heading.replace(/s$/, "");
+  const presets = subgroupPresets(unitType);
+  if (!presets.length) {
     return `<label style="margin:0;flex:1">${escape(heading)}<input name="patrol" type="text" maxlength="40" value="${escape(current)}"></label>`;
   }
-  const presets = subgroupPresets(unitType);
   const inList = presets.some((p) => p.label === current);
   const options = [
     `<option value=""${current === "" ? " selected" : ""}>—</option>`,
@@ -181,10 +170,10 @@ function memberSubgroupField({ unitType, current }) {
       (p) =>
         `<option value="${escape(p.label)}"${current === p.label ? " selected" : ""}>${escape(p.label)} <small>(${escape(p.grade)})</small></option>`,
     ),
-    `<option value="__other__"${!inList && current ? " selected" : ""}>Other…</option>`,
+    `<option value="${OTHER_PRESET}"${!inList && current ? " selected" : ""}>Other…</option>`,
   ].join("");
-  return `<label style="margin:0;flex:1">${escape(heading)}
-    <select name="patrolPreset" onchange="this.nextElementSibling.style.display=this.value==='__other__'?'block':'none'">${options}</select>
+  return `<label style="margin:0;flex:1" data-form-id="${escape(formId)}">${escape(heading)}
+    <select name="patrolPreset" onchange="this.nextElementSibling.style.display=this.value==='${OTHER_PRESET}'?'block':'none'">${options}</select>
     <input name="patrol" type="text" maxlength="40" placeholder="Custom ${escape(vocab.singular)} name" value="${escape(!inList ? current : "")}" style="margin-top:.4rem;display:${!inList && current ? "block" : "none"}">
   </label>`;
 }
@@ -625,17 +614,6 @@ async function requireLeader(req, res, next) {
       );
   }
   req.role = role;
-  // Populate the Member directory entry (by email) so position-scope
-  // gates downstream can read req.member.position. Best-effort — it's
-  // fine for a leader to not have a Member row (a fresh admin who hasn't
-  // added themselves to the directory yet).
-  if (req.user.email) {
-    req.member = await prisma.member.findFirst({
-      where: { orgId: req.org.id, email: req.user.email.toLowerCase() },
-      select: { id: true, position: true, isYouth: true, patrol: true },
-    });
-  }
-  req.scopes = req.member ? scopesForPosition(req.member.position) : new Set();
   next();
 }
 
@@ -768,30 +746,38 @@ function dashboardSummaryLine(model) {
   return parts.join(" · ");
 }
 
+// The dashboard model emits semantic colour keys (e.g. "sky"); the
+// renderer is the only layer that knows about CSS custom properties.
+function paletteVar(key) {
+  return `var(--${key})`;
+}
+
 function dashboardStatCard(label, stat) {
+  const c = paletteVar(stat.color);
   return `
-<div class="dash-stat" style="border-top-color:${stat.color}">
-  <div class="dash-stat-label" style="color:${stat.color}">${escape(label)}</div>
+<div class="dash-stat" style="border-top-color:${c}">
+  <div class="dash-stat-label" style="color:${c}">${escape(label)}</div>
   <div class="dash-stat-num">${escape(String(stat.value))}</div>
   <div class="dash-stat-hint">${escape(stat.hint)}</div>
 </div>`;
 }
 
 function dashboardEventRow(e) {
+  const c = paletteVar(e.color);
   const month = e.startsAt.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
   const day = String(e.startsAt.getUTCDate()).padStart(2, "0");
   const total = e.capacity || e.yes;
   const pct = total ? Math.min(100, Math.round((e.yes / total) * 100)) : 0;
   return `
-<a class="dash-event-row" href="/admin/events/${escape(e.id)}/rsvps" style="border-top-color:${e.color}">
-  <div class="dash-event-date" style="color:${e.color}">${escape(month)} ${escape(day)}</div>
+<a class="dash-event-row" href="/admin/events/${escape(e.id)}/rsvps" style="border-top-color:${c}">
+  <div class="dash-event-date" style="color:${c}">${escape(month)} ${escape(day)}</div>
   <div class="dash-event-meta">
     <div class="dash-event-name">${escape(e.title)}</div>
     <div class="dash-event-sub">${escape(e.category || "Event")} · ${escape(e.startsAt.toISOString().slice(0, 16).replace("T", " "))} UTC</div>
   </div>
   <div class="dash-event-rsvp">
     <div class="dash-event-rsvp-line">${e.yes} of ${total || "—"} replied</div>
-    <div class="dash-bar"><div class="dash-bar-fill" style="width:${pct}%;background:${e.color}"></div></div>
+    <div class="dash-bar"><div class="dash-bar-fill" style="width:${pct}%;background:${c}"></div></div>
   </div>
 </a>`;
 }
@@ -799,7 +785,7 @@ function dashboardEventRow(e) {
 function dashboardActivityRow(a) {
   return `
 <div class="dash-activity-row">
-  <div class="dash-activity-icon" style="background:${a.color};color:#fff">${dashboardActivityGlyph(a.icon)}</div>
+  <div class="dash-activity-icon" style="background:${paletteVar(a.color)};color:#fff">${dashboardActivityGlyph(a.icon)}</div>
   <div class="dash-activity-text">
     <div><strong>${escape(a.who)}</strong> <span class="muted">${escape(a.what)}</span></div>
     <div class="dash-activity-when">${escape(relativeTime(a.at))}</div>
@@ -3040,7 +3026,7 @@ const DIETARY_PRESETS = [
   "Kosher",
 ];
 
-async function memberForm({ member, action, submitLabel, orgId }) {
+async function memberForm({ member, action, submitLabel, orgId, unitType }) {
   const v = (k) => escape(member?.[k] ?? "");
   const checked = (cond) => (cond ? " checked" : "");
   const sel = (cond) => (cond ? " selected" : "");
@@ -3090,8 +3076,8 @@ async function memberForm({ member, action, submitLabel, orgId }) {
           : ""
       }
       <div class="row">
-        ${memberSubgroupField({ unitType: req.org.unitType, current: v("patrol") })}
-        ${memberPositionField({ unitType: req.org.unitType, current: v("position") })}
+        ${memberSubgroupField({ unitType, current: v("patrol"), formId: member?.id || "new" })}
+        ${memberPositionField({ unitType, current: v("position"), formId: member?.id || "new" })}
       </div>
       <div class="row">
         <label style="margin:0;flex:1">Birthdate (optional)<input name="birthdate" type="date" value="${
@@ -3195,7 +3181,7 @@ adminRouter.get("/members", requireLeader, async (req, res) => {
     <p class="muted">${members.length} on the roster · ${youth.length} youth · ${adults.length} adults</p>
 
     <h2 style="margin-top:1rem">Add a member</h2>
-    ${await memberForm({ member: null, action: "/admin/members", submitLabel: "Add member", orgId: req.org.id })}
+    ${await memberForm({ member: null, action: "/admin/members", submitLabel: "Add member", orgId: req.org.id, unitType: req.org.unitType })}
 
     <p style="margin-top:1rem"><a class="btn btn-ghost" href="/admin/members/import">Bulk import from CSV →</a></p>
 
@@ -3380,7 +3366,7 @@ adminRouter.get("/members/:id/edit", requireLeader, async (req, res) => {
     .join("");
   const body = `
     <h1>Edit member</h1>
-    ${await memberForm({ member, action: `/admin/members/${escape(member.id)}`, submitLabel: "Save", orgId: req.org.id })}
+    ${await memberForm({ member, action: `/admin/members/${escape(member.id)}`, submitLabel: "Save", orgId: req.org.id, unitType: req.org.unitType })}
 
     <h2 style="margin-top:1.5rem">Position history</h2>
     <p class="muted small">Editing the <strong>Position</strong> field above auto-closes the open term and opens a new one. You can also backfill past terms here.</p>
@@ -6018,11 +6004,9 @@ async function decideReimbursement(req, res, status) {
   res.redirect("/admin/reimbursements");
 }
 
-// Reimbursement decisions are gated on the TREASURER scope (Treasurer,
-// Cookie Manager, Purser) OR the COMMITTEE_CHAIR scope. Any leader can
-// view the queue, but only positions actually responsible for the unit's
-// money can approve/deny/pay/delete. Org admins always pass.
-const requireMoneyScope = requireScope(SCOPES.TREASURER, SCOPES.COMMITTEE_CHAIR);
+// Reimbursement writes need a money-shaped position (Treasurer, Cookie
+// Manager, Purser) or COMMITTEE_CHAIR. Reads stay open to all leaders.
+const requireMoneyScope = requireScope(prisma, SCOPES.TREASURER, SCOPES.COMMITTEE_CHAIR);
 
 adminRouter.post(
   "/reimbursements/:id/approve",

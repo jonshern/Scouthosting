@@ -104,10 +104,12 @@ describe("positionHasScope", () => {
 });
 
 describe("requireScope middleware", () => {
-  function fakeReq({ role, position }) {
+  function fakeReq({ role, position, email = "user@example.com" }) {
     return {
       role,
       member: position ? { position } : null,
+      user: { email },
+      org: { id: "org1" },
     };
   }
   function fakeRes() {
@@ -117,56 +119,91 @@ describe("requireScope middleware", () => {
     res.send = (b) => { res.body = b; return res; };
     return res;
   }
+  // Stub Prisma — only the lazy-load case calls findFirst; tests set
+  // req.member up-front so this rarely fires.
+  const fakePrisma = {
+    member: {
+      findFirst: async () => null,
+    },
+  };
 
-  it("admins always pass", () => {
-    const next = () => { next.called = true; };
-    const gate = requireScope(SCOPES.TREASURER);
-    gate(fakeReq({ role: "admin" }), fakeRes(), next);
-    expect(next.called).toBe(true);
+  it("admins always pass", async () => {
+    let called = false;
+    const gate = requireScope(fakePrisma, SCOPES.TREASURER);
+    await gate(fakeReq({ role: "admin" }), fakeRes(), () => { called = true; });
+    expect(called).toBe(true);
   });
 
-  it("leaders pass on broad scopes (committee-chair, committee, unit-leader)", () => {
-    const next = () => { next.called = true; };
-    const gate = requireScope(SCOPES.COMMITTEE_CHAIR);
-    gate(fakeReq({ role: "leader" }), fakeRes(), next);
-    expect(next.called).toBe(true);
+  it("leaders pass on broad scopes (committee-chair, committee, unit-leader)", async () => {
+    let called = false;
+    const gate = requireScope(fakePrisma, SCOPES.COMMITTEE_CHAIR);
+    await gate(fakeReq({ role: "leader" }), fakeRes(), () => { called = true; });
+    expect(called).toBe(true);
   });
 
-  it("leaders are blocked from narrow scopes (treasurer, secretary, advancement) without a position", () => {
-    let nextCalled = false;
-    const gate = requireScope(SCOPES.TREASURER);
+  it("leaders are blocked from narrow scopes (treasurer, secretary, advancement) without a position", async () => {
+    let called = false;
+    const gate = requireScope(fakePrisma, SCOPES.TREASURER);
     const res = fakeRes();
-    gate(fakeReq({ role: "leader" }), res, () => { nextCalled = true; });
-    expect(nextCalled).toBe(false);
+    await gate(fakeReq({ role: "leader" }), res, () => { called = true; });
+    expect(called).toBe(false);
     expect(res.statusCode).toBe(403);
   });
 
-  it("a leader holding the Treasurer position passes the treasurer gate", () => {
-    let nextCalled = false;
-    const gate = requireScope(SCOPES.TREASURER);
-    gate(
+  it("a leader holding the Treasurer position passes the treasurer gate", async () => {
+    let called = false;
+    const gate = requireScope(fakePrisma, SCOPES.TREASURER);
+    await gate(
       fakeReq({ role: "leader", position: "Treasurer" }),
       fakeRes(),
-      () => { nextCalled = true; },
+      () => { called = true; },
     );
-    expect(nextCalled).toBe(true);
+    expect(called).toBe(true);
   });
 
-  it("a leader holding the Cookie Manager position passes the treasurer gate (GS)", () => {
-    let nextCalled = false;
-    const gate = requireScope(SCOPES.TREASURER);
-    gate(
+  it("a leader holding the Cookie Manager position passes the treasurer gate (GS)", async () => {
+    let called = false;
+    const gate = requireScope(fakePrisma, SCOPES.TREASURER);
+    await gate(
       fakeReq({ role: "leader", position: "Cookie Manager" }),
       fakeRes(),
-      () => { nextCalled = true; },
+      () => { called = true; },
     );
-    expect(nextCalled).toBe(true);
+    expect(called).toBe(true);
   });
 
-  it("returns a useful 403 message when blocked", () => {
+  it("returns a useful 403 message when blocked", async () => {
     const res = fakeRes();
-    requireScope(SCOPES.TREASURER)(fakeReq({ role: "leader" }), res, () => {});
+    await requireScope(fakePrisma, SCOPES.TREASURER)(fakeReq({ role: "leader" }), res, () => {});
     expect(res.body).toMatch(/treasurer/i);
     expect(res.body).toMatch(/Scoutmaster|Committee Chair/);
+  });
+
+  it("lazy-loads req.member from prisma when not pre-populated", async () => {
+    let lookupCalled = false;
+    const prisma = {
+      member: {
+        findFirst: async () => {
+          lookupCalled = true;
+          return { id: "m1", position: "Treasurer" };
+        },
+      },
+    };
+    let next = false;
+    const gate = requireScope(prisma, SCOPES.TREASURER);
+    await gate(fakeReq({ role: "leader" }), fakeRes(), () => { next = true; });
+    expect(lookupCalled).toBe(true);
+    expect(next).toBe(true);
+  });
+
+  it("admins skip the lazy lookup entirely (hot-path optimisation)", async () => {
+    let lookupCalled = false;
+    const prisma = {
+      member: {
+        findFirst: async () => { lookupCalled = true; return null; },
+      },
+    };
+    await requireScope(prisma, SCOPES.TREASURER)(fakeReq({ role: "admin" }), fakeRes(), () => {});
+    expect(lookupCalled).toBe(false);
   });
 });
