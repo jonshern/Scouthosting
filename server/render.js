@@ -49,6 +49,39 @@ function textToHtml(s) {
   return renderMarkdown(s ?? "");
 }
 
+// Hero photo strip — three or four most-recent public-album photos
+// laid out as a 2/1/1 grid under the hero text. Each tile gets a
+// secondary-spectrum top border so the strip echoes the marketing
+// site's locked design. Returns an empty string when no photos so
+// the hero collapses gracefully.
+function renderHeroPhotos(photos) {
+  if (!photos || !photos.length) return "";
+  const tones = ["accent", "sky", "raspberry", "plum"];
+  const slice = photos.slice(0, 4);
+  const tiles = slice
+    .map((p, i) => {
+      const tone = tones[i % tones.length];
+      const caption = p.caption ? escapeHtml(p.caption) : "";
+      return `<a class="hero-photo hero-photo--${escapeHtml(tone)}" href="/photos" aria-label="${caption || "Open the photo gallery"}" style="--cc:var(--${escapeHtml(tone)})">
+        <img src="/uploads/${escapeHtml(p.filename)}" alt="${caption}" loading="lazy">
+      </a>`;
+    })
+    .join("");
+  return `<div class="hero__photos" aria-hidden="false">${tiles}</div>
+    <style>
+      .hero__photos{margin-top:32px;display:grid;grid-template-columns:2fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;height:340px;border-radius:6px;overflow:hidden}
+      .hero-photo{display:block;border-top:5px solid var(--cc);border-radius:6px;overflow:hidden;background:#1d3a32;position:relative}
+      .hero-photo:first-child{grid-row:1 / span 2}
+      .hero-photo img{display:block;width:100%;height:100%;object-fit:cover}
+      .hero-photo:focus-visible{outline:3px solid var(--cc);outline-offset:2px}
+      @media (max-width:720px){
+        .hero__photos{grid-template-columns:1fr 1fr;grid-template-rows:auto auto;height:auto;gap:6px}
+        .hero-photo:first-child{grid-row:auto;grid-column:1/-1}
+        .hero-photo img{aspect-ratio:16/9;height:auto}
+      }
+    </style>`;
+}
+
 function renderGallery(albums) {
   if (!albums || albums.length === 0) {
     return `
@@ -2379,7 +2412,7 @@ function renderAnnouncements(list) {
 }
 
 export function renderSite(org, extras = {}) {
-  const { page, announcements, albums, posts, user, role, customPages } = extras;
+  const { page, announcements, albums, posts, user, role, customPages, heroPhotos } = extras;
   const tpl = loadTemplate();
   const navAuth = user
     ? `${role === "admin" || role === "leader" ? `<li><a href="/admin">Admin</a></li>` : ""}
@@ -2441,6 +2474,7 @@ export function renderSite(org, extras = {}) {
     FEED: raw(renderFeed(posts)),
     EVENTS: raw(renderEvents(extras.events)),
     GALLERY: raw(renderGallery(albums)),
+    HERO_PHOTOS: raw(renderHeroPhotos(heroPhotos || [])),
     NAV_AUTH: raw(navAuth),
     NAV_CUSTOM: raw(navCustom),
     DEMO_BANNER: org.isDemo

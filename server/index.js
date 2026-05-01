@@ -2752,7 +2752,7 @@ app.get("*", async (req, res, next) => {
   }
 
   // Pull CMS content alongside the org so a single render call has everything.
-  const [page, announcements, albums, events, posts, customPages] = await Promise.all([
+  const [page, announcements, albums, heroPhotos, events, posts, customPages] = await Promise.all([
     prisma.page.findUnique({ where: { orgId: req.org.id } }),
     prisma.announcement.findMany({
       where: {
@@ -2770,6 +2770,17 @@ app.get("*", async (req, res, next) => {
         photos: { orderBy: { sortOrder: "asc" }, take: 1 },
         _count: { select: { photos: true } },
       },
+    }),
+    // Hero strip: 4 most-recent photos from any public album. Falls
+    // back to an empty array; renderSite hides the strip when absent.
+    prisma.photo.findMany({
+      where: {
+        orgId: req.org.id,
+        album: { visibility: "public" },
+      },
+      orderBy: [{ takenAt: "desc" }, { createdAt: "desc" }],
+      take: 4,
+      select: { id: true, filename: true, caption: true },
     }),
     prisma.event
       .findMany({
@@ -2815,6 +2826,7 @@ app.get("*", async (req, res, next) => {
     page,
     announcements,
     albums,
+    heroPhotos,
     events,
     posts,
     customPages,
