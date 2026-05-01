@@ -15,7 +15,7 @@ import crypto from "node:crypto";
 import { prisma } from "../lib/db.js";
 import { lucia, verifyPassword, roleInOrg } from "../lib/auth.js";
 import { moveFromTemp, remove as removeFile } from "../lib/storage.js";
-import { googleConfigured } from "../lib/oauth.js";
+import { googleConfigured, appleConfigured } from "../lib/oauth.js";
 import { sendBatch, mailDriver } from "../lib/mail.js";
 import { sendSmsBatch, smsDriver, normalisePhone } from "../lib/sms.js";
 import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dietary.js";
@@ -568,8 +568,9 @@ function loginPage({ org, error }) {
   // Google OAuth lives on the apex (single redirect URI). The callback sets
   // a session cookie scoped to COOKIE_DOMAIN; in production that's
   // `.compass.app` so the cookie is valid on this org subdomain too.
+  const adminNext = encodeURIComponent(`https://${org.slug}.${process.env.APEX_DOMAIN || "compass.app"}/admin`);
   const googleHtml = googleConfigured
-    ? `<a class="btn-google" href="https://${apex}/auth/google/start?next=${encodeURIComponent(`https://${org.slug}.${process.env.APEX_DOMAIN || "compass.app"}/admin`)}">
+    ? `<a class="btn-google" href="https://${apex}/auth/google/start?next=${adminNext}">
   <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
     <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.49h4.84c-.21 1.13-.84 2.08-1.79 2.72v2.26h2.9c1.7-1.56 2.69-3.87 2.69-6.63z"/>
     <path fill="#34A853" d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.9-2.26c-.81.54-1.84.86-3.06.86-2.36 0-4.36-1.6-5.07-3.74H.96v2.34A9 9 0 0 0 9 18z"/>
@@ -577,8 +578,18 @@ function loginPage({ org, error }) {
     <path fill="#EA4335" d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58A8.99 8.99 0 0 0 9 0 9 9 0 0 0 .96 4.98l2.97 2.34C4.64 5.18 6.64 3.58 9 3.58z"/>
   </svg>
   <span>Continue with Google</span>
-</a>
-<div class="divider"><span>or with email</span></div>`
+</a>`
+    : "";
+  const appleHtml = appleConfigured
+    ? `<a class="btn-google" style="background:#0d130d;color:#fff;border-color:#0d130d" href="https://${apex}/auth/apple/start?next=${adminNext}">
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="#fff">
+    <path d="M16.4 12.5c0-2.6 2.1-3.9 2.2-3.9-1.2-1.7-3-2-3.7-2-1.6-.2-3 .9-3.8.9-.8 0-2-.9-3.2-.9-1.7 0-3.2 1-4.1 2.5-1.7 3-.4 7.4 1.3 9.8.8 1.2 1.7 2.5 3 2.5 1.2 0 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8 0-.1-2.5-.9-2.4-3.7zM14.2 4.4c.7-.8 1.1-2 1-3.2-1 0-2.2.7-2.9 1.5-.7.7-1.2 1.9-1.1 3 1.2.1 2.4-.5 3-1.3z"/>
+  </svg>
+  <span>Continue with Apple</span>
+</a>`
+    : "";
+  const oauthHtml = googleHtml || appleHtml
+    ? `${googleHtml}${appleHtml}<div class="divider"><span>or with email</span></div>`
     : "";
 
   return `<!doctype html>
@@ -615,7 +626,7 @@ small.help a:hover{color:var(--primary-hover)}
 <h1>${escape(org.displayName)}</h1>
 <p class="lede">Sign in to manage this <em>${escape(String(org.unitType || "").toLowerCase() || "unit")}</em>.</p>
 ${errHtml}
-${googleHtml}
+${oauthHtml}
 <form method="post" action="/admin/login" autocomplete="on">
 <label>Email<input name="email" type="email" required autocomplete="email"></label>
 <label>Password<input name="password" type="password" required autocomplete="current-password"></label>

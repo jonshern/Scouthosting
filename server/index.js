@@ -55,7 +55,7 @@ import {
 } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
-import { googleOAuth, googleConfigured, fetchGoogleProfile } from "../lib/oauth.js";
+import { googleOAuth, googleConfigured, fetchGoogleProfile, appleOAuth, appleConfigured, decodeAppleIdToken } from "../lib/oauth.js";
 import { generateState, generateCodeVerifier } from "arctic";
 import { icsFor, icsForOrg, expandOccurrences } from "../lib/calendar.js";
 import { verifyRsvpToken } from "../lib/rsvpToken.js";
@@ -731,6 +731,118 @@ app.get("/auth/google/callback", async (req, res) => {
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
 
   // Redirect back to the requested path if same-host; else marketing root.
+  const next = readCookie(req, OAUTH_NEXT_COOKIE);
+  clearShortCookie(res, OAUTH_NEXT_COOKIE);
+  if (next && next.startsWith("/")) return res.redirect(decodeURIComponent(next));
+  res.redirect("/");
+});
+
+/* ------------------ Apple Sign-in -------------------------------- */
+
+app.get("/auth/apple/start", async (req, res) => {
+  if (!appleConfigured) {
+    return res.status(503).type("text/plain").send("Apple sign-in is not configured here.");
+  }
+  const state = generateState();
+  setShortCookie(res, OAUTH_STATE_COOKIE, state);
+  if (typeof req.query.next === "string" && req.query.next.startsWith("/")) {
+    setShortCookie(res, OAUTH_NEXT_COOKIE, encodeURIComponent(req.query.next));
+  }
+  // Apple doesn't use PKCE for the auth code flow; we still ask for
+  // name + email scopes (the user can untick name in Apple's UI).
+  const url = await appleOAuth.createAuthorizationURL(state, ["name", "email"]);
+  // Apple requires response_mode=form_post when "name" / "email" scopes
+  // are requested — the redirect URI gets POSTed instead of GETed.
+  url.searchParams.set("response_mode", "form_post");
+  res.redirect(url.toString());
+});
+
+// Apple uses POST callback when scopes include name/email. The body
+// contains: code, state, optionally `user` (a JSON blob with the user's
+// name on first sign-in only).
+app.post("/auth/apple/callback", async (req, res) => {
+  if (!appleConfigured) return res.status(503).send("Apple OAuth not configured.");
+
+  const code = req.body?.code;
+  const stateParam = req.body?.state;
+  const storedState = readCookie(req, OAUTH_STATE_COOKIE);
+  clearShortCookie(res, OAUTH_STATE_COOKIE);
+
+  if (!code || !stateParam || !storedState || stateParam !== storedState) {
+    return res.status(400).send("Invalid OAuth state.");
+  }
+
+  let tokens;
+  try {
+    tokens = await appleOAuth.validateAuthorizationCode(code);
+  } catch (err) {
+    log.warn("Apple token exchange failed", { err });
+    return res.status(400).send("Token exchange failed.");
+  }
+
+  let claims;
+  try {
+    claims = decodeAppleIdToken(tokens.idToken);
+  } catch (err) {
+    log.warn("Apple id_token decode failed", { err });
+    return res.status(502).send("Could not read Apple identity.");
+  }
+
+  if (!claims.email) {
+    // Apple can hide the email behind a relay address; even then we get
+    // *some* email. If genuinely missing, bail.
+    return res.status(400).send("Apple didn't share a usable email.");
+  }
+
+  const email = String(claims.email).toLowerCase();
+  const sub = claims.sub;
+  // First-sign-in only: Apple posts a `user` JSON blob with name fields.
+  let displayName = email.split("@")[0];
+  if (req.body?.user) {
+    try {
+      const u = JSON.parse(req.body.user);
+      const first = u?.name?.firstName || "";
+      const last = u?.name?.lastName || "";
+      const composed = `${first} ${last}`.trim();
+      if (composed) displayName = composed;
+    } catch {
+      // Malformed user blob — fall back to email-derived name.
+    }
+  }
+
+  const existing = await prisma.oAuthAccount.findUnique({
+    where: { provider_providerAccountId: { provider: "apple", providerAccountId: sub } },
+    include: { user: true },
+  });
+
+  let user;
+  if (existing) {
+    user = existing.user;
+  } else {
+    user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: { email, displayName, emailVerified: true },
+      });
+      const ownedOrgs = await prisma.org.findMany({
+        where: { scoutmasterEmail: email },
+        select: { id: true },
+      });
+      if (ownedOrgs.length) {
+        await prisma.orgMembership.createMany({
+          data: ownedOrgs.map((o) => ({ userId: user.id, orgId: o.id, role: "admin" })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    await prisma.oAuthAccount.create({
+      data: { userId: user.id, provider: "apple", providerAccountId: sub },
+    });
+  }
+
+  const session = await lucia.createSession(user.id, {});
+  res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
+
   const next = readCookie(req, OAUTH_NEXT_COOKIE);
   clearShortCookie(res, OAUTH_NEXT_COOKIE);
   if (next && next.startsWith("/")) return res.redirect(decodeURIComponent(next));
