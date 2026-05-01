@@ -236,6 +236,12 @@ app.get("/sitemap.xml", async (req, res) => {
   res.type("application/xml").send(buildSitemap(entries));
 });
 
+// Pinned announcement banner — mounts only when an org is resolved.
+// Wraps res.send so any HTML response gets the banner injected just
+// inside <body>. Non-HTML and apex responses pass through untouched.
+import { attachAnnouncementBanner } from "../lib/announcementBanner.js";
+app.use(attachAnnouncementBanner());
+
 /* ------------------ Marketing site (apex / www) ------------------- */
 
 app.use((req, res, next) => {
