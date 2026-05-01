@@ -81,6 +81,7 @@ export async function persistSignIn(
   const profile: StoredProfile = {
     userId: result.userId || me.user.id,
     displayName: result.displayName || me.user.displayName,
+    email: me.user.email || "",
     orgs: me.memberships,
     activeOrgId: me.memberships[0]?.orgId,
   };
