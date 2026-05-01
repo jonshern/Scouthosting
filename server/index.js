@@ -273,6 +273,67 @@ app.use("/__super", (req, res, next) => {
   return superAdminRouter(req, res, next);
 });
 
+// Apex-only org chooser. After a fresh apex login, a user holding admin
+// in 2+ orgs lands here (postLoginRedirect picks /choose-org). Each row
+// links to that org's /auth/handoff so the click crosses subdomains
+// with a short-lived token rather than a shared cookie.
+app.get("/choose-org", async (req, res, next) => {
+  if (req.org) return next();
+  if (!req.user) return res.redirect(`/login.html?next=${encodeURIComponent("/choose-org")}`);
+  const memberships = await prisma.orgMembership.findMany({
+    where: { userId: req.user.id, role: "admin" },
+    select: { org: { select: { slug: true, displayName: true, unitType: true, unitNumber: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+  if (memberships.length === 0) {
+    return res.redirect("/signup.html");
+  }
+  if (memberships.length === 1) {
+    const url = handoffUrlForUser(req, req.user.id, memberships[0].org.slug, "/admin");
+    return res.redirect(url);
+  }
+  const escape = (s) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  const rows = memberships
+    .map((m) => {
+      const url = handoffUrlForUser(req, req.user.id, m.org.slug, "/admin");
+      return `<li><a class="org" href="${escape(url)}">
+        <span class="org__name">${escape(m.org.displayName)}</span>
+        <span class="org__meta">${escape(m.org.unitType)} ${escape(m.org.unitNumber)} · ${escape(m.org.slug)}</span>
+      </a></li>`;
+    })
+    .join("");
+  res.type("html").send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Choose your unit — Compass</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:'Inter Tight',system-ui,sans-serif;color:#0d130d;background:#f4ecdc;display:grid;place-items:center;min-height:100vh;padding:2rem}
+.shell{max-width:520px;width:100%;background:#fff;border:1px solid #d4c8a8;border-radius:14px;padding:2.25rem 2rem 2rem;box-shadow:0 12px 30px rgba(0,0,0,.05)}
+.eyebrow{font-size:11px;color:#5a6258;letter-spacing:.14em;text-transform:uppercase;font-weight:600;margin-bottom:.5rem}
+h1{font-family:Newsreader,Georgia,serif;font-weight:400;font-size:32px;line-height:1.1;letter-spacing:-.02em;margin:0 0 .5rem}
+.lede{color:#2a352a;margin:0 0 1.5rem;font-size:15px}
+ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.6rem}
+.org{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border:1px solid #d4c8a8;border-radius:10px;text-decoration:none;color:inherit;transition:border-color .12s,background .12s}
+.org:hover{border-color:#0e3320;background:#fafaf7}
+.org__name{font-weight:600;font-size:16px;color:#0d130d}
+.org__meta{font-size:12.5px;color:#5a6258}
+.fine{margin-top:1.25rem;font-size:13px;color:#5a6258;text-align:center}
+.fine a{color:#0e3320;font-weight:500}
+</style></head><body>
+<div class="shell">
+<div class="eyebrow">§ Choose your unit</div>
+<h1>You're in more than one unit.</h1>
+<p class="lede">Pick which one you'd like to open.</p>
+<ul>${rows}</ul>
+<p class="fine">Wrong account? <a href="/api/auth/logout" data-method="post">Sign out</a></p>
+</div>
+</body></html>`);
+});
+
 // Invite acceptance. The link in the invitation email lands here on
 // the org subdomain. We verify the signed token, find or create the
 // User account, attach an OrgMembership at the embedded role, and
@@ -579,36 +640,66 @@ app.post("/api/auth/signup", signupLimiter, csrfProtect, async (req, res) => {
   res.status(201).json({ ok: true, user: { id: user.id, email: user.email, displayName: user.displayName } });
 });
 
-// Pick where to send a freshly-signed-in user. Super admins go to the
-// super console; otherwise prefer an org where they hold admin, else
-// fall back to any org membership's home page; if they belong to no
-// org yet, send them to signup. Builds subdomain URLs off the request's
-// own host so it works for both compass.app prod and *.localhost dev
-// without needing APEX_DOMAIN to flip between them.
-async function postLoginRedirect(userId, req) {
+// Helpers for cross-domain login routing.
+//
+// The apex sets a session cookie that is host-only — Chromium browsers
+// reject `Domain=.localhost` in dev, and even on real prod domains a
+// host-only cookie is the conservative default. So when we need a
+// freshly-authenticated user to end up on an org subdomain (admin
+// dashboard, org home), we redirect to <slug>/auth/handoff with a
+// short-lived signed token; the subdomain exchanges it for a session
+// cookie of its own, then redirects to the intended path.
+function buildOrgUrl(req, slug, path) {
   const hostHeader = (req.headers.host || "").toLowerCase();
   const [hostname, portFromHost] = hostHeader.split(":");
   const apex = hostname || (process.env.APEX_DOMAIN || "compass.app").toLowerCase();
   const protocol = req.protocol || (process.env.NODE_ENV === "production" ? "https" : "http");
   const port = portFromHost ? `:${portFromHost}` : "";
-  const orgUrl = (slug, path) => `${protocol}://${slug}.${apex}${port}${path}`;
+  return `${protocol}://${slug}.${apex}${port}${path}`;
+}
 
+function makeLoginHandoffToken(userId, next) {
+  return makeSignedToken(
+    { kind: "login-handoff", uid: userId, next: next || "/" },
+    { secret: AUTH_SECRET, ttlSeconds: 60 }
+  );
+}
+
+function handoffUrlForUser(req, userId, slug, next) {
+  const token = makeLoginHandoffToken(userId, next);
+  return buildOrgUrl(req, slug, `/auth/handoff?token=${encodeURIComponent(token)}`);
+}
+
+// Pick where to send a freshly-signed-in user.
+//   - super admin → /__super (apex)
+//   - admin in 1 org → that org's /admin via handoff
+//   - admin in 2+ orgs → apex /choose-org chooser
+//   - parent only → first org home via handoff
+//   - no org → /signup.html
+async function postLoginRedirect(userId, req) {
   const u = await prisma.user.findUnique({
     where: { id: userId },
     select: {
       isSuperAdmin: true,
       memberships: {
-        select: { role: true, org: { select: { slug: true } } },
+        select: { role: true, org: { select: { slug: true, displayName: true } } },
         orderBy: { createdAt: "asc" },
       },
     },
   });
   if (!u) return "/";
   if (u.isSuperAdmin) return "/__super";
-  const adminMem = u.memberships.find((m) => m.role === "admin");
-  if (adminMem) return orgUrl(adminMem.org.slug, "/admin");
+  const adminMems = u.memberships.filter((m) => m.role === "admin");
+  if (adminMems.length === 1) {
+    return handoffUrlForUser(req, userId, adminMems[0].org.slug, "/admin");
+  }
+  if (adminMems.length > 1) {
+    return "/choose-org";
+  }
   const anyMem = u.memberships[0];
-  if (anyMem) return orgUrl(anyMem.org.slug, "/");
+  if (anyMem) {
+    return handoffUrlForUser(req, userId, anyMem.org.slug, "/");
+  }
   return "/signup.html";
 }
 
@@ -1118,6 +1209,32 @@ app.post("/login", loginLimiter, csrfProtect, async (req, res, next) => {
   const session = await lucia.createSession(user.id, {});
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
   res.redirect(nextUrl);
+});
+
+// Cross-domain login handoff. The apex sends a freshly-authenticated
+// user here with a short-lived signed token; we mint a session cookie
+// scoped to this subdomain (host-only, so we don't depend on
+// browsers honouring Domain=.localhost or even .compass.app), then
+// redirect to the path the apex picked (typically /admin).
+app.get("/auth/handoff", async (req, res, next) => {
+  if (!req.org) return next();
+  const token = String(req.query.token || "");
+  const claims = verifySignedToken(token, { secret: AUTH_SECRET });
+  if (!claims || claims.kind !== "login-handoff" || !claims.uid) {
+    return res.status(400).type("text/plain").send("Login link invalid or expired. Sign in again.");
+  }
+  const user = await prisma.user.findUnique({ where: { id: claims.uid } });
+  if (!user) {
+    return res.status(400).type("text/plain").send("Login link no longer valid.");
+  }
+  // Make sure this user has at least a parent membership in this org —
+  // matches the existing /login post-auth behavior so the directory and
+  // RSVP pages don't 404 for SSO-fresh users.
+  await ensureMembership(user.id, req.org.id, "parent");
+  const session = await lucia.createSession(user.id, {});
+  res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
+  const nextPath = typeof claims.next === "string" && claims.next.startsWith("/") ? claims.next : "/";
+  res.redirect(nextPath);
 });
 
 app.get("/signup", (req, res, next) => {
