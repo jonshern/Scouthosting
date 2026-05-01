@@ -729,6 +729,75 @@ Pre-production cleanup landed alongside (no users to break):
 
 ---
 
+## Platform foundations (DONE in this run)
+
+A long arc of platform-readying work that lands together so the
+product can pitch and onboard real units:
+
+- [x] **Structured logger** (lib/log.js) — JSON in prod, pretty in
+      dev, level filtering, namespaced children, per-request context
+      threading. Replaced 23 `console.*` calls across the service.
+- [x] **Request logging + health probes** — every response logs
+      method/path/status/ms with a stitching requestId. `/healthz`
+      (no DB) for liveness; `/readyz` (Postgres SELECT 1) for
+      readiness.
+- [x] **Privacy-conscious analytics** (lib/analytics.js) — server-
+      side only, whitelisted event names, no IPs / no UAs. Stored
+      as AuditLog rows prefixed `analytics:`. `/admin/analytics`
+      page renders 30/90-day rollups per org.
+- [x] **Seed harness** — `npm run db:seed` builds three demo orgs:
+      Sample Troop 100 (Scouts BSA, fully populated), Sample Pack
+      100 (six dens × 2-3 cubs + Den Leaders), Sample Girl Scout
+      Troop 100 (Daisy/Brownie levels + Cookie Manager).
+- [x] **Deployment** — hardened multi-stage Dockerfile (non-root
+      user, HEALTHCHECK), `docker-compose.prod.yml` (postgres + app
+      + nginx), `infra/nginx.conf` (wildcard TLS, SSE-friendly
+      timeouts, JSON access log), `docs/DEPLOY.md` (env-var
+      reference + Cloud Run / Fly.io paths).
+- [x] **Roles & subgroups** — `lib/orgRoles.js` is the single
+      source of truth: UNIT_TYPES enum mirror, SUBGROUP_PRESETS
+      (Cub Scout dens + Girl Scout levels), POSITIONS per program
+      (Cubmaster / Scoutmaster / Skipper / Crew Advisor / Troop
+      Leader / Cookie Manager…). Seeds canonical subgroups on
+      provision.
+- [x] **Position-based scopes** (lib/permissions.js) — typed
+      position strings → scope set (UNIT_LEADER, TREASURER,
+      COMMITTEE_CHAIR, PATROL_LEADER, etc.). `requireScope`
+      middleware lazy-loads the linked Member only on routes that
+      need it. Wired onto reimbursement writes.
+- [x] **Channel post policies** (lib/chatPermissions.js) — admin
+      picks who can post: everyone / members / section / leaders.
+      Section keys off Channel.patrolName so the Tiger Den parent
+      doesn't post in the Wolf Den channel.
+- [x] **Excel + CSV roster import** — `lib/rosterImport.js`
+      detects format from extension or PK ZIP magic bytes;
+      tolerates messy real-world headers; recognises `den` /
+      `level` aliases for Pack and GS sheets.
+- [x] **Google SEO** — `lib/seo.js` + dynamic sitemap.xml +
+      robots.txt + Open Graph + Twitter card meta + JSON-LD
+      Organization / Event / SoftwareApplication structured data
+      so a family searching "Troop 12 Anytown" finds the unit's
+      Compass site.
+- [x] **Super-admin console** at `/__super` on the apex —
+      provision, suspend, feature-flag toggle, support ticket
+      triage, refund issuance, list-price MRR snapshot. Auth via
+      `User.isSuperAdmin` (granted out of band only via
+      `scripts/grant-super-admin.js`).
+- [x] **In-app support form** at `/help` (web) + Support screen
+      (mobile) — files SupportTicket rows on the super-admin
+      queue. category=abuse auto-routes to priority=urgent.
+- [x] **Pitch deck** at `/pitch.html` (noindex) — TAM, pricing,
+      unit economics, defensibility, traction, ask. Locked design.
+- [x] **Architecture + admin docs** — `docs/ARCHITECTURE.md` (20-
+      minute orientation for new contributors) and `docs/admin-
+      guide.md` (day-to-day playbook for unit leaders).
+- [x] **Mobile app dashboard wiring** — `GET /api/v1/orgs/:orgId/
+      dashboard` returns the same view-model the admin shell uses;
+      mobile `api/dashboard.ts` typed fetcher; in-app
+      SupportScreen on the Profile tab.
+
+---
+
 ## Non-goals (deliberately out of scope)
 
 - A general-purpose CMS — Compass is opinionated for Scout units
