@@ -71,6 +71,17 @@ model Org {
   plan                Plan     @default(patrol)
   isDemo              Boolean  @default(false)
   customDomain        String?  @unique
+  // Per-org feature flags. Map of feature key → boolean (or any JSON
+  // value for richer config). Read via lib/featureFlags.js so unknown
+  // flags get sensible defaults. Toggled from /__super (super-admin
+  // console) — leaders don't edit this directly.
+  features            Json?
+  // Suspended orgs are read-only: no admin login, no API writes, the
+  // public site still renders. Used for non-payment / abuse holds.
+  // suspendedReason renders on the (still-public) homepage so members
+  // know to nudge their charter org.
+  suspendedAt         DateTime?
+  suspendedReason     String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -110,6 +121,8 @@ model Org {
   videos         Video[]
   newsletters    Newsletter[]
   channels       Channel[]
+  supportTickets SupportTicket[]
+  refunds        Refund[]
 
   @@index([plan])
 }
@@ -120,6 +133,10 @@ model User {
   passwordHash String?
   displayName  String
   emailVerified Boolean  @default(false)
+  // Compass operator. Bypasses all per-org auth, sees the super-admin
+  // console at /__super on the apex. Set manually in the DB or via the
+  // CLI; never granted from any HTTP form.
+  isSuperAdmin Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -1257,4 +1274,62 @@ model Reaction {
 
   @@id([messageId, userId, emoji])
   @@index([messageId])
+}
+
+// Inbound support requests. A leader hits "Contact support" on the
+// admin shell or a member hits the /help link on the public site;
+// either way the message lands here for the super-admin to triage.
+//
+// status flow: open → acknowledged → resolved | closed
+//   - open       — needs triage
+//   - acked      — super-admin replied or assigned but not resolved
+//   - resolved   — fixed; auto-archive after 30d
+//   - closed     — won't-fix or duplicate
+//
+// We don't link to User by FK because logged-out members + apex
+// signup-page visitors can also file tickets. We snapshot whatever
+// identity we have at write time.
+model SupportTicket {
+  id             String    @id @default(cuid())
+  orgId          String?
+  userId         String?
+  fromEmail      String
+  fromName       String?
+  category       String    @default("question")  // question | bug | billing | abuse | feature | other
+  subject        String
+  body           String
+  status         String    @default("open")
+  priority       String    @default("normal")    // low | normal | high | urgent
+  assignedTo     String?
+  resolutionNote String?
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  org Org? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([orgId])
+}
+
+// Refund record — paired with a Stripe refund (or manual write-off).
+// Linked to the original Payment / Reimbursement when possible. The
+// super-admin records why and how much; we emit it to the audit log
+// and (for Stripe-tracked payments) reflect it back to Stripe via the
+// refund API.
+model Refund {
+  id           String   @id @default(cuid())
+  orgId        String
+  paymentRef   String?  // Stripe charge id, or "manual:<note>"
+  amountCents  Int
+  reason       String
+  issuedBy     String   // User.id of the super-admin who issued it
+  status       String   @default("issued")  // issued | failed
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
 }

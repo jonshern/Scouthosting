@@ -14,6 +14,7 @@ import { rateLimit } from "../lib/rateLimit.js";
 import { securityHeaders } from "../lib/securityHeaders.js";
 import { honeypotFields, verifyHoneypot } from "../lib/honeypot.js";
 import { apiRouter } from "./api.js";
+import { superAdminRouter } from "./superAdmin.js";
 import { logger } from "../lib/log.js";
 import { track, EVENTS } from "../lib/analytics.js";
 
@@ -250,6 +251,101 @@ app.use((req, res, next) => {
 /* ------------------ JSON API (mobile + external) ------------------ */
 
 app.use("/api/v1", apiRouter);
+
+// Super-admin console — apex-only. The router itself enforces the
+// User.isSuperAdmin gate; mounting it here just scopes the URL prefix.
+app.use("/__super", (req, res, next) => {
+  if (req.org) return next();
+  return superAdminRouter(req, res, next);
+});
+
+// In-app support form. Available on apex (anonymous can ask billing /
+// signup questions) and on every org subdomain (leaders + members can
+// flag bugs). Files a SupportTicket the super-admin sees in /__super.
+app.get("/help", (req, res) => {
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const orgName = req.org ? req.org.displayName : "Compass";
+  res.set("Content-Type", "text/html; charset=utf-8").send(`<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Help — ${orgName}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4ecdc;--surface:#fff;--ink:#0d130d;--ink-muted:#5a6258;--line:#d4c8a8;--primary:#0e3320;--accent:#c8e94a;--font-display:"Newsreader",serif;--font-ui:"Inter Tight",sans-serif}
+body{margin:0;font-family:var(--font-ui);background:var(--bg);color:var(--ink);min-height:100vh;padding:2rem 1rem}
+main{max-width:560px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:2rem}
+h1{font-family:var(--font-display);font-weight:400;letter-spacing:-.02em;margin:0 0 .4rem}
+p{color:var(--ink-muted)}
+label{display:block;margin:0 0 .8rem;font-size:.86rem;color:var(--ink)}
+input,textarea,select{display:block;width:100%;margin-top:.3rem;padding:.55rem .7rem;border:1.5px solid var(--line);border-radius:8px;font:inherit;background:#fff;color:var(--ink)}
+textarea{min-height:8rem;font-family:var(--font-ui)}
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.65rem 1.1rem;border-radius:8px;border:1.5px solid var(--ink);background:var(--ink);color:var(--bg);font-weight:600;cursor:pointer;text-decoration:none}
+.btn:hover{background:var(--primary);color:var(--accent);border-color:var(--primary)}
+.muted{color:var(--ink-muted);font-size:.84rem}
+</style></head><body>
+<main>
+  <h1>How can we help?</h1>
+  <p>Submit a request and a Compass operator will reply by email. ${req.org ? `You're on <strong>${orgName}</strong>'s site; if you need a leader of this unit, contact them at <a href="mailto:${req.org.scoutmasterEmail}">${req.org.scoutmasterEmail}</a> instead.` : `For a question about a specific troop, visit that troop's site and use the help button there.`}</p>
+  <form method="post" action="/help">
+    ${req.csrfToken ? `<input type="hidden" name="csrf" value="${req.csrfToken}">` : ""}
+    <label>Your email<input name="email" type="email" required value="${req.user?.email || ""}"></label>
+    <label>Your name<input name="name" type="text" value="${req.user?.displayName || ""}"></label>
+    <label>Category
+      <select name="category">
+        <option value="question">Question</option>
+        <option value="bug">Something is broken</option>
+        <option value="billing">Billing</option>
+        <option value="abuse">Abuse / safety</option>
+        <option value="feature">Feature request</option>
+        <option value="other">Other</option>
+      </select>
+    </label>
+    <label>Subject<input name="subject" required maxlength="200"></label>
+    <label>What's going on?<textarea name="body" required maxlength="5000"></textarea></label>
+    <button class="btn" type="submit">Send</button>
+    <p class="muted" style="margin-top:1rem">We'll reply within one business day. For urgent youth-safety concerns, contact your council directly.</p>
+  </form>
+</main></body></html>`);
+});
+
+app.post("/help", async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const subject = String(req.body?.subject || "").trim();
+  const body = String(req.body?.body || "").trim();
+  if (!email || !subject || !body) {
+    return res.status(400).type("text/plain").send("email, subject, and message are required");
+  }
+  const ticket = await prisma.supportTicket.create({
+    data: {
+      orgId: req.org?.id || null,
+      userId: req.user?.id || null,
+      fromEmail: email,
+      fromName: String(req.body?.name || "").trim() || null,
+      category: String(req.body?.category || "question"),
+      subject: subject.slice(0, 200),
+      body: body.slice(0, 5000),
+      priority: req.body?.category === "abuse" ? "urgent" : "normal",
+    },
+  });
+  log.info("support ticket filed", { id: ticket.id, orgSlug: req.org?.slug, category: ticket.category });
+  res.set("Content-Type", "text/html; charset=utf-8").send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Thanks — Compass</title>
+<style>body{font-family:"Inter Tight",sans-serif;background:#f4ecdc;color:#0d130d;display:grid;place-items:center;min-height:100vh;margin:0;padding:1rem}main{max-width:520px;background:#fff;border:1px solid #d4c8a8;border-radius:14px;padding:2rem;text-align:center}h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em}a{color:#0e3320}</style>
+</head><body>
+<main>
+  <h1>We got it.</h1>
+  <p>A Compass operator will reply to <strong>${escape(email)}</strong> within one business day.</p>
+  <p style="color:#5a6258;font-size:.86rem">Reference: <code>${escape(ticket.id)}</code></p>
+  <p><a href="/">← back to ${escape(req.org?.displayName || "Compass")}</a></p>
+</main></body></html>`);
+});
+
+function escape(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
 
 /* ------------------ Mail provider webhooks ----------------------- */
 

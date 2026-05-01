@@ -335,6 +335,7 @@ function layout(req, { title, body, flash }) {
     <div class="me">
       <span class="me-name">${escape(user.displayName)}</span>
       <a class="me-public" href="/" target="_blank" rel="noopener" title="View the public site">View site ↗</a>
+      <a class="me-public" href="/help" target="_blank" rel="noopener" title="Contact Compass support">Help</a>
       <form method="post" action="/admin/logout" class="inline"><button class="btn btn-ghost small">Log out</button></form>
     </div>
   </div>
