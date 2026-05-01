@@ -354,6 +354,80 @@ apiRouter.get("/auth/me", resolveApiUser, async (req, res) => {
   });
 });
 
+// GET /api/v1/events/:id — full event detail including the viewer's
+// RSVP. Used by the mobile event-detail screen.
+apiRouter.get("/events/:id", resolveApiUser, async (req, res) => {
+  const event = await prisma.event.findUnique({ where: { id: req.params.id } });
+  if (!event) return res.status(404).json({ error: "not_found" });
+  const membership = await membershipFor(req.apiUser.id, event.orgId);
+  if (!membership) return res.status(403).json({ error: "not_a_member" });
+  const [rsvpCounts, mine] = await Promise.all([
+    prisma.rsvp.groupBy({
+      by: ["response"],
+      where: { eventId: event.id },
+      _count: { _all: true },
+    }),
+    prisma.rsvp.findFirst({
+      where: { eventId: event.id, userId: req.apiUser.id },
+      select: { response: true, guests: true, notes: true },
+    }),
+  ]);
+  const counts = { yes: 0, no: 0, maybe: 0 };
+  for (const r of rsvpCounts) counts[r.response] = r._count._all;
+  const { categoryMeta } = await import("../lib/eventCategories.js");
+  const meta = event.category ? categoryMeta(event.category) : null;
+  res.json({
+    event: {
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      allDay: event.allDay,
+      location: event.location,
+      locationAddress: event.locationAddress,
+      cost: event.cost,
+      capacity: event.capacity,
+      category: event.category,
+      categoryLabel: meta?.label || null,
+      color: meta?.color || "primary",
+      rsvps: counts,
+      myRsvp: mine || null,
+    },
+  });
+});
+
+// POST /api/v1/events/:id/rsvp — set or update the viewer's RSVP.
+// Body: { response: "yes"|"no"|"maybe", guests?, notes? }.
+apiRouter.post("/events/:id/rsvp", resolveApiUser, async (req, res) => {
+  const event = await prisma.event.findUnique({ where: { id: req.params.id } });
+  if (!event) return res.status(404).json({ error: "not_found" });
+  const membership = await membershipFor(req.apiUser.id, event.orgId);
+  if (!membership) return res.status(403).json({ error: "not_a_member" });
+  const response = String(req.body?.response || "").toLowerCase();
+  if (!["yes", "no", "maybe"].includes(response)) {
+    return res.status(400).json({ error: "invalid_response" });
+  }
+  const guests = Math.max(0, Math.min(20, Number(req.body?.guests) || 0));
+  const notes = String(req.body?.notes || "").trim().slice(0, 500) || null;
+  const data = {
+    orgId: event.orgId,
+    eventId: event.id,
+    userId: req.apiUser.id,
+    name: req.apiUser.displayName,
+    email: req.apiUser.email,
+    response,
+    guests,
+    notes,
+  };
+  await prisma.rsvp.upsert({
+    where: { eventId_userId: { eventId: event.id, userId: req.apiUser.id } },
+    update: { response, guests, notes },
+    create: data,
+  });
+  res.json({ ok: true, response, guests, notes });
+});
+
 // GET /api/v1/orgs/:orgId/posts — recent activity-feed posts. Used by
 // the mobile activity-feed screen. Returns 30 posts with author +
 // reaction roll-ups.

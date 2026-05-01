@@ -37,3 +37,40 @@ export async function fetchEvents(
   if (range.to) query.to = range.to.toISOString();
   return apiRequest<EventsResponse>(client, `/orgs/${orgId}/events`, { query });
 }
+
+export type EventDetail = {
+  id: string;
+  title: string;
+  description: string | null;
+  startsAt: string;
+  endsAt: string | null;
+  allDay: boolean;
+  location: string | null;
+  locationAddress: string | null;
+  cost: number | null;
+  capacity: number | null;
+  category: string | null;
+  categoryLabel: string | null;
+  color: string;
+  rsvps: { yes: number; no: number; maybe: number };
+  myRsvp: { response: EventRsvp; guests: number; notes: string | null } | null;
+};
+
+export async function fetchEvent(
+  client: ClientOptions,
+  eventId: string,
+): Promise<{ event: EventDetail }> {
+  return apiRequest(client, `/events/${eventId}`);
+}
+
+export async function setEventRsvp(
+  client: ClientOptions,
+  eventId: string,
+  response: EventRsvp,
+  extras: { guests?: number; notes?: string } = {},
+): Promise<{ ok: true; response: EventRsvp; guests: number; notes: string | null }> {
+  return apiRequest(client, `/events/${eventId}/rsvp`, {
+    method: "POST",
+    body: { response, ...extras },
+  });
+}

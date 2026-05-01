@@ -1,69 +1,192 @@
-// Event detail — high fidelity. Hero, key facts, per-scout RSVP rows
-// (one parent → multiple kids), permission slip toggle, payment
-// summary, and a primary call-to-action.
+// Event detail — fetches GET /api/v1/events/:id and lets the viewer
+// set their own RSVP (yes / no / maybe). Multi-scout RSVPs (one
+// parent → multiple kids on one screen) are deferred until the
+// User ↔ Member family-linking API ships; for v1 we use the
+// per-user RSVP shape the rest of the system already supports.
 
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation, useRoute } from "@react-navigation/native";
+import type { RouteProp } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-import { Avatar, Icon, Photo } from '../theme/atoms';
-import { fontFamilies, palette, radius, spacing } from '../theme/tokens';
+import { Icon } from "../theme/atoms";
+import { fontFamilies, palette, radius, spacing } from "../theme/tokens";
+import { useAuth } from "../state/AuthContext";
+import {
+  fetchEvent,
+  setEventRsvp,
+  type EventDetail,
+  type EventRsvp,
+} from "../api/events";
+import type { HomeStackParamList } from "../navigation/types";
 
-type RsvpChoice = 'yes' | 'no' | 'maybe' | null;
+type Route = RouteProp<HomeStackParamList, "EventDetail">;
+type Nav = NativeStackNavigationProp<HomeStackParamList, "EventDetail">;
 
-type Scout = {
-  id: string;
-  name: string;
-  detail: string;
-  initials: string;
-};
+function paletteFor(key: string): string {
+  switch (key) {
+    case "accent":     return palette.accent;
+    case "sky":        return palette.sky;
+    case "ember":      return palette.ember;
+    case "raspberry":  return palette.raspberry;
+    case "butter":     return palette.butter;
+    case "plum":       return palette.plum;
+    case "teal":       return palette.teal;
+    case "primary":
+    default:           return palette.primary;
+  }
+}
 
-const SCOUTS: Scout[] = [
-  { id: 'sam', name: 'Sam', detail: 'Scout · Hawk Patrol', initials: 'S' },
-  { id: 'max', name: 'Max', detail: 'Scout · Hawk Patrol', initials: 'M' },
-];
+export default function EventDetailScreen() {
+  const auth = useAuth();
+  const route = useRoute<Route>();
+  const navigation = useNavigation<Nav>();
+  const eventId = route.params?.eventId;
 
-const FACTS: { label: string; value: string }[] = [
-  { label: 'When', value: 'Fri Mar 21, 5:30 PM —\nSun Mar 23, 11:00 AM' },
-  { label: 'Where', value: 'Birch Lake State Park\n19041 County Hwy 7' },
-  { label: 'Cost', value: '$35 per scout · covers food & site' },
-  {
-    label: 'Bring',
-    value: 'Class B uniform, sleeping bag rated 30°F, mess kit, water bottle',
-  },
-];
+  const [event, setEvent] = useState<EventDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState<EventRsvp | null>(null);
 
-export function EventDetailScreen() {
-  const [rsvps, setRsvps] = useState<Record<string, RsvpChoice>>({
-    sam: 'yes',
-    max: null,
-  });
-  const [slipsSigned, setSlipsSigned] = useState<Record<string, boolean>>({});
+  const load = useCallback(async () => {
+    if (!auth.session || !eventId) return;
+    setError(null);
+    try {
+      const res = await fetchEvent(
+        { orgSlug: auth.session.orgSlug, token: auth.session.token },
+        eventId,
+      );
+      setEvent(res.event);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Couldn't load this event.");
+    } finally {
+      setLoading(false);
+    }
+  }, [auth.session, eventId]);
 
-  const totalDue = SCOUTS.filter((s) => rsvps[s.id] === 'yes').length * 35;
+  useEffect(() => { load(); }, [load]);
+
+  const onRsvp = useCallback(
+    async (response: EventRsvp) => {
+      if (!auth.session || !event) return;
+      setSubmitting(response);
+      const prevRsvp = event.myRsvp?.response || null;
+      // Optimistic: update the displayed RSVP + bump counts before the
+      // API call.
+      setEvent((cur) => {
+        if (!cur) return cur;
+        const counts = { ...cur.rsvps };
+        if (prevRsvp) counts[prevRsvp] = Math.max(0, counts[prevRsvp] - 1);
+        counts[response] = (counts[response] || 0) + 1;
+        return {
+          ...cur,
+          rsvps: counts,
+          myRsvp: { response, guests: cur.myRsvp?.guests || 0, notes: cur.myRsvp?.notes || null },
+        };
+      });
+      try {
+        await setEventRsvp(
+          { orgSlug: auth.session.orgSlug, token: auth.session.token },
+          event.id,
+          response,
+        );
+      } catch (e: unknown) {
+        // Roll back the count change on failure.
+        setEvent((cur) => {
+          if (!cur) return cur;
+          const counts = { ...cur.rsvps };
+          counts[response] = Math.max(0, counts[response] - 1);
+          if (prevRsvp) counts[prevRsvp] = (counts[prevRsvp] || 0) + 1;
+          return {
+            ...cur,
+            rsvps: counts,
+            myRsvp: prevRsvp
+              ? { response: prevRsvp, guests: 0, notes: null }
+              : null,
+          };
+        });
+        setError(e instanceof Error ? e.message : "Couldn't save your RSVP.");
+      } finally {
+        setSubmitting(null);
+      }
+    },
+    [auth.session, event],
+  );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}><ActivityIndicator color={palette.primary} /></View>
+      </SafeAreaView>
+    );
+  }
+  if (error || !event) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.center}>
+          <Text style={styles.error}>{error || "Couldn't load this event."}</Text>
+          <Pressable style={styles.retry} onPress={load}>
+            <Text style={styles.retryText}>Try again</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const accent = paletteFor(event.color);
+  const start = new Date(event.startsAt);
+  const end = event.endsAt ? new Date(event.endsAt) : null;
+  const facts: { label: string; value: string }[] = [
+    {
+      label: "When",
+      value: end
+        ? `${start.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} —\n${end.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+        : start.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
+    },
+  ];
+  if (event.locationAddress || event.location) {
+    facts.push({
+      label: "Where",
+      value: event.locationAddress
+        ? `${event.location || ""}${event.location ? "\n" : ""}${event.locationAddress}`
+        : event.location || "",
+    });
+  }
+  if (event.cost) {
+    facts.push({ label: "Cost", value: `$${event.cost} per scout` });
+  }
+  if (event.capacity) {
+    facts.push({ label: "Capacity", value: `${event.rsvps.yes} of ${event.capacity} scouts going` });
+  } else if (event.rsvps.yes > 0) {
+    facts.push({ label: "Going", value: `${event.rsvps.yes} scout${event.rsvps.yes === 1 ? "" : "s"}` });
+  }
 
   return (
     <SafeAreaView style={styles.safe} edges={[]}>
       <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
-        {/* Hero */}
-        <View style={styles.heroWrap}>
-          <Photo subject="forest" width="100%" height={220} rounded={0} showCaption={false} />
-          <View style={styles.heroOverlay} />
-          <Pressable style={styles.backButton}>
+        <View style={[styles.heroWrap, { backgroundColor: accent }]}>
+          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
             <Icon name="chevronLeft" size={20} color={palette.ink} strokeWidth={2.4} />
           </Pressable>
           <View style={styles.heroText}>
-            <Text style={styles.heroEyebrow}>OUTING · 2 NIGHTS</Text>
-            <Text style={styles.heroTitle}>
-              Spring Campout —{'\n'}
-              <Text style={styles.heroTitleAccent}>Birch Lake.</Text>
-            </Text>
+            {event.categoryLabel && (
+              <Text style={styles.heroEyebrow}>{event.categoryLabel.toUpperCase()}</Text>
+            )}
+            <Text style={styles.heroTitle}>{event.title}</Text>
           </View>
         </View>
 
-        {/* Key facts */}
         <View style={styles.facts}>
-          {FACTS.map((row, i) => (
+          {facts.map((row, i) => (
             <View
               key={row.label}
               style={[
@@ -77,114 +200,41 @@ export function EventDetailScreen() {
           ))}
         </View>
 
-        {/* RSVP per scout */}
-        <View style={styles.section}>
-          <Text style={styles.sectionLabel}>RSVP FOR</Text>
-          {SCOUTS.map((s) => {
-            const choice = rsvps[s.id] ?? null;
-            return (
-              <View key={s.id} style={styles.scoutCard}>
-                <Avatar
-                  initials={s.initials}
-                  size={40}
-                  bg={`${palette.primary}22`}
-                  fg={palette.primary}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.scoutName}>{s.name}</Text>
-                  <Text style={styles.scoutDetail}>{s.detail}</Text>
-                </View>
-                <View style={styles.choiceRow}>
-                  {(['yes', 'no', 'maybe'] as const).map((c) => {
-                    const active = choice === c;
-                    const labelMap = { yes: 'Yes', no: 'No', maybe: 'Maybe' };
-                    return (
-                      <Pressable
-                        key={c}
-                        onPress={() =>
-                          setRsvps((prev) => ({ ...prev, [s.id]: c }))
-                        }
-                        style={[
-                          styles.choice,
-                          active && c === 'yes' && {
-                            backgroundColor: palette.success,
-                            borderColor: palette.success,
-                          },
-                          active && c === 'maybe' && {
-                            backgroundColor: palette.ember,
-                            borderColor: palette.ember,
-                          },
-                          active && c === 'no' && {
-                            backgroundColor: palette.danger,
-                            borderColor: palette.danger,
-                          },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.choiceText,
-                            active && { color: '#ffffff' },
-                          ]}
-                        >
-                          {labelMap[c]}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
-              </View>
-            );
-          })}
+        {event.description && (
+          <View style={styles.section}>
+            <Text style={styles.sectionLabel}>DETAILS</Text>
+            <Text style={styles.bodyText}>{event.description}</Text>
+          </View>
+        )}
 
-          {/* Permission slip toggles */}
-          <View style={styles.slipBlock}>
-            <Text style={styles.slipTitle}>Permission slip</Text>
-            <Text style={styles.slipSub}>
-              One slip per scout. We pre-fill what we know; sign with your finger and
-              we countersign before departure.
-            </Text>
-            {SCOUTS.map((s) => (
-              <View key={s.id} style={styles.slipRow}>
-                <Text style={styles.slipName}>{s.name}</Text>
+        <View style={styles.section}>
+          <Text style={styles.sectionLabel}>YOUR RSVP</Text>
+          <View style={styles.choiceRow}>
+            {(["yes", "maybe", "no"] as const).map((c) => {
+              const active = event.myRsvp?.response === c;
+              const tint =
+                c === "yes" ? palette.success : c === "maybe" ? palette.ember : palette.danger;
+              return (
                 <Pressable
-                  onPress={() =>
-                    setSlipsSigned((prev) => ({
-                      ...prev,
-                      [s.id]: !prev[s.id],
-                    }))
-                  }
+                  key={c}
+                  disabled={submitting !== null}
+                  onPress={() => onRsvp(c)}
                   style={[
-                    styles.toggle,
-                    slipsSigned[s.id] && { backgroundColor: palette.success },
+                    styles.choice,
+                    active && { backgroundColor: tint, borderColor: tint },
+                    submitting !== null && { opacity: 0.6 },
                   ]}
                 >
-                  <View
-                    style={[
-                      styles.toggleKnob,
-                      slipsSigned[s.id] && { left: 22 },
-                    ]}
-                  />
+                  <Text style={[styles.choiceText, active && { color: "#fff" }]}>
+                    {c === "yes" ? "Going" : c === "maybe" ? "Maybe" : "Can't make it"}
+                  </Text>
                 </Pressable>
-              </View>
-            ))}
+              );
+            })}
           </View>
-
-          {/* Payment summary */}
-          <View style={styles.paymentBlock}>
-            <View style={styles.paymentHeader}>
-              <Icon name="bell" size={18} color={palette.ember} strokeWidth={2} />
-              <Text style={styles.paymentTitle}>
-                Permission slip + ${totalDue} due Thursday
-              </Text>
-            </View>
-            <Text style={styles.paymentDetail}>
-              {SCOUTS.filter((s) => rsvps[s.id] === 'yes').length} scout(s) confirmed.
-              Card on file: Visa ending 4242.
-            </Text>
-            <Pressable style={styles.cta}>
-              <Text style={styles.ctaText}>Sign &amp; pay ${totalDue} →</Text>
-            </Pressable>
-          </View>
+          <Text style={styles.rsvpSummary}>
+            {event.rsvps.yes} going · {event.rsvps.maybe} maybe · {event.rsvps.no} can't make it
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -193,210 +243,122 @@ export function EventDetailScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
-  heroWrap: { height: 220, position: 'relative' },
-  heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(13,19,13,0.45)',
+  center: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.md,
+    padding: spacing.lg,
+  },
+  error: { fontFamily: fontFamilies.ui, color: palette.danger, fontSize: 14 },
+  retry: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: palette.primary,
+  },
+  retryText: { fontFamily: fontFamilies.ui, color: palette.primary, fontWeight: "600" },
+  heroWrap: {
+    paddingTop: 56,
+    paddingBottom: 32,
+    paddingHorizontal: spacing.screen,
+    minHeight: 220,
   },
   backButton: {
-    position: 'absolute',
-    top: 50,
-    left: 16,
+    position: "absolute",
+    top: 56,
+    left: spacing.screen,
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.92)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.85)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  heroText: { position: 'absolute', bottom: 16, left: 20, right: 20 },
+  heroText: { marginTop: 36 },
   heroEyebrow: {
     fontFamily: fontFamilies.ui,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.85)",
     letterSpacing: 1.6,
-    color: palette.accent,
-    marginBottom: 6,
   },
   heroTitle: {
     fontFamily: fontFamilies.display,
     fontSize: 28,
-    lineHeight: 32,
-    color: '#ffffff',
+    color: "#fff",
     letterSpacing: -0.4,
-  },
-  heroTitleAccent: {
-    fontStyle: 'italic',
-    color: palette.accent,
+    marginTop: 4,
   },
   facts: {
-    paddingHorizontal: spacing.screen,
-    paddingVertical: spacing.lg,
-    borderBottomColor: palette.line,
-    borderBottomWidth: 1,
+    backgroundColor: palette.surface,
+    marginHorizontal: spacing.screen,
+    marginTop: -16,
+    marginBottom: spacing.md,
+    borderRadius: radius.cardLg,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm,
+    borderWidth: 1,
+    borderColor: palette.line,
   },
-  factRow: {
-    flexDirection: 'row',
-    paddingVertical: 10,
-    gap: spacing.lg,
-  },
+  factRow: { paddingVertical: spacing.md },
   factLabel: {
-    width: 70,
     fontFamily: fontFamilies.ui,
-    fontSize: 11,
+    fontSize: 10,
+    fontWeight: "700",
     color: palette.inkMuted,
-    fontWeight: '700',
-    letterSpacing: 1.0,
-    paddingTop: 2,
+    letterSpacing: 1.2,
+    marginBottom: 4,
   },
   factValue: {
-    flex: 1,
     fontFamily: fontFamilies.ui,
     fontSize: 14,
-    lineHeight: 20,
     color: palette.ink,
+    lineHeight: 20,
   },
   section: {
-    paddingHorizontal: spacing.screen,
-    paddingVertical: spacing.lg,
+    marginHorizontal: spacing.screen,
+    marginTop: spacing.lg,
   },
   sectionLabel: {
     fontFamily: fontFamilies.ui,
     fontSize: 11,
+    fontWeight: "700",
     color: palette.inkMuted,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    marginBottom: spacing.md,
-  },
-  scoutCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    padding: spacing.md,
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.line,
-    borderRadius: radius.card,
+    letterSpacing: 1.4,
     marginBottom: spacing.sm,
   },
-  scoutName: {
+  bodyText: {
     fontFamily: fontFamilies.ui,
     fontSize: 14,
-    fontWeight: '700',
+    lineHeight: 22,
     color: palette.ink,
   },
-  scoutDetail: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 11,
-    color: palette.inkMuted,
-  },
   choiceRow: {
-    flexDirection: 'row',
-    gap: 6,
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
   },
   choice: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radius.cardSm,
-    borderWidth: 1,
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: radius.cardLg,
+    borderWidth: 1.5,
     borderColor: palette.line,
     backgroundColor: palette.surface,
+    alignItems: "center",
   },
   choiceText: {
     fontFamily: fontFamilies.ui,
-    fontSize: 11,
-    fontWeight: '700',
-    color: palette.inkSoft,
+    fontSize: 14,
+    fontWeight: "700",
+    color: palette.ink,
   },
-  slipBlock: {
+  rsvpSummary: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 12,
+    color: palette.inkMuted,
     marginTop: spacing.md,
-    backgroundColor: palette.surface,
-    borderWidth: 1,
-    borderColor: palette.line,
-    borderRadius: radius.card,
-    padding: spacing.md,
-  },
-  slipTitle: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 14,
-    fontWeight: '700',
-    color: palette.ink,
-    marginBottom: 4,
-  },
-  slipSub: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 12,
-    color: palette.inkSoft,
-    lineHeight: 16,
-    marginBottom: spacing.md,
-  },
-  slipRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
-  },
-  slipName: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 14,
-    color: palette.ink,
-    fontWeight: '500',
-  },
-  toggle: {
-    width: 44,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: palette.line,
-    position: 'relative',
-  },
-  toggleKnob: {
-    position: 'absolute',
-    top: 2,
-    left: 2,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: '#ffffff',
-  },
-  paymentBlock: {
-    marginTop: spacing.lg,
-    padding: spacing.md,
-    backgroundColor: `${palette.ember}14`,
-    borderWidth: 1,
-    borderColor: `${palette.ember}55`,
-    borderRadius: radius.card,
-  },
-  paymentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  paymentTitle: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 13,
-    fontWeight: '700',
-    color: palette.ink,
-  },
-  paymentDetail: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 12,
-    color: palette.inkSoft,
-    lineHeight: 18,
-    marginBottom: spacing.md,
-  },
-  cta: {
-    backgroundColor: palette.primary,
-    borderRadius: radius.input,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  ctaText: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#ffffff',
   },
 });
-
-export default EventDetailScreen;
