@@ -8,10 +8,15 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar, Icon, IconName } from '../theme/atoms';
 import { EventCard } from '../components/EventCard';
 import { fontFamilies, palette, radius, spacing } from '../theme/tokens';
+import type { HomeStackParamList } from '../navigation/types';
+
+type HomeNav = NativeStackNavigationProp<HomeStackParamList, 'HomeRoot'>;
 
 type Activity = {
   title: string;
@@ -56,6 +61,7 @@ const quickActions: QuickAction[] = [
 ];
 
 export function HomeScreen() {
+  const navigation = useNavigation<HomeNav>();
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -97,7 +103,15 @@ export function HomeScreen() {
         </View>
 
         {/* Activity feed */}
-        <Text style={styles.sectionLabel}>RECENTLY</Text>
+        <Pressable
+          onPress={() => navigation.navigate('Activity')}
+          style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: spacing.md }}
+        >
+          <Text style={styles.sectionLabel}>RECENTLY</Text>
+          <Text style={{ fontFamily: fontFamilies.ui, fontSize: 12, color: palette.primary, fontWeight: '600' }}>
+            See all →
+          </Text>
+        </Pressable>
         {activity.map((a, i) => (
           <View
             key={a.title}

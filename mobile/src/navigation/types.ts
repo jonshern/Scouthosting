@@ -12,6 +12,7 @@ export type HomeStackParamList = {
   HomeRoot: undefined;
   EventDetail: { eventId: string };
   Payment: { eventId: string };
+  Activity: undefined;
 };
 
 export type CalendarStackParamList = {
@@ -37,4 +38,5 @@ export type PhotosStackParamList = {
 
 export type ProfileStackParamList = {
   ProfileRoot: undefined;
+  Support: undefined;
 };

@@ -22,11 +22,13 @@ datasource db {
 // ------------------------------------------------------------------
 
 enum UnitType {
-  Troop
-  Pack
-  Crew
-  Ship
-  Post
+  Troop          // Scouts BSA Troop (formerly Boy Scouts)
+  Pack           // Cub Scout Pack
+  Crew           // Venturing Crew
+  Ship           // Sea Scout Ship
+  Post           // Exploring Post
+  GirlScoutTroop // Girl Scouts of the USA Troop (separate organisation
+                 // from Scouts BSA — different program, different vocab)
 }
 
 enum Plan {
@@ -69,6 +71,17 @@ model Org {
   plan                Plan     @default(patrol)
   isDemo              Boolean  @default(false)
   customDomain        String?  @unique
+  // Per-org feature flags. Map of feature key → boolean (or any JSON
+  // value for richer config). Read via lib/featureFlags.js so unknown
+  // flags get sensible defaults. Toggled from /__super (super-admin
+  // console) — leaders don't edit this directly.
+  features            Json?
+  // Suspended orgs are read-only: no admin login, no API writes, the
+  // public site still renders. Used for non-payment / abuse holds.
+  // suspendedReason renders on the (still-public) homepage so members
+  // know to nudge their charter org.
+  suspendedAt         DateTime?
+  suspendedReason     String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -108,6 +121,8 @@ model Org {
   videos         Video[]
   newsletters    Newsletter[]
   channels       Channel[]
+  supportTickets SupportTicket[]
+  refunds        Refund[]
 
   @@index([plan])
 }
@@ -118,6 +133,10 @@ model User {
   passwordHash String?
   displayName  String
   emailVerified Boolean  @default(false)
+  // Compass operator. Bypasses all per-org auth, sees the super-admin
+  // console at /__super on the apex. Set manually in the DB or via the
+  // CLI; never granted from any HTTP form.
+  isSuperAdmin Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -135,6 +154,8 @@ model User {
   messages           Message[]
   reactions          Reaction[]
   uploadedPhotos     Photo[]
+  pushDevices        PushDevice[]
+  postReactions      PostReaction[]
 }
 
 // External identity provider linkage. One User can have multiple
@@ -517,6 +538,28 @@ model Page {
   aboutBody    String?
   joinBody     String?
   contactNote  String?
+  // Optional hero image filename (uploaded via /admin/content). Sits
+  // in the same per-org storage area as Album photos.
+  heroImage    String?
+  // Two CTA buttons on the hero — primary (e.g. "Join us") and
+  // secondary (e.g. "See the calendar"). Both label + link are user-
+  // editable so a unit can point them at their own targets.
+  ctaPrimaryLabel    String?
+  ctaPrimaryLink     String?
+  ctaSecondaryLabel  String?
+  ctaSecondaryLink   String?
+  // Ordered JSON array of section keys controlling the homepage's
+  // visible blocks: ["hero","about","upcoming","posts","albums",
+  // "join","contact"]. Drag-to-reorder in the admin; null = the
+  // built-in default order.
+  sectionOrder Json?
+  // Map of section key → boolean (true = visible). null = all visible.
+  sectionVisibility Json?
+  // Free-form Markdown for a "what we do" section between about + join.
+  whatWeDoBody String?
+  // Free-form testimonials (parent quotes). JSON array of
+  // { quote, attribution }. null = none.
+  testimonialsJson  Json?
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
 
@@ -562,9 +605,31 @@ model Post {
   author  User?       @relation(fields: [authorId], references: [id], onDelete: SetNull)
   photos  PostPhoto[]
   comments Comment[]
+  reactions PostReaction[]
 
   @@index([orgId, publishedAt])
   @@index([orgId, pinned, publishedAt])
+}
+
+// Member reactions on activity-feed posts. One row per (post, user,
+// kind) — composite primary key dedupes natively, the API toggle
+// pattern just upserts/deletes.
+//
+// `kind` is intentionally a small whitelist: "like" (👏) and
+// "bookmark" (🔖). Bookmarks are personal — they don't surface to
+// other users; likes do.
+model PostReaction {
+  postId    String
+  userId    String
+  kind      String   // "like" | "bookmark"
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId, kind])
+  @@index([postId, kind])
+  @@index([userId, kind])
 }
 
 model PostPhoto {
@@ -1175,6 +1240,14 @@ model Channel {
   name            String
   patrolName      String?  // for kind=patrol; matches Member.patrol
   eventId         String?  @unique  // for kind=event; one channel per event
+  // Who's allowed to post a message to this channel:
+  //   "everyone" — any org member can post (broadcast-style)
+  //   "members"  — only ChannelMember rows can post (default)
+  //   "section"  — only members whose Member.patrol matches patrolName
+  //                can post (e.g. only Wolf Den parents post in Wolf Den)
+  //   "leaders"  — only adult leaders + admins can post (announcement-only)
+  // Adult leaders + admins always pass; this gate scopes who *else* can post.
+  postPolicy      String   @default("members")
   isSuspended     Boolean  @default(false)
   suspendedReason String?
   archivedAt      DateTime?
@@ -1247,4 +1320,99 @@ model Reaction {
 
   @@id([messageId, userId, emoji])
   @@index([messageId])
+}
+
+// Inbound support requests. A leader hits "Contact support" on the
+// admin shell or a member hits the /help link on the public site;
+// either way the message lands here for the super-admin to triage.
+//
+// status flow: open → acknowledged → resolved | closed
+//   - open       — needs triage
+//   - acked      — super-admin replied or assigned but not resolved
+//   - resolved   — fixed; auto-archive after 30d
+//   - closed     — won't-fix or duplicate
+//
+// We don't link to User by FK because logged-out members + apex
+// signup-page visitors can also file tickets. We snapshot whatever
+// identity we have at write time.
+model SupportTicket {
+  id             String    @id @default(cuid())
+  orgId          String?
+  userId         String?
+  fromEmail      String
+  fromName       String?
+  category       String    @default("question")  // question | bug | billing | abuse | feature | other
+  subject        String
+  body           String
+  status         String    @default("open")
+  priority       String    @default("normal")    // low | normal | high | urgent
+  assignedTo     String?
+  resolutionNote String?
+  acknowledgedAt DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  org Org? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([orgId])
+}
+
+// Refund record — paired with a Stripe refund (or manual write-off).
+// Linked to the original Payment / Reimbursement when possible. The
+// super-admin records why and how much; we emit it to the audit log
+// and (for Stripe-tracked payments) reflect it back to Stripe via the
+// refund API.
+model Refund {
+  id           String   @id @default(cuid())
+  orgId        String
+  paymentRef   String?  // Stripe charge id, or "manual:<note>"
+  amountCents  Int
+  reason       String
+  issuedBy     String   // User.id of the super-admin who issued it
+  status       String   @default("issued")  // issued | failed
+  notes        String?
+  createdAt    DateTime @default(now())
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, createdAt])
+}
+
+// Mobile push-notification device registration.
+//
+// One row per (user, device-installation). The mobile app calls
+// POST /api/v1/push/register on launch with its Expo push token (or
+// raw APNs / FCM token); we store + dedupe on (userId, token). When
+// a leader sends a broadcast, lib/push iterates pushDevices for the
+// audience and dispatches.
+//
+// Unregister happens automatically on logout (mobile clears the
+// stored token + posts /push/unregister) and on receiving a "bad
+// device" response from the push provider (token gets soft-deleted).
+model PushDevice {
+  id          String   @id @default(cuid())
+  userId      String
+  token       String   @unique
+  // "expo" | "apns" | "fcm". Drives which sender lib/push uses.
+  provider    String   @default("expo")
+  // Per-device label so a user can see "iPhone 15 Pro" / "Pixel 8" in
+  // their profile and revoke selectively. Optional.
+  deviceLabel String?
+  // App platform — "ios" | "android" | "web". Useful for partial
+  // outages (Apple downtime → skip ios devices).
+  platform    String?
+  // Soft-delete timestamp set when the push provider returns "bad
+  // device" (recipient uninstalled / disabled notifications). Skipped
+  // by the broadcaster but kept for audit.
+  retiredAt   DateTime?
+  retiredReason String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([retiredAt])
 }

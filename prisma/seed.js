@@ -13,6 +13,7 @@ import crypto from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { save as saveFile } from "../lib/storage.js";
 import { gradientPng } from "../lib/imageGen.js";
+import { buildSeedSubgroups } from "../lib/orgRoles.js";
 
 const prisma = new PrismaClient();
 
@@ -600,6 +601,221 @@ startxref
 
 // ---------- main ----------
 
+// ---------- Cub Scout Pack demo ----------
+
+const PACK_DEMO = {
+  slug: "pack100",
+  unitType: "Pack",
+  unitNumber: "100",
+  displayName: "Sample Pack 100",
+  tagline: "Cub Scouting for the demo. Lions through Arrow of Light.",
+  charterOrg: "Example Charter Organization",
+  city: "Anytown",
+  state: "USA",
+  council: "Sample Council",
+  meetingDay: "Wednesdays",
+  meetingTime: "6:30 PM",
+  meetingLocation: "Example Charter Organization, Anytown USA",
+  scoutmasterName: "Demo Cubmaster",
+  scoutmasterEmail: "cubmaster@example.invalid",
+  committeeChairEmail: "pack-committee@example.invalid",
+  primaryColor: "#0e3320",
+  accentColor: "#c8e94a",
+  plan: "patrol",
+  isDemo: true,
+};
+
+const PACK_DENS = [
+  { label: "Lion", grade: "K", count: 2 },
+  { label: "Tiger", grade: "1st", count: 3 },
+  { label: "Wolf", grade: "2nd", count: 3 },
+  { label: "Bear", grade: "3rd", count: 3 },
+  { label: "Webelos", grade: "4th", count: 2 },
+  { label: "Arrow of Light", grade: "5th", count: 2 },
+];
+
+async function seedPackSubgroups(orgId) {
+  const seeds = buildSeedSubgroups("Pack");
+  for (const s of seeds) {
+    await findOrCreate(
+      "subgroup",
+      { orgId, name: s.name },
+      { orgId, ...s },
+    );
+  }
+  console.log(`✓ Pack dens (${seeds.length})`);
+}
+
+async function seedPackMembers(orgId) {
+  const adults = [
+    { firstName: "Demo", lastName: "Cubmaster", email: "demo-cubmaster@example.invalid", phone: "555-0200", position: "Cubmaster", isYouth: false, commPreference: "both", smsOptIn: true },
+    { firstName: "Demo", lastName: "Pack Committee Chair", email: "demo-pack-cc@example.invalid", position: "Committee Chair", isYouth: false, commPreference: "email" },
+    { firstName: "Demo", lastName: "Pack Treasurer", email: "demo-pack-treasurer@example.invalid", position: "Treasurer", isYouth: false, commPreference: "email" },
+  ];
+  for (const den of PACK_DENS) {
+    adults.push({
+      firstName: "Demo",
+      lastName: `${den.label} Den Leader`,
+      email: `demo-${den.label.toLowerCase().replace(/\s+/g, "")}-leader@example.invalid`,
+      position: "Den Leader",
+      patrol: den.label,
+      isYouth: false,
+      commPreference: "both",
+      smsOptIn: true,
+    });
+  }
+  for (const m of adults) {
+    await findOrCreate("member", { orgId, firstName: m.firstName, lastName: m.lastName }, { orgId, ...m });
+  }
+
+  let cubIdx = 1;
+  for (const den of PACK_DENS) {
+    for (let i = 0; i < den.count; i++) {
+      const last = `${den.label} Cub ${i + 1}`;
+      const parentLast = `${den.label} Parent ${i + 1}`;
+      const parent = await findOrCreate(
+        "member",
+        { orgId, firstName: "Demo", lastName: parentLast },
+        {
+          orgId,
+          firstName: "Demo",
+          lastName: parentLast,
+          email: `demo-${den.label.toLowerCase().replace(/\s+/g, "")}-parent-${i + 1}@example.invalid`,
+          isYouth: false,
+          commPreference: "email",
+        },
+      );
+      await findOrCreate(
+        "member",
+        { orgId, firstName: "Demo", lastName: last },
+        {
+          orgId,
+          firstName: "Demo",
+          lastName: last,
+          isYouth: true,
+          patrol: den.label,
+          commPreference: "email",
+          parentIds: [parent.id],
+        },
+      );
+      cubIdx++;
+    }
+  }
+  console.log(`✓ Pack members (${adults.length} adults + ${cubIdx - 1} cubs across 6 dens)`);
+}
+
+async function seedPackOrg() {
+  const org = await prisma.org.upsert({
+    where: { slug: PACK_DEMO.slug },
+    update: PACK_DEMO,
+    create: PACK_DEMO,
+  });
+  console.log(`\nSeeding ${org.displayName} (${org.slug})…`);
+  await seedPackSubgroups(org.id);
+  await seedPackMembers(org.id);
+  return org;
+}
+
+// ---------- Girl Scout Troop demo ----------
+
+const GS_DEMO = {
+  slug: "gstroop100",
+  unitType: "GirlScoutTroop",
+  unitNumber: "100",
+  displayName: "Sample Girl Scout Troop 100",
+  tagline: "Girl Scout Troop demo. Daisies through Ambassadors.",
+  charterOrg: "Example Service Unit",
+  city: "Anytown",
+  state: "USA",
+  council: "Example Council of the USA",
+  meetingDay: "Thursdays",
+  meetingTime: "5:00 PM",
+  meetingLocation: "Example Service Unit, Anytown USA",
+  scoutmasterName: "Demo Troop Leader",
+  scoutmasterEmail: "troop-leader@example.invalid",
+  committeeChairEmail: "gs-committee@example.invalid",
+  primaryColor: "#0e3320",
+  accentColor: "#c8e94a",
+  plan: "patrol",
+  isDemo: true,
+};
+
+// Sample Girl Scout troop is multi-level (common for small communities):
+// a Daisy/Brownie group meets together with a single Troop Leader pair.
+const GS_LEVELS = [
+  { label: "Daisy", grade: "K-1", count: 3 },
+  { label: "Brownie", grade: "2-3", count: 4 },
+];
+
+async function seedGirlScoutSubgroups(orgId) {
+  const seeds = buildSeedSubgroups("GirlScoutTroop");
+  for (const s of seeds) {
+    await findOrCreate(
+      "subgroup",
+      { orgId, name: s.name },
+      { orgId, ...s },
+    );
+  }
+  console.log(`✓ Girl Scout levels (${seeds.length})`);
+}
+
+async function seedGirlScoutMembers(orgId) {
+  const adults = [
+    { firstName: "Demo", lastName: "Troop Leader", email: "demo-gs-troop-leader@example.invalid", phone: "555-0300", position: "Troop Leader", isYouth: false, commPreference: "both", smsOptIn: true },
+    { firstName: "Demo", lastName: "Co-Leader", email: "demo-gs-coleader@example.invalid", position: "Co-Leader", isYouth: false, commPreference: "email" },
+    { firstName: "Demo", lastName: "Cookie Manager", email: "demo-gs-cookie@example.invalid", position: "Cookie Manager", isYouth: false, commPreference: "email" },
+    { firstName: "Demo", lastName: "GS Treasurer", email: "demo-gs-treasurer@example.invalid", position: "Troop Treasurer", isYouth: false, commPreference: "email" },
+  ];
+  for (const m of adults) {
+    await findOrCreate("member", { orgId, firstName: m.firstName, lastName: m.lastName }, { orgId, ...m });
+  }
+  let girlCount = 0;
+  for (const lvl of GS_LEVELS) {
+    for (let i = 0; i < lvl.count; i++) {
+      const last = `${lvl.label} ${i + 1}`;
+      const parent = await findOrCreate(
+        "member",
+        { orgId, firstName: "Demo", lastName: `${lvl.label} Parent ${i + 1}` },
+        {
+          orgId,
+          firstName: "Demo",
+          lastName: `${lvl.label} Parent ${i + 1}`,
+          email: `demo-gs-${lvl.label.toLowerCase()}-parent-${i + 1}@example.invalid`,
+          isYouth: false,
+          commPreference: "email",
+        },
+      );
+      await findOrCreate(
+        "member",
+        { orgId, firstName: "Demo", lastName: last },
+        {
+          orgId,
+          firstName: "Demo",
+          lastName: last,
+          isYouth: true,
+          patrol: lvl.label,
+          commPreference: "email",
+          parentIds: [parent.id],
+        },
+      );
+      girlCount++;
+    }
+  }
+  console.log(`✓ Girl Scout members (${adults.length} adults + ${girlCount} girls across ${GS_LEVELS.length} levels)`);
+}
+
+async function seedGirlScoutOrg() {
+  const org = await prisma.org.upsert({
+    where: { slug: GS_DEMO.slug },
+    update: GS_DEMO,
+    create: GS_DEMO,
+  });
+  console.log(`\nSeeding ${org.displayName} (${org.slug})…`);
+  await seedGirlScoutSubgroups(org.id);
+  await seedGirlScoutMembers(org.id);
+  return org;
+}
+
 async function main() {
   const org = await prisma.org.upsert({
     where: { slug: DEMO.slug },
@@ -620,7 +836,13 @@ async function main() {
   await seedPosts(org.id);
   await seedForms(org.id);
 
-  console.log(`\nDemo seeded. Visit http://${DEMO.slug}.localhost:3000/ to see it.`);
+  const pack = await seedPackOrg();
+  const gs = await seedGirlScoutOrg();
+
+  console.log("\nDemo seeded. Visit:");
+  console.log(`  http://${DEMO.slug}.localhost:3000/`);
+  console.log(`  http://${pack.slug}.localhost:3000/`);
+  console.log(`  http://${gs.slug}.localhost:3000/`);
 }
 
 main()

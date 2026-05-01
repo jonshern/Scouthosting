@@ -1,21 +1,21 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: scouthosting-postgres
+    container_name: compass-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: scouthosting
-      POSTGRES_PASSWORD: scouthosting
-      POSTGRES_DB: scouthosting
+      POSTGRES_USER: compass
+      POSTGRES_PASSWORD: compass
+      POSTGRES_DB: compass
     ports:
       - "5432:5432"
     volumes:
-      - scouthosting-pgdata:/var/lib/postgresql/data
+      - compass-pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U scouthosting -d scouthosting"]
+      test: ["CMD-SHELL", "pg_isready -U compass -d compass"]
       interval: 5s
       timeout: 3s
       retries: 10
 
 volumes:
-  scouthosting-pgdata:
+  compass-pgdata:

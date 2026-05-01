@@ -33,37 +33,38 @@ describe("marketing / index.html", () => {
   });
 
   it("renders the 'Not another Scoutbook' positioning band", () => {
-    // The band sits between the stats strip and the four feature blocks.
-    // Its job is to make the comms-not-advancement positioning explicit so
-    // a committee chair shopping in five minutes never confuses Compass
-    // for an advancement product.
+    // The band sits between the stats strip and the three pillars. Its job
+    // is to make the comms+org-not-advancement positioning explicit so a
+    // committee chair shopping in five minutes never confuses Compass for
+    // an advancement product.
     expect(html).toMatch(/<section[^>]*class="[^"]*positioning/);
     expect(html).toMatch(/id="positioning-title"/);
-    // Tone-locked phrase from the design brief.
     expect(html).toContain("handles ranks");
     expect(html).toContain("everything else");
-    // Comms-shaped examples called out by name.
-    expect(html).toMatch(/parent group-text/i);
+    expect(html).toMatch(/parent\s+group-chat/i);
     expect(html).toMatch(/campout RSVP/i);
-    expect(html).toMatch(/potluck sign-up/i);
-    expect(html).toMatch(/weekly newsletter/i);
-    // The thesis line.
-    expect(html).toMatch(/Troops who communicate well, succeed\./i);
+    expect(html).toMatch(/Sunday-evening\s+newsletter/i);
+    expect(html).toMatch(/Troops who\s+communicate well, succeed\./i);
   });
 
-  it("leads the four feature blocks with Messages, not Calendar", () => {
-    // Comms-first ordering: Messages = 01, Calendar = 02, Photos = 03,
-    // Website = 04. The Evite/SignUpGenius framing lives on Calendar.
-    const messagesIdx = html.indexOf("MESSAGES");
-    const calendarIdx = html.indexOf("CALENDAR");
-    const memoriesIdx = html.indexOf("MEMORIES");
-    const websiteIdx = html.indexOf("WEBSITE");
-    expect(messagesIdx).toBeGreaterThan(0);
-    expect(messagesIdx).toBeLessThan(calendarIdx);
-    expect(calendarIdx).toBeLessThan(memoriesIdx);
-    expect(memoriesIdx).toBeLessThan(websiteIdx);
-    // Concrete competitor framing on the Calendar block.
-    expect(html).toMatch(/Evite \+ SignUpGenius/);
+  it("leads the pillars section with Communication then Organization then Security", () => {
+    // Three-pillar ordering: Communication first (chat / newsletter / email
+    // + SMS), Organization second (calendar / sign-ups / trip plan), Security
+    // last (the data-model two-deep + platform story).
+    const commsIdx = html.indexOf("Pillar 01 &middot; Communication");
+    const orgIdx = html.indexOf("Pillar 02 &middot; Organization");
+    const secIdx = html.indexOf("Pillar 03 &middot; Security");
+    expect(commsIdx).toBeGreaterThan(0);
+    expect(commsIdx).toBeLessThan(orgIdx);
+    expect(orgIdx).toBeLessThan(secIdx);
+    // Headline capabilities present.
+    expect(html).toContain("CHAT");
+    expect(html).toContain("NEWSLETTER");
+    expect(html).toContain("EMAIL &middot; SMS");
+    expect(html).toContain("CALENDAR");
+    expect(html).toContain("SIGN-UPS");
+    expect(html).toContain("TRIP PLAN");
+    expect(html).toContain("TWO-DEEP");
   });
 
   it("uses the locked Forest & Ember palette as CSS custom properties", () => {
@@ -95,17 +96,18 @@ describe("marketing / index.html", () => {
     if (h4Count > 0) expect(h3Count).toBeGreaterThan(0);
   });
 
-  it("contains all nine required sections", () => {
+  it("contains all required sections", () => {
     // 1. Top nav
     expect(html).toMatch(/<header[^>]*class="[^"]*topnav/);
     // 2. Hero
     expect(html).toMatch(/<section[^>]*class="[^"]*hero/);
     // 3. Stats band (dark forest)
     expect(html).toMatch(/<section[^>]*class="[^"]*stats/);
-    // 4. Features (with editorial blocks)
+    // 4. Pillars (three-pillar product story)
     expect(html).toMatch(/id="product"/);
-    expect(html).toMatch(/class="[^"]*feature feature--01/);
-    expect(html).toMatch(/class="[^"]*feature feature--04/);
+    expect(html).toMatch(/class="[^"]*pillar pillar--comms/);
+    expect(html).toMatch(/class="[^"]*pillar pillar--orgn/);
+    expect(html).toMatch(/class="[^"]*pillar pillar--security/);
     // 5. Migration band
     expect(html).toMatch(/<section[^>]*class="[^"]*migration/);
     expect(html).toMatch(/id="migration-title"/);
@@ -120,26 +122,25 @@ describe("marketing / index.html", () => {
     expect(html).toMatch(/<footer[^>]*class="[^"]*footer/);
   });
 
-  it("renders the four editorial feature blocks (Calendar / Website / Messages / Memories)", () => {
-    expect(html).toContain("CALENDAR");
-    expect(html).toContain("WEBSITE");
-    expect(html).toContain("MESSAGES");
-    expect(html).toContain("MEMORIES");
-    // Numerals 01–04
-    for (const n of ["01", "02", "03", "04"]) {
-      expect(html).toContain(`>${n}<`);
+  it("renders the three pillars with their numerals", () => {
+    expect(html).toMatch(/Pillar 01 &middot; Communication/);
+    expect(html).toMatch(/Pillar 02 &middot; Organization/);
+    expect(html).toMatch(/Pillar 03 &middot; Security/);
+    for (const n of ["01", "02", "03"]) {
+      expect(html).toMatch(new RegExp(`>${n}<`));
     }
   });
 
-  it("uses the secondary spectrum on stats and features", () => {
+  it("uses the secondary spectrum on stats and capabilities", () => {
     // Stats band: 4 distinct top-border tones via .stat-- modifier.
     const statTones = ["accent", "sky", "butter", "teal"];
     for (const t of statTones) {
       expect(html).toMatch(new RegExp(`stat--${t}\\b`));
     }
-    // Features: each feature carries a data-tone in {sky, accent, raspberry, plum}.
-    const featureTones = ["sky", "accent", "raspberry", "plum"];
-    for (const t of featureTones) {
+    // Capabilities carry a data-tone in {sky, accent, raspberry, ember,
+    // plum, butter, teal} — at least four distinct tones across the page.
+    const capabilityTones = ["sky", "raspberry", "ember", "plum", "teal"];
+    for (const t of capabilityTones) {
       expect(html).toMatch(new RegExp(`data-tone="${t}"`));
     }
   });

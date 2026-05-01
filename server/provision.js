@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import "dotenv/config";
 
 import { prisma } from "../lib/db.js";
+import { UNIT_TYPES, buildSeedSubgroups } from "../lib/orgRoles.js";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -29,7 +30,7 @@ const REQUIRED = [
   "scoutmasterEmail",
 ];
 
-const VALID_UNIT_TYPES = ["Troop", "Pack", "Crew", "Ship", "Post"];
+const VALID_UNIT_TYPES = UNIT_TYPES;
 const VALID_PLANS = ["patrol", "troop", "council"];
 
 const RESERVED_SLUGS = new Set([
@@ -60,10 +61,39 @@ export function validateProvisionInput(body = {}) {
   return errors;
 }
 
+// Per-unit-type slug + display prefix. Girl Scout troops use "gstroop"
+// so a town can host both Troop 12 (Scouts BSA) and Girl Scout Troop 12
+// without subdomain collision; their display name expands likewise so
+// "GirlScoutTroop 12" never leaks into emails or page titles.
+const UNIT_TYPE_META = {
+  Troop:          { slug: "troop",   display: "Troop" },
+  Pack:           { slug: "pack",    display: "Pack" },
+  Crew:           { slug: "crew",    display: "Crew" },
+  Ship:           { slug: "ship",    display: "Ship" },
+  Post:           { slug: "post",    display: "Post" },
+  GirlScoutTroop: { slug: "gstroop", display: "Girl Scout Troop" },
+};
+
 export function deriveSlug(unitType, unitNumber) {
-  const t = String(unitType).toLowerCase();
+  const prefix = UNIT_TYPE_META[unitType]?.slug || String(unitType).toLowerCase();
   const n = String(unitNumber).toLowerCase().replace(/\s+/g, "");
-  return `${t}${n}`;
+  return `${prefix}${n}`;
+}
+
+export function formatDisplayName(unitType, unitNumber) {
+  const prefix = UNIT_TYPE_META[unitType]?.display || String(unitType);
+  return `${prefix} ${unitNumber}`;
+}
+
+// Persist the canonical Subgroup rows for a freshly-provisioned org.
+// Idempotent (skipDuplicates) so re-running on an existing org is safe.
+async function persistSeedSubgroups(org) {
+  const seeds = buildSeedSubgroups(org.unitType);
+  if (!seeds.length) return;
+  await prisma.subgroup.createMany({
+    data: seeds.map((s) => ({ ...s, orgId: org.id })),
+    skipDuplicates: true,
+  });
 }
 
 /**
@@ -90,7 +120,7 @@ export async function provisionOrg(input) {
       slug,
       unitType: input.unitType,
       unitNumber: String(input.unitNumber),
-      displayName: `${input.unitType} ${input.unitNumber}`,
+      displayName: formatDisplayName(input.unitType, input.unitNumber),
       tagline: input.tagline?.trim() || null,
       charterOrg,
       city: input.city.trim(),
@@ -111,6 +141,7 @@ export async function provisionOrg(input) {
     },
   });
 
+  await persistSeedSubgroups(org);
   return org;
 }
 

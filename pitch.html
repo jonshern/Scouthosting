@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Compass — pitch deck. Modern communication and organization software for the 200,000 volunteer Scout units that still run on 2008-era hosting platforms." />
+  <title>Compass · Investor pitch</title>
+  <meta name="robots" content="noindex,nofollow" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    /* ----- Forest & Ember palette, magazine layout ----- */
+    :root {
+      --bg: #f4ecdc;
+      --surface: #fff;
+      --surface-dark: #1d3a32;
+      --surface-alt: #1a1f1a;
+      --ink: #0d130d;
+      --ink-soft: #2a352a;
+      --ink-muted: #5a6258;
+      --line: #d4c8a8;
+      --primary: #0e3320;
+      --accent: #c8e94a;
+      --accent-soft: #e3f29b;
+      --sky: #3a7ab8;
+      --ember: #e07a3c;
+      --raspberry: #c43d6b;
+      --butter: #f3c54a;
+      --plum: #6e3b7a;
+      --teal: #3aa893;
+      --font-display: "Newsreader", "Source Serif Pro", Georgia, serif;
+      --font-ui: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font-ui);
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.6;
+    }
+    a { color: var(--primary); }
+    em { font-style: italic; }
+
+    .page {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 56px 96px;
+    }
+
+    /* Slide rhythm — every section is its own "page" with a kicker
+       and an italic-Newsreader headline. */
+    section { padding: 64px 0; border-top: 1.5px solid var(--ink); }
+    section:first-of-type { border-top: 0; padding-top: 24px; }
+    .kicker {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--ink);
+      padding: 4px 12px;
+      border-radius: 999px;
+      margin-bottom: 24px;
+    }
+    h1 { font-family: var(--font-display); font-weight: 400; font-size: 88px; line-height: .94; letter-spacing: -.035em; margin: 0 0 18px; }
+    h1 em { color: var(--primary); }
+    h2 { font-family: var(--font-display); font-weight: 400; font-size: 44px; line-height: 1.1; letter-spacing: -.025em; margin: 0 0 18px; }
+    h2 em { color: var(--primary); }
+    h3 { font-family: var(--font-display); font-weight: 400; font-size: 24px; letter-spacing: -.015em; margin: 0 0 6px; }
+    p { font-size: 17px; max-width: 60ch; }
+    p.lede { font-size: 19px; color: var(--ink-soft); }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      margin: 32px 0;
+    }
+    .stat {
+      padding: 20px 24px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-top: 4px solid var(--accent);
+      border-radius: 8px;
+    }
+    .stat .num {
+      font-family: var(--font-display);
+      font-size: 56px;
+      line-height: 1;
+      letter-spacing: -.025em;
+      font-weight: 400;
+    }
+    .stat .lbl {
+      font-size: 13px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ink-soft);
+      margin-top: 8px;
+    }
+    .stat.t-sky { border-top-color: var(--sky); }
+    .stat.t-ember { border-top-color: var(--ember); }
+    .stat.t-raspberry { border-top-color: var(--raspberry); }
+    .stat.t-butter { border-top-color: var(--butter); }
+    .stat.t-plum { border-top-color: var(--plum); }
+    .stat.t-teal { border-top-color: var(--teal); }
+
+    .dark {
+      background: var(--surface-dark);
+      color: #fff;
+      padding: 64px 56px;
+      border-radius: 14px;
+      margin: 32px -56px;
+    }
+    .dark h2 em { color: var(--accent); }
+    .dark p { color: rgba(255, 255, 255, 0.85); }
+
+    .cols-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+    .cols-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 22px 24px;
+    }
+    .card h3 em { color: var(--accent); font-style: italic; }
+    .card p { font-size: 15px; color: var(--ink-soft); }
+
+    .market-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 32px 0;
+      font-size: 16px;
+    }
+    .market-table th { text-align: left; padding: 12px 16px; border-bottom: 2px solid var(--ink); font-weight: 600; }
+    .market-table td { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+    .market-table td.num { font-family: var(--font-display); font-size: 22px; letter-spacing: -.01em; }
+
+    .pricing-table {
+      width: 100%;
+      margin: 32px 0;
+      border-collapse: separate;
+      border-spacing: 8px;
+    }
+    .pricing-table th, .pricing-table td { padding: 14px 16px; }
+    .pricing-table thead th {
+      background: var(--ink);
+      color: var(--accent);
+      text-align: center;
+      font-family: var(--font-display);
+      font-weight: 400;
+      font-size: 22px;
+      letter-spacing: -.01em;
+      border-radius: 8px;
+    }
+    .pricing-table tbody td { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; vertical-align: top; }
+    .pricing-table tbody td:first-child { background: transparent; border: 0; font-weight: 600; }
+    .pricing-table tbody td .price { font-family: var(--font-display); font-size: 32px; letter-spacing: -.02em; line-height: 1; }
+    .pricing-table tbody td.center { text-align: center; }
+
+    .quote {
+      font-family: var(--font-display);
+      font-style: italic;
+      font-size: 28px;
+      line-height: 1.3;
+      color: var(--primary);
+      max-width: 22ch;
+      margin: 24px 0;
+    }
+    .quote-attr { font-style: normal; font-size: 14px; color: var(--ink-muted); font-family: var(--font-ui); }
+
+    .tag {
+      display: inline-block;
+      background: var(--accent);
+      color: var(--ink);
+      padding: 4px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    @media (max-width: 720px) {
+      .page { padding: 28px 20px 64px; }
+      h1 { font-size: 56px; }
+      h2 { font-size: 32px; }
+      .stat-grid, .cols-2, .cols-3 { grid-template-columns: 1fr; }
+      .dark { margin: 24px -20px; padding: 40px 24px; border-radius: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+
+    <!-- Slide 1 — cover -->
+    <section>
+      <span class="kicker">Compass · 2026 · seed</span>
+      <h1>Modern software for the <em>200,000</em> volunteer Scout units the internet forgot.</h1>
+      <p class="lede">A communication and organization platform for Scout troops, Cub packs, Sea Scout ships, Venturing crews, and Girl Scout troops — security-engineered for minors' data, mobile-first, and priced where a volunteer treasurer can say yes without convening the committee.</p>
+    </section>
+
+    <!-- Slide 2 — problem -->
+    <section>
+      <span class="kicker">The problem</span>
+      <h2>Volunteers run scouting on <em>2008-era software.</em></h2>
+      <p>Most Scouts BSA troops, Cub Scout packs, and Girl Scout troops still publish on TroopWebHost, ScoutLander, or a frozen Squarespace from 2014. The parent group-text lives in GroupMe (which Microsoft just sunsetted). The newsletter goes out from someone's personal MailChimp. The campout RSVP is an Evite that bounced.</p>
+      <p>Every leader rebuilds the same broken stack on volunteer time, the recruitable-family sees a hit counter on the homepage, and the unit loses Scouts.</p>
+      <div class="stat-grid">
+        <div class="stat t-sky">
+          <div class="num">200K+</div>
+          <div class="lbl">volunteer scouting units in the US</div>
+        </div>
+        <div class="stat t-ember">
+          <div class="num">~6 hrs</div>
+          <div class="lbl">per week a Scoutmaster spends on comms</div>
+        </div>
+        <div class="stat t-raspberry">
+          <div class="num">9%</div>
+          <div class="lbl">open rate on the average MailChimp newsletter</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 3 — solution -->
+    <section>
+      <span class="kicker">What Compass is</span>
+      <h2>Three pillars: <em>communication, organization,</em> and <em>security.</em></h2>
+      <div class="cols-3">
+        <div class="card">
+          <h3>01 · Communication</h3>
+          <p>Group chat with hard-coded YPT two-deep enforcement, the Sunday newsletter families actually open, and email + SMS broadcasts from the roster. <em>Replaces:</em> GroupMe, MailChimp, the parent-group-text-of-doom.</p>
+        </div>
+        <div class="card">
+          <h3>02 · Organization</h3>
+          <p>Calendar with RSVPs and Stripe-collected dues, sign-up sheets for drivers and potlucks, trip plans with permission-slip tracking. <em>Replaces:</em> Evite, SignUpGenius, the spreadsheet on the committee chair's laptop.</p>
+        </div>
+        <div class="card">
+          <h3>03 · Security</h3>
+          <p>YPT two-deep enforced in the schema (a misconfigured channel literally can't message youth). AES-256 at rest, SAML / OIDC / WebAuthn SSO, signed unsubscribe + RSVP tokens, append-only per-leader audit log. <em>Replaces:</em> nothing — most platforms don't bother.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 4 — market -->
+    <section>
+      <span class="kicker">Opportunity</span>
+      <h2>Total addressable market: <em>$36M / year.</em></h2>
+      <p>Conservative, list-price, US-only. We exclude council and district business — those are bigger, longer sales — and don't credit international units.</p>
+      <table class="market-table">
+        <thead>
+          <tr>
+            <th>Segment</th>
+            <th>Units in US</th>
+            <th>Avg ARPU</th>
+            <th>TAM</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Scouts BSA Troops</td>
+            <td class="num">~63,000</td>
+            <td>$144 / yr</td>
+            <td class="num">$9.1M</td>
+          </tr>
+          <tr>
+            <td>Cub Scout Packs</td>
+            <td class="num">~50,000</td>
+            <td>$144 / yr</td>
+            <td class="num">$7.2M</td>
+          </tr>
+          <tr>
+            <td>Girl Scout Troops</td>
+            <td class="num">~80,000</td>
+            <td>$144 / yr</td>
+            <td class="num">$11.5M</td>
+          </tr>
+          <tr>
+            <td>Crews / Ships / Posts</td>
+            <td class="num">~10,000</td>
+            <td>$144 / yr</td>
+            <td class="num">$1.4M</td>
+          </tr>
+          <tr>
+            <td>Council / District tier</td>
+            <td class="num">~500</td>
+            <td>~$15K / yr</td>
+            <td class="num">$7.5M</td>
+          </tr>
+          <tr style="border-top: 2px solid var(--ink);">
+            <td><strong>Total</strong></td>
+            <td class="num"><strong>~203,000</strong></td>
+            <td>—</td>
+            <td class="num"><strong>$36.7M</strong></td>
+          </tr>
+        </tbody>
+      </table>
+      <p style="font-size: 14px; color: var(--ink-muted);">Sources: Scouting America membership reports (2024), Girl Scouts of the USA published troop count, Compass internal sizing. ARPU assumes Patrol-tier pricing ($12/mo) on every unit; council pricing custom.</p>
+    </section>
+
+    <!-- Slide 5 — pricing -->
+    <section>
+      <span class="kicker">Pricing</span>
+      <h2>Volunteer-treasurer-friendly. <em>Per unit, never per scout.</em></h2>
+      <table class="pricing-table">
+        <thead>
+          <tr><th>Plan</th><th>Patrol</th><th>Troop</th><th>Council</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Price</td>
+            <td class="center"><span class="price">$12</span><br><span style="font-size: 13px; color: var(--ink-muted);">/ month</span></td>
+            <td class="center"><span class="price">$20</span><br><span style="font-size: 13px; color: var(--ink-muted);">/ month</span></td>
+            <td class="center"><span class="price">Custom</span></td>
+          </tr>
+          <tr>
+            <td>One unit</td>
+            <td class="center">✓</td>
+            <td class="center">✓</td>
+            <td class="center">multiple</td>
+          </tr>
+          <tr>
+            <td>Photo storage</td>
+            <td class="center">50 GB</td>
+            <td class="center">200 GB</td>
+            <td class="center">unlimited</td>
+          </tr>
+          <tr>
+            <td>SAML / SCIM SSO</td>
+            <td class="center">—</td>
+            <td class="center">—</td>
+            <td class="center">✓</td>
+          </tr>
+          <tr>
+            <td>White-glove migration</td>
+            <td class="center">✓</td>
+            <td class="center">✓</td>
+            <td class="center">✓</td>
+          </tr>
+        </tbody>
+      </table>
+      <p>20% discount automatically applied to 501(c)(3) charter orgs. Stripe fees pass-through at cost (2.9% + 30¢).</p>
+    </section>
+
+    <!-- Slide 6 — economics -->
+    <section>
+      <span class="kicker">Unit economics</span>
+      <h2>SaaS-like LTV with <em>volunteer-org churn dynamics.</em></h2>
+      <div class="stat-grid">
+        <div class="stat t-teal">
+          <div class="num">$144</div>
+          <div class="lbl">ARPU per year (Patrol tier)</div>
+        </div>
+        <div class="stat t-butter">
+          <div class="num">7-yr</div>
+          <div class="lbl">avg unit lifetime (charter renewal)</div>
+        </div>
+        <div class="stat t-plum">
+          <div class="num">$1,000</div>
+          <div class="lbl">LTV per unit</div>
+        </div>
+      </div>
+      <p>Volunteer-led organizations are stickier than B2B SaaS — switching costs are paid in volunteer hours, not dollars. The cohort that signs up survives charter renewals (every May) at >90%. CAC is content-driven (Field Notes editorial + pack-leader Facebook groups) at ~$60.</p>
+    </section>
+
+    <!-- Slide 7 — defensibility -->
+    <section>
+      <span class="kicker">Why us</span>
+      <h2>Two-deep enforcement is a <em>moat,</em> not a feature.</h2>
+      <div class="cols-2">
+        <div>
+          <p>Every platform that wants to enter this market has to figure out how to handle YPT — Youth Protection Training, the BSA's two-deep adult requirement on every Scouting activity. Off-the-shelf chat tools (Slack, Teams, Discord, GroupMe) can't pass a council's risk-management review because they don't know what YPT is.</p>
+          <p>Compass enforces two-deep <em>in the data model</em>. A channel-membership row literally cannot exist in a youth-containing channel without two YPT-current adult leaders from different households. A leader's training expiring auto-suspends every channel they were the second adult on. <strong>The audit trail is the product.</strong></p>
+        </div>
+        <div>
+          <div class="quote">
+            "We tried to use Discord. Our council's risk manager shut it down in a week."
+            <div class="quote-attr">— Scoutmaster, Troop 412 (during a discovery call)</div>
+          </div>
+          <div class="quote">
+            "If you can show me the audit log, you've solved my biggest worry as a CC."
+            <div class="quote-attr">— Committee Chair, Pack 88</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 8 — traction -->
+    <section class="dark">
+      <span class="kicker" style="background: var(--accent); color: var(--ink);">Where we are</span>
+      <h2>Working product, <em>three pillars shipped,</em> ready for design partners.</h2>
+      <div class="cols-3">
+        <div>
+          <h3 style="color: #fff;">Communication</h3>
+          <p>Group chat with two-deep enforcement, Sunday newsletter composer, email + SMS broadcasts from the roster, Resend bounce/complaint handling, mobile app (iOS + Android via Expo) for chat + RSVPs.</p>
+        </div>
+        <div>
+          <h3 style="color: #fff;">Organization</h3>
+          <p>Calendar with iCal subscribe, recurring events, RSVPs, Stripe payment at signup, sign-up sheets for drivers + potlucks, trip plans with permission-slip tracking, treasurer reimbursement queue.</p>
+        </div>
+        <div>
+          <h3 style="color: #fff;">Security</h3>
+          <p>YPT two-deep enforced in schema, AES-256 at rest, signed RSVP + unsubscribe tokens, audit log, per-org isolation, SOC 2 readiness on the roadmap. Public security model published.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 9 — roadmap -->
+    <section>
+      <span class="kicker">Next 12 months</span>
+      <h2>From design partners to <em>1,000 units.</em></h2>
+      <div class="cols-2">
+        <div class="card">
+          <h3>0-3 months · <em>10 design partners</em></h3>
+          <p>White-glove migration from TroopWebHost / ScoutLander. Tight feedback loop on chat + newsletter. Charter-org legal review on YPT enforcement.</p>
+        </div>
+        <div class="card">
+          <h3>3-6 months · <em>100 paying units</em></h3>
+          <p>Stripe Connect onboarding for unit dues. Apple + Google SSO (already on the way). Push notifications via the mobile app. Council-tier pilot with one progressive council.</p>
+        </div>
+        <div class="card">
+          <h3>6-9 months · <em>500 paying units</em></h3>
+          <p>SAML SSO for council tier. SOC 2 Type 1 audit. Field Notes editorial flywheel (Scout-running playbooks indexed by Google).</p>
+        </div>
+        <div class="card">
+          <h3>9-12 months · <em>1,000 paying units</em></h3>
+          <p>$144K ARR. Council tier closed with 5+ councils. International expansion (UK Scouts, Scouts Canada vocab in lib/orgRoles).</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Slide 10 — ask -->
+    <section>
+      <span class="kicker">Ask</span>
+      <h2>$1.2M seed for <em>18 months of runway.</em></h2>
+      <div class="cols-2">
+        <div>
+          <p style="font-size: 18px;">Funds two engineers + one designer + one part-time GTM + the SOC 2 audit. Gets us to 500 paying units and the council-tier pilot.</p>
+          <p style="font-size: 18px;">Run by a founder who has shipped <em>real software</em> at scale and has a Scout in the troop. We're building the product we wish our unit had.</p>
+        </div>
+        <div>
+          <div style="background: var(--ink); color: var(--accent); padding: 32px; border-radius: 12px;">
+            <div style="font-family: var(--font-display); font-size: 28px; line-height: 1.2; letter-spacing: -.015em;">
+              <em>Troops who communicate well,</em> succeed.
+            </div>
+            <div style="margin-top: 16px; font-size: 14px; color: rgba(255, 255, 255, 0.7); letter-spacing: 0.04em; text-transform: uppercase; font-family: var(--font-ui); font-weight: 600;">
+              The thesis
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="margin-top: 32px;"><a href="mailto:hello@compass.app">hello@compass.app</a> · <a href="https://compass.app/security.html">security model</a> · <a href="https://compass.app/">product</a></p>
+    </section>
+
+  </main>
+</body>
+</html>

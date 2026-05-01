@@ -23,6 +23,10 @@ import {
   checkChannelTwoDeep,
 } from "../lib/chat.js";
 import { publishMessage, subscribe as subscribeRealtime } from "../lib/realtime.js";
+import { canPostToChannel } from "../lib/chatPermissions.js";
+import { logger } from "../lib/log.js";
+
+const log = logger.child("api");
 
 export const apiRouter = Router();
 
@@ -350,6 +354,283 @@ apiRouter.get("/auth/me", resolveApiUser, async (req, res) => {
   });
 });
 
+// GET /api/v1/events/:id — full event detail including the viewer's
+// RSVP. Used by the mobile event-detail screen.
+apiRouter.get("/events/:id", resolveApiUser, async (req, res) => {
+  const event = await prisma.event.findUnique({ where: { id: req.params.id } });
+  if (!event) return res.status(404).json({ error: "not_found" });
+  const membership = await membershipFor(req.apiUser.id, event.orgId);
+  if (!membership) return res.status(403).json({ error: "not_a_member" });
+  const [rsvpCounts, mine] = await Promise.all([
+    prisma.rsvp.groupBy({
+      by: ["response"],
+      where: { eventId: event.id },
+      _count: { _all: true },
+    }),
+    prisma.rsvp.findFirst({
+      where: { eventId: event.id, userId: req.apiUser.id },
+      select: { response: true, guests: true, notes: true },
+    }),
+  ]);
+  const counts = { yes: 0, no: 0, maybe: 0 };
+  for (const r of rsvpCounts) counts[r.response] = r._count._all;
+  const { categoryMeta } = await import("../lib/eventCategories.js");
+  const meta = event.category ? categoryMeta(event.category) : null;
+  res.json({
+    event: {
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      startsAt: event.startsAt,
+      endsAt: event.endsAt,
+      allDay: event.allDay,
+      location: event.location,
+      locationAddress: event.locationAddress,
+      cost: event.cost,
+      capacity: event.capacity,
+      category: event.category,
+      categoryLabel: meta?.label || null,
+      color: meta?.color || "primary",
+      rsvps: counts,
+      myRsvp: mine || null,
+    },
+  });
+});
+
+// POST /api/v1/events/:id/rsvp — set or update the viewer's RSVP.
+// Body: { response: "yes"|"no"|"maybe", guests?, notes? }.
+apiRouter.post("/events/:id/rsvp", resolveApiUser, async (req, res) => {
+  const event = await prisma.event.findUnique({ where: { id: req.params.id } });
+  if (!event) return res.status(404).json({ error: "not_found" });
+  const membership = await membershipFor(req.apiUser.id, event.orgId);
+  if (!membership) return res.status(403).json({ error: "not_a_member" });
+  const response = String(req.body?.response || "").toLowerCase();
+  if (!["yes", "no", "maybe"].includes(response)) {
+    return res.status(400).json({ error: "invalid_response" });
+  }
+  const guests = Math.max(0, Math.min(20, Number(req.body?.guests) || 0));
+  const notes = String(req.body?.notes || "").trim().slice(0, 500) || null;
+  const data = {
+    orgId: event.orgId,
+    eventId: event.id,
+    userId: req.apiUser.id,
+    name: req.apiUser.displayName,
+    email: req.apiUser.email,
+    response,
+    guests,
+    notes,
+  };
+  await prisma.rsvp.upsert({
+    where: { eventId_userId: { eventId: event.id, userId: req.apiUser.id } },
+    update: { response, guests, notes },
+    create: data,
+  });
+  res.json({ ok: true, response, guests, notes });
+});
+
+// GET /api/v1/orgs/:orgId/posts — recent activity-feed posts. Used by
+// the mobile activity-feed screen. Returns 30 posts with author +
+// reaction roll-ups.
+apiRouter.get("/orgs/:orgId/posts", resolveApiUser, async (req, res) => {
+  const orgId = req.params.orgId;
+  const membership = await membershipFor(req.apiUser.id, orgId);
+  if (!membership) return res.status(404).json({ error: "not_a_member" });
+
+  const posts = await prisma.post.findMany({
+    where: { orgId, visibility: { in: ["public", "members"] } },
+    orderBy: [{ pinned: "desc" }, { publishedAt: "desc" }],
+    take: 30,
+    include: {
+      author: { select: { displayName: true } },
+      photos: { orderBy: { sortOrder: "asc" }, select: { filename: true, caption: true } },
+    },
+  });
+  if (!posts.length) return res.json({ posts: [] });
+
+  const { summariseReactions } = await import("../lib/postReactions.js");
+  const reactionRows = await prisma.postReaction.findMany({
+    where: { postId: { in: posts.map((p) => p.id) } },
+    select: { postId: true, userId: true, kind: true },
+  });
+  const summary = summariseReactions(reactionRows, req.apiUser.id);
+  res.json({
+    posts: posts.map((p) => ({
+      id: p.id,
+      title: p.title,
+      body: p.body,
+      pinned: p.pinned,
+      publishedAt: p.publishedAt,
+      author: p.author?.displayName || null,
+      photos: p.photos.map((ph) => ({ filename: ph.filename, caption: ph.caption })),
+      reactions: summary.get(p.id) || {
+        likes: 0, bookmarks: 0, youLiked: false, youBookmarked: false,
+      },
+    })),
+  });
+});
+
+// GET /api/v1/orgs/:orgId/dashboard — view-model for the mobile home
+// screen. Reuses lib/dashboard so server-rendered admin and the mobile
+// app stay aligned.
+apiRouter.get("/orgs/:orgId/dashboard", resolveApiUser, async (req, res) => {
+  const membership = await membershipFor(req.apiUser.id, req.params.orgId);
+  if (!membership) return res.status(404).json({ error: "not_found" });
+  const { buildDashboardModel } = await import("../lib/dashboard.js");
+  const model = await buildDashboardModel({ prisma, orgId: req.params.orgId });
+  res.json(model);
+});
+
+// POST /api/v1/posts/:id/reactions — toggle a like or bookmark on
+// an activity-feed post. Body: { kind: "like" | "bookmark" }.
+// Returns the post's roll-up after the toggle so the client can
+// update its UI in one round-trip.
+apiRouter.post("/posts/:id/reactions", resolveApiUser, async (req, res) => {
+  const { normaliseReactionKind, summariseReactions } = await import(
+    "../lib/postReactions.js"
+  );
+  let kind;
+  try {
+    kind = normaliseReactionKind(String(req.body?.kind || "").trim());
+  } catch (e) {
+    return res.status(400).json({ error: "invalid_kind" });
+  }
+  const post = await prisma.post.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, orgId: true },
+  });
+  if (!post) return res.status(404).json({ error: "not_found" });
+  const membership = await membershipFor(req.apiUser.id, post.orgId);
+  if (!membership) return res.status(403).json({ error: "not_a_member" });
+
+  const existing = await prisma.postReaction.findUnique({
+    where: {
+      postId_userId_kind: { postId: post.id, userId: req.apiUser.id, kind },
+    },
+  });
+  if (existing) {
+    await prisma.postReaction.delete({
+      where: {
+        postId_userId_kind: { postId: post.id, userId: req.apiUser.id, kind },
+      },
+    });
+  } else {
+    await prisma.postReaction.create({
+      data: { postId: post.id, userId: req.apiUser.id, kind },
+    });
+  }
+
+  const rows = await prisma.postReaction.findMany({
+    where: { postId: post.id },
+    select: { postId: true, userId: true, kind: true },
+  });
+  const summary = summariseReactions(rows, req.apiUser.id).get(post.id) || {
+    likes: 0,
+    bookmarks: 0,
+    youLiked: false,
+    youBookmarked: false,
+  };
+  res.json({ postId: post.id, ...summary });
+});
+
+// GET /api/v1/posts/bookmarked — viewer's bookmarked posts.
+apiRouter.get("/posts/bookmarked", resolveApiUser, async (req, res) => {
+  const orgId = String(req.query?.orgId || "");
+  if (!orgId) return res.status(400).json({ error: "orgId_required" });
+  const membership = await membershipFor(req.apiUser.id, orgId);
+  if (!membership) return res.status(403).json({ error: "not_a_member" });
+  const reactions = await prisma.postReaction.findMany({
+    where: { userId: req.apiUser.id, kind: "bookmark", post: { orgId } },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: {
+      post: {
+        select: {
+          id: true, title: true, body: true, publishedAt: true,
+          author: { select: { displayName: true } },
+        },
+      },
+    },
+  });
+  res.json({
+    posts: reactions.map((r) => ({
+      id: r.post.id,
+      title: r.post.title,
+      body: r.post.body.slice(0, 280),
+      publishedAt: r.post.publishedAt,
+      authorName: r.post.author?.displayName || null,
+      bookmarkedAt: r.createdAt,
+    })),
+  });
+});
+
+// POST /api/v1/push/register — mobile app posts its push token on
+// launch + on token refresh. Idempotent on the unique token; un-
+// retires a previously-retired token if the user reinstalled.
+apiRouter.post("/push/register", resolveApiUser, async (req, res) => {
+  const token = String(req.body?.token || "").trim();
+  if (!token) return res.status(400).json({ error: "token_required" });
+  const provider = String(req.body?.provider || "expo");
+  const platform = req.body?.platform ? String(req.body.platform) : null;
+  const deviceLabel = req.body?.deviceLabel
+    ? String(req.body.deviceLabel).slice(0, 80)
+    : null;
+  const device = await prisma.pushDevice.upsert({
+    where: { token },
+    update: {
+      userId: req.apiUser.id,
+      provider,
+      platform,
+      deviceLabel,
+      retiredAt: null,
+      retiredReason: null,
+    },
+    create: {
+      userId: req.apiUser.id,
+      token,
+      provider,
+      platform,
+      deviceLabel,
+    },
+  });
+  res.status(201).json({ id: device.id });
+});
+
+// POST /api/v1/push/unregister — mobile app calls on logout to take
+// the token out of rotation. Soft-delete so the audit trail keeps
+// the row.
+apiRouter.post("/push/unregister", resolveApiUser, async (req, res) => {
+  const token = String(req.body?.token || "").trim();
+  if (!token) return res.status(400).json({ error: "token_required" });
+  await prisma.pushDevice.updateMany({
+    where: { token, userId: req.apiUser.id },
+    data: { retiredAt: new Date(), retiredReason: "logout" },
+  });
+  res.status(204).end();
+});
+
+// POST /api/v1/support — file a SupportTicket from the mobile app.
+// Same shape as the web /help form; 201 with the ticket id on success.
+apiRouter.post("/support", resolveApiUser, async (req, res) => {
+  const subject = String(req.body?.subject || "").trim().slice(0, 200);
+  const body = String(req.body?.body || "").trim().slice(0, 5000);
+  const category = String(req.body?.category || "question");
+  const orgId = req.body?.orgId ? String(req.body.orgId) : null;
+  if (!subject || !body) return res.status(400).json({ error: "subject_and_body_required" });
+  const ticket = await prisma.supportTicket.create({
+    data: {
+      orgId,
+      userId: req.apiUser.id,
+      fromEmail: req.apiUser.email,
+      fromName: req.apiUser.displayName,
+      subject,
+      body,
+      category,
+      priority: category === "abuse" ? "urgent" : "normal",
+    },
+  });
+  res.status(201).json({ id: ticket.id });
+});
+
 /* ------------------------------------------------------------------ */
 /* Channels                                                            */
 /* ------------------------------------------------------------------ */
@@ -473,13 +754,40 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
   const membership = await membershipFor(req.apiUser.id, channel.orgId);
   if (!membership) return res.status(404).json({ error: "not_found" });
 
-  // Caller must be in the channel (or a leader/admin).
-  if (channel.kind !== "troop" && membership.role !== "leader" && membership.role !== "admin") {
-    const member = await prisma.channelMember.findFirst({
-      where: { channelId: channel.id, userId: req.apiUser.id },
-      select: { id: true },
-    });
-    if (!member) return res.status(403).json({ error: "not_in_channel" });
+  // Resolve the channel-membership row + Member directory entry once,
+  // then defer the policy decision to lib/chatPermissions.canPostToChannel.
+  const isLeader = membership.role === "leader" || membership.role === "admin";
+  const [channelMembership, member] = await Promise.all([
+    isLeader
+      ? Promise.resolve(null)
+      : prisma.channelMember.findFirst({
+          where: { channelId: channel.id, userId: req.apiUser.id },
+          select: { id: true },
+        }),
+    isLeader || !req.apiUser.email
+      ? Promise.resolve(null)
+      : prisma.member.findFirst({
+          where: { orgId: channel.orgId, email: req.apiUser.email.toLowerCase() },
+          select: { patrol: true },
+        }),
+  ]);
+  const decision = canPostToChannel(channel, {
+    role: membership.role,
+    isLeader,
+    channelMembership,
+    member,
+  });
+  if (!decision.ok) {
+    if (decision.reason === "suspended") {
+      return res.status(409).json({
+        error: "channel_suspended",
+        reason: channel.suspendedReason,
+      });
+    }
+    if (decision.reason === "archived") {
+      return res.status(409).json({ error: "archived" });
+    }
+    return res.status(403).json({ error: decision.reason });
   }
 
   const body = String(req.body?.body || "").trim();
@@ -502,13 +810,6 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
       });
     }
     throw e;
-  }
-
-  if (channel.isSuspended) {
-    return res.status(409).json({
-      error: "channel_suspended",
-      reason: channel.suspendedReason,
-    });
   }
 
   // Optional inline attachment — poll, rsvp, or photo. The same column
@@ -564,10 +865,48 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
   try {
     publishMessage(channel.id, dto);
   } catch (e) {
-    console.warn(`[realtime] publishMessage failed: ${e.message}`);
+    log.warn("realtime publish failed", { err: e });
   }
+  // Fire push notifications to every channel member except the
+  // poster. Best-effort (failures don't propagate); see lib/push for
+  // the driver matrix. Intentionally fire-and-forget — we don't await.
+  pushChannelMessage(channel, message, req.apiUser).catch((err) => {
+    log.warn("push dispatch failed", { err });
+  });
   res.status(201).json({ message: dto });
 });
+
+async function pushChannelMessage(channel, message, author) {
+  const recipients = await prisma.channelMember.findMany({
+    where: { channelId: channel.id, userId: { not: author.id } },
+    select: { userId: true },
+  });
+  if (!recipients.length) return;
+  const devices = await prisma.pushDevice.findMany({
+    where: {
+      userId: { in: recipients.map((r) => r.userId) },
+      retiredAt: null,
+    },
+    select: { token: true },
+  });
+  if (!devices.length) return;
+  const { sendPushBatch } = await import("../lib/push.js");
+  const preview = String(message.body || "").slice(0, 140);
+  const result = await sendPushBatch(
+    devices.map((d) => ({
+      token: d.token,
+      title: `${author.displayName} · ${channel.name}`,
+      body: preview,
+      data: { kind: "chat", channelId: channel.id, messageId: message.id },
+    })),
+  );
+  if (result.retiredTokens.length) {
+    await prisma.pushDevice.updateMany({
+      where: { token: { in: result.retiredTokens } },
+      data: { retiredAt: new Date(), retiredReason: "device-not-registered" },
+    });
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* Reactions                                                           */
@@ -651,7 +990,7 @@ apiRouter.post("/messages/:id/reactions", resolveApiUser, async (req, res) => {
   try {
     publishMessage(channel.id, dto);
   } catch (e) {
-    console.warn(`[realtime] publishMessage failed: ${e.message}`);
+    log.warn("realtime publish failed", { err: e });
   }
   res.json({ message: dto });
 });
@@ -825,6 +1164,74 @@ apiRouter.get("/orgs/:orgId/upcoming-events", resolveApiUser, async (req, res) =
     select: { id: true, title: true, startsAt: true, location: true },
   });
   res.json({ events });
+});
+
+// GET /api/v1/orgs/:orgId/events?from=...&to=... — richer shape for
+// the mobile Calendar screen. Returns up to 60 events in the requested
+// window with category + RSVP totals + the viewer's RSVP. Categories
+// resolve to the lib/eventCategories palette key so the mobile client
+// renders the same colours as the web.
+apiRouter.get("/orgs/:orgId/events", resolveApiUser, async (req, res) => {
+  const orgId = req.params.orgId;
+  const membership = await membershipFor(req.apiUser.id, orgId);
+  if (!membership) return res.status(404).json({ error: "not_a_member" });
+
+  const fromMs = req.query?.from ? Date.parse(String(req.query.from)) : Date.now();
+  const toMs = req.query?.to
+    ? Date.parse(String(req.query.to))
+    : Date.now() + 90 * 24 * 60 * 60 * 1000;
+  const from = new Date(isNaN(fromMs) ? Date.now() : fromMs);
+  const to = new Date(isNaN(toMs) ? Date.now() + 90 * 24 * 60 * 60 * 1000 : toMs);
+
+  const events = await prisma.event.findMany({
+    where: { orgId, startsAt: { gte: from, lte: to } },
+    orderBy: { startsAt: "asc" },
+    take: 60,
+    select: {
+      id: true, title: true, startsAt: true, endsAt: true,
+      location: true, category: true, capacity: true, cost: true,
+      _count: { select: { rsvps: true } },
+    },
+  });
+
+  const ids = events.map((e) => e.id);
+  const [yesByEvent, mineByEvent] = ids.length
+    ? await Promise.all([
+        prisma.rsvp.groupBy({
+          by: ["eventId"],
+          where: { orgId, response: "yes", eventId: { in: ids } },
+          _count: { _all: true },
+        }),
+        prisma.rsvp.findMany({
+          where: { orgId, eventId: { in: ids }, userId: req.apiUser.id },
+          select: { eventId: true, response: true },
+        }),
+      ])
+    : [[], []];
+  const yesMap = new Map(yesByEvent.map((r) => [r.eventId, r._count._all]));
+  const mineMap = new Map(mineByEvent.map((r) => [r.eventId, r.response]));
+
+  const { categoryMeta } = await import("../lib/eventCategories.js");
+  res.json({
+    events: events.map((e) => {
+      const meta = e.category ? categoryMeta(e.category) : null;
+      return {
+        id: e.id,
+        title: e.title,
+        startsAt: e.startsAt,
+        endsAt: e.endsAt,
+        location: e.location,
+        category: e.category,
+        categoryLabel: meta?.label || null,
+        color: meta?.color || "primary",
+        capacity: e.capacity,
+        costCents: e.cost ? e.cost * 100 : null,
+        rsvpYesCount: yesMap.get(e.id) || 0,
+        rsvpTotalCount: e._count.rsvps,
+        myRsvp: mineMap.get(e.id) || null,
+      };
+    }),
+  });
 });
 
 /* ------------------------------------------------------------------ */

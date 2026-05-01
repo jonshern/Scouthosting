@@ -49,6 +49,39 @@ function textToHtml(s) {
   return renderMarkdown(s ?? "");
 }
 
+// Hero photo strip — three or four most-recent public-album photos
+// laid out as a 2/1/1 grid under the hero text. Each tile gets a
+// secondary-spectrum top border so the strip echoes the marketing
+// site's locked design. Returns an empty string when no photos so
+// the hero collapses gracefully.
+function renderHeroPhotos(photos) {
+  if (!photos || !photos.length) return "";
+  const tones = ["accent", "sky", "raspberry", "plum"];
+  const slice = photos.slice(0, 4);
+  const tiles = slice
+    .map((p, i) => {
+      const tone = tones[i % tones.length];
+      const caption = p.caption ? escapeHtml(p.caption) : "";
+      return `<a class="hero-photo hero-photo--${escapeHtml(tone)}" href="/photos" aria-label="${caption || "Open the photo gallery"}" style="--cc:var(--${escapeHtml(tone)})">
+        <img src="/uploads/${escapeHtml(p.filename)}" alt="${caption}" loading="lazy">
+      </a>`;
+    })
+    .join("");
+  return `<div class="hero__photos" aria-hidden="false">${tiles}</div>
+    <style>
+      .hero__photos{margin-top:32px;display:grid;grid-template-columns:2fr 1fr 1fr;grid-template-rows:1fr 1fr;gap:8px;height:340px;border-radius:6px;overflow:hidden}
+      .hero-photo{display:block;border-top:5px solid var(--cc);border-radius:6px;overflow:hidden;background:#1d3a32;position:relative}
+      .hero-photo:first-child{grid-row:1 / span 2}
+      .hero-photo img{display:block;width:100%;height:100%;object-fit:cover}
+      .hero-photo:focus-visible{outline:3px solid var(--cc);outline-offset:2px}
+      @media (max-width:720px){
+        .hero__photos{grid-template-columns:1fr 1fr;grid-template-rows:auto auto;height:auto;gap:6px}
+        .hero-photo:first-child{grid-row:auto;grid-column:1/-1}
+        .hero-photo img{aspect-ratio:16/9;height:auto}
+      }
+    </style>`;
+}
+
 function renderGallery(albums) {
   if (!albums || albums.length === 0) {
     return `
@@ -165,20 +198,21 @@ function renderEvents(events) {
 
 /* ------------------ Standalone event pages ------------------ */
 
-function pageShell(org, title, body) {
-  // Reuse the templated site's CSS (loaded via demo/styles.css served at /styles.css).
-  // The shell here is a lightweight document; the home page uses the full template.
+function pageShell(org, title, body, seoExtras = {}) {
+  const headSeo = (seoExtras.meta || "") + (seoExtras.jsonLd || "");
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)} — ${escapeHtml(org.displayName)}</title>
+${headSeo}
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
 <style>
-:root{--green-700:${escapeHtml(org.primaryColor || "#1d6b39")};--gold:${escapeHtml(org.accentColor || "#caa54a")}}
+:root{--primary:${escapeHtml(org.primaryColor || "#0e3320")};--accent:${escapeHtml(org.accentColor || "#c8e94a")}}
 .event-detail{padding:3rem 0}
 .event-detail .meta{display:grid;grid-template-columns:120px 1fr;gap:.6rem 1.5rem;margin:1.5rem 0;color:var(--ink-700)}
 .event-detail .meta dt{font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-500);font-weight:600}
@@ -191,7 +225,7 @@ function pageShell(org, title, body) {
 .rsvp-row label{flex:1}
 .rsvp-card label{display:block;font-size:.88rem;font-weight:500;color:var(--ink-700);margin-bottom:.55rem}
 .rsvp-card input,.rsvp-card select,.rsvp-card textarea{display:block;width:100%;margin-top:.3rem;padding:.55rem .7rem;border:1px solid var(--ink-300);border-radius:8px;font:inherit;background:#fff;color:var(--ink-900)}
-.rsvp-card input:focus,.rsvp-card select:focus,.rsvp-card textarea:focus{outline:2px solid var(--green-700);outline-offset:1px;border-color:var(--green-700)}
+.rsvp-card input:focus,.rsvp-card select:focus,.rsvp-card textarea:focus{outline:2px solid var(--primary);outline-offset:1px;border-color:var(--primary)}
 .rsvp-actions{display:flex;align-items:center;gap:.75rem;margin-top:.4rem}
 .rsvp-counts{display:flex;gap:1.5rem;margin:.4rem 0 .8rem;color:var(--ink-700);font-size:.95rem}
 .rsvp-counts strong{color:var(--ink-900)}
@@ -200,7 +234,7 @@ function pageShell(org, title, body) {
 .rsvp-flash-err{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614}
 .slots-list{list-style:none;padding:0;margin:.5rem 0 0;display:grid;gap:.6rem}
 .slots-list li{background:#fbf8ee;border:1px solid #eef0e7;border-radius:10px;padding:.85rem 1rem;display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;flex-wrap:wrap}
-.slots-list h3{margin:0 0 .15rem;font-size:1rem;font-family:Inter,sans-serif}
+.slots-list h3{margin:0 0 .15rem;font-size:1rem;font-family:'Inter Tight',Inter,sans-serif}
 .slots-list p{margin:0;color:var(--ink-700);font-size:.92rem}
 .slots-list .slot-head{flex:1;min-width:220px}
 .slots-list .tag{display:inline-block;background:#fff;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.78rem;color:var(--ink-500);margin-left:.25rem}
@@ -213,9 +247,9 @@ function pageShell(org, title, body) {
 .event-detail .body{max-width:65ch;line-height:1.65}
 .event-detail .body p{margin:0 0 1em}
 .event-list{padding:3rem 0}
-.event-list .events li time{background:var(--green-700)}
+.event-list .events li time{background:var(--primary)}
 .back{display:inline-block;margin-bottom:1rem;color:var(--ink-500);text-decoration:none;font-size:.92rem}
-.back:hover{color:var(--green-700)}
+.back:hover{color:var(--primary)}
 </style>
 </head>
 <body>
@@ -331,6 +365,11 @@ function renderSlotsBlock({ event, slots, user, flash }) {
     </div>`;
 }
 
+import { metaTags, eventJsonLd, organizationJsonLd } from "../lib/seo.js";
+import { categoryMeta } from "../lib/eventCategories.js";
+
+const PALETTE_VAR = (key) => `var(--${key})`;
+
 export function renderEventDetail(org, e, ctx = {}) {
   const start = new Date(e.startsAt);
   const end = e.endsAt ? new Date(e.endsAt) : null;
@@ -370,7 +409,15 @@ export function renderEventDetail(org, e, ctx = {}) {
   <section class="event-detail">
     <a class="back" href="/events">← All events</a>
     <h1>${escapeHtml(e.title)}</h1>
-    ${e.category ? `<p class="muted small" style="margin-top:-.4rem">${escapeHtml(e.category)}</p>` : ""}
+    ${
+      e.category
+        ? (() => {
+            const meta = categoryMeta(e.category);
+            const ink = meta.color === "accent" || meta.color === "butter";
+            return `<p style="margin-top:-.4rem"><span class="event-cat-tag" style="background:${PALETTE_VAR(meta.color)};${ink ? "color:var(--ink)" : "color:#fff"};display:inline-block;padding:.18rem .65rem;border-radius:999px;font-size:.7rem;font-weight:700;letter-spacing:.04em">${escapeHtml(meta.label)}</span></p>`;
+          })()
+        : ""
+    }
 
     ${rsvpBlock}
     ${slotsBlock}
@@ -407,7 +454,17 @@ export function renderEventDetail(org, e, ctx = {}) {
       Want every event in your phone calendar? <a href="/calendar.ics">Subscribe to the troop's calendar feed</a>.
     </p>
   </section>`;
-  return pageShell(org, e.title, body);
+  const url = ctx.canonicalUrl || `https://${org.slug}.${ctx.apexDomain || "compass.app"}/events/${e.id}`;
+  const seo = {
+    meta: metaTags({
+      title: `${e.title} — ${org.displayName}`,
+      description: e.description?.slice(0, 220) || `${e.title} on ${e.startsAt.toLocaleDateString("en-US")}`,
+      url,
+      type: "event",
+    }),
+    jsonLd: eventJsonLd({ event: e, org, url }),
+  };
+  return pageShell(org, e.title, body, seo);
 }
 
 function renderRsvpBlock({ event, user, myRsvp, counts, flash }) {
@@ -517,7 +574,7 @@ export function renderForms(org, forms, { user, role } = {}) {
       .forms-list{list-style:none;padding:0;margin:0 0 1.5rem;display:grid;gap:.5rem}
       .forms-list li{background:#fff;border:1px solid #eef0e7;border-radius:10px;padding:.7rem 1rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
       .forms-list a{text-decoration:none;color:inherit}
-      .forms-list a strong{color:var(--green-700)}
+      .forms-list a strong{color:var(--primary)}
       .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.75rem;color:#6b7280;margin-left:.4rem}
     </style>`;
   return pageShell(org, "Forms & documents", body);
@@ -613,7 +670,7 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
       .event-list ul.items{list-style:none;padding:0;margin:0;display:grid;gap:.6rem}
       .event-list ul.items li{display:flex;gap:1.5rem;justify-content:space-between;align-items:flex-start;background:#fff;border:1px solid #eef0e7;border-radius:10px;padding:.85rem 1rem}
       .event-list ul.items li.indent{margin-left:1.5rem;background:#fbf8ee}
-      .event-list ul.items h3{margin:0 0 .15rem;font-size:1rem;font-family:Inter,sans-serif}
+      .event-list ul.items h3{margin:0 0 .15rem;font-size:1rem;font-family:'Inter Tight',Inter,sans-serif}
       .event-list ul.items p{margin:0}
       .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.1rem .45rem;border-radius:5px;font-size:.78rem;color:#6b7280;margin-right:.25rem}
       .tag-diet{background:#fff7e6;border-color:#ecd87a;color:#7d5a00}
@@ -622,11 +679,49 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
   return pageShell(org, "Members", body);
 }
 
-export function renderEventsList(org, events) {
-  const items = events.length
-    ? events
+export function renderEventsList(org, events, ctx = {}) {
+  // Build a category-filter chip row from the categories actually
+  // present in the visible events. URL-driven so it works without JS:
+  // /events?category=campout filters to that bucket, /events clears.
+  const filter = ctx.categoryFilter ? String(ctx.categoryFilter) : "";
+  const visible = filter
+    ? events.filter((e) => (e.category || "").toLowerCase().replace(/[\s_]+/g, "-") === filter.toLowerCase().replace(/[\s_]+/g, "-"))
+    : events;
+  const presentCategories = Array.from(
+    new Map(
+      events
+        .filter((e) => e.category)
+        .map((e) => [e.category, categoryMeta(e.category)]),
+    ).entries(),
+  );
+  const filterChips = presentCategories.length
+    ? `<div class="event-filters" style="display:flex;flex-wrap:wrap;gap:.4rem;margin:1rem 0">
+        <a class="event-chip${!filter ? " event-chip--on" : ""}" href="/events">All</a>
+        ${presentCategories
+          .map(([raw, meta]) => {
+            const slug = String(raw).toLowerCase().replace(/[\s_]+/g, "-");
+            const on = slug === filter.toLowerCase().replace(/[\s_]+/g, "-");
+            return `<a class="event-chip${on ? " event-chip--on" : ""}" href="/events?category=${encodeURIComponent(slug)}" style="--cc:${PALETTE_VAR(meta.color)}">${escapeHtml(meta.label)}</a>`;
+          })
+          .join("")}
+      </div>
+      <style>
+        .event-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .85rem;border-radius:999px;font-size:.82rem;font-weight:600;color:var(--ink);background:var(--surface);border:1.5px solid var(--line);text-decoration:none}
+        .event-chip:hover{border-color:var(--ink)}
+        .event-chip--on{background:var(--cc,var(--primary));color:#fff;border-color:var(--cc,var(--primary))}
+        .event-chip[href="/events"].event-chip--on{background:var(--ink);color:#fff;border-color:var(--ink)}
+        .event-cat-tag{display:inline-block;padding:.15rem .55rem;border-radius:999px;font-size:.7rem;font-weight:700;letter-spacing:.04em;color:#fff}
+        .event-list .events li{position:relative}
+      </style>`
+    : "";
+  const items = visible.length
+    ? visible
         .map((e) => {
           const d = new Date(e.startsAt);
+          const meta = e.category ? categoryMeta(e.category) : null;
+          const tag = meta
+            ? `<span class="event-cat-tag" style="background:${PALETTE_VAR(meta.color)};${meta.color === "accent" || meta.color === "butter" ? "color:var(--ink)" : ""}">${escapeHtml(meta.label)}</span>`
+            : "";
           return `
     <li>
       <time datetime="${escapeHtml(d.toISOString())}">
@@ -634,10 +729,8 @@ export function renderEventsList(org, events) {
         <span class="d">${d.getDate()}</span>
       </time>
       <div>
-        <h3><a href="/events/${escapeHtml(e.id)}" style="color:inherit;text-decoration:none">${escapeHtml(e.title)}</a></h3>
-        <p>${escapeHtml(fmtTime(e.startsAt))}${e.location ? ` · ${escapeHtml(e.location)}` : ""}${
-            e.category ? ` · ${escapeHtml(e.category)}` : ""
-          }</p>
+        <h3><a href="/events/${escapeHtml(e.id)}" style="color:inherit;text-decoration:none">${escapeHtml(e.title)}</a> ${tag}</h3>
+        <p>${escapeHtml(fmtTime(e.startsAt))}${e.location ? ` · ${escapeHtml(e.location)}` : ""}</p>
       </div>
     </li>`;
         })
@@ -648,16 +741,28 @@ export function renderEventsList(org, events) {
     <a class="back" href="/">← Home</a>
     <h1>Upcoming events</h1>
     <p class="muted">All scheduled events — subscribe once and keep them in your phone calendar.</p>
-    <p style="margin:1rem 0 2rem">
+    <p style="margin:1rem 0 0">
       <a class="btn primary" href="/calendar.ics">Subscribe to calendar (.ics)</a>
     </p>
+    ${filterChips}
     ${
-      events.length
+      visible.length
         ? `<ul class="events">${items}</ul>`
-        : `<p class="muted">No upcoming events on the calendar.</p>`
+        : filter
+          ? `<p class="muted">No <strong>${escapeHtml(filter)}</strong> events scheduled. <a href="/events">See all →</a></p>`
+          : `<p class="muted">No upcoming events on the calendar.</p>`
     }
   </section>`;
-  return pageShell(org, "Events", body);
+  const url = `https://${org.slug}.${ctx.apexDomain || "compass.app"}/events`;
+  const seo = {
+    meta: metaTags({
+      title: `Events — ${org.displayName}`,
+      description: `Upcoming meetings, campouts, service projects, and ceremonies for ${org.displayName}.`,
+      url,
+    }),
+    jsonLd: organizationJsonLd({ org, url: `https://${org.slug}.${ctx.apexDomain || "compass.app"}/` }),
+  };
+  return pageShell(org, "Events", body, seo);
 }
 
 function renderCommentBlock({ post, comments, user, role }) {
@@ -705,7 +810,7 @@ function renderCommentBlock({ post, comments, user, role }) {
     </section>`;
 }
 
-function renderPostCard(p, { showLink = true } = {}) {
+function renderPostCard(p, { showLink = true, viewerUserId = null } = {}) {
   const date = p.publishedAt
     ? new Date(p.publishedAt).toLocaleDateString("en-US", {
         month: "long",
@@ -732,12 +837,41 @@ function renderPostCard(p, { showLink = true } = {}) {
       : `<h3>${escapeHtml(p.title)}</h3>`
     : "";
 
+  // Reaction buttons. p.reactions is the optional summary
+  // ({ likes, bookmarks, youLiked, youBookmarked }) the route handler
+  // attaches per post. Anonymous viewers see the like count but the
+  // toggle button only works for signed-in members.
+  const reactions = p.reactions || { likes: 0, bookmarks: 0, youLiked: false, youBookmarked: false };
+  const reactionsHtml = `
+    <div class="post-reactions" style="margin-top:.6rem;display:flex;gap:.5rem;align-items:center">
+      ${
+        viewerUserId
+          ? `<form method="post" action="/posts/${escapeHtml(p.id)}/react" class="inline">
+              <input type="hidden" name="kind" value="like">
+              <button type="submit" class="post-react-btn${reactions.youLiked ? " on" : ""}" aria-pressed="${reactions.youLiked ? "true" : "false"}">
+                <span aria-hidden="true">👏</span>
+                <span>${reactions.likes || ""}</span>
+              </button>
+            </form>
+            <form method="post" action="/posts/${escapeHtml(p.id)}/react" class="inline">
+              <input type="hidden" name="kind" value="bookmark">
+              <button type="submit" class="post-react-btn${reactions.youBookmarked ? " on" : ""}" aria-pressed="${reactions.youBookmarked ? "true" : "false"}" aria-label="Bookmark">
+                <span aria-hidden="true">${reactions.youBookmarked ? "🔖" : "🏷️"}</span>
+                <span class="visually-hidden">Bookmark</span>
+              </button>
+            </form>`
+          : reactions.likes
+            ? `<span class="post-react-btn" aria-disabled="true"><span aria-hidden="true">👏</span><span>${reactions.likes}</span></span>`
+            : ""
+      }
+    </div>`;
   return `
     <article class="post${p.pinned ? " post-pinned" : ""}">
       ${p.pinned ? `<span class="badge">Pinned</span>` : ""}
       ${titleHtml}
       <div class="post-body">${textToHtml(p.body)}</div>
       ${photoGrid}
+      ${reactionsHtml}
       <footer class="muted small">${escapeHtml(date)}${
         p.author?.displayName ? ` · ${escapeHtml(p.author.displayName)}` : ""
       }${
@@ -1284,7 +1418,7 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
     <style>
       .trip-actions{margin:.6rem 0 1rem}
       .trip-meal{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1rem 1.25rem;margin-bottom:1rem;box-shadow:0 1px 2px rgba(15,58,31,.06),0 6px 18px rgba(15,58,31,.04)}
-      .trip-meal h3{margin:0 0 .15rem;font-size:1.1rem;font-family:Inter,sans-serif}
+      .trip-meal h3{margin:0 0 .15rem;font-size:1.1rem;font-family:'Inter Tight',Inter,sans-serif}
       .trip-meal table,.trip-shop table.shopping{width:100%;border-collapse:collapse;margin-top:.5rem;font-size:.93rem}
       .trip-meal th,.trip-shop th{text-align:left;padding:.4rem .55rem;border-bottom:1px solid #eef0e7;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);font-weight:600}
       .trip-meal td,.trip-shop td{padding:.4rem .55rem;border-bottom:1px solid #eef0e7}
@@ -1294,14 +1428,29 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
       .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.78rem;color:var(--ink-500);margin-right:.25rem}
       .trip-tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;border-radius:999px;padding:.1rem .55rem;font-size:.78rem;color:var(--ink-500);margin-right:.25rem}
       .trip-warn{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:.55rem .85rem;border-radius:8px;margin:.55rem 0;font-size:.92rem}
-      @media print{.site-header,.back,.trip-actions{display:none}.event-list{padding:0}}
+      @media print{
+        @page{margin:0.6in}
+        .site-header,.site-footer,.back,.trip-actions,.no-print{display:none !important}
+        .event-list{padding:0}
+        body{background:#fff !important;color:#000 !important;font-size:11pt}
+        h1{font-size:18pt}
+        h2{font-size:14pt;page-break-after:avoid}
+        h3{font-size:12pt;page-break-after:avoid}
+        .trip-section{page-break-inside:avoid}
+        .trip-tag{border-color:#999 !important;background:#fff !important}
+        .trip-warn{background:#fff !important;border:1.5px solid #000 !important;color:#000 !important}
+        a{color:#000 !important;text-decoration:none}
+        ul,ol{page-break-inside:avoid}
+        table{page-break-inside:auto}
+        tr{page-break-inside:avoid;page-break-after:auto}
+      }
     </style>`;
   return pageShell(org, `Trip plan · ${ev.title}`, body);
 }
 
-export function renderPostsList(org, posts) {
+export function renderPostsList(org, posts, { viewerUserId = null } = {}) {
   const items = posts.length
-    ? posts.map((p) => renderPostCard(p)).join("")
+    ? posts.map((p) => renderPostCard(p, { viewerUserId })).join("")
     : `<p class="muted">No posts yet.</p>`;
   const body = `
     <section class="event-list">
@@ -2195,9 +2344,14 @@ export function renderPostDetail(org, post, ctx = {}) {
 
 const POST_STYLES = `
 .post-feed{display:grid;gap:1.25rem}
+.post-react-btn{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .65rem;border-radius:999px;border:1.5px solid var(--line,#d4c8a8);background:#fff;color:var(--ink,#0d130d);font-size:.86rem;font-weight:600;cursor:pointer;font-family:inherit}
+.post-react-btn:hover{border-color:var(--ink,#0d130d)}
+.post-react-btn.on{background:var(--accent,#c8e94a);border-color:var(--accent,#c8e94a);color:var(--ink,#0d130d)}
+.post-react-btn[aria-disabled=true]{cursor:default;opacity:.7}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .post{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1.25rem 1.4rem;box-shadow:0 1px 2px rgba(15,58,31,.06),0 8px 24px rgba(15,58,31,.06);position:relative}
-.post.post-pinned{border-color:var(--gold,#caa54a)}
-.post .badge{position:absolute;top:.85rem;right:.85rem;background:var(--gold,#caa54a);color:#15181c;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:5px;letter-spacing:.06em;text-transform:uppercase}
+.post.post-pinned{border-color:var(--accent)}
+.post .badge{position:absolute;top:.85rem;right:.85rem;background:var(--accent);color:#15181c;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:5px;letter-spacing:.06em;text-transform:uppercase}
 .post h3{margin:0 0 .35rem;font-size:1.2rem}
 .post .post-body p{margin:0 0 .8em}
 .post .post-body p:last-child{margin-bottom:0}
@@ -2258,7 +2412,7 @@ function renderAnnouncements(list) {
 }
 
 export function renderSite(org, extras = {}) {
-  const { page, announcements, albums, posts, user, role, customPages } = extras;
+  const { page, announcements, albums, posts, user, role, customPages, heroPhotos } = extras;
   const tpl = loadTemplate();
   const navAuth = user
     ? `${role === "admin" || role === "leader" ? `<li><a href="/admin">Admin</a></li>` : ""}
@@ -2320,6 +2474,7 @@ export function renderSite(org, extras = {}) {
     FEED: raw(renderFeed(posts)),
     EVENTS: raw(renderEvents(extras.events)),
     GALLERY: raw(renderGallery(albums)),
+    HERO_PHOTOS: raw(renderHeroPhotos(heroPhotos || [])),
     NAV_AUTH: raw(navAuth),
     NAV_CUSTOM: raw(navCustom),
     DEMO_BANNER: org.isDemo

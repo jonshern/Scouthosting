@@ -14,6 +14,11 @@ import { rateLimit } from "../lib/rateLimit.js";
 import { securityHeaders } from "../lib/securityHeaders.js";
 import { honeypotFields, verifyHoneypot } from "../lib/honeypot.js";
 import { apiRouter } from "./api.js";
+import { superAdminRouter } from "./superAdmin.js";
+import { logger } from "../lib/log.js";
+import { track, EVENTS } from "../lib/analytics.js";
+
+const log = logger.child("http");
 import { issueToken } from "../lib/apiToken.js";
 import { verifyResendSignature, normalizeResendEvent } from "../lib/resendWebhook.js";
 
@@ -50,7 +55,7 @@ import {
 } from "./render.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
-import { googleOAuth, googleConfigured, fetchGoogleProfile } from "../lib/oauth.js";
+import { googleOAuth, googleConfigured, fetchGoogleProfile, appleOAuth, appleConfigured, decodeAppleIdToken } from "../lib/oauth.js";
 import { generateState, generateCodeVerifier } from "arctic";
 import { icsFor, icsForOrg, expandOccurrences } from "../lib/calendar.js";
 import { verifyRsvpToken } from "../lib/rsvpToken.js";
@@ -94,7 +99,42 @@ const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 app.use(securityHeaders);
+
+// Liveness probe for load balancers / orchestrators. Cheap, no DB
+// touch (so a Postgres outage doesn't blackhole the whole node).
+app.get("/healthz", (_req, res) => {
+  res.type("text/plain").send("ok");
+});
+
+// Readiness probe — confirms we can talk to Postgres. Use this for
+// deploy gates; failing readiness sheds traffic without restarting.
+app.get("/readyz", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.type("text/plain").send("ready");
+  } catch (err) {
+    log.error("readiness probe failed", { err });
+    res.status(503).type("text/plain").send("not ready");
+  }
+});
 app.use(originAuth);
+// Request logging: one line per response with method, path, status, ms.
+// Skips static asset and health-check noise. Each request gets a short
+// requestId so downstream log lines can be stitched together.
+app.use((req, res, next) => {
+  const t0 = Date.now();
+  const requestId = crypto.randomBytes(6).toString("base64url");
+  req.log = log.with({ requestId, orgSlug: req.org?.slug });
+  res.on("finish", () => {
+    if (req.path.startsWith("/uploads") || req.path === "/healthz") return;
+    const ms = Date.now() - t0;
+    const fields = { method: req.method, path: req.path, status: res.statusCode, ms };
+    if (res.statusCode >= 500) req.log.error("request", fields);
+    else if (res.statusCode >= 400) req.log.warn("request", fields);
+    else req.log.info("request", fields);
+  });
+  next();
+});
 // Raw body is captured on req.rawBody so signed-webhook handlers
 // (e.g. /api/webhooks/resend) can verify the HMAC over the exact
 // bytes the provider sent, rather than re-serializing req.body.
@@ -122,6 +162,86 @@ app.use(async (req, _res, next) => {
   next();
 });
 
+/* ------------------ SEO (robots.txt + sitemap.xml) --------------- */
+
+import { buildSitemap, robotsTxt } from "../lib/seo.js";
+
+const APEX_DOMAIN = process.env.APEX_DOMAIN || "compass.app";
+
+// robots.txt — apex allows all, points at sitemap. Org subdomains
+// disallow /admin + /login (cosmetic; those paths are auth-gated
+// server-side).
+app.get("/robots.txt", (req, res) => {
+  const isOrg = !!req.org;
+  const proto = req.protocol;
+  const host = req.hostname;
+  const sitemapUrl = `${proto}://${host}/sitemap.xml`;
+  const body = robotsTxt(
+    isOrg
+      ? { disallow: ["/admin", "/login", "/api/"], sitemapUrl }
+      : { sitemapUrl },
+  );
+  res.type("text/plain").send(body);
+});
+
+// sitemap.xml — apex lists marketing pages; org subdomains list the
+// homepage + recent published events + albums.
+app.get("/sitemap.xml", async (req, res) => {
+  const proto = req.protocol;
+  const host = req.hostname;
+  const base = `${proto}://${host}`;
+  let entries;
+  if (!req.org) {
+    entries = [
+      { loc: `${base}/`, changefreq: "weekly", priority: 1 },
+      { loc: `${base}/security.html`, changefreq: "monthly", priority: 0.6 },
+      { loc: `${base}/signup.html`, changefreq: "monthly", priority: 0.7 },
+      { loc: `${base}/login.html`, changefreq: "monthly", priority: 0.5 },
+    ];
+  } else {
+    const now = new Date();
+    const since = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const [events, albums] = await Promise.all([
+      prisma.event.findMany({
+        where: { orgId: req.org.id, startsAt: { gte: since } },
+        orderBy: { startsAt: "asc" },
+        select: { id: true, updatedAt: true },
+        take: 200,
+      }),
+      prisma.album.findMany({
+        where: { orgId: req.org.id, visibility: "public" },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true, updatedAt: true },
+        take: 100,
+      }),
+    ]);
+    entries = [
+      { loc: `${base}/`, changefreq: "weekly", priority: 1 },
+      { loc: `${base}/events`, changefreq: "weekly", priority: 0.8 },
+      { loc: `${base}/photos`, changefreq: "weekly", priority: 0.7 },
+      ...events.map((e) => ({
+        loc: `${base}/events/${e.id}`,
+        lastmod: e.updatedAt,
+        changefreq: "weekly",
+        priority: 0.7,
+      })),
+      ...albums.map((a) => ({
+        loc: `${base}/photos/${a.id}`,
+        lastmod: a.updatedAt,
+        changefreq: "monthly",
+        priority: 0.5,
+      })),
+    ];
+  }
+  res.type("application/xml").send(buildSitemap(entries));
+});
+
+// Pinned announcement banner — mounts only when an org is resolved.
+// Wraps res.send so any HTML response gets the banner injected just
+// inside <body>. Non-HTML and apex responses pass through untouched.
+import { attachAnnouncementBanner } from "../lib/announcementBanner.js";
+app.use(attachAnnouncementBanner());
+
 /* ------------------ Marketing site (apex / www) ------------------- */
 
 app.use((req, res, next) => {
@@ -137,6 +257,204 @@ app.use((req, res, next) => {
 /* ------------------ JSON API (mobile + external) ------------------ */
 
 app.use("/api/v1", apiRouter);
+
+// Super-admin console — apex-only. The router itself enforces the
+// User.isSuperAdmin gate; mounting it here just scopes the URL prefix.
+app.use("/__super", (req, res, next) => {
+  if (req.org) return next();
+  return superAdminRouter(req, res, next);
+});
+
+// Invite acceptance. The link in the invitation email lands here on
+// the org subdomain. We verify the signed token, find or create the
+// User account, attach an OrgMembership at the embedded role, and
+// redirect into the admin (or the public site for parent/scout roles).
+app.get("/invite/:token", async (req, res) => {
+  if (!req.org) return res.status(404).type("text/plain").send("Wrong host for this invite");
+  const { verifyInviteToken, inviteSecret } = await import("../lib/inviteToken.js");
+  const claims = verifyInviteToken(req.params.token, { secret: inviteSecret() });
+  if (!claims) {
+    return res.status(400).type("html").send(inviteErrorPage(req.org, "This invite link is invalid or has expired."));
+  }
+  if (claims.orgId !== req.org.id) {
+    return res.status(400).type("html").send(inviteErrorPage(req.org, "This invite is for a different unit."));
+  }
+  if (req.user) {
+    if (req.user.email.toLowerCase() !== claims.email) {
+      return res.status(400).type("html").send(inviteErrorPage(req.org, `This invite was sent to ${claims.email}. You're signed in as ${req.user.email} — sign out first, then click the link again.`));
+    }
+    await prisma.orgMembership.upsert({
+      where: { userId_orgId: { userId: req.user.id, orgId: req.org.id } },
+      update: {},
+      create: { userId: req.user.id, orgId: req.org.id, role: claims.role },
+    });
+    return res.redirect(claims.role === "scout" || claims.role === "parent" ? "/" : "/admin");
+  }
+  // Not signed in — render an "accept invite" page that pre-fills email
+  // and offers Google SSO + password set.
+  res.type("html").send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Accept invite — ${escape(req.org.displayName)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4ecdc;--surface:#fff;--ink:#0d130d;--ink-muted:#5a6258;--line:#d4c8a8;--primary:#0e3320;--accent:#c8e94a;--font-display:"Newsreader",serif;--font-ui:"Inter Tight",sans-serif}
+body{margin:0;font-family:var(--font-ui);background:var(--bg);color:var(--ink);min-height:100vh;display:grid;place-items:center;padding:1rem}
+main{max-width:440px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:2.25rem 2rem}
+h1{font-family:var(--font-display);font-weight:400;letter-spacing:-.02em;margin:0 0 .4rem;font-size:30px}
+h1 em{font-style:italic;color:var(--primary)}
+p{color:var(--ink-muted)}
+label{display:block;margin:1rem 0 0;font-size:.86rem}
+input{display:block;width:100%;margin-top:.3rem;padding:.6rem .75rem;border:1.5px solid var(--line);border-radius:8px;font:inherit;background:#fff;color:var(--ink)}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;margin-top:1.2rem;padding:.7rem;border-radius:8px;border:1.5px solid var(--ink);background:var(--ink);color:var(--bg);font-weight:600;cursor:pointer;text-decoration:none}
+.btn:hover{background:var(--primary);color:var(--accent);border-color:var(--primary)}
+.btn-google{background:#fff;color:var(--ink);border-color:var(--line)}
+.divider{display:flex;align-items:center;gap:.75rem;color:var(--ink-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;font-weight:600;margin:1.2rem 0}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+</style></head><body>
+<main>
+  <h1>Welcome to <em>${escape(req.org.displayName)}.</em></h1>
+  <p>You're being invited as <strong>${escape(claims.role)}</strong>. Create a Compass account (or sign in if you already have one) and you'll land in the unit.</p>
+  <form method="post" action="/invite/${escape(req.params.token)}">
+    ${req.csrfToken ? `<input type="hidden" name="csrf" value="${req.csrfToken}">` : ""}
+    <label>Your name<input name="displayName" required></label>
+    <label>Email<input name="email" type="email" value="${escape(claims.email)}" readonly style="background:#f4ecdc"></label>
+    <label>Choose a password<input name="password" type="password" required minlength="8"></label>
+    <button class="btn" type="submit">Accept invite & create account</button>
+  </form>
+  <div class="divider">or</div>
+  <a class="btn btn-google" href="/auth/google/start?next=${encodeURIComponent(`/invite/${req.params.token}`)}">Continue with Google</a>
+  <p style="font-size:.78rem;margin-top:1rem">By accepting, you agree to <a href="/security.html">Compass's privacy + security model</a>.</p>
+</main></body></html>`);
+});
+
+app.post("/invite/:token", async (req, res) => {
+  if (!req.org) return res.status(404).type("text/plain").send("Wrong host");
+  const { verifyInviteToken, inviteSecret } = await import("../lib/inviteToken.js");
+  const claims = verifyInviteToken(req.params.token, { secret: inviteSecret() });
+  if (!claims) return res.status(400).type("text/plain").send("Invalid or expired invite");
+  if (claims.orgId !== req.org.id) return res.status(400).type("text/plain").send("Wrong org");
+  const password = String(req.body?.password || "");
+  const displayName = String(req.body?.displayName || "").trim();
+  if (!password || password.length < 8 || !displayName) {
+    return res.status(400).type("text/plain").send("Display name + 8+ char password required");
+  }
+  const existing = await prisma.user.findUnique({ where: { email: claims.email } });
+  let user;
+  if (existing) {
+    user = existing;
+  } else {
+    user = await prisma.user.create({
+      data: {
+        email: claims.email,
+        displayName,
+        passwordHash: await hashPassword(password),
+        emailVerified: true, // proven by clicking the signed link
+      },
+    });
+  }
+  await prisma.orgMembership.upsert({
+    where: { userId_orgId: { userId: user.id, orgId: req.org.id } },
+    update: {},
+    create: { userId: user.id, orgId: req.org.id, role: claims.role },
+  });
+  const session = await lucia.createSession(user.id, {});
+  res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
+  res.redirect(claims.role === "scout" || claims.role === "parent" ? "/" : "/admin");
+});
+
+function inviteErrorPage(org, message) {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Invite — ${escape(org.displayName)}</title>
+<style>body{font-family:"Inter Tight",sans-serif;background:#f4ecdc;color:#0d130d;display:grid;place-items:center;min-height:100vh;margin:0;padding:1rem}main{max-width:480px;background:#fff;border:1px solid #d4c8a8;border-radius:14px;padding:2rem;text-align:center}h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em}a{color:#0e3320}</style>
+</head><body><main><h1>Hmm.</h1><p>${escape(message)}</p><p><a href="/">← Back to ${escape(org.displayName)}</a></p></main></body></html>`;
+}
+
+// In-app support form. Available on apex (anonymous can ask billing /
+// signup questions) and on every org subdomain (leaders + members can
+// flag bugs). Files a SupportTicket the super-admin sees in /__super.
+app.get("/help", (req, res) => {
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const orgName = req.org ? req.org.displayName : "Compass";
+  res.set("Content-Type", "text/html; charset=utf-8").send(`<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Help — ${orgName}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4ecdc;--surface:#fff;--ink:#0d130d;--ink-muted:#5a6258;--line:#d4c8a8;--primary:#0e3320;--accent:#c8e94a;--font-display:"Newsreader",serif;--font-ui:"Inter Tight",sans-serif}
+body{margin:0;font-family:var(--font-ui);background:var(--bg);color:var(--ink);min-height:100vh;padding:2rem 1rem}
+main{max-width:560px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:2rem}
+h1{font-family:var(--font-display);font-weight:400;letter-spacing:-.02em;margin:0 0 .4rem}
+p{color:var(--ink-muted)}
+label{display:block;margin:0 0 .8rem;font-size:.86rem;color:var(--ink)}
+input,textarea,select{display:block;width:100%;margin-top:.3rem;padding:.55rem .7rem;border:1.5px solid var(--line);border-radius:8px;font:inherit;background:#fff;color:var(--ink)}
+textarea{min-height:8rem;font-family:var(--font-ui)}
+.btn{display:inline-flex;align-items:center;gap:.4rem;padding:.65rem 1.1rem;border-radius:8px;border:1.5px solid var(--ink);background:var(--ink);color:var(--bg);font-weight:600;cursor:pointer;text-decoration:none}
+.btn:hover{background:var(--primary);color:var(--accent);border-color:var(--primary)}
+.muted{color:var(--ink-muted);font-size:.84rem}
+</style></head><body>
+<main>
+  <h1>How can we help?</h1>
+  <p>Submit a request and a Compass operator will reply by email. ${req.org ? `You're on <strong>${orgName}</strong>'s site; if you need a leader of this unit, contact them at <a href="mailto:${req.org.scoutmasterEmail}">${req.org.scoutmasterEmail}</a> instead.` : `For a question about a specific troop, visit that troop's site and use the help button there.`}</p>
+  <form method="post" action="/help">
+    ${req.csrfToken ? `<input type="hidden" name="csrf" value="${req.csrfToken}">` : ""}
+    <label>Your email<input name="email" type="email" required value="${req.user?.email || ""}"></label>
+    <label>Your name<input name="name" type="text" value="${req.user?.displayName || ""}"></label>
+    <label>Category
+      <select name="category">
+        <option value="question">Question</option>
+        <option value="bug">Something is broken</option>
+        <option value="billing">Billing</option>
+        <option value="abuse">Abuse / safety</option>
+        <option value="feature">Feature request</option>
+        <option value="other">Other</option>
+      </select>
+    </label>
+    <label>Subject<input name="subject" required maxlength="200"></label>
+    <label>What's going on?<textarea name="body" required maxlength="5000"></textarea></label>
+    <button class="btn" type="submit">Send</button>
+    <p class="muted" style="margin-top:1rem">We'll reply within one business day. For urgent youth-safety concerns, contact your council directly.</p>
+  </form>
+</main></body></html>`);
+});
+
+app.post("/help", async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const subject = String(req.body?.subject || "").trim();
+  const body = String(req.body?.body || "").trim();
+  if (!email || !subject || !body) {
+    return res.status(400).type("text/plain").send("email, subject, and message are required");
+  }
+  const ticket = await prisma.supportTicket.create({
+    data: {
+      orgId: req.org?.id || null,
+      userId: req.user?.id || null,
+      fromEmail: email,
+      fromName: String(req.body?.name || "").trim() || null,
+      category: String(req.body?.category || "question"),
+      subject: subject.slice(0, 200),
+      body: body.slice(0, 5000),
+      priority: req.body?.category === "abuse" ? "urgent" : "normal",
+    },
+  });
+  log.info("support ticket filed", { id: ticket.id, orgSlug: req.org?.slug, category: ticket.category });
+  res.set("Content-Type", "text/html; charset=utf-8").send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Thanks — Compass</title>
+<style>body{font-family:"Inter Tight",sans-serif;background:#f4ecdc;color:#0d130d;display:grid;place-items:center;min-height:100vh;margin:0;padding:1rem}main{max-width:520px;background:#fff;border:1px solid #d4c8a8;border-radius:14px;padding:2rem;text-align:center}h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em}a{color:#0e3320}</style>
+</head><body>
+<main>
+  <h1>We got it.</h1>
+  <p>A Compass operator will reply to <strong>${escape(email)}</strong> within one business day.</p>
+  <p style="color:#5a6258;font-size:.86rem">Reference: <code>${escape(ticket.id)}</code></p>
+  <p><a href="/">← back to ${escape(req.org?.displayName || "Compass")}</a></p>
+</main></body></html>`);
+});
+
+function escape(s) {
+  return String(s ?? "").replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
 
 /* ------------------ Mail provider webhooks ----------------------- */
 
@@ -188,6 +506,10 @@ app.post("/api/provision", provisionLimiter, async (req, res) => {
   }
   try {
     const org = await provisionOrg(req.body);
+    track(EVENTS.ORG_PROVISIONED, {
+      orgId: org.id,
+      dimensions: { unitType: org.unitType, plan: org.plan },
+    });
     res.status(201).json({
       ok: true,
       tenant: {
@@ -287,13 +609,9 @@ app.get("/api/auth/me", (req, res) => {
 
 /* ------------------ Google OAuth --------------------------------- */
 
-// Cookie names kept on the legacy prefix for back-compat — see lib/auth.js
-// for the deferred-rename note. Renaming these mid-flight only invalidates
-// in-flight OAuth attempts (not long-term sessions), but leaving them aligns
-// with the wider cookie-name freeze.
-const OAUTH_STATE_COOKIE = "scouthosting_oauth_state";
-const OAUTH_VERIFIER_COOKIE = "scouthosting_oauth_verifier";
-const OAUTH_NEXT_COOKIE = "scouthosting_oauth_next";
+const OAUTH_STATE_COOKIE = "compass_oauth_state";
+const OAUTH_VERIFIER_COOKIE = "compass_oauth_verifier";
+const OAUTH_NEXT_COOKIE = "compass_oauth_next";
 
 function setShortCookie(res, name, value) {
   res.appendHeader(
@@ -419,6 +737,118 @@ app.get("/auth/google/callback", async (req, res) => {
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
 
   // Redirect back to the requested path if same-host; else marketing root.
+  const next = readCookie(req, OAUTH_NEXT_COOKIE);
+  clearShortCookie(res, OAUTH_NEXT_COOKIE);
+  if (next && next.startsWith("/")) return res.redirect(decodeURIComponent(next));
+  res.redirect("/");
+});
+
+/* ------------------ Apple Sign-in -------------------------------- */
+
+app.get("/auth/apple/start", async (req, res) => {
+  if (!appleConfigured) {
+    return res.status(503).type("text/plain").send("Apple sign-in is not configured here.");
+  }
+  const state = generateState();
+  setShortCookie(res, OAUTH_STATE_COOKIE, state);
+  if (typeof req.query.next === "string" && req.query.next.startsWith("/")) {
+    setShortCookie(res, OAUTH_NEXT_COOKIE, encodeURIComponent(req.query.next));
+  }
+  // Apple doesn't use PKCE for the auth code flow; we still ask for
+  // name + email scopes (the user can untick name in Apple's UI).
+  const url = await appleOAuth.createAuthorizationURL(state, ["name", "email"]);
+  // Apple requires response_mode=form_post when "name" / "email" scopes
+  // are requested — the redirect URI gets POSTed instead of GETed.
+  url.searchParams.set("response_mode", "form_post");
+  res.redirect(url.toString());
+});
+
+// Apple uses POST callback when scopes include name/email. The body
+// contains: code, state, optionally `user` (a JSON blob with the user's
+// name on first sign-in only).
+app.post("/auth/apple/callback", async (req, res) => {
+  if (!appleConfigured) return res.status(503).send("Apple OAuth not configured.");
+
+  const code = req.body?.code;
+  const stateParam = req.body?.state;
+  const storedState = readCookie(req, OAUTH_STATE_COOKIE);
+  clearShortCookie(res, OAUTH_STATE_COOKIE);
+
+  if (!code || !stateParam || !storedState || stateParam !== storedState) {
+    return res.status(400).send("Invalid OAuth state.");
+  }
+
+  let tokens;
+  try {
+    tokens = await appleOAuth.validateAuthorizationCode(code);
+  } catch (err) {
+    log.warn("Apple token exchange failed", { err });
+    return res.status(400).send("Token exchange failed.");
+  }
+
+  let claims;
+  try {
+    claims = decodeAppleIdToken(tokens.idToken);
+  } catch (err) {
+    log.warn("Apple id_token decode failed", { err });
+    return res.status(502).send("Could not read Apple identity.");
+  }
+
+  if (!claims.email) {
+    // Apple can hide the email behind a relay address; even then we get
+    // *some* email. If genuinely missing, bail.
+    return res.status(400).send("Apple didn't share a usable email.");
+  }
+
+  const email = String(claims.email).toLowerCase();
+  const sub = claims.sub;
+  // First-sign-in only: Apple posts a `user` JSON blob with name fields.
+  let displayName = email.split("@")[0];
+  if (req.body?.user) {
+    try {
+      const u = JSON.parse(req.body.user);
+      const first = u?.name?.firstName || "";
+      const last = u?.name?.lastName || "";
+      const composed = `${first} ${last}`.trim();
+      if (composed) displayName = composed;
+    } catch {
+      // Malformed user blob — fall back to email-derived name.
+    }
+  }
+
+  const existing = await prisma.oAuthAccount.findUnique({
+    where: { provider_providerAccountId: { provider: "apple", providerAccountId: sub } },
+    include: { user: true },
+  });
+
+  let user;
+  if (existing) {
+    user = existing.user;
+  } else {
+    user = await prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      user = await prisma.user.create({
+        data: { email, displayName, emailVerified: true },
+      });
+      const ownedOrgs = await prisma.org.findMany({
+        where: { scoutmasterEmail: email },
+        select: { id: true },
+      });
+      if (ownedOrgs.length) {
+        await prisma.orgMembership.createMany({
+          data: ownedOrgs.map((o) => ({ userId: user.id, orgId: o.id, role: "admin" })),
+          skipDuplicates: true,
+        });
+      }
+    }
+    await prisma.oAuthAccount.create({
+      data: { userId: user.id, provider: "apple", providerAccountId: sub },
+    });
+  }
+
+  const session = await lucia.createSession(user.id, {});
+  res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
+
   const next = readCookie(req, OAUTH_NEXT_COOKIE);
   clearShortCookie(res, OAUTH_NEXT_COOKIE);
   if (next && next.startsWith("/")) return res.redirect(decodeURIComponent(next));
@@ -644,7 +1074,7 @@ app.post("/signup", signupLimiter, csrfProtect, async (req, res, next) => {
   // tripped (so naive bots can't tune around it).
   const hp = verifyHoneypot(req.body || {});
   if (!hp.ok) {
-    console.warn(`[signup] honeypot rejected: ${hp.reason}`);
+    log.warn("signup honeypot rejected", { reason: hp.reason });
     return res.type("html").send(
       publicLoginPage(req.org, { error: "Couldn't create the account. Try again in a moment.", next: nextUrl, googleConfigured, mode: "signup" }),
     );
@@ -683,7 +1113,7 @@ app.post("/signup", signupLimiter, csrfProtect, async (req, res, next) => {
   await ensureMembership(user.id, req.org.id, ownedOrgs.some((o) => o.id === req.org.id) ? "admin" : "parent");
 
   // Fire-and-forget verify email; failure shouldn't block signup.
-  sendVerifyEmail(req.org, user).catch((err) => console.warn("verify email failed:", err.message));
+  sendVerifyEmail(req.org, user).catch((err) => log.warn("verify email failed", { err }));
 
   const session = await lucia.createSession(user.id, {});
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
@@ -958,14 +1388,42 @@ app.get("/magic/:token", async (req, res, next) => {
 // admin show up automatically in the user's Google/Apple/Outlook calendar.
 app.get("/calendar.ics", async (req, res) => {
   if (!req.org) return res.status(404).send("Not found");
-  const events = await prisma.event.findMany({
-    where: { orgId: req.org.id, startsAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30) } },
-    orderBy: { startsAt: "asc" },
-  });
+  // Optional category filter — /calendar.ics?category=campout subscribes
+  // a family to just the campouts. Normalises spaces / underscores so
+  // the URL works whether the category is "Campout" or "court_of_honor".
+  const rawCategory = String(req.query?.category || "").trim();
+  const where = {
+    orgId: req.org.id,
+    startsAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30) },
+  };
+  let calendarLabel = req.org.displayName;
+  if (rawCategory) {
+    const { normaliseCategory, categoryMeta } = await import("../lib/eventCategories.js");
+    const key = normaliseCategory(rawCategory);
+    if (key) {
+      // Match against the canonical key OR the leader's free-form
+      // input (case-insensitive).
+      const meta = categoryMeta(key);
+      where.OR = [
+        { category: { equals: key, mode: "insensitive" } },
+        { category: { equals: meta.label, mode: "insensitive" } },
+      ];
+      calendarLabel = `${req.org.displayName} — ${meta.label}`;
+    } else {
+      // Unknown category — fall back to a literal-match filter so the
+      // leader's custom category names still work.
+      where.category = { equals: rawCategory, mode: "insensitive" };
+      calendarLabel = `${req.org.displayName} — ${rawCategory}`;
+    }
+  }
+  const events = await prisma.event.findMany({ where, orderBy: { startsAt: "asc" } });
+  const filenameSuffix = rawCategory
+    ? `-${rawCategory.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`
+    : "";
   res
     .set("Content-Type", "text/calendar; charset=utf-8")
-    .set("Content-Disposition", `inline; filename="${req.org.slug}.ics"`)
-    .send(icsForOrg(events, { orgSlug: req.org.slug, displayName: req.org.displayName }));
+    .set("Content-Disposition", `inline; filename="${req.org.slug}${filenameSuffix}.ics"`)
+    .send(icsForOrg(events, { orgSlug: req.org.slug, displayName: calendarLabel }));
 });
 
 // Per-event ICS download — used by the "Add to Apple Calendar" /
@@ -1003,7 +1461,12 @@ app.get("/events", async (req, res, next) => {
   ).flat().sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)).slice(0, 50);
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderEventsList(req.org, expanded));
+    .send(
+      renderEventsList(req.org, expanded, {
+        apexDomain: APEX_DOMAIN,
+        categoryFilter: req.query?.category ? String(req.query.category) : "",
+      }),
+    );
 });
 
 // Members-only trip plan view.
@@ -1058,9 +1521,61 @@ app.get("/posts", async (req, res, next) => {
       author: { select: { displayName: true } },
     },
   });
+  if (posts.length) {
+    const { summariseReactions } = await import("../lib/postReactions.js");
+    const reactionRows = await prisma.postReaction.findMany({
+      where: { postId: { in: posts.map((p) => p.id) } },
+      select: { postId: true, userId: true, kind: true },
+    });
+    const summary = summariseReactions(reactionRows, req.user?.id || null);
+    for (const p of posts) {
+      p.reactions = summary.get(p.id) || {
+        likes: 0, bookmarks: 0, youLiked: false, youBookmarked: false,
+      };
+    }
+  }
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderPostsList(req.org, posts));
+    .send(renderPostsList(req.org, posts, { viewerUserId: req.user?.id || null }));
+});
+
+// POST /posts/:id/react — toggle a like or bookmark from the public
+// activity-feed page. Used by the form-post fallback for browsers
+// without JS. Members-only — anonymous viewers see counts but no
+// button.
+app.post("/posts/:id/react", csrfProtect, async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect(`/login?next=/posts`);
+  const { normaliseReactionKind } = await import("../lib/postReactions.js");
+  let kind;
+  try {
+    kind = normaliseReactionKind(String(req.body?.kind || "").trim());
+  } catch {
+    return res.status(400).type("text/plain").send("Bad reaction kind");
+  }
+  const post = await prisma.post.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!post) return res.status(404).type("text/plain").send("Not found");
+  const existing = await prisma.postReaction.findUnique({
+    where: {
+      postId_userId_kind: { postId: post.id, userId: req.user.id, kind },
+    },
+  });
+  if (existing) {
+    await prisma.postReaction.delete({
+      where: {
+        postId_userId_kind: { postId: post.id, userId: req.user.id, kind },
+      },
+    });
+  } else {
+    await prisma.postReaction.create({
+      data: { postId: post.id, userId: req.user.id, kind },
+    });
+  }
+  // Anchor the user back to the same post so the page jumps to it.
+  res.redirect(`/posts#post-${post.id}`);
 });
 
 app.get("/posts/:id", async (req, res, next) => {
@@ -1514,6 +2029,113 @@ app.get("/forms", async (req, res, next) => {
     .send(renderForms(req.org, forms, { user: req.user, role }));
 });
 
+// Member self-service. A signed-in member can edit their own
+// contact info + communication preferences from the org subdomain
+// without bothering a leader. The matching Member row is found by
+// email (the same heuristic admin auth uses); if there's no Member
+// for this email, we render a "ask your leader to add you to the
+// directory" message.
+app.get("/me", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect("/login?next=/me");
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (!role) return res.status(403).type("text/plain").send("Not a member of this unit.");
+  const member = await prisma.member.findFirst({
+    where: { orgId: req.org.id, email: req.user.email.toLowerCase() },
+  });
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderSelfServicePage(req.org, req.user, member, role, req.csrfToken, req.query));
+});
+
+app.post("/me", csrfProtect, async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect("/login?next=/me");
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (!role) return res.status(403).type("text/plain").send("Not a member of this unit.");
+  const member = await prisma.member.findFirst({
+    where: { orgId: req.org.id, email: req.user.email.toLowerCase() },
+  });
+  if (!member) return res.redirect("/me?notlinked=1");
+  const phone = String(req.body?.phone || "").trim().slice(0, 40) || null;
+  const commPreference = ["email", "sms", "both", "none"].includes(req.body?.commPreference)
+    ? req.body.commPreference
+    : "email";
+  const smsOptIn = req.body?.smsOptIn === "1";
+  await prisma.member.update({
+    where: { id: member.id },
+    data: { phone, commPreference, smsOptIn },
+  });
+  res.redirect("/me?saved=1");
+});
+
+function renderSelfServicePage(org, user, member, role, csrfToken, query) {
+  const escapeAttr = (s) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  const sel = (cond) => (cond ? " selected" : "");
+  const checked = (cond) => (cond ? " checked" : "");
+  const flash = query?.saved
+    ? `<div class="flash flash-ok" style="background:#e3f29b;border:1px solid #c8e94a;padding:.6rem .85rem;border-radius:8px;margin:1rem 0">Saved.</div>`
+    : query?.notlinked
+      ? `<div class="flash" style="background:#fbe8e3;border:1px solid #f0bcb1;padding:.6rem .85rem;border-radius:8px;margin:1rem 0;color:#7d2614">No directory entry for ${escapeAttr(user.email)} yet — ask a unit leader to add you.</div>`
+      : "";
+  const linked = member
+    ? `<form method="post" action="/me" class="card" style="background:#fff;border:1px solid #d4c8a8;border-radius:14px;padding:1.5rem">
+        ${csrfToken ? `<input type="hidden" name="csrf" value="${escapeAttr(csrfToken)}">` : ""}
+        <h2 style="margin-top:0">Your contact details</h2>
+        <p style="color:#5a6258;font-size:.92rem">These are what a leader sees in the directory and what we use when sending broadcasts.</p>
+        <label style="display:block;margin:1rem 0">Name
+          <input type="text" value="${escapeAttr(member.firstName + " " + member.lastName)}" disabled style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #e6dcc0;border-radius:8px;background:#f4ecdc;color:#5a6258">
+          <span style="color:#5a6258;font-size:.78rem">Ask a leader to fix typos in your name.</span>
+        </label>
+        <label style="display:block;margin:1rem 0">Email
+          <input type="email" value="${escapeAttr(member.email)}" disabled style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #e6dcc0;border-radius:8px;background:#f4ecdc;color:#5a6258">
+        </label>
+        <label style="display:block;margin:1rem 0">Phone
+          <input name="phone" type="tel" value="${escapeAttr(member.phone || "")}" placeholder="555-0142" style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #d4c8a8;border-radius:8px">
+        </label>
+        <label style="display:block;margin:1rem 0">How should we reach you?
+          <select name="commPreference" style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #d4c8a8;border-radius:8px">
+            <option value="email"${sel(member.commPreference === "email")}>Email only</option>
+            <option value="sms"${sel(member.commPreference === "sms")}>Text only</option>
+            <option value="both"${sel(member.commPreference === "both")}>Both email and text</option>
+            <option value="none"${sel(member.commPreference === "none")}>Don't contact me (still in directory)</option>
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:.5rem;margin:1rem 0">
+          <input name="smsOptIn" type="checkbox" value="1"${checked(member.smsOptIn)}>
+          I consent to receiving text messages at the phone number above.
+        </label>
+        <button type="submit" style="background:#0d130d;color:#f4ecdc;border:1.5px solid #0d130d;padding:.65rem 1.1rem;border-radius:8px;font-weight:600;cursor:pointer">Save</button>
+      </form>`
+    : `<div class="flash" style="background:#fbe8e3;border:1px solid #f0bcb1;padding:1rem 1.2rem;border-radius:8px;color:#7d2614;margin:1rem 0">
+        We couldn't find a directory entry matching <strong>${escapeAttr(user.email)}</strong>. Ask a unit leader to add you, then come back.
+      </div>`;
+  return `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My settings — ${escapeAttr(org.displayName)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:"Inter Tight",sans-serif;background:#f4ecdc;color:#0d130d;min-height:100vh}
+main{max-width:560px;margin:0 auto;padding:2rem 1rem}
+h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em}
+h1 em{font-style:italic;color:#0e3320}
+.muted{color:#5a6258;font-size:.92rem}
+input:focus,select:focus{outline:2px solid #0e3320;outline-offset:1px}
+</style></head><body>
+<main>
+<a href="/" style="color:#5a6258;text-decoration:none;font-size:.86rem">← ${escapeAttr(org.displayName)}</a>
+<h1>My <em>settings.</em></h1>
+<p class="muted">Signed in as ${escapeAttr(user.displayName || user.email)}${role && role !== "parent" ? ` · <strong>${escapeAttr(role)}</strong>` : ""}.</p>
+${flash}
+${linked}
+<p class="muted" style="margin-top:1.5rem">For everything else (medical info, family link-ups, position changes), ask your unit leader.</p>
+</main></body></html>`;
+}
+
 // Members-only directory. A signed-in user with any membership in this
 // org sees the roster; everyone else gets a sign-in prompt.
 app.get("/members", async (req, res, next) => {
@@ -1598,7 +2220,7 @@ app.get("/events/:id", async (req, res, next) => {
   }
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderEventDetail(req.org, ev, ctx));
+    .send(renderEventDetail(req.org, ev, { ...ctx, apexDomain: APEX_DOMAIN }));
 });
 
 async function loadEventContext(ev, user) {
@@ -2130,7 +2752,7 @@ app.get("*", async (req, res, next) => {
   }
 
   // Pull CMS content alongside the org so a single render call has everything.
-  const [page, announcements, albums, events, posts, customPages] = await Promise.all([
+  const [page, announcements, albums, heroPhotos, events, posts, customPages] = await Promise.all([
     prisma.page.findUnique({ where: { orgId: req.org.id } }),
     prisma.announcement.findMany({
       where: {
@@ -2148,6 +2770,17 @@ app.get("*", async (req, res, next) => {
         photos: { orderBy: { sortOrder: "asc" }, take: 1 },
         _count: { select: { photos: true } },
       },
+    }),
+    // Hero strip: 4 most-recent photos from any public album. Falls
+    // back to an empty array; renderSite hides the strip when absent.
+    prisma.photo.findMany({
+      where: {
+        orgId: req.org.id,
+        album: { visibility: "public" },
+      },
+      orderBy: [{ takenAt: "desc" }, { createdAt: "desc" }],
+      take: 4,
+      select: { id: true, filename: true, caption: true },
     }),
     prisma.event
       .findMany({
@@ -2193,6 +2826,7 @@ app.get("*", async (req, res, next) => {
     page,
     announcements,
     albums,
+    heroPhotos,
     events,
     posts,
     customPages,
@@ -2242,9 +2876,11 @@ const _isMain = process.argv[1] && path.resolve(process.argv[1]) === _fu(import.
 if (_isMain) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
-    console.log(`Compass running on http://localhost:${PORT}`);
-    console.log(`Marketing:  http://localhost:${PORT}/`);
-    console.log(`Demo org:   http://troop100.localhost:${PORT}/`);
+    log.info("Compass started", {
+      port: Number(PORT),
+      marketing: `http://localhost:${PORT}/`,
+      demoOrg: `http://troop100.localhost:${PORT}/`,
+    });
   });
 }
 
