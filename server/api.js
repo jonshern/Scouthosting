@@ -365,6 +365,89 @@ apiRouter.get("/orgs/:orgId/dashboard", resolveApiUser, async (req, res) => {
   res.json(model);
 });
 
+// POST /api/v1/posts/:id/reactions — toggle a like or bookmark on
+// an activity-feed post. Body: { kind: "like" | "bookmark" }.
+// Returns the post's roll-up after the toggle so the client can
+// update its UI in one round-trip.
+apiRouter.post("/posts/:id/reactions", resolveApiUser, async (req, res) => {
+  const { normaliseReactionKind, summariseReactions } = await import(
+    "../lib/postReactions.js"
+  );
+  let kind;
+  try {
+    kind = normaliseReactionKind(String(req.body?.kind || "").trim());
+  } catch (e) {
+    return res.status(400).json({ error: "invalid_kind" });
+  }
+  const post = await prisma.post.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, orgId: true },
+  });
+  if (!post) return res.status(404).json({ error: "not_found" });
+  const membership = await membershipFor(req.apiUser.id, post.orgId);
+  if (!membership) return res.status(403).json({ error: "not_a_member" });
+
+  const existing = await prisma.postReaction.findUnique({
+    where: {
+      postId_userId_kind: { postId: post.id, userId: req.apiUser.id, kind },
+    },
+  });
+  if (existing) {
+    await prisma.postReaction.delete({
+      where: {
+        postId_userId_kind: { postId: post.id, userId: req.apiUser.id, kind },
+      },
+    });
+  } else {
+    await prisma.postReaction.create({
+      data: { postId: post.id, userId: req.apiUser.id, kind },
+    });
+  }
+
+  const rows = await prisma.postReaction.findMany({
+    where: { postId: post.id },
+    select: { postId: true, userId: true, kind: true },
+  });
+  const summary = summariseReactions(rows, req.apiUser.id).get(post.id) || {
+    likes: 0,
+    bookmarks: 0,
+    youLiked: false,
+    youBookmarked: false,
+  };
+  res.json({ postId: post.id, ...summary });
+});
+
+// GET /api/v1/posts/bookmarked — viewer's bookmarked posts.
+apiRouter.get("/posts/bookmarked", resolveApiUser, async (req, res) => {
+  const orgId = String(req.query?.orgId || "");
+  if (!orgId) return res.status(400).json({ error: "orgId_required" });
+  const membership = await membershipFor(req.apiUser.id, orgId);
+  if (!membership) return res.status(403).json({ error: "not_a_member" });
+  const reactions = await prisma.postReaction.findMany({
+    where: { userId: req.apiUser.id, kind: "bookmark", post: { orgId } },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: {
+      post: {
+        select: {
+          id: true, title: true, body: true, publishedAt: true,
+          author: { select: { displayName: true } },
+        },
+      },
+    },
+  });
+  res.json({
+    posts: reactions.map((r) => ({
+      id: r.post.id,
+      title: r.post.title,
+      body: r.post.body.slice(0, 280),
+      publishedAt: r.post.publishedAt,
+      authorName: r.post.author?.displayName || null,
+      bookmarkedAt: r.createdAt,
+    })),
+  });
+});
+
 // POST /api/v1/push/register — mobile app posts its push token on
 // launch + on token refresh. Idempotent on the unique token; un-
 // retires a previously-retired token if the user reinstalled.

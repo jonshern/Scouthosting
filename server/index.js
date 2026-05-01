@@ -1493,9 +1493,61 @@ app.get("/posts", async (req, res, next) => {
       author: { select: { displayName: true } },
     },
   });
+  if (posts.length) {
+    const { summariseReactions } = await import("../lib/postReactions.js");
+    const reactionRows = await prisma.postReaction.findMany({
+      where: { postId: { in: posts.map((p) => p.id) } },
+      select: { postId: true, userId: true, kind: true },
+    });
+    const summary = summariseReactions(reactionRows, req.user?.id || null);
+    for (const p of posts) {
+      p.reactions = summary.get(p.id) || {
+        likes: 0, bookmarks: 0, youLiked: false, youBookmarked: false,
+      };
+    }
+  }
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderPostsList(req.org, posts));
+    .send(renderPostsList(req.org, posts, { viewerUserId: req.user?.id || null }));
+});
+
+// POST /posts/:id/react — toggle a like or bookmark from the public
+// activity-feed page. Used by the form-post fallback for browsers
+// without JS. Members-only — anonymous viewers see counts but no
+// button.
+app.post("/posts/:id/react", csrfProtect, async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect(`/login?next=/posts`);
+  const { normaliseReactionKind } = await import("../lib/postReactions.js");
+  let kind;
+  try {
+    kind = normaliseReactionKind(String(req.body?.kind || "").trim());
+  } catch {
+    return res.status(400).type("text/plain").send("Bad reaction kind");
+  }
+  const post = await prisma.post.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!post) return res.status(404).type("text/plain").send("Not found");
+  const existing = await prisma.postReaction.findUnique({
+    where: {
+      postId_userId_kind: { postId: post.id, userId: req.user.id, kind },
+    },
+  });
+  if (existing) {
+    await prisma.postReaction.delete({
+      where: {
+        postId_userId_kind: { postId: post.id, userId: req.user.id, kind },
+      },
+    });
+  } else {
+    await prisma.postReaction.create({
+      data: { postId: post.id, userId: req.user.id, kind },
+    });
+  }
+  // Anchor the user back to the same post so the page jumps to it.
+  res.redirect(`/posts#post-${post.id}`);
 });
 
 app.get("/posts/:id", async (req, res, next) => {

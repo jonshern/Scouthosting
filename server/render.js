@@ -777,7 +777,7 @@ function renderCommentBlock({ post, comments, user, role }) {
     </section>`;
 }
 
-function renderPostCard(p, { showLink = true } = {}) {
+function renderPostCard(p, { showLink = true, viewerUserId = null } = {}) {
   const date = p.publishedAt
     ? new Date(p.publishedAt).toLocaleDateString("en-US", {
         month: "long",
@@ -804,12 +804,41 @@ function renderPostCard(p, { showLink = true } = {}) {
       : `<h3>${escapeHtml(p.title)}</h3>`
     : "";
 
+  // Reaction buttons. p.reactions is the optional summary
+  // ({ likes, bookmarks, youLiked, youBookmarked }) the route handler
+  // attaches per post. Anonymous viewers see the like count but the
+  // toggle button only works for signed-in members.
+  const reactions = p.reactions || { likes: 0, bookmarks: 0, youLiked: false, youBookmarked: false };
+  const reactionsHtml = `
+    <div class="post-reactions" style="margin-top:.6rem;display:flex;gap:.5rem;align-items:center">
+      ${
+        viewerUserId
+          ? `<form method="post" action="/posts/${escapeHtml(p.id)}/react" class="inline">
+              <input type="hidden" name="kind" value="like">
+              <button type="submit" class="post-react-btn${reactions.youLiked ? " on" : ""}" aria-pressed="${reactions.youLiked ? "true" : "false"}">
+                <span aria-hidden="true">👏</span>
+                <span>${reactions.likes || ""}</span>
+              </button>
+            </form>
+            <form method="post" action="/posts/${escapeHtml(p.id)}/react" class="inline">
+              <input type="hidden" name="kind" value="bookmark">
+              <button type="submit" class="post-react-btn${reactions.youBookmarked ? " on" : ""}" aria-pressed="${reactions.youBookmarked ? "true" : "false"}" aria-label="Bookmark">
+                <span aria-hidden="true">${reactions.youBookmarked ? "🔖" : "🏷️"}</span>
+                <span class="visually-hidden">Bookmark</span>
+              </button>
+            </form>`
+          : reactions.likes
+            ? `<span class="post-react-btn" aria-disabled="true"><span aria-hidden="true">👏</span><span>${reactions.likes}</span></span>`
+            : ""
+      }
+    </div>`;
   return `
     <article class="post${p.pinned ? " post-pinned" : ""}">
       ${p.pinned ? `<span class="badge">Pinned</span>` : ""}
       ${titleHtml}
       <div class="post-body">${textToHtml(p.body)}</div>
       ${photoGrid}
+      ${reactionsHtml}
       <footer class="muted small">${escapeHtml(date)}${
         p.author?.displayName ? ` · ${escapeHtml(p.author.displayName)}` : ""
       }${
@@ -1371,9 +1400,9 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
   return pageShell(org, `Trip plan · ${ev.title}`, body);
 }
 
-export function renderPostsList(org, posts) {
+export function renderPostsList(org, posts, { viewerUserId = null } = {}) {
   const items = posts.length
-    ? posts.map((p) => renderPostCard(p)).join("")
+    ? posts.map((p) => renderPostCard(p, { viewerUserId })).join("")
     : `<p class="muted">No posts yet.</p>`;
   const body = `
     <section class="event-list">
@@ -2267,6 +2296,11 @@ export function renderPostDetail(org, post, ctx = {}) {
 
 const POST_STYLES = `
 .post-feed{display:grid;gap:1.25rem}
+.post-react-btn{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .65rem;border-radius:999px;border:1.5px solid var(--line,#d4c8a8);background:#fff;color:var(--ink,#0d130d);font-size:.86rem;font-weight:600;cursor:pointer;font-family:inherit}
+.post-react-btn:hover{border-color:var(--ink,#0d130d)}
+.post-react-btn.on{background:var(--accent,#c8e94a);border-color:var(--accent,#c8e94a);color:var(--ink,#0d130d)}
+.post-react-btn[aria-disabled=true]{cursor:default;opacity:.7}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .post{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1.25rem 1.4rem;box-shadow:0 1px 2px rgba(15,58,31,.06),0 8px 24px rgba(15,58,31,.06);position:relative}
 .post.post-pinned{border-color:var(--accent)}
 .post .badge{position:absolute;top:.85rem;right:.85rem;background:var(--accent);color:#15181c;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:5px;letter-spacing:.06em;text-transform:uppercase}

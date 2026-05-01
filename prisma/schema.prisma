@@ -155,6 +155,7 @@ model User {
   reactions          Reaction[]
   uploadedPhotos     Photo[]
   pushDevices        PushDevice[]
+  postReactions      PostReaction[]
 }
 
 // External identity provider linkage. One User can have multiple
@@ -604,9 +605,31 @@ model Post {
   author  User?       @relation(fields: [authorId], references: [id], onDelete: SetNull)
   photos  PostPhoto[]
   comments Comment[]
+  reactions PostReaction[]
 
   @@index([orgId, publishedAt])
   @@index([orgId, pinned, publishedAt])
+}
+
+// Member reactions on activity-feed posts. One row per (post, user,
+// kind) — composite primary key dedupes natively, the API toggle
+// pattern just upserts/deletes.
+//
+// `kind` is intentionally a small whitelist: "like" (👏) and
+// "bookmark" (🔖). Bookmarks are personal — they don't surface to
+// other users; likes do.
+model PostReaction {
+  postId    String
+  userId    String
+  kind      String   // "like" | "bookmark"
+  createdAt DateTime @default(now())
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId, kind])
+  @@index([postId, kind])
+  @@index([userId, kind])
 }
 
 model PostPhoto {
