@@ -165,15 +165,15 @@ function renderEvents(events) {
 
 /* ------------------ Standalone event pages ------------------ */
 
-function pageShell(org, title, body) {
-  // Reuse the templated site's CSS (loaded via demo/styles.css served at /styles.css).
-  // The shell here is a lightweight document; the home page uses the full template.
+function pageShell(org, title, body, seoExtras = {}) {
+  const headSeo = (seoExtras.meta || "") + (seoExtras.jsonLd || "");
   return `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)} — ${escapeHtml(org.displayName)}</title>
+${headSeo}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
@@ -332,6 +332,8 @@ function renderSlotsBlock({ event, slots, user, flash }) {
     </div>`;
 }
 
+import { metaTags, eventJsonLd, organizationJsonLd } from "../lib/seo.js";
+
 export function renderEventDetail(org, e, ctx = {}) {
   const start = new Date(e.startsAt);
   const end = e.endsAt ? new Date(e.endsAt) : null;
@@ -408,7 +410,17 @@ export function renderEventDetail(org, e, ctx = {}) {
       Want every event in your phone calendar? <a href="/calendar.ics">Subscribe to the troop's calendar feed</a>.
     </p>
   </section>`;
-  return pageShell(org, e.title, body);
+  const url = ctx.canonicalUrl || `https://${org.slug}.${ctx.apexDomain || "compass.app"}/events/${e.id}`;
+  const seo = {
+    meta: metaTags({
+      title: `${e.title} — ${org.displayName}`,
+      description: e.description?.slice(0, 220) || `${e.title} on ${e.startsAt.toLocaleDateString("en-US")}`,
+      url,
+      type: "event",
+    }),
+    jsonLd: eventJsonLd({ event: e, org, url }),
+  };
+  return pageShell(org, e.title, body, seo);
 }
 
 function renderRsvpBlock({ event, user, myRsvp, counts, flash }) {
@@ -623,7 +635,7 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
   return pageShell(org, "Members", body);
 }
 
-export function renderEventsList(org, events) {
+export function renderEventsList(org, events, ctx = {}) {
   const items = events.length
     ? events
         .map((e) => {
@@ -658,7 +670,16 @@ export function renderEventsList(org, events) {
         : `<p class="muted">No upcoming events on the calendar.</p>`
     }
   </section>`;
-  return pageShell(org, "Events", body);
+  const url = `https://${org.slug}.${ctx.apexDomain || "compass.app"}/events`;
+  const seo = {
+    meta: metaTags({
+      title: `Events — ${org.displayName}`,
+      description: `Upcoming meetings, campouts, service projects, and ceremonies for ${org.displayName}.`,
+      url,
+    }),
+    jsonLd: organizationJsonLd({ org, url: `https://${org.slug}.${ctx.apexDomain || "compass.app"}/` }),
+  };
+  return pageShell(org, "Events", body, seo);
 }
 
 function renderCommentBlock({ post, comments, user, role }) {

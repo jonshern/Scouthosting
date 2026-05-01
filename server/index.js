@@ -161,6 +161,80 @@ app.use(async (req, _res, next) => {
   next();
 });
 
+/* ------------------ SEO (robots.txt + sitemap.xml) --------------- */
+
+import { buildSitemap, robotsTxt } from "../lib/seo.js";
+
+const APEX_DOMAIN = process.env.APEX_DOMAIN || "compass.app";
+
+// robots.txt — apex allows all, points at sitemap. Org subdomains
+// disallow /admin + /login (cosmetic; those paths are auth-gated
+// server-side).
+app.get("/robots.txt", (req, res) => {
+  const isOrg = !!req.org;
+  const proto = req.protocol;
+  const host = req.hostname;
+  const sitemapUrl = `${proto}://${host}/sitemap.xml`;
+  const body = robotsTxt(
+    isOrg
+      ? { disallow: ["/admin", "/login", "/api/"], sitemapUrl }
+      : { sitemapUrl },
+  );
+  res.type("text/plain").send(body);
+});
+
+// sitemap.xml — apex lists marketing pages; org subdomains list the
+// homepage + recent published events + albums.
+app.get("/sitemap.xml", async (req, res) => {
+  const proto = req.protocol;
+  const host = req.hostname;
+  const base = `${proto}://${host}`;
+  let entries;
+  if (!req.org) {
+    entries = [
+      { loc: `${base}/`, changefreq: "weekly", priority: 1 },
+      { loc: `${base}/security.html`, changefreq: "monthly", priority: 0.6 },
+      { loc: `${base}/signup.html`, changefreq: "monthly", priority: 0.7 },
+      { loc: `${base}/login.html`, changefreq: "monthly", priority: 0.5 },
+    ];
+  } else {
+    const now = new Date();
+    const since = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    const [events, albums] = await Promise.all([
+      prisma.event.findMany({
+        where: { orgId: req.org.id, startsAt: { gte: since } },
+        orderBy: { startsAt: "asc" },
+        select: { id: true, updatedAt: true },
+        take: 200,
+      }),
+      prisma.album.findMany({
+        where: { orgId: req.org.id, visibility: "public" },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true, updatedAt: true },
+        take: 100,
+      }),
+    ]);
+    entries = [
+      { loc: `${base}/`, changefreq: "weekly", priority: 1 },
+      { loc: `${base}/events`, changefreq: "weekly", priority: 0.8 },
+      { loc: `${base}/photos`, changefreq: "weekly", priority: 0.7 },
+      ...events.map((e) => ({
+        loc: `${base}/events/${e.id}`,
+        lastmod: e.updatedAt,
+        changefreq: "weekly",
+        priority: 0.7,
+      })),
+      ...albums.map((a) => ({
+        loc: `${base}/photos/${a.id}`,
+        lastmod: a.updatedAt,
+        changefreq: "monthly",
+        priority: 0.5,
+      })),
+    ];
+  }
+  res.type("application/xml").send(buildSitemap(entries));
+});
+
 /* ------------------ Marketing site (apex / www) ------------------- */
 
 app.use((req, res, next) => {
@@ -1042,7 +1116,7 @@ app.get("/events", async (req, res, next) => {
   ).flat().sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)).slice(0, 50);
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderEventsList(req.org, expanded));
+    .send(renderEventsList(req.org, expanded, { apexDomain: APEX_DOMAIN }));
 });
 
 // Members-only trip plan view.
@@ -1637,7 +1711,7 @@ app.get("/events/:id", async (req, res, next) => {
   }
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderEventDetail(req.org, ev, ctx));
+    .send(renderEventDetail(req.org, ev, { ...ctx, apexDomain: APEX_DOMAIN }));
 });
 
 async function loadEventContext(ev, user) {
