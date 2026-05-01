@@ -885,6 +885,74 @@ apiRouter.get("/orgs/:orgId/upcoming-events", resolveApiUser, async (req, res) =
   res.json({ events });
 });
 
+// GET /api/v1/orgs/:orgId/events?from=...&to=... — richer shape for
+// the mobile Calendar screen. Returns up to 60 events in the requested
+// window with category + RSVP totals + the viewer's RSVP. Categories
+// resolve to the lib/eventCategories palette key so the mobile client
+// renders the same colours as the web.
+apiRouter.get("/orgs/:orgId/events", resolveApiUser, async (req, res) => {
+  const orgId = req.params.orgId;
+  const membership = await membershipFor(req.apiUser.id, orgId);
+  if (!membership) return res.status(404).json({ error: "not_a_member" });
+
+  const fromMs = req.query?.from ? Date.parse(String(req.query.from)) : Date.now();
+  const toMs = req.query?.to
+    ? Date.parse(String(req.query.to))
+    : Date.now() + 90 * 24 * 60 * 60 * 1000;
+  const from = new Date(isNaN(fromMs) ? Date.now() : fromMs);
+  const to = new Date(isNaN(toMs) ? Date.now() + 90 * 24 * 60 * 60 * 1000 : toMs);
+
+  const events = await prisma.event.findMany({
+    where: { orgId, startsAt: { gte: from, lte: to } },
+    orderBy: { startsAt: "asc" },
+    take: 60,
+    select: {
+      id: true, title: true, startsAt: true, endsAt: true,
+      location: true, category: true, capacity: true, cost: true,
+      _count: { select: { rsvps: true } },
+    },
+  });
+
+  const ids = events.map((e) => e.id);
+  const [yesByEvent, mineByEvent] = ids.length
+    ? await Promise.all([
+        prisma.rsvp.groupBy({
+          by: ["eventId"],
+          where: { orgId, response: "yes", eventId: { in: ids } },
+          _count: { _all: true },
+        }),
+        prisma.rsvp.findMany({
+          where: { orgId, eventId: { in: ids }, userId: req.apiUser.id },
+          select: { eventId: true, response: true },
+        }),
+      ])
+    : [[], []];
+  const yesMap = new Map(yesByEvent.map((r) => [r.eventId, r._count._all]));
+  const mineMap = new Map(mineByEvent.map((r) => [r.eventId, r.response]));
+
+  const { categoryMeta } = await import("../lib/eventCategories.js");
+  res.json({
+    events: events.map((e) => {
+      const meta = e.category ? categoryMeta(e.category) : null;
+      return {
+        id: e.id,
+        title: e.title,
+        startsAt: e.startsAt,
+        endsAt: e.endsAt,
+        location: e.location,
+        category: e.category,
+        categoryLabel: meta?.label || null,
+        color: meta?.color || "primary",
+        capacity: e.capacity,
+        costCents: e.cost ? e.cost * 100 : null,
+        rsvpYesCount: yesMap.get(e.id) || 0,
+        rsvpTotalCount: e._count.rsvps,
+        myRsvp: mineMap.get(e.id) || null,
+      };
+    }),
+  });
+});
+
 /* ------------------------------------------------------------------ */
 /* RSVP embeds                                                          */
 /* ------------------------------------------------------------------ */

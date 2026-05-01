@@ -1,139 +1,154 @@
-// Calendar screen — high fidelity. Filter pills + scrolling list of
-// events grouped by month, color-coded by event type.
+// Calendar screen — fetches the org's upcoming events from
+// /api/v1/orgs/:orgId/events and renders them grouped by month with
+// category-coloured cards. Filter chips drive a client-side narrowing
+// (All / My RSVPs / Outings / Meetings) without re-fetching.
+//
+// Pull-to-refresh re-fetches the same window. Tapping a row pushes
+// onto the EventDetail screen (existing route).
 
-import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View, Pressable } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
-import { EventCard } from '../components/EventCard';
-import { fontFamilies, palette, radius, spacing } from '../theme/tokens';
+import { fontFamilies, palette, radius, spacing } from "../theme/tokens";
+import { useAuth } from "../state/AuthContext";
+import {
+  fetchEvents,
+  type CalendarEvent,
+  type EventRsvp,
+} from "../api/events";
+import type { CalendarStackParamList } from "../navigation/types";
 
-type EventRow = {
-  id: string;
-  month: string;
-  day: string;
-  title: string;
-  subtitle: string;
-  meta: string;
-  color: string;
-  status: 'going' | 'maybe' | 'rsvp';
-  category: 'outing' | 'meeting' | 'service' | 'leadership';
-};
+const FILTERS = ["All", "Going", "Outings", "Meetings"] as const;
+type Filter = (typeof FILTERS)[number];
 
-const EVENTS: EventRow[] = [
-  {
-    id: 'spring-campout',
-    month: 'MAR',
-    day: '21',
-    title: 'Spring Campout',
-    subtitle: 'Birch Lake State Park',
-    meta: '2 nights · 18 going · permission slip + $35',
-    color: palette.ember,
-    status: 'rsvp',
-    category: 'outing',
-  },
-  {
-    id: 'troop-meeting-mar25',
-    month: 'MAR',
-    day: '25',
-    title: 'Troop Meeting',
-    subtitle: "St. Mark's · 7:00 PM",
-    meta: 'Patrol meetings · Knot relay',
-    color: palette.primary,
-    status: 'going',
-    category: 'meeting',
-  },
-  {
-    id: 'eagle-jamie',
-    month: 'APR',
-    day: '04',
-    title: 'Eagle Project — Jamie',
-    subtitle: 'Riverside Park · 9:00 AM',
-    meta: 'Trail repair · Bring work gloves',
-    color: palette.teal,
-    status: 'maybe',
-    category: 'service',
-  },
-  {
-    id: 'plc-apr12',
-    month: 'APR',
-    day: '12',
-    title: 'PLC Meeting',
-    subtitle: 'Online · 8:00 PM',
-    meta: 'PL & APL only',
-    color: palette.plum,
-    status: 'going',
-    category: 'leadership',
-  },
-  {
-    id: 'high-adv-briefing',
-    month: 'APR',
-    day: '26',
-    title: 'High-Adventure Briefing',
-    subtitle: "St. Mark's · 7:00 PM",
-    meta: 'Required for High-Adventure crew',
-    color: palette.raspberry,
-    status: 'rsvp',
-    category: 'meeting',
-  },
-  {
-    id: 'eagle-coh',
-    month: 'MAY',
-    day: '04',
-    title: 'Eagle Court of Honor',
-    subtitle: "St. Mark's Hall · 2:00 PM",
-    meta: 'Three new Eagles · Reception after',
-    color: palette.sky,
-    status: 'going',
-    category: 'meeting',
-  },
+type CalendarNav = NativeStackNavigationProp<CalendarStackParamList, "CalendarRoot">;
+
+const MONTH_SHORT = [
+  "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
 ];
 
-const FILTERS = ['All', 'My RSVPs', 'Outings', 'Meetings'] as const;
-type Filter = typeof FILTERS[number];
-
-function filterEvents(filter: Filter): EventRow[] {
-  switch (filter) {
-    case 'All':
-      return EVENTS;
-    case 'My RSVPs':
-      return EVENTS.filter((e) => e.status !== 'rsvp');
-    case 'Outings':
-      return EVENTS.filter((e) => e.category === 'outing' || e.category === 'service');
-    case 'Meetings':
-      return EVENTS.filter((e) => e.category === 'meeting' || e.category === 'leadership');
-    default:
-      return EVENTS;
+// Map the server's semantic colour key to a concrete tokens.palette value.
+function paletteFor(key: string): string {
+  switch (key) {
+    case "accent":     return palette.accent;
+    case "sky":        return palette.sky;
+    case "ember":      return palette.ember;
+    case "raspberry":  return palette.raspberry;
+    case "butter":     return palette.butter;
+    case "plum":       return palette.plum;
+    case "teal":       return palette.teal;
+    case "primary":
+    default:           return palette.primary;
   }
 }
 
-export function CalendarScreen() {
-  const [filter, setFilter] = useState<Filter>('All');
-  const events = filterEvents(filter);
+function isOuting(category: string | null): boolean {
+  if (!category) return false;
+  const k = category.toLowerCase().replace(/[\s_]+/g, "-");
+  return [
+    "campout",
+    "trip",
+    "highadventure",
+    "service",
+    "ceremony",
+    "court-of-honor",
+    "pinewood",
+    "blueandgold",
+  ].includes(k);
+}
 
-  // Group by month for visual rhythm
-  const groups: Array<{ month: string; items: EventRow[] }> = [];
-  events.forEach((e) => {
-    const last = groups[groups.length - 1];
-    if (last && last.month === e.month) {
-      last.items.push(e);
-    } else {
-      groups.push({ month: e.month, items: [e] });
+function isMeeting(category: string | null): boolean {
+  if (!category) return false;
+  const k = category.toLowerCase().replace(/[\s_]+/g, "-");
+  return ["meeting", "training"].includes(k);
+}
+
+function applyFilter(events: CalendarEvent[], filter: Filter): CalendarEvent[] {
+  switch (filter) {
+    case "All":      return events;
+    case "Going":    return events.filter((e) => e.myRsvp === "yes");
+    case "Outings":  return events.filter((e) => isOuting(e.category));
+    case "Meetings": return events.filter((e) => isMeeting(e.category));
+  }
+}
+
+function rsvpBadge(status: EventRsvp | null): { label: string; bg: string; fg: string } | null {
+  if (status === "yes") return { label: "Going", bg: palette.accent, fg: palette.ink };
+  if (status === "maybe") return { label: "Maybe", bg: palette.butter, fg: palette.ink };
+  if (status === "no") return { label: "No", bg: palette.lineSoft, fg: palette.inkMuted };
+  return null;
+}
+
+export default function CalendarScreen() {
+  const auth = useAuth();
+  const navigation = useNavigation<CalendarNav>();
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [filter, setFilter] = useState<Filter>("All");
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!auth.session) return;
+    setError(null);
+    try {
+      const res = await fetchEvents(
+        { orgSlug: auth.session.orgSlug, token: auth.session.token },
+        auth.session.orgId,
+      );
+      setEvents(res.events);
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Couldn't load events.");
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  });
+  }, [auth.session]);
+
+  useEffect(() => {
+    setLoading(true);
+    load();
+  }, [load]);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    load();
+  }, [load]);
+
+  const visible = applyFilter(events, filter);
+
+  // Group by month for visual rhythm.
+  const groups: Array<{ month: string; items: CalendarEvent[] }> = [];
+  for (const e of visible) {
+    const d = new Date(e.startsAt);
+    const month = `${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+    const last = groups[groups.length - 1];
+    if (last && last.month === month) last.items.push(e);
+    else groups.push({ month, items: [e] });
+  }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
       <View style={styles.header}>
         <View style={styles.titleRow}>
           <Text style={styles.title}>Calendar</Text>
-          <Text style={styles.month}>March 2026</Text>
+          {events.length > 0 && (
+            <Text style={styles.subtitle}>{events.length} upcoming</Text>
+          )}
         </View>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: 8 }}
-        >
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {FILTERS.map((f) => {
             const active = filter === f;
             return (
@@ -145,48 +160,87 @@ export function CalendarScreen() {
                   active && { backgroundColor: palette.primary, borderColor: palette.primary },
                 ]}
               >
-                <Text
-                  style={[
-                    styles.filterText,
-                    active && { color: '#ffffff' },
-                  ]}
-                >
-                  {f}
-                </Text>
+                <Text style={[styles.filterText, active && { color: "#fff" }]}>{f}</Text>
               </Pressable>
             );
           })}
         </ScrollView>
       </View>
 
-      <ScrollView contentContainerStyle={styles.list}>
-        {groups.map((g) => (
-          <View key={g.month} style={{ marginBottom: spacing.lg }}>
-            <Text style={styles.groupLabel}>{g.month}</Text>
-            {g.items.map((e, i) => (
-              <View
-                key={e.id}
-                style={[
-                  i < g.items.length - 1 && {
-                    borderBottomColor: palette.lineSoft,
-                    borderBottomWidth: 1,
-                  },
-                ]}
-              >
-                <EventCard
-                  variant="row"
-                  month={e.month}
-                  day={e.day}
-                  title={e.title}
-                  subtitle={e.subtitle}
-                  meta={e.meta}
-                  color={e.color}
-                  rsvpStatus={e.status}
-                />
-              </View>
-            ))}
+      <ScrollView
+        contentContainerStyle={styles.list}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+      >
+        {loading && events.length === 0 ? (
+          <View style={styles.empty}><ActivityIndicator color={palette.primary} /></View>
+        ) : error ? (
+          <View style={styles.empty}>
+            <Text style={styles.errorText}>{error}</Text>
+            <Pressable style={styles.retry} onPress={load}>
+              <Text style={styles.retryText}>Try again</Text>
+            </Pressable>
           </View>
-        ))}
+        ) : groups.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>
+              {filter === "All" ? "No upcoming events." : `No events match "${filter}".`}
+            </Text>
+          </View>
+        ) : (
+          groups.map((g) => (
+            <View key={g.month} style={{ marginBottom: spacing.lg }}>
+              <Text style={styles.groupLabel}>{g.month}</Text>
+              {g.items.map((e, i) => {
+                const d = new Date(e.startsAt);
+                const dateLabel = `${d.toLocaleString("en-US", { weekday: "short" })} · ${d.toLocaleString("en-US", {
+                  hour: "numeric",
+                  minute: "2-digit",
+                })}`;
+                const accentColor = paletteFor(e.color);
+                const badge = rsvpBadge(e.myRsvp);
+                return (
+                  <Pressable
+                    key={e.id}
+                    onPress={() => navigation.navigate("EventDetail", { eventId: e.id })}
+                    style={[
+                      styles.eventRow,
+                      i < g.items.length - 1 && {
+                        borderBottomColor: palette.lineSoft,
+                        borderBottomWidth: 1,
+                      },
+                    ]}
+                  >
+                    <View style={[styles.dateBlock, { backgroundColor: accentColor }]}>
+                      <Text style={styles.dateMonth}>{MONTH_SHORT[d.getMonth()]}</Text>
+                      <Text style={styles.dateDay}>{d.getDate()}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.eventTitle}>{e.title}</Text>
+                      <Text style={styles.eventSub}>
+                        {dateLabel}{e.location ? ` · ${e.location}` : ""}
+                      </Text>
+                      <View style={styles.eventMetaRow}>
+                        {e.categoryLabel && (
+                          <View style={[styles.catTag, { backgroundColor: accentColor }]}>
+                            <Text style={styles.catTagText}>{e.categoryLabel}</Text>
+                          </View>
+                        )}
+                        <Text style={styles.eventMeta}>
+                          {e.rsvpYesCount} going{e.capacity ? ` / ${e.capacity}` : ""}
+                        </Text>
+                      </View>
+                    </View>
+                    {badge && (
+                      <View style={[styles.rsvpBadge, { backgroundColor: badge.bg }]}>
+                        <Text style={[styles.rsvpBadgeText, { color: badge.fg }]}>{badge.label}</Text>
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+          ))
+        )}
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -203,9 +257,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
   },
   titleRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
     marginBottom: spacing.md,
   },
   title: {
@@ -214,10 +268,10 @@ const styles = StyleSheet.create({
     color: palette.ink,
     letterSpacing: -0.6,
   },
-  month: {
+  subtitle: {
     fontFamily: fontFamilies.ui,
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: palette.inkMuted,
   },
   filterChip: {
@@ -231,21 +285,121 @@ const styles = StyleSheet.create({
   filterText: {
     fontFamily: fontFamilies.ui,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: "700",
     color: palette.inkSoft,
   },
   list: {
     paddingHorizontal: spacing.screen,
     paddingTop: spacing.md,
+    minHeight: "100%",
+  },
+  empty: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: spacing.xxl,
+    gap: spacing.md,
+  },
+  emptyText: {
+    fontFamily: fontFamilies.ui,
+    color: palette.inkMuted,
+    fontSize: 14,
+  },
+  errorText: {
+    fontFamily: fontFamilies.ui,
+    color: palette.danger,
+    fontSize: 14,
+  },
+  retry: {
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: palette.primary,
+  },
+  retryText: {
+    fontFamily: fontFamilies.ui,
+    color: palette.primary,
+    fontWeight: "600",
   },
   groupLabel: {
     fontFamily: fontFamilies.ui,
     fontSize: 11,
-    fontWeight: '700',
+    fontWeight: "700",
     color: palette.inkMuted,
     letterSpacing: 1.4,
-    marginBottom: 4,
+    marginBottom: 8,
+  },
+  eventRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+    paddingVertical: spacing.md,
+    alignItems: "center",
+  },
+  dateBlock: {
+    width: 56,
+    height: 56,
+    borderRadius: radius.input,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  dateMonth: {
+    fontFamily: fontFamilies.ui,
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.6,
+  },
+  dateDay: {
+    fontFamily: fontFamilies.display,
+    color: "#fff",
+    fontSize: 22,
+    letterSpacing: -0.4,
+  },
+  eventTitle: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 15,
+    fontWeight: "700",
+    color: palette.ink,
+  },
+  eventSub: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 12,
+    color: palette.inkSoft,
+    marginTop: 2,
+  },
+  eventMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+  },
+  catTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 999,
+  },
+  catTagText: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#fff",
+    letterSpacing: 0.4,
+  },
+  eventMeta: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 11,
+    color: palette.inkMuted,
+  },
+  rsvpBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  rsvpBadgeText: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.4,
   },
 });
-
-export default CalendarScreen;
