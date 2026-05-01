@@ -7683,7 +7683,9 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
 
   const statusBlock = issue.status === "sent"
     ? `<div class="card" style="background:#e3f29b;border:1px solid #c8e94a"><strong>Sent ${escape(new Date(issue.publishedAt).toLocaleString("en-US"))}</strong>${issue.author ? ` by ${escape(issue.author.displayName)}` : ""}.${issue.mailLogId ? ` <a href="/admin/email/sent">See in mail history →</a>` : ""}</div>`
-    : "";
+    : req.query.tested
+      ? `<div class="flash flash-ok">Test sent to ${escape(req.user.email)}. Check your inbox to see the families' view.</div>`
+      : "";
 
   const composerBody = newsletterComposerHtml({
     title: issue.title,
@@ -7787,6 +7789,59 @@ adminRouter.get("/newsletters/:id/preview", requireLeader, async (req, res) => {
     baseUrl,
   });
   res.type("html").send(html);
+});
+
+// Send a single test copy of the newsletter to the leader's own email
+// so they can see what families will see before broadcasting. Doesn't
+// log a MailLog row, doesn't flip status, doesn't audit — it's a
+// preview, not a publish.
+adminRouter.post("/newsletters/:id/test-send", requireLeader, async (req, res) => {
+  const issue = await prisma.newsletter.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!issue) return res.status(404).send("Not found");
+  if (!req.user.email) return res.status(400).type("text/plain").send("No email on your account.");
+
+  const [posts, events] = await Promise.all([
+    issue.includedPostIds.length
+      ? prisma.post.findMany({
+          where: { id: { in: issue.includedPostIds }, orgId: req.org.id },
+          include: { author: { select: { displayName: true } } },
+        })
+      : [],
+    issue.includedEventIds.length
+      ? prisma.event.findMany({
+          where: { id: { in: issue.includedEventIds }, orgId: req.org.id },
+        })
+      : [],
+  ]);
+  const orderedPosts = issue.includedPostIds.map((id) => posts.find((p) => p.id === id)).filter(Boolean);
+  const orderedEvents = issue.includedEventIds.map((id) => events.find((e) => e.id === id)).filter(Boolean);
+
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const baseUrl = `https://${req.org.slug}.${apex}`;
+  const { html, text } = renderNewsletterHtml({
+    org: req.org,
+    newsletter: issue,
+    posts: orderedPosts,
+    events: orderedEvents,
+    baseUrl,
+  });
+  const fromName = req.org.displayName.replace(/[<>"]/g, "");
+  await sendBatch([
+    {
+      to: req.user.email,
+      subject: `[TEST] ${issue.title}`,
+      text: `(This is a test send to your own address. Family broadcasts go out via "Send now" on the newsletter page.)\n\n${text}`,
+      html: html.replace(
+        "</body>",
+        `<p style="font-size:11px;color:#5a6258;text-align:center;margin-top:18px;padding:.6rem;background:#f4ecdc;border-radius:6px">This is a test send to your own address. The audience copy goes out when you hit <strong>Send now</strong>.</p></body>`,
+      ),
+      from: `${fromName} <noreply@${req.org.slug}.${apex}>`,
+      replyTo: req.user.email,
+    },
+  ]);
+  res.redirect(`/admin/newsletters/${issue.id}/edit?tested=1`);
 });
 
 adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
@@ -8047,6 +8102,9 @@ function newsletterComposerHtml({
     ${
       sendAction || deleteAction
         ? `<div class="row" style="margin-top:.6rem">
+            ${sendAction ? `<form class="inline" method="post" action="${sendAction.replace(/\/send$/, "/test-send")}">
+              <button class="btn btn-ghost" type="submit" title="Send a single copy to your address — won't go to families.">Send a test to me</button>
+            </form>` : ""}
             ${sendAction ? `<form class="inline" method="post" action="${sendAction}" onsubmit="return confirm('Send this newsletter to the audience now?')">
               <button class="btn btn-primary" type="submit">Send now</button>
             </form>` : ""}
@@ -8054,7 +8112,7 @@ function newsletterComposerHtml({
               <button class="btn btn-danger" type="submit">Delete draft</button>
             </form>` : ""}
           </div>
-          <p class="muted small" style="margin-top:.4rem">${sendAction ? "Send-now uses the most recent saved state. Edit and save first if you want changes to land in the email." : ""}</p>`
+          <p class="muted small" style="margin-top:.4rem">${sendAction ? "Send-now uses the most recent saved state. Edit and save first if you want changes to land in the email. The test sends one copy to your own email so you can see what families will see." : ""}</p>`
         : ""
     }
   `;
