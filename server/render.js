@@ -179,7 +179,7 @@ function pageShell(org, title, body) {
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
 <style>
-:root{--primary:${escapeHtml(org.primaryColor || "#0e3320")};--accent:${escapeHtml(org.accentColor || "#c8e94a")};--green-700:var(--primary);--gold:var(--accent)}
+:root{--primary:${escapeHtml(org.primaryColor || "#0e3320")};--accent:${escapeHtml(org.accentColor || "#c8e94a")}}
 .event-detail{padding:3rem 0}
 .event-detail .meta{display:grid;grid-template-columns:120px 1fr;gap:.6rem 1.5rem;margin:1.5rem 0;color:var(--ink-700)}
 .event-detail .meta dt{font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-500);font-weight:600}
@@ -192,7 +192,7 @@ function pageShell(org, title, body) {
 .rsvp-row label{flex:1}
 .rsvp-card label{display:block;font-size:.88rem;font-weight:500;color:var(--ink-700);margin-bottom:.55rem}
 .rsvp-card input,.rsvp-card select,.rsvp-card textarea{display:block;width:100%;margin-top:.3rem;padding:.55rem .7rem;border:1px solid var(--ink-300);border-radius:8px;font:inherit;background:#fff;color:var(--ink-900)}
-.rsvp-card input:focus,.rsvp-card select:focus,.rsvp-card textarea:focus{outline:2px solid var(--green-700);outline-offset:1px;border-color:var(--green-700)}
+.rsvp-card input:focus,.rsvp-card select:focus,.rsvp-card textarea:focus{outline:2px solid var(--primary);outline-offset:1px;border-color:var(--primary)}
 .rsvp-actions{display:flex;align-items:center;gap:.75rem;margin-top:.4rem}
 .rsvp-counts{display:flex;gap:1.5rem;margin:.4rem 0 .8rem;color:var(--ink-700);font-size:.95rem}
 .rsvp-counts strong{color:var(--ink-900)}
@@ -214,9 +214,9 @@ function pageShell(org, title, body) {
 .event-detail .body{max-width:65ch;line-height:1.65}
 .event-detail .body p{margin:0 0 1em}
 .event-list{padding:3rem 0}
-.event-list .events li time{background:var(--green-700)}
+.event-list .events li time{background:var(--primary)}
 .back{display:inline-block;margin-bottom:1rem;color:var(--ink-500);text-decoration:none;font-size:.92rem}
-.back:hover{color:var(--green-700)}
+.back:hover{color:var(--primary)}
 </style>
 </head>
 <body>
@@ -518,7 +518,7 @@ export function renderForms(org, forms, { user, role } = {}) {
       .forms-list{list-style:none;padding:0;margin:0 0 1.5rem;display:grid;gap:.5rem}
       .forms-list li{background:#fff;border:1px solid #eef0e7;border-radius:10px;padding:.7rem 1rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap}
       .forms-list a{text-decoration:none;color:inherit}
-      .forms-list a strong{color:var(--green-700)}
+      .forms-list a strong{color:var(--primary)}
       .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.75rem;color:#6b7280;margin-left:.4rem}
     </style>`;
   return pageShell(org, "Forms & documents", body);
@@ -2197,8 +2197,8 @@ export function renderPostDetail(org, post, ctx = {}) {
 const POST_STYLES = `
 .post-feed{display:grid;gap:1.25rem}
 .post{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1.25rem 1.4rem;box-shadow:0 1px 2px rgba(15,58,31,.06),0 8px 24px rgba(15,58,31,.06);position:relative}
-.post.post-pinned{border-color:var(--gold,#caa54a)}
-.post .badge{position:absolute;top:.85rem;right:.85rem;background:var(--gold,#caa54a);color:#15181c;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:5px;letter-spacing:.06em;text-transform:uppercase}
+.post.post-pinned{border-color:var(--accent)}
+.post .badge{position:absolute;top:.85rem;right:.85rem;background:var(--accent);color:#15181c;font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:5px;letter-spacing:.06em;text-transform:uppercase}
 .post h3{margin:0 0 .35rem;font-size:1.2rem}
 .post .post-body p{margin:0 0 .8em}
 .post .post-body p:last-child{margin-bottom:0}

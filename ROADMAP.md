@@ -696,6 +696,39 @@ read-only until the threshold is restored.
 
 ---
 
+## Design system migration (DONE)
+
+The locked Forest & Ember design from `design/` is now the only style
+language in the product:
+
+- [x] Apex marketing site on Newsreader + Inter Tight
+- [x] Public unit site (server/render.js) on Compass tokens — legacy
+      `--green-700` / `--gold` aliases removed; per-org primary/accent
+      flow through `--primary` / `--accent` only
+- [x] Admin sign-in (loginPage) on Compass tokens
+- [x] Admin shell migrated from sidebar to AdminBalanced top-nav with a
+      per-section subnav row of pill links; `layout(req, …)` reads
+      `req.org`, `req.user`, derives pathname from `req.baseUrl + req.path`
+- [x] `/admin` dashboard rebuilt to AdminBalanced spec: dark-evergreen
+      greeting band with italic-accent headline, color-coded 4-up stats,
+      two-column body (calendar agenda + activity feed), roster preview
+      strip. View-model split into `lib/dashboard.js` so the data shape
+      is testable without touching HTML.
+- [x] `/security.html` promoted to the apex marketing site
+
+Pre-production cleanup landed alongside (no users to break):
+
+- [x] Session cookie renamed `scouthosting_session` → `compass_session`
+- [x] CSRF cookie renamed `scouthosting_csrf` → `compass_csrf`
+- [x] OAuth state/verifier/next cookies renamed to the `compass_oauth_*`
+      prefix
+- [x] ICS UID host renamed from `${slug}.scouthosting.com` to
+      `${slug}.compass.app` (calendar subscriptions will re-sync once)
+- [x] Export bundle schema string renamed `scouthosting/v1` → `compass/v1`
+- [x] docker-compose container/user/db renamed scouthosting → compass
+
+---
+
 ## Non-goals (deliberately out of scope)
 
 - A general-purpose CMS — Compass is opinionated for Scout units

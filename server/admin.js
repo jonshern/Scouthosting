@@ -38,6 +38,7 @@ import {
   buildCurrentTrainingsMap,
   describeSubgroup,
 } from "../lib/subgroups.js";
+import { buildDashboardModel } from "../lib/dashboard.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -128,10 +129,135 @@ const escape = (s) =>
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
 
-function layout({ title, org, user, body, flash }) {
+// IA: 7 top-level sections + a More overflow. Maps each admin page to the
+// section it most clearly belongs to. Active section is highlighted in
+// the top nav; an in-page secondary nav is rendered by `subnav()` per
+// section so leaders get one-click access to sibling pages.
+const NAV_SECTIONS = [
+  { key: "overview", label: "Overview", href: "/admin", pages: [] },
+  {
+    key: "messages",
+    label: "Messages",
+    href: "/admin/email",
+    pages: [
+      { href: "/admin/email", label: "Email broadcast" },
+      { href: "/admin/email/sent", label: "Sent history" },
+      { href: "/admin/newsletters", label: "Newsletters" },
+      { href: "/admin/channels", label: "Channels" },
+      { href: "/admin/posts", label: "Activity feed" },
+      { href: "/admin/announcements", label: "Announcements" },
+      { href: "/admin/ypt", label: "YPT status" },
+    ],
+  },
+  {
+    key: "calendar",
+    label: "Calendar",
+    href: "/admin/events",
+    pages: [
+      { href: "/admin/events", label: "Events" },
+      { href: "/admin/credits", label: "Credits" },
+    ],
+  },
+  {
+    key: "roster",
+    label: "Roster",
+    href: "/admin/members",
+    pages: [
+      { href: "/admin/members", label: "Members" },
+      { href: "/admin/positions", label: "Position roster" },
+      { href: "/admin/training", label: "Training" },
+      { href: "/admin/subgroups", label: "Subgroups" },
+      { href: "/admin/reports", label: "Reports" },
+    ],
+  },
+  {
+    key: "photos",
+    label: "Photos",
+    href: "/admin/albums",
+    pages: [
+      { href: "/admin/albums", label: "Photos & albums" },
+      { href: "/admin/videos", label: "Videos" },
+    ],
+  },
+  {
+    key: "forms",
+    label: "Forms",
+    href: "/admin/forms",
+    pages: [
+      { href: "/admin/forms", label: "Forms & documents" },
+      { href: "/admin/surveys", label: "Surveys" },
+      { href: "/admin/content", label: "Page content" },
+      { href: "/admin/pages", label: "Custom pages" },
+    ],
+  },
+  {
+    key: "money",
+    label: "Money",
+    href: "/admin/treasurer",
+    pages: [
+      { href: "/admin/treasurer", label: "Treasurer report" },
+      { href: "/admin/reimbursements", label: "Reimbursements" },
+    ],
+  },
+  {
+    key: "more",
+    label: "More",
+    href: "/admin/equipment",
+    pages: [
+      { href: "/admin/equipment", label: "Equipment" },
+      { href: "/admin/eagle", label: "Eagle Scouts" },
+      { href: "/admin/mbc", label: "Merit Badge Counselors" },
+      { href: "/admin/oa", label: "OA elections" },
+      { href: "/admin/audit", label: "Audit log" },
+      { href: "/admin/export", label: "Export" },
+    ],
+  },
+];
+
+// Pick the active section by URL prefix match. The longest matching
+// section.pages href wins; falls back to overview.
+function activeSection(pathname) {
+  let best = NAV_SECTIONS[0];
+  let bestLen = 0;
+  for (const sec of NAV_SECTIONS) {
+    for (const page of [{ href: sec.href }, ...sec.pages]) {
+      if (pathname === page.href || pathname.startsWith(page.href + "/")) {
+        if (page.href.length > bestLen) {
+          best = sec;
+          bestLen = page.href.length;
+        }
+      }
+    }
+  }
+  return best;
+}
+
+// Render the section-level secondary nav (a row of pill links). Empty
+// string when the active section has no sub-pages (e.g. Overview).
+function subnav(pathname) {
+  const sec = activeSection(pathname);
+  if (!sec.pages.length) return "";
+  const items = sec.pages
+    .map((p) => {
+      const active = pathname === p.href || pathname.startsWith(p.href + "/");
+      return `<a href="${escape(p.href)}" class="${active ? "subnav-link active" : "subnav-link"}">${escape(p.label)}</a>`;
+    })
+    .join("");
+  return `<nav class="subnav" aria-label="${escape(sec.label)} pages">${items}</nav>`;
+}
+
+function layout(req, { title, body, flash }) {
+  const { org, user } = req;
+  const pathname = (req.baseUrl || "") + (req.path || "/");
   const flashHtml = flash
     ? `<div class="flash flash-${escape(flash.type)}">${escape(flash.message)}</div>`
     : "";
+  const active = activeSection(pathname);
+  const topNavLinks = NAV_SECTIONS.map((sec) => {
+    const isActive = sec.key === active.key;
+    return `<a href="${escape(sec.href)}" class="${isActive ? "topnav-link active" : "topnav-link"}">${escape(sec.label)}</a>`;
+  }).join("");
+
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -139,11 +265,35 @@ function layout({ title, org, user, body, flash }) {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
-<style>
+<style>${ADMIN_SHELL_CSS}</style></head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/admin">
+      <span class="brand-mark">${escape(org.unitNumber)}</span>
+      <span><strong>${escape(org.displayName)}</strong><small>Compass admin</small></span>
+    </a>
+    <nav class="topnav" aria-label="Sections">${topNavLinks}</nav>
+    <div class="me">
+      <span class="me-name">${escape(user.displayName)}</span>
+      <a class="me-public" href="/" target="_blank" rel="noopener" title="View the public site">View site ↗</a>
+      <form method="post" action="/admin/logout" class="inline"><button class="btn btn-ghost small">Log out</button></form>
+    </div>
+  </div>
+  ${subnav(pathname)}
+</header>
+<main class="main">
+${flashHtml}
+${body}
+</main>
+</body></html>`;
+}
+
+const ADMIN_SHELL_CSS = `
 /* Compass admin shell — Forest & Ember tokens. Per-org branding lives
    on the public site; the admin uses the locked Compass palette for
    consistency across every unit's leader experience. */
-:root{
+:root {
   --bg:#f4ecdc;
   --surface:#ffffff;
   --surface-alt:#1a1f1a;
@@ -161,21 +311,16 @@ function layout({ title, org, user, body, flash }) {
   --danger:#a82e1d;
   --success:#3d6b3a;
   --sky:#3a7ab8;
+  --sky-soft:#bcd6ec;
   --ember:#e07a3c;
   --raspberry:#c43d6b;
+  --raspberry-soft:#f0bccc;
   --butter:#f3c54a;
   --plum:#6e3b7a;
   --teal:#3aa893;
+  --shadow:0 4px 20px rgba(15,23,42,.08);
   --font-display:"Newsreader","Source Serif Pro",Georgia,serif;
   --font-ui:"Inter Tight","Inter",system-ui,-apple-system,sans-serif;
-  /* Aliases the existing per-page templates still reference. Mapped
-     through to the new tokens so no per-page rewrites are required. */
-  --g700:var(--primary);
-  --g900:var(--primary-hover);
-  --mute:var(--ink-muted);
-  --card:var(--surface);
-  --gold:var(--accent);
-  --shadow:0 4px 20px rgba(15,23,42,.08);
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:var(--font-ui);color:var(--ink);background:var(--bg);line-height:1.55;-webkit-font-smoothing:antialiased}
@@ -186,48 +331,59 @@ h1{font-size:36px;line-height:1.05;letter-spacing:-.025em}
 h2{font-size:24px;line-height:1.15}
 h3{font-size:17px;line-height:1.25}
 
-.shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
-.side{
+/* Top bar with section nav (replaces the old sidebar). */
+.topbar{
   background:var(--surface);
-  border-right:1.5px solid var(--ink);
-  padding:1.25rem 1rem;
-  display:flex;
-  flex-direction:column;
+  border-bottom:1.5px solid var(--ink);
+  position:sticky;top:0;z-index:10;
 }
-.brand{display:flex;align-items:center;gap:.6rem;margin-bottom:1.5rem;text-decoration:none;color:inherit;padding:0 .35rem}
+.topbar-inner{
+  display:flex;align-items:center;gap:1.5rem;
+  padding:.85rem 2rem;max-width:1280px;margin:0 auto;
+}
+.brand{display:flex;align-items:center;gap:.6rem;text-decoration:none;color:inherit;flex-shrink:0}
 .brand-mark{
-  width:36px;height:36px;border-radius:50%;
+  width:34px;height:34px;border-radius:50%;
   background:var(--primary);color:#fff;
   display:grid;place-items:center;
   font-family:var(--font-display);font-style:italic;font-weight:500;font-size:.95rem;
-  letter-spacing:-.02em;
-  border:1.5px solid var(--ink);
+  letter-spacing:-.02em;border:1.5px solid var(--ink);
 }
-.brand strong{font-family:var(--font-display);font-size:1rem;font-weight:500;letter-spacing:-.015em}
-.brand small{display:block;color:var(--ink-muted);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;font-weight:600;margin-top:1px}
+.brand strong{font-family:var(--font-display);font-size:1rem;font-weight:500;letter-spacing:-.015em;display:block}
+.brand small{display:block;color:var(--ink-muted);font-size:.65rem;letter-spacing:.1em;text-transform:uppercase;font-weight:600;margin-top:1px}
 
-.side nav{display:grid;gap:.05rem}
-.side .navgroup{
-  font-size:.65rem;letter-spacing:.14em;text-transform:uppercase;font-weight:700;
-  color:var(--ink-muted);margin:.85rem .5rem .25rem;
-  font-family:var(--font-display);font-style:italic;font-size:.7rem;letter-spacing:.04em;text-transform:none;
-  color:var(--primary);
+.topnav{display:flex;gap:.15rem;flex:1;flex-wrap:wrap}
+.topnav-link{
+  padding:.5rem .85rem;border-radius:6px;
+  text-decoration:none;color:var(--ink-soft);font-size:.92rem;font-weight:500;
+  border-bottom:2px solid transparent;
+  transition:color 120ms ease-out,border-color 120ms ease-out;
 }
-.side .navgroup:first-child{margin-top:0}
-.side a{
-  display:block;padding:.45rem .65rem;border-radius:6px;
-  text-decoration:none;color:var(--ink-soft);font-size:.88rem;
-  transition:background 120ms ease-out,color 120ms ease-out;
-}
-.side a:hover{background:var(--line-soft);color:var(--ink)}
-.side a.active{background:var(--primary);color:#fff;font-weight:600}
-.side .me{
-  margin-top:auto;padding-top:1rem;border-top:1px solid var(--line);
-  font-size:.82rem;color:var(--ink-muted);
-}
-.side .me strong{color:var(--ink);font-weight:600}
+.topnav-link:hover{color:var(--ink)}
+.topnav-link.active{color:var(--ink);font-weight:600;border-bottom-color:var(--accent)}
 
-.main{padding:2rem 2.5rem;max-width:920px}
+.me{display:flex;align-items:center;gap:.65rem;font-size:.85rem;color:var(--ink-muted);flex-shrink:0}
+.me-name{font-weight:600;color:var(--ink)}
+.me-public{color:var(--ink-muted);text-decoration:none;font-size:.82rem}
+.me-public:hover{color:var(--ink)}
+
+.subnav{
+  display:flex;gap:.25rem;flex-wrap:wrap;
+  padding:.55rem 2rem;
+  max-width:1280px;margin:0 auto;
+  border-top:1px solid var(--line);
+}
+.subnav-link{
+  padding:.3rem .7rem;border-radius:999px;
+  text-decoration:none;color:var(--ink-muted);font-size:.82rem;
+  border:1px solid transparent;
+  transition:background 120ms ease-out,color 120ms ease-out,border-color 120ms ease-out;
+}
+.subnav-link:hover{background:var(--line-soft);color:var(--ink)}
+.subnav-link.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+
+.main{padding:2rem;max-width:1100px;margin:0 auto}
+
 .flash{
   padding:.7rem 1rem;border-radius:10px;margin-bottom:1.25rem;font-weight:500;
   font-size:.92rem;
@@ -317,76 +473,14 @@ code{
 .diet-chip:has(input:checked){background:var(--primary);color:#fff;border-color:var(--primary)}
 
 @media (max-width:780px){
-  .shell{grid-template-columns:1fr}
-  .side{
-    border-right:0;border-bottom:1.5px solid var(--ink);
-    padding:.85rem 1rem;
-  }
+  .topbar-inner{padding:.75rem 1rem;flex-wrap:wrap;gap:.85rem}
+  .topnav{order:3;flex-basis:100%;overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch}
+  .topnav-link{white-space:nowrap}
+  .subnav{padding:.5rem 1rem;overflow-x:auto;flex-wrap:nowrap}
+  .subnav-link{white-space:nowrap}
   .main{padding:1.25rem}
 }
-</style></head>
-<body>
-<div class="shell">
-<aside class="side">
-  <a class="brand" href="/admin">
-    <span class="brand-mark">${escape(org.unitNumber)}</span>
-    <span><strong>${escape(org.displayName)}</strong><small>Compass admin</small></span>
-  </a>
-  <nav>
-    <a href="/admin">Dashboard</a>
-
-    <div class="navgroup">§ Communicate</div>
-    <a href="/admin/posts">Activity feed</a>
-    <a href="/admin/announcements">Announcements</a>
-    <a href="/admin/email">Email broadcast</a>
-    <a href="/admin/newsletters">Newsletters</a>
-    <a href="/admin/channels">Channels</a>
-
-    <div class="navgroup">§ Calendar</div>
-    <a href="/admin/events">Events</a>
-    <a href="/admin/credits">Credits</a>
-
-    <div class="navgroup">§ Roster</div>
-    <a href="/admin/members">Members</a>
-    <a href="/admin/positions">Position roster</a>
-    <a href="/admin/training">Training / YPT</a>
-    <a href="/admin/subgroups">Subgroups</a>
-    <a href="/admin/reports">Reports</a>
-
-    <div class="navgroup">§ Content</div>
-    <a href="/admin/content">Page content</a>
-    <a href="/admin/pages">Custom pages</a>
-    <a href="/admin/albums">Photos &amp; albums</a>
-    <a href="/admin/videos">Videos</a>
-    <a href="/admin/forms">Forms &amp; documents</a>
-
-    <div class="navgroup">§ Money</div>
-    <a href="/admin/treasurer">Treasurer report</a>
-    <a href="/admin/reimbursements">Reimbursements</a>
-
-    <div class="navgroup">§ Other</div>
-    <a href="/admin/equipment">Equipment</a>
-    <a href="/admin/eagle">Eagle Scouts</a>
-    <a href="/admin/mbc">MB Counselors</a>
-    <a href="/admin/oa">OA elections</a>
-    <a href="/admin/surveys">Surveys</a>
-    <a href="/admin/audit">Audit log</a>
-    <a href="/admin/export">Export</a>
-    <a href="/" target="_blank">View public site ↗</a>
-  </nav>
-  <div class="me">
-    Signed in as <strong>${escape(user.displayName)}</strong><br>
-    <span class="small">${escape(user.email)}</span>
-    <form method="post" action="/admin/logout" style="margin-top:.6rem"><button class="btn btn-ghost small">Log out</button></form>
-  </div>
-</aside>
-<main class="main">
-${flashHtml}
-${body}
-</main>
-</div>
-</body></html>`;
-}
+`;
 
 function loginPage({ org, error }) {
   const errHtml = error ? `<div class="flash flash-err">${escape(error)}</div>` : "";
@@ -523,64 +617,273 @@ adminRouter.post("/logout", async (req, res) => {
 /* ------------------------------------------------------------------ */
 
 adminRouter.get("/", requireLeader, async (req, res) => {
-  const [annCount, page] = await Promise.all([
-    prisma.announcement.count({ where: { orgId: req.org.id } }),
-    prisma.page.findUnique({ where: { orgId: req.org.id } }),
-  ]);
-  const body = `
-    <h1>Welcome back, ${escape(req.user.displayName)}.</h1>
-    <p class="muted">You're an <strong>${escape(req.role)}</strong> of ${escape(req.org.displayName)}.</p>
-
-    <div class="card">
-      <h2>Activity feed</h2>
-      <p class="muted small">Post text + photos to your unit's home-page timeline.</p>
-      <p><a class="btn btn-primary" href="/admin/posts">Compose a post</a></p>
-    </div>
-
-    <div class="card">
-      <h2>Page content</h2>
-      <p class="muted small">${page ? "Custom content is in place." : "Using the seeded defaults — edit it to make this site your own."}</p>
-      <p><a class="btn btn-primary" href="/admin/content">Edit page content</a></p>
-    </div>
-
-    <div class="card">
-      <h2>Announcements</h2>
-      <p class="muted small">${annCount} published.</p>
-      <p><a class="btn btn-primary" href="/admin/announcements">Manage announcements</a></p>
-    </div>
-
-    <div class="card">
-      <h2>Calendar</h2>
-      <p class="muted small">Add events with directions and a one-click "Add to Google Calendar" button. Members can subscribe the org feed once and get every event in their phone calendar.</p>
-      <p><a class="btn btn-primary" href="/admin/events">Manage events</a></p>
-    </div>
-
-    <div class="card">
-      <h2>Photos &amp; albums</h2>
-      <p class="muted small">Upload photos to a new album and they'll appear on your public gallery within seconds.</p>
-      <p><a class="btn btn-primary" href="/admin/albums">Manage albums</a></p>
-    </div>
-
-    <div class="card">
-      <h2>Members &amp; email</h2>
-      <p class="muted small">Maintain the directory and send group emails. Members can opt for email, SMS, both, or none.</p>
-      <p>
-        <a class="btn btn-primary" href="/admin/members">Manage members</a>
-        <a class="btn btn-ghost" href="/admin/email">Send broadcast</a>
-      </p>
-    </div>
-
-    <div class="card">
-      <h2>Coming soon</h2>
-      <ul class="muted small">
-        <li>SMS broadcasts (Twilio) using the smsOptIn / commPreference fields</li>
-        <li>Activity feed with optional Facebook cross-post</li>
-        <li>RSVP / sign-up sheets on events</li>
-      </ul>
-    </div>
-  `;
-  res.type("html").send(layout({ title: "Dashboard", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Dashboard", body: await renderDashboard(req) }));
 });
+
+// AdminBalanced dashboard render. Pulls a single view-model from
+// lib/dashboard.js (testable, query-shape lives there) and produces
+// the locked four-section layout: greeting band, color-coded stats row,
+// two-column body (calendar + activity), roster preview strip.
+async function renderDashboard(req) {
+  const model = await buildDashboardModel({ prisma, orgId: req.org.id });
+  return `
+${dashboardCss()}
+<section class="dash-greeting">
+  <div class="dash-greeting-text">
+    <span class="dash-eyebrow">${escape(req.org.displayName)} · This week</span>
+    <h1 class="dash-headline">${escape(model.greeting.day)}<span class="dash-headline-italic">, ${escape(model.greeting.phase)}</span></h1>
+    <p class="dash-summary">${dashboardSummaryLine(model)}</p>
+  </div>
+  <div class="dash-greeting-actions">
+    <a class="dash-btn-ghost" href="/admin/email">Send a message</a>
+    <a class="dash-btn-accent" href="/admin/events">+ New event</a>
+  </div>
+</section>
+
+<section class="dash-stats">
+  ${dashboardStatCard("Scouts active", model.stats.scouts)}
+  ${dashboardStatCard("Next event", model.stats.rsvps)}
+  ${dashboardStatCard("Treasurer", model.stats.treasurer)}
+  ${dashboardStatCard("Messages", model.stats.messages)}
+</section>
+
+<section class="dash-body">
+  <div class="dash-col-events">
+    <div class="dash-section-eyebrow">§ Calendar</div>
+    <h2 class="dash-section-h">What's coming up.</h2>
+    ${
+      model.events.length
+        ? model.events.map(dashboardEventRow).join("")
+        : `<div class="empty">No upcoming events. <a href="/admin/events">Add one →</a></div>`
+    }
+  </div>
+  <div class="dash-col-activity">
+    <div class="dash-section-eyebrow">§ Activity</div>
+    <h2 class="dash-section-h">The last few hours.</h2>
+    ${
+      model.activity.length
+        ? model.activity.map(dashboardActivityRow).join("")
+        : `<div class="empty muted small">Nothing new yet — when families RSVP, post photos or submit reimbursements they'll show up here.</div>`
+    }
+  </div>
+</section>
+
+<section class="dash-roster">
+  <div class="dash-section-eyebrow">§ Roster</div>
+  <div class="dash-roster-head">
+    <h2 class="dash-section-h" style="margin:0">${model.rosterPreview.length} of your Scouts.</h2>
+    <a class="dash-link" href="/admin/members">Manage roster →</a>
+  </div>
+  <div class="dash-roster-strip">
+    ${model.rosterPreview.map(dashboardRosterChip).join("") ||
+      `<div class="empty muted small">No youth members yet. <a href="/admin/members">Add or import →</a></div>`}
+  </div>
+  <div class="dash-photo-line">${escape(String(model.photosThisWeek))} photo${model.photosThisWeek === 1 ? "" : "s"} uploaded this week · <a class="dash-link" href="/admin/albums">browse →</a></div>
+</section>
+`;
+}
+
+function dashboardSummaryLine(model) {
+  const parts = [];
+  const e = model.events[0];
+  if (e) {
+    const d = e.startsAt.toISOString().slice(0, 10);
+    parts.push(`Next up: <strong>${escape(e.title)}</strong> on ${escape(d)}`);
+  }
+  if (model.stats.treasurer.value !== "$0") {
+    parts.push(`${escape(model.stats.treasurer.value)} ${escape(model.stats.treasurer.hint)}`);
+  }
+  if (!parts.length) parts.push("Nothing urgent — a quiet week.");
+  return parts.join(" · ");
+}
+
+function dashboardStatCard(label, stat) {
+  return `
+<div class="dash-stat" style="border-top-color:${stat.color}">
+  <div class="dash-stat-label" style="color:${stat.color}">${escape(label)}</div>
+  <div class="dash-stat-num">${escape(String(stat.value))}</div>
+  <div class="dash-stat-hint">${escape(stat.hint)}</div>
+</div>`;
+}
+
+function dashboardEventRow(e) {
+  const month = e.startsAt.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  const day = String(e.startsAt.getUTCDate()).padStart(2, "0");
+  const total = e.capacity || e.yes;
+  const pct = total ? Math.min(100, Math.round((e.yes / total) * 100)) : 0;
+  return `
+<a class="dash-event-row" href="/admin/events/${escape(e.id)}/rsvps" style="border-top-color:${e.color}">
+  <div class="dash-event-date" style="color:${e.color}">${escape(month)} ${escape(day)}</div>
+  <div class="dash-event-meta">
+    <div class="dash-event-name">${escape(e.title)}</div>
+    <div class="dash-event-sub">${escape(e.category || "Event")} · ${escape(e.startsAt.toISOString().slice(0, 16).replace("T", " "))} UTC</div>
+  </div>
+  <div class="dash-event-rsvp">
+    <div class="dash-event-rsvp-line">${e.yes} of ${total || "—"} replied</div>
+    <div class="dash-bar"><div class="dash-bar-fill" style="width:${pct}%;background:${e.color}"></div></div>
+  </div>
+</a>`;
+}
+
+function dashboardActivityRow(a) {
+  return `
+<div class="dash-activity-row">
+  <div class="dash-activity-icon" style="background:${a.color};color:#fff">${dashboardActivityGlyph(a.icon)}</div>
+  <div class="dash-activity-text">
+    <div><strong>${escape(a.who)}</strong> <span class="muted">${escape(a.what)}</span></div>
+    <div class="dash-activity-when">${escape(relativeTime(a.at))}</div>
+  </div>
+</div>`;
+}
+
+function dashboardActivityGlyph(icon) {
+  if (icon === "check") return "✓";
+  if (icon === "cash") return "$";
+  if (icon === "post") return "✎";
+  return "•";
+}
+
+function dashboardRosterChip(m) {
+  const initials = `${m.firstName[0] || ""}${m.lastName[0] || ""}`.toUpperCase();
+  return `
+<a class="dash-roster-chip" href="/admin/members/${escape(m.id)}/edit" title="${escape(m.firstName)} ${escape(m.lastName)}">
+  <span class="dash-roster-mark">${escape(initials)}</span>
+  <span>
+    <span class="dash-roster-name">${escape(m.firstName)} ${escape(m.lastName)}</span>
+    <span class="dash-roster-patrol">${escape(m.patrol || "no patrol")}</span>
+  </span>
+</a>`;
+}
+
+function relativeTime(date) {
+  const diffMs = Date.now() - new Date(date).getTime();
+  const min = Math.round(diffMs / 60000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h`;
+  const day = Math.round(hr / 24);
+  if (day < 14) return `${day}d`;
+  return new Date(date).toISOString().slice(0, 10);
+}
+
+function dashboardCss() {
+  return `<style>
+.dash-greeting{
+  background:var(--surface-dark);color:#fff;border-radius:12px;
+  padding:2.25rem 2rem;margin-bottom:1.75rem;
+  display:flex;justify-content:space-between;align-items:flex-end;gap:1.5rem;flex-wrap:wrap;
+}
+.dash-eyebrow{
+  display:inline-block;background:var(--accent);color:var(--ink);
+  border-radius:999px;padding:.2rem .7rem;font-size:.66rem;
+  letter-spacing:.14em;font-weight:700;text-transform:uppercase;margin-bottom:1rem;
+}
+.dash-headline{
+  font-family:var(--font-display);font-size:60px;line-height:.95;
+  letter-spacing:-.03em;font-weight:400;margin:0;color:#fff;
+}
+.dash-headline-italic{color:var(--accent);font-style:italic;font-weight:400}
+.dash-summary{font-size:.92rem;color:rgba(255,255,255,.78);margin:.85rem 0 0;max-width:48ch}
+.dash-summary strong{color:#fff;font-weight:600}
+.dash-greeting-actions{display:flex;gap:.6rem;align-items:center}
+.dash-btn-ghost,.dash-btn-accent{
+  padding:.6rem 1.1rem;border-radius:999px;font-size:.86rem;
+  text-decoration:none;font-weight:600;font-family:var(--font-ui);
+  border:1.5px solid transparent;
+}
+.dash-btn-ghost{background:transparent;color:#fff;border-color:rgba(255,255,255,.3)}
+.dash-btn-ghost:hover{border-color:#fff}
+.dash-btn-accent{background:var(--accent);color:var(--ink);border-color:var(--accent)}
+.dash-btn-accent:hover{background:#fff;color:var(--ink);border-color:#fff}
+
+.dash-stats{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem;margin-bottom:2.25rem;
+}
+.dash-stat{
+  background:var(--surface);border:1px solid var(--line);
+  border-top:4px solid var(--primary);border-radius:8px;
+  padding:1.1rem 1.3rem;
+}
+.dash-stat-label{
+  font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;
+  font-weight:700;margin-bottom:.5rem;
+}
+.dash-stat-num{
+  font-family:var(--font-display);font-size:44px;font-weight:400;
+  letter-spacing:-.025em;line-height:1;color:var(--ink);
+}
+.dash-stat-hint{font-size:.78rem;color:var(--ink-soft);margin-top:.6rem}
+
+.dash-body{display:grid;grid-template-columns:1.5fr 1fr;gap:2.5rem;margin-bottom:2.25rem}
+.dash-section-eyebrow{
+  font-family:var(--font-display);font-size:.78rem;font-style:italic;
+  color:var(--accent);margin-bottom:.35rem;letter-spacing:-.005em;
+}
+.dash-section-h{
+  font-family:var(--font-display);font-size:26px;font-weight:400;
+  margin:0 0 1.1rem;letter-spacing:-.015em;
+}
+
+.dash-event-row{
+  display:grid;grid-template-columns:90px 1fr 200px;gap:1.25rem;align-items:center;
+  padding:1.05rem 0;border-top:2px solid var(--primary);
+  text-decoration:none;color:inherit;
+}
+.dash-event-row:hover{background:rgba(13,19,13,.02)}
+.dash-event-date{
+  font-family:var(--font-display);font-size:22px;font-weight:500;
+  font-style:italic;letter-spacing:-.01em;
+}
+.dash-event-name{font-size:1rem;font-weight:600;color:var(--ink)}
+.dash-event-sub{font-size:.78rem;color:var(--ink-soft);margin-top:.15rem}
+.dash-event-rsvp-line{font-size:.78rem;color:var(--ink-soft);margin-bottom:.4rem}
+.dash-bar{height:6px;background:var(--line-soft);border-radius:3px;overflow:hidden}
+.dash-bar-fill{height:100%}
+
+.dash-activity-row{
+  display:flex;gap:.85rem;padding:.7rem 0;border-top:1px solid var(--line-soft);
+}
+.dash-activity-row:first-child{border-top-color:var(--line)}
+.dash-activity-icon{
+  width:32px;height:32px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-weight:700;font-size:.92rem;flex-shrink:0;
+}
+.dash-activity-text{flex:1;font-size:.86rem;line-height:1.4}
+.dash-activity-when{font-size:.72rem;color:var(--ink-muted);margin-top:.15rem}
+
+.dash-roster{margin-top:1.25rem}
+.dash-roster-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:1rem}
+.dash-link{color:var(--ink);text-decoration:none;font-size:.84rem;font-weight:600;border-bottom:1.5px solid var(--accent)}
+.dash-link:hover{color:var(--primary)}
+.dash-roster-strip{display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:1rem}
+.dash-roster-chip{
+  display:inline-flex;align-items:center;gap:.55rem;
+  background:var(--surface);border:1px solid var(--line);border-radius:999px;
+  padding:.35rem .85rem .35rem .35rem;text-decoration:none;color:inherit;
+  transition:border-color 120ms ease-out;
+}
+.dash-roster-chip:hover{border-color:var(--primary)}
+.dash-roster-mark{
+  width:30px;height:30px;border-radius:50%;background:var(--accent);
+  color:var(--ink);font-weight:700;font-size:.72rem;
+  display:grid;place-items:center;letter-spacing:.02em;
+}
+.dash-roster-name{display:block;font-size:.86rem;font-weight:600;line-height:1.1}
+.dash-roster-patrol{display:block;font-size:.7rem;color:var(--ink-muted);margin-top:.1rem}
+.dash-photo-line{font-size:.82rem;color:var(--ink-soft)}
+
+@media (max-width:900px){
+  .dash-stats{grid-template-columns:repeat(2,1fr)}
+  .dash-body{grid-template-columns:1fr}
+  .dash-event-row{grid-template-columns:70px 1fr;gap:.75rem}
+  .dash-event-rsvp{grid-column:1/-1}
+  .dash-headline{font-size:42px}
+  .dash-greeting{padding:1.5rem 1.25rem}
+}
+</style>`;
+}
 
 /* ------------------------------------------------------------------ */
 /* Page content                                                        */
@@ -667,7 +970,7 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
       .logo-preview img{max-height:80px;max-width:240px;border:1px solid #eef0e7;border-radius:8px;background:#fff;padding:.5rem}
     </style>
   `;
-  res.type("html").send(layout({ title: "Page content", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Page content", body }));
 });
 
 adminRouter.post("/content", requireLeader, async (req, res) => {
@@ -839,7 +1142,7 @@ adminRouter.get("/announcements", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.5rem">Published</h2>
     ${list.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No announcements yet. Publish your first one above.</div>`}
   `;
-  res.type("html").send(layout({ title: "Announcements", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Announcements", body }));
 });
 
 adminRouter.post("/announcements", requireLeader, async (req, res) => {
@@ -887,7 +1190,7 @@ adminRouter.get("/announcements/:id/edit", requireLeader, async (req, res) => {
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Edit announcement", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit announcement", body }));
 });
 
 adminRouter.post("/announcements/:id", requireLeader, async (req, res) => {
@@ -958,7 +1261,7 @@ adminRouter.get("/albums", requireLeader, async (req, res) => {
         <div style="width:64px;height:48px;border-radius:8px;background:${
           a.photos[0]
             ? `center/cover url('/uploads/${escape(a.photos[0].filename)}')`
-            : "linear-gradient(135deg,var(--g700),var(--gold))"
+            : "linear-gradient(135deg,var(--primary),var(--accent))"
         };flex-shrink:0"></div>
         <div>
           <h3>${escape(a.title)}</h3>
@@ -997,7 +1300,7 @@ adminRouter.get("/albums", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.5rem">Albums</h2>
     ${albums.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No albums yet. Create your first one above.</div>`}
   `;
-  res.type("html").send(layout({ title: "Photos & albums", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Photos & albums", body }));
 });
 
 adminRouter.post("/albums", requireLeader, async (req, res) => {
@@ -1087,7 +1390,7 @@ adminRouter.get("/albums/:id", requireLeader, async (req, res) => {
       <button class="btn btn-primary" type="submit">Save settings</button>
     </form>
   `;
-  res.type("html").send(layout({ title: album.title, org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: album.title, body }));
 });
 
 adminRouter.post("/albums/:id", requireLeader, async (req, res) => {
@@ -1380,7 +1683,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
         : ""
     }
   `;
-  res.type("html").send(layout({ title: "Calendar", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Calendar", body }));
 });
 
 adminRouter.post("/events", requireLeader, async (req, res) => {
@@ -1398,7 +1701,7 @@ adminRouter.get("/events/:id/edit", requireLeader, async (req, res) => {
     <h1>Edit event</h1>
     ${eventForm({ event: ev, action: `/admin/events/${escape(ev.id)}`, submitLabel: "Save" })}
   `;
-  res.type("html").send(layout({ title: "Edit event", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit event", body }));
 });
 
 adminRouter.post("/events/:id", requireLeader, async (req, res) => {
@@ -1455,7 +1758,7 @@ adminRouter.get("/events/:id/rsvps", requireLeader, async (req, res) => {
       : "";
 
   const body = `
-    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Calendar</a>
     <h1>RSVPs · ${escape(ev.title)}</h1>
     <p class="muted">${escape(ev.startsAt.toLocaleString("en-US"))}${ev.location ? ` · ${escape(ev.location)}` : ""}</p>
 
@@ -1493,7 +1796,7 @@ adminRouter.get("/events/:id/rsvps", requireLeader, async (req, res) => {
 
     ${rsvps.length === 0 ? `<div class="empty" style="margin-top:1rem">No responses yet.</div>` : ""}
   `;
-  res.type("html").send(layout({ title: `RSVPs · ${ev.title}`, org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: `RSVPs · ${ev.title}`, body }));
 });
 
 // Send a one-click-RSVP reminder for an event. Composes a personalized
@@ -1729,7 +2032,7 @@ adminRouter.get("/events/:id/slots", requireLeader, async (req, res) => {
     .join("");
 
   const body = `
-    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Calendar</a>
     <h1>Sign-up sheet · ${escape(ev.title)}</h1>
     <p class="muted">Add slots for what your unit needs covered: drivers, food items, gear. Anyone who can see the event can claim a slot — no login required.</p>
 
@@ -1766,7 +2069,7 @@ adminRouter.get("/events/:id/slots", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.5rem">Slots</h2>
     ${slots.length ? `<ul class="items">${slots.map(renderSlot).join("")}</ul>` : `<div class="empty">No slots yet. Add one above.</div>`}
   `;
-  res.type("html").send(layout({ title: `Sign-up sheet · ${ev.title}`, org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: `Sign-up sheet · ${ev.title}`, body }));
 });
 
 adminRouter.post("/events/:id/slots", requireLeader, async (req, res) => {
@@ -1830,7 +2133,7 @@ adminRouter.get("/events/:id/slots/:slotId/edit", requireLeader, async (req, res
   if (!slot) return res.status(404).send("Not found");
   const v = (k) => escape(slot[k] ?? "");
   const body = `
-    <a class="back" href="/admin/events/${escape(req.params.id)}/slots" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Sign-up sheet</a>
+    <a class="back" href="/admin/events/${escape(req.params.id)}/slots" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Sign-up sheet</a>
     <h1>Edit slot</h1>
     <form class="card" method="post" action="/admin/events/${escape(req.params.id)}/slots/${escape(slot.id)}">
       <label>Title<input name="title" type="text" required maxlength="120" value="${v("title")}"></label>
@@ -1846,7 +2149,7 @@ adminRouter.get("/events/:id/slots/:slotId/edit", requireLeader, async (req, res
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Edit slot", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit slot", body }));
 });
 
 adminRouter.post("/events/:id/slots/:slotId", requireLeader, async (req, res) => {
@@ -2118,7 +2421,7 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
     .join("");
 
   const body = `
-    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Calendar</a>
     <h1>Trip plan · ${escape(ev.title)}</h1>
 
     <form class="card" method="post" action="/admin/events/${escape(ev.id)}/plan" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap">
@@ -2186,7 +2489,7 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
 
     <style>
       .ing-table{width:100%;border-collapse:collapse;font-size:.93rem}
-      .ing-table th{text-align:left;padding:.4rem .55rem;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--mute);font-weight:600}
+      .ing-table th{text-align:left;padding:.4rem .55rem;border-bottom:1px solid var(--line);font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-muted);font-weight:600}
       .ing-table td{padding:.45rem .55rem;border-bottom:1px solid var(--line)}
       .ing-table tr:last-child td{border-bottom:0}
       .ing-table .num{text-align:right;font-variant-numeric:tabular-nums}
@@ -2200,7 +2503,7 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
       .chip-check input{accent-color:var(--brand,#1d6b39)}
     </style>
   `;
-  res.type("html").send(layout({ title: `Trip plan · ${ev.title}`, org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: `Trip plan · ${ev.title}`, body }));
 });
 
 adminRouter.post("/events/:id/plan", requireLeader, async (req, res) => {
@@ -2446,7 +2749,7 @@ adminRouter.get("/forms", requireLeader, async (req, res) => {
 
     ${forms.length ? groups : `<div class="empty" style="margin-top:1rem">No documents yet. Upload one above or add a link.</div>`}
   `;
-  res.type("html").send(layout({ title: "Forms & documents", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Forms & documents", body }));
 });
 
 adminRouter.post("/forms", requireLeader, documentUpload.single("file"), async (req, res) => {
@@ -2489,7 +2792,7 @@ adminRouter.get("/forms/:id/edit", requireLeader, async (req, res) => {
     (c) => `<option value="${escape(c)}"${sel(form.category === c)}>${escape(c)}</option>`
   ).join("");
   const body = `
-    <a class="back" href="/admin/forms" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Forms</a>
+    <a class="back" href="/admin/forms" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Forms</a>
     <h1>Edit document</h1>
     <form class="card" method="post" action="/admin/forms/${escape(form.id)}" enctype="multipart/form-data">
       <label>Title<input name="title" type="text" required maxlength="120" value="${v("title")}"></label>
@@ -2523,7 +2826,7 @@ adminRouter.get("/forms/:id/edit", requireLeader, async (req, res) => {
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Edit document", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit document", body }));
 });
 
 adminRouter.post("/forms/:id", requireLeader, documentUpload.single("file"), async (req, res) => {
@@ -2837,7 +3140,7 @@ adminRouter.get("/members", requireLeader, async (req, res) => {
     }
     ${members.length === 0 ? `<div class="empty" style="margin-top:1rem">No members yet. Add one above or import a CSV.</div>` : ""}
   `;
-  res.type("html").send(layout({ title: "Members", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Members", body }));
 });
 
 adminRouter.post("/members", requireLeader, async (req, res) => {
@@ -2881,7 +3184,7 @@ adminRouter.get("/members/import", requireLeader, async (req, res) => {
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Import members", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Import members", body }));
 });
 
 // Tiny CSV parser — handles quoted fields and embedded commas/quotes.
@@ -3076,7 +3379,7 @@ adminRouter.get("/members/:id/edit", requireLeader, async (req, res) => {
     <p class="muted small">Every email or SMS broadcast (including newsletters) where this member appeared in the recipient snapshot.</p>
     <p><a class="btn btn-ghost" href="/admin/members/${escape(member.id)}/messages">View message history →</a></p>
   `;
-  res.type("html").send(layout({ title: "Edit member", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit member", body }));
 });
 
 const TRAINING_COURSES = [
@@ -3198,7 +3501,7 @@ adminRouter.get("/training", requireLeader, async (req, res) => {
 
     <style>.stat-card{flex:1;min-width:140px;text-align:center}</style>
   `;
-  res.type("html").send(layout({ title: "Training roster", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Training roster", body }));
 });
 
 /* ------------------------------------------------------------------ */
@@ -3289,7 +3592,7 @@ adminRouter.get("/subgroups", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.5rem">Saved subgroups</h2>
     ${groups.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No subgroups yet. Create one above and use it as an audience in <a href="/admin/email">Email broadcast</a>.</div>`}
   `;
-  res.type("html").send(layout({ title: "Subgroups", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Subgroups", body }));
 });
 
 adminRouter.post("/subgroups", requireLeader, async (req, res) => {
@@ -3319,7 +3622,7 @@ adminRouter.get("/subgroups/:id/edit", requireLeader, async (req, res) => {
     )
     .join("");
   const body = `
-    <a class="back" href="/admin/subgroups" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Subgroups</a>
+    <a class="back" href="/admin/subgroups" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Subgroups</a>
     <h1>Edit subgroup</h1>
     <form class="card" method="post" action="/admin/subgroups/${escape(g.id)}">
       <label>Name<input name="name" type="text" required maxlength="80" value="${v("name")}"></label>
@@ -3344,7 +3647,7 @@ adminRouter.get("/subgroups/:id/edit", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.5rem">Audience preview <span class="muted" style="font-weight:400">(${matched.length})</span></h2>
     ${matched.length ? `<ul class="items">${list}</ul>` : `<div class="empty">Nobody currently matches.</div>`}
   `;
-  res.type("html").send(layout({ title: "Edit subgroup", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit subgroup", body }));
 });
 
 adminRouter.post("/subgroups/:id", requireLeader, async (req, res) => {
@@ -3426,7 +3729,7 @@ adminRouter.get("/videos", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.5rem">Videos</h2>
     ${list.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No videos yet. Add one above.</div>`}
   `;
-  res.type("html").send(layout({ title: "Videos", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Videos", body }));
 });
 
 function videoFromBody(body) {
@@ -3467,7 +3770,7 @@ adminRouter.get("/videos/:id/edit", requireLeader, async (req, res) => {
   const sel = (cond) => (cond ? " selected" : "");
   const recordedVal = v.recordedAt ? new Date(v.recordedAt).toISOString().slice(0, 10) : "";
   const body = `
-    <a class="back" href="/admin/videos" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Videos</a>
+    <a class="back" href="/admin/videos" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Videos</a>
     <h1>Edit video</h1>
     <form class="card" method="post" action="/admin/videos/${escape(v.id)}">
       <label>Title<input name="title" type="text" required maxlength="120" value="${get("title")}"></label>
@@ -3488,7 +3791,7 @@ adminRouter.get("/videos/:id/edit", requireLeader, async (req, res) => {
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Edit video", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit video", body }));
 });
 
 adminRouter.post("/videos/:id", requireLeader, async (req, res) => {
@@ -3625,10 +3928,7 @@ adminRouter.get("/export.json", requireLeader, async (req, res) => {
   });
 
   const dump = {
-    // Schema string is a stable contract for future importers. Kept on the
-    // legacy prefix to match any downstream tooling already shipped against
-    // it; bump to compass/v2 only with a coordinated migration.
-    schema: "scouthosting/v1",
+    schema: "compass/v1",
     exportedAt: new Date().toISOString(),
     org,
     page,
@@ -3697,7 +3997,7 @@ adminRouter.get("/export", requireLeader, async (req, res) => {
 
     <p class="muted small" style="margin-top:1rem">Exports are audit-logged. Anyone with the <em>leader</em> or <em>admin</em> role on this org can run one.</p>
   `;
-  res.type("html").send(layout({ title: "Export", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Export", body }));
 });
 
 // Audit log — last 200 entries, filterable by entity type.
@@ -3769,7 +4069,7 @@ adminRouter.get("/audit", requireLeader, async (req, res) => {
 
     ${logs.length ? `<ul class="items" style="margin-top:1rem">${items}</ul>` : `<div class="empty" style="margin-top:1rem">No audit entries yet.</div>`}
   `;
-  res.type("html").send(layout({ title: "Audit log", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Audit log", body }));
 });
 
 // Org-wide PoR roster: who's currently holding which position.
@@ -3804,7 +4104,7 @@ adminRouter.get("/positions", requireLeader, async (req, res) => {
     <p class="muted">Active Positions of Responsibility across the unit.</p>
     ${open.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No active position terms. Set the <em>Position</em> field on a member to start one.</div>`}
   `;
-  res.type("html").send(layout({ title: "Position roster", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Position roster", body }));
 });
 
 // Roster reports — birthdays, tenure, demographic breakdown.
@@ -3913,7 +4213,7 @@ adminRouter.get("/reports", requireLeader, async (req, res) => {
       .stat-card{flex:1;min-width:140px;text-align:center}
     </style>
   `;
-  res.type("html").send(layout({ title: "Reports", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Reports", body }));
 });
 
 // Per-member credits earned from event attendance: service hours,
@@ -4002,7 +4302,7 @@ adminRouter.get("/credits", requireLeader, async (req, res) => {
 
     <style>.stat-card{flex:1;min-width:140px;text-align:center}</style>
   `;
-  res.type("html").send(layout({ title: "Credits", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Credits", body }));
 });
 
 adminRouter.get("/credits.csv", requireLeader, async (req, res) => {
@@ -4229,14 +4529,14 @@ adminRouter.get("/members/:id/messages", requireLeader, async (req, res) => {
     : "";
 
   const body = `
-    <a class="back" href="/admin/members/${escape(member.id)}/edit" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← ${escape(member.firstName)} ${escape(member.lastName)}</a>
+    <a class="back" href="/admin/members/${escape(member.id)}/edit" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← ${escape(member.firstName)} ${escape(member.lastName)}</a>
     <h1>Message history</h1>
     <p class="muted">Every email or SMS broadcast (including newsletters) where <strong>${escape(member.firstName)} ${escape(member.lastName)}</strong> appeared in the recipient snapshot.</p>
     <p class="muted small">${escape(member.email || "no email on file")}${member.phone ? " · " + escape(member.phone) : ""}</p>
     ${page.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No broadcasts in the last ${SCAN} sends matched this member.</div>`}
     ${olderLink}
   `;
-  res.type("html").send(layout({ title: "Message history", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Message history", body }));
 });
 
 adminRouter.post("/members/:id/delete", requireLeader, async (req, res) => {
@@ -4356,7 +4656,7 @@ adminRouter.get("/email", requireLeader, async (req, res) => {
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Email broadcast", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Email broadcast", body }));
 });
 
 adminRouter.post("/email", requireLeader, async (req, res) => {
@@ -4393,7 +4693,7 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
     `;
     return res
       .type("html")
-      .send(layout({ title: "Audience preview", org: req.org, user: req.user, body: previewBody }));
+      .send(layout(req, { title: "Audience preview", body: previewBody }));
   }
 
   if (!subject?.trim() || !body?.trim()) return res.redirect("/admin/email");
@@ -4488,7 +4788,7 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
       <a class="btn btn-ghost" href="/admin/email/sent">View history</a>
     </p>
   `;
-  res.type("html").send(layout({ title: "Sent", org: req.org, user: req.user, body: ack }));
+  res.type("html").send(layout(req, { title: "Sent", body: ack }));
 });
 
 adminRouter.get("/email/sent", requireLeader, async (req, res) => {
@@ -4522,7 +4822,7 @@ adminRouter.get("/email/sent", requireLeader, async (req, res) => {
     ${log.length ? `<ul class="items">${items}</ul>` : `<div class="empty">Nothing has been sent yet.</div>`}
     <p style="margin-top:1.25rem"><a class="btn btn-ghost" href="/admin/email">← Compose</a></p>
   `;
-  res.type("html").send(layout({ title: "Email history", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Email history", body }));
 });
 
 /* ------------------------------------------------------------------ */
@@ -4591,7 +4891,7 @@ adminRouter.get("/posts", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.25rem">Published</h2>
     ${posts.length ? `<ul class="items">${items}</ul>` : `<div class="empty">Nothing posted yet.</div>`}
   `;
-  res.type("html").send(layout({ title: "Activity feed", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Activity feed", body }));
 });
 
 adminRouter.post("/posts", requireLeader, upload.array("files", 12), async (req, res) => {
@@ -4656,7 +4956,7 @@ adminRouter.get("/posts/:id/edit", requireLeader, async (req, res) => {
     .join("");
 
   const body = `
-    <a class="back" href="/admin/posts" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Activity feed</a>
+    <a class="back" href="/admin/posts" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Activity feed</a>
     <h1>Edit post</h1>
     <form class="card" method="post" action="/admin/posts/${escape(post.id)}" enctype="multipart/form-data">
       <label>Headline<input name="title" type="text" maxlength="120" value="${v("title")}"></label>
@@ -4685,7 +4985,7 @@ adminRouter.get("/posts/:id/edit", requireLeader, async (req, res) => {
         : ""
     }
   `;
-  res.type("html").send(layout({ title: "Edit post", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit post", body }));
 });
 
 adminRouter.post("/posts/:id", requireLeader, upload.array("files", 12), async (req, res) => {
@@ -4827,7 +5127,7 @@ adminRouter.get("/pages", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.25rem">Pages</h2>
     ${pages.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No custom pages yet.</div>`}
   `;
-  res.type("html").send(layout({ title: "Custom pages", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Custom pages", body }));
 });
 
 async function pickUniqueSlug(orgId, base, excludeId) {
@@ -4869,7 +5169,7 @@ adminRouter.get("/pages/:id/edit", requireLeader, async (req, res) => {
   const v = (k) => escape(p[k] ?? "");
   const sel = (cond) => (cond ? " selected" : "");
   const body = `
-    <a class="back" href="/admin/pages" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Custom pages</a>
+    <a class="back" href="/admin/pages" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Custom pages</a>
     <h1>Edit page</h1>
     <form class="card" method="post" action="/admin/pages/${escape(p.id)}">
       <label>Title<input name="title" type="text" required maxlength="120" value="${v("title")}"></label>
@@ -4894,7 +5194,7 @@ adminRouter.get("/pages/:id/edit", requireLeader, async (req, res) => {
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Edit page", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit page", body }));
 });
 
 adminRouter.post("/pages/:id", requireLeader, async (req, res) => {
@@ -5024,7 +5324,7 @@ adminRouter.get("/equipment", requireLeader, async (req, res) => {
 
     ${items.length ? groups : `<div class="empty" style="margin-top:1rem">Nothing in the catalog yet. Add your first item above — start with the trailer itself.</div>`}
   `;
-  res.type("html").send(layout({ title: "Equipment", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Equipment", body }));
 });
 
 function equipmentFromBody(body) {
@@ -5059,7 +5359,7 @@ adminRouter.get("/equipment/:id/edit", requireLeader, async (req, res) => {
   ).join("");
 
   const body = `
-    <a class="back" href="/admin/equipment" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Equipment</a>
+    <a class="back" href="/admin/equipment" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Equipment</a>
     <h1>Edit equipment</h1>
     <form class="card" method="post" action="/admin/equipment/${escape(it.id)}">
       <label>Name<input name="name" type="text" required maxlength="120" value="${v("name")}"></label>
@@ -5079,7 +5379,7 @@ adminRouter.get("/equipment/:id/edit", requireLeader, async (req, res) => {
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Edit equipment", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit equipment", body }));
 });
 
 adminRouter.post("/equipment/:id", requireLeader, async (req, res) => {
@@ -5160,7 +5460,7 @@ adminRouter.get("/oa", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.5rem">Past + upcoming</h2>
     ${elections.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No elections scheduled yet.</div>`}
   `;
-  res.type("html").send(layout({ title: "OA elections", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "OA elections", body }));
 });
 
 function oaElectionFromBody(body) {
@@ -5260,7 +5560,7 @@ adminRouter.get("/oa/:id/edit", requireLeader, async (req, res) => {
   ).join("");
 
   const body = `
-    <a class="back" href="/admin/oa" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← OA elections</a>
+    <a class="back" href="/admin/oa" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← OA elections</a>
     <h1>Manage election · ${escape(new Date(e.electionDate).toLocaleDateString("en-US"))}</h1>
 
     <form class="card" method="post" action="/admin/oa/${escape(e.id)}">
@@ -5300,7 +5600,7 @@ adminRouter.get("/oa/:id/edit", requireLeader, async (req, res) => {
       <button class="btn btn-primary" type="submit">Add candidate</button>
     </form>
   `;
-  res.type("html").send(layout({ title: "OA election", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "OA election", body }));
 });
 
 adminRouter.post("/oa/:id", requireLeader, async (req, res) => {
@@ -5512,7 +5812,7 @@ adminRouter.get("/treasurer", requireLeader, async (req, res) => {
       .stat-card{flex:1;min-width:160px;text-align:center}
     </style>
   `;
-  res.type("html").send(layout({ title: "Treasurer", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Treasurer", body }));
 });
 
 /* ------------------------------------------------------------------ */
@@ -5618,7 +5918,7 @@ adminRouter.get("/reimbursements", requireLeader, async (req, res) => {
 
     <style>.stat-card{flex:1;min-width:160px;text-align:center}</style>
   `;
-  res.type("html").send(layout({ title: "Reimbursements", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Reimbursements", body }));
 });
 
 async function decideReimbursement(req, res, status) {
@@ -5772,7 +6072,7 @@ adminRouter.get("/mbc", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.5rem">Counselors</h2>
     ${list.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No counselors yet. Add one above.</div>`}
   `;
-  res.type("html").send(layout({ title: "Merit Badge Counselors", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Merit Badge Counselors", body }));
 });
 
 adminRouter.post("/mbc", requireLeader, async (req, res) => {
@@ -5820,7 +6120,7 @@ adminRouter.get("/mbc/:id/edit", requireLeader, async (req, res) => {
 
   const v = (k) => escape(c[k] ?? "");
   const body = `
-    <a class="back" href="/admin/mbc" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← MBC list</a>
+    <a class="back" href="/admin/mbc" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← MBC list</a>
     <h1>Edit counselor</h1>
     <form class="card" method="post" action="/admin/mbc/${escape(c.id)}">
       <div class="row">
@@ -5839,7 +6139,7 @@ adminRouter.get("/mbc/:id/edit", requireLeader, async (req, res) => {
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Edit counselor", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit counselor", body }));
 });
 
 adminRouter.post("/mbc/:id", requireLeader, async (req, res) => {
@@ -6010,7 +6310,7 @@ adminRouter.get("/eagle", requireLeader, async (req, res) => {
 
     ${projects.length ? `<ul class="items">${projRows}</ul>` : `<div class="empty" style="margin-top:1rem">No projects in the queue.</div>`}
   `;
-  res.type("html").send(layout({ title: "Eagle Scouts", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Eagle Scouts", body }));
 });
 
 adminRouter.post("/eagle", requireLeader, async (req, res) => {
@@ -6056,7 +6356,7 @@ adminRouter.get("/eagle/projects/:id/edit", requireLeader, async (req, res) => {
   const v = (k) => escape(p[k] ?? "");
   const sel = (cond) => (cond ? " selected" : "");
   const body = `
-    <a class="back" href="/admin/eagle" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Eagle Scouts</a>
+    <a class="back" href="/admin/eagle" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Eagle Scouts</a>
     <h1>Edit project</h1>
     <form class="card" method="post" action="/admin/eagle/projects/${escape(p.id)}">
       <div class="row">
@@ -6079,7 +6379,7 @@ adminRouter.get("/eagle/projects/:id/edit", requireLeader, async (req, res) => {
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Edit project", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit project", body }));
 });
 
 adminRouter.post("/eagle/projects/:id", requireLeader, async (req, res) => {
@@ -6121,7 +6421,7 @@ adminRouter.get("/eagle/:id/edit", requireLeader, async (req, res) => {
   if (!e) return res.status(404).send("Not found");
   const v = (k) => escape(e[k] ?? "");
   const body = `
-    <a class="back" href="/admin/eagle" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Eagle Scouts</a>
+    <a class="back" href="/admin/eagle" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Eagle Scouts</a>
     <h1>Edit Eagle</h1>
     <form class="card" method="post" action="/admin/eagle/${escape(e.id)}">
       <div class="row">
@@ -6136,7 +6436,7 @@ adminRouter.get("/eagle/:id/edit", requireLeader, async (req, res) => {
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Edit Eagle", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit Eagle", body }));
 });
 
 adminRouter.post("/eagle/:id", requireLeader, async (req, res) => {
@@ -6216,7 +6516,7 @@ adminRouter.get("/events/:id/program", requireLeader, async (req, res) => {
   ).join("");
 
   const body = `
-    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Calendar</a>
     <h1>Court of Honor program · ${escape(ev.title)}</h1>
     <p class="muted">Build the printable ceremony program. Each row prints as a line on the program (printable view: <a href="/events/${escape(ev.id)}/program" target="_blank" rel="noopener">/events/${escape(ev.id)}/program</a>).</p>
 
@@ -6237,7 +6537,7 @@ adminRouter.get("/events/:id/program", requireLeader, async (req, res) => {
 
     <p style="margin-top:1.5rem"><a class="btn btn-ghost" href="/events/${escape(ev.id)}/program" target="_blank" rel="noopener">Open printable program ↗</a></p>
   `;
-  res.type("html").send(layout({ title: `Program · ${ev.title}`, org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: `Program · ${ev.title}`, body }));
 });
 
 adminRouter.post("/events/:id/program", requireLeader, async (req, res) => {
@@ -6331,7 +6631,7 @@ adminRouter.get("/events/:id/report", requireLeader, async (req, res) => {
     .join("");
 
   const body = `
-    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Calendar</a>
     <h1>Event report · ${escape(ev.title)}</h1>
     <p class="muted">${escape(new Date(ev.startsAt).toLocaleString("en-US"))}${ev.location ? ` · ${escape(ev.location)}` : ""}</p>
 
@@ -6383,7 +6683,7 @@ adminRouter.get("/events/:id/report", requireLeader, async (req, res) => {
 
     <style>.stat-card{flex:1;min-width:140px;text-align:center}</style>
   `;
-  res.type("html").send(layout({ title: `Report · ${ev.title}`, org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: `Report · ${ev.title}`, body }));
 });
 
 /* ------------------------------------------------------------------ */
@@ -6476,7 +6776,7 @@ adminRouter.get("/events/:id/rides", requireLeader, async (req, res) => {
   };
 
   const body = `
-    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Calendar</a>
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Calendar</a>
     <h1>Carpool plan · ${escape(ev.title)}</h1>
     <p class="muted">Build the ride list for this event. Each ride is a driver + vehicle + seats; assign riders from the roster (or free-form names for guests).</p>
 
@@ -6503,7 +6803,7 @@ adminRouter.get("/events/:id/rides", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.5rem">Rides ${rides.length ? `<span class="muted" style="font-weight:400">(${rides.length})</span>` : ""}</h2>
     ${rides.length ? rides.map(renderRide).join("") : `<div class="empty">No rides yet. Add one above.</div>`}
   `;
-  res.type("html").send(layout({ title: `Carpool · ${ev.title}`, org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: `Carpool · ${ev.title}`, body }));
 });
 
 function rideDataFromBody(body) {
@@ -6719,7 +7019,7 @@ adminRouter.get("/surveys", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.25rem">Surveys</h2>
     ${surveys.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No surveys yet.</div>`}
   `;
-  res.type("html").send(layout({ title: "Surveys", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Surveys", body }));
 });
 
 function slugifySurvey(title) {
@@ -6770,7 +7070,7 @@ adminRouter.get("/surveys/:id/edit", requireLeader, async (req, res) => {
   if (!s) return res.status(404).send("Not found");
   const sel = (cond) => (cond ? " selected" : "");
   const body = `
-    <a class="back" href="/admin/surveys" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Surveys</a>
+    <a class="back" href="/admin/surveys" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Surveys</a>
     <h1>Edit survey</h1>
     <form class="card" method="post" action="/admin/surveys/${escape(s.id)}">
       <label>Title<input name="title" type="text" required maxlength="120" value="${escape(s.title)}"></label>
@@ -6794,7 +7094,7 @@ adminRouter.get("/surveys/:id/edit", requireLeader, async (req, res) => {
       </div>
     </form>
   `;
-  res.type("html").send(layout({ title: "Edit survey", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Edit survey", body }));
 });
 
 adminRouter.post("/surveys/:id", requireLeader, async (req, res) => {
@@ -6853,7 +7153,7 @@ adminRouter.get("/surveys/:id/responses", requireLeader, async (req, res) => {
     .join("");
 
   const body = `
-    <a class="back" href="/admin/surveys" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Surveys</a>
+    <a class="back" href="/admin/surveys" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Surveys</a>
     <h1>${escape(s.title)} — responses</h1>
     <p class="muted">${s.responses.length} response${s.responses.length === 1 ? "" : "s"} ·
       <a href="/surveys/${escape(s.slug)}" target="_blank" rel="noopener">/surveys/${escape(s.slug)}</a> ·
@@ -6869,7 +7169,7 @@ adminRouter.get("/surveys/:id/responses", requireLeader, async (req, res) => {
         : `<div class="empty" style="margin-top:1rem">No responses yet. Share <a href="/surveys/${escape(s.slug)}">the link</a> in a broadcast.</div>`
     }
   `;
-  res.type("html").send(layout({ title: `Responses · ${s.title}`, org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: `Responses · ${s.title}`, body }));
 });
 
 adminRouter.get("/surveys/:id/responses.csv", requireLeader, async (req, res) => {
@@ -6955,7 +7255,7 @@ adminRouter.get("/newsletters", requireLeader, async (req, res) => {
     <p style="margin:.6rem 0 1rem"><a class="btn btn-primary" href="/admin/newsletters/new">Compose new issue</a></p>
     ${issues.length ? `<ul class="items">${rows}</ul>` : `<div class="empty">No newsletters yet. Compose your first issue when you're ready.</div>`}
   `;
-  res.type("html").send(layout({ title: "Newsletters", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Newsletters", body }));
 });
 
 adminRouter.get("/newsletters/new", requireLeader, async (req, res) => {
@@ -6990,7 +7290,7 @@ adminRouter.get("/newsletters/new", requireLeader, async (req, res) => {
     deleteAction: null,
     sendAction: null,
   });
-  res.type("html").send(layout({ title: "Compose newsletter", org: req.org, user: req.user, body: composerBody }));
+  res.type("html").send(layout(req, { title: "Compose newsletter", body: composerBody }));
 });
 
 adminRouter.post("/newsletters", requireLeader, async (req, res) => {
@@ -7074,7 +7374,7 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
     readonly: issue.status === "sent",
   });
 
-  res.type("html").send(layout({ title: "Edit newsletter", org: req.org, user: req.user, body: composerBody }));
+  res.type("html").send(layout(req, { title: "Edit newsletter", body: composerBody }));
 });
 
 adminRouter.post("/newsletters/:id", requireLeader, async (req, res) => {
@@ -7368,7 +7668,7 @@ function newsletterComposerHtml({
     : `<p class="muted small">Nothing on the calendar yet.</p>`;
 
   return `
-    <a class="back" href="/admin/newsletters" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Newsletters</a>
+    <a class="back" href="/admin/newsletters" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Newsletters</a>
     <h1>${readonly ? "Newsletter" : "Compose newsletter"}</h1>
     ${statusBlock || ""}
     <form class="card" method="post" action="${formAction}">
@@ -7534,7 +7834,7 @@ adminRouter.get("/channels", requireLeader, async (req, res) => {
     ${sectionFor("custom", "Custom channels")}
     ${channels.length === 0 ? `<div class="empty">No channels yet. Click <em>Provision standing channels</em> to create the troop / parents / leaders + per-patrol channels for this org.</div>` : ""}
   `;
-  res.type("html").send(layout({ title: "Channels", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "Channels", body }));
 });
 
 adminRouter.get("/channels/provision", requireLeader, async (req, res) => {
@@ -7644,7 +7944,7 @@ adminRouter.get("/channels/:id", requireLeader, async (req, res) => {
     `;
 
   const body = `
-    <a class="back" href="/admin/channels" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Channels</a>
+    <a class="back" href="/admin/channels" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Channels</a>
     <h1>${escape(channel.name)}</h1>
     <p class="muted">
       <span class="tag">${escape(channelKindLabel(channel.kind))}</span>
@@ -7661,7 +7961,7 @@ adminRouter.get("/channels/:id", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.5rem">Recent messages <span class="muted small" style="font-weight:400">(last 50)</span></h2>
     <ul class="items">${messageRows}</ul>
   `;
-  res.type("html").send(layout({ title: channel.name, org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: channel.name, body }));
 });
 
 adminRouter.post("/channels/:id/suspend", requireLeader, async (req, res) => {
@@ -7691,10 +7991,8 @@ adminRouter.post("/channels/:id/unsuspend", requireLeader, async (req, res) => {
       .status(409)
       .type("html")
       .send(
-        layout({
+        layout(req, {
           title: "Can't unsuspend",
-          org: req.org,
-          user: req.user,
           body: `<h1>Can't unsuspend</h1>
             <p>This channel still doesn't meet two-deep: <strong>${escape(check.reason.replace(/-/g, " "))}</strong>.</p>
             <p>Add a second YPT-current adult leader to the channel before unsuspending.</p>
@@ -7774,7 +8072,7 @@ adminRouter.get("/ypt", requireLeader, async (req, res) => {
     .join("");
 
   const body = `
-    <a class="back" href="/admin/channels" style="display:inline-block;margin-bottom:.6rem;color:var(--mute);text-decoration:none">← Channels</a>
+    <a class="back" href="/admin/channels" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Channels</a>
     <h1>YPT status</h1>
     <p class="muted">Youth Protection Training expiration date per registered leader. Drives the two-deep guard on every chat-channel write where youth are present. Leader-entered for v1; the BSA training-roster scrape is a separate fight.</p>
     ${memberships.length ? `<table class="items" style="width:100%;border-collapse:collapse">
@@ -7782,7 +8080,7 @@ adminRouter.get("/ypt", requireLeader, async (req, res) => {
       <tbody>${rows}</tbody>
     </table>` : `<div class="empty">No leaders or admins in this org yet.</div>`}
   `;
-  res.type("html").send(layout({ title: "YPT status", org: req.org, user: req.user, body }));
+  res.type("html").send(layout(req, { title: "YPT status", body }));
 });
 
 adminRouter.post("/ypt/:membershipId", requireLeader, async (req, res) => {

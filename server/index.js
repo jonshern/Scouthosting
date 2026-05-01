@@ -287,13 +287,9 @@ app.get("/api/auth/me", (req, res) => {
 
 /* ------------------ Google OAuth --------------------------------- */
 
-// Cookie names kept on the legacy prefix for back-compat — see lib/auth.js
-// for the deferred-rename note. Renaming these mid-flight only invalidates
-// in-flight OAuth attempts (not long-term sessions), but leaving them aligns
-// with the wider cookie-name freeze.
-const OAUTH_STATE_COOKIE = "scouthosting_oauth_state";
-const OAUTH_VERIFIER_COOKIE = "scouthosting_oauth_verifier";
-const OAUTH_NEXT_COOKIE = "scouthosting_oauth_next";
+const OAUTH_STATE_COOKIE = "compass_oauth_state";
+const OAUTH_VERIFIER_COOKIE = "compass_oauth_verifier";
+const OAUTH_NEXT_COOKIE = "compass_oauth_next";
 
 function setShortCookie(res, name, value) {
   res.appendHeader(

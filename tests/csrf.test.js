@@ -29,13 +29,13 @@ describe("csrfMiddleware", () => {
     const next = vi.fn();
     csrfMiddleware(req, res, next);
     expect(req.csrfToken).toMatch(/^[A-Za-z0-9_-]{20,}$/);
-    expect((res.headers["Set-Cookie"] || []).join("")).toMatch(/scouthosting_csrf=/);
+    expect((res.headers["Set-Cookie"] || []).join("")).toMatch(/compass_csrf=/);
     expect(next).toHaveBeenCalledOnce();
   });
 
   it("reuses a cookie when one already exists", () => {
     const tok = "AAAAAAAAAAAAAAAAAAAAAAAAAA";
-    const req = fakeReq({ cookie: `scouthosting_csrf=${tok}` });
+    const req = fakeReq({ cookie: `compass_csrf=${tok}` });
     const res = fakeRes();
     const next = vi.fn();
     csrfMiddleware(req, res, next);
@@ -48,7 +48,7 @@ describe("csrfProtect", () => {
   const tok = "AAAAAAAAAAAAAAAAAAAAAAAAAA";
 
   it("passes through GET", () => {
-    const req = fakeReq({ cookie: `scouthosting_csrf=${tok}` }, "GET");
+    const req = fakeReq({ cookie: `compass_csrf=${tok}` }, "GET");
     const res = fakeRes();
     const next = vi.fn();
     csrfProtect(req, res, next);
@@ -56,7 +56,7 @@ describe("csrfProtect", () => {
   });
 
   it("rejects POST without a body or header token", () => {
-    const req = fakeReq({ cookie: `scouthosting_csrf=${tok}` }, "POST", {});
+    const req = fakeReq({ cookie: `compass_csrf=${tok}` }, "POST", {});
     const res = fakeRes();
     const next = vi.fn();
     csrfProtect(req, res, next);
@@ -65,7 +65,7 @@ describe("csrfProtect", () => {
   });
 
   it("rejects POST when cookie and body don't match", () => {
-    const req = fakeReq({ cookie: `scouthosting_csrf=${tok}` }, "POST", { csrf: "wrong-value-of-same-len" });
+    const req = fakeReq({ cookie: `compass_csrf=${tok}` }, "POST", { csrf: "wrong-value-of-same-len" });
     const res = fakeRes();
     const next = vi.fn();
     csrfProtect(req, res, next);
@@ -74,7 +74,7 @@ describe("csrfProtect", () => {
   });
 
   it("accepts POST when body token matches the cookie", () => {
-    const req = fakeReq({ cookie: `scouthosting_csrf=${tok}` }, "POST", { csrf: tok });
+    const req = fakeReq({ cookie: `compass_csrf=${tok}` }, "POST", { csrf: tok });
     const res = fakeRes();
     const next = vi.fn();
     csrfProtect(req, res, next);
@@ -83,7 +83,7 @@ describe("csrfProtect", () => {
   });
 
   it("accepts POST via X-CSRF-Token header instead of body", () => {
-    const req = fakeReq({ cookie: `scouthosting_csrf=${tok}`, "x-csrf-token": tok }, "POST", {});
+    const req = fakeReq({ cookie: `compass_csrf=${tok}`, "x-csrf-token": tok }, "POST", {});
     const res = fakeRes();
     const next = vi.fn();
     csrfProtect(req, res, next);

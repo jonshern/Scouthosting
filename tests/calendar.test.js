@@ -31,7 +31,7 @@ describe("icsFor", () => {
     expect(out).toMatch(/END:VCALENDAR\r\n$/);
     expect(out).toContain("BEGIN:VEVENT");
     expect(out).toContain("END:VEVENT");
-    expect(out).toContain("UID:evt1@troop100.scouthosting.com");
+    expect(out).toContain("UID:evt1@troop100.compass.app");
     expect(out).toContain("DTSTART:20260504T183000Z");
     expect(out).toContain("DTEND:20260504T193000Z");
     expect(out).toContain("SUMMARY:PLC Meeting");
