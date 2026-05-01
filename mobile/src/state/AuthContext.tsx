@@ -11,6 +11,7 @@ import {
   type SecureStorage,
   type StoredProfile,
 } from "../api/storage";
+import { registerPushToken, unregisterPushToken } from "../api/push";
 import type { ClientOptions } from "../api/client";
 
 export type AuthState =
@@ -30,6 +31,22 @@ type AuthContextValue = {
   switchOrg: (orgId: string) => Promise<void>;
   /** Build a ClientOptions for hitting the API as the active user. */
   client: () => ClientOptions | null;
+  /**
+   * Convenience accessor for the active session — flattens
+   * state.activeOrg + token into a single object so screens don't
+   * need to type-guard on state.status. Null when not signed-in.
+   */
+  session: ActiveSession | null;
+};
+
+export type ActiveSession = {
+  orgId: string;
+  orgSlug: string;
+  orgName: string;
+  role: string;
+  token: string;
+  displayName: string;
+  email: string;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -62,6 +79,29 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
     return () => { cancelled = true; };
   }, [storage]);
 
+  // Once a session is established (sign-in OR hydrate-from-storage),
+  // register the device's Expo push token with the server. Best-effort:
+  // simulators / missing perms / expo-notifications not bundled all
+  // gracefully no-op via the lib/api/push driver. Re-runs whenever the
+  // session changes (org switch, fresh sign-in) so the token is always
+  // attached to the right user.
+  useEffect(() => {
+    if (state.status !== "signed-in") return;
+    let cancelled = false;
+    (async () => {
+      const result = await registerPushToken({
+        orgSlug: state.activeOrg.orgSlug,
+        token: state.token,
+      });
+      if (cancelled) return;
+      if (!result.ok && result.reason !== "simulator" && result.reason !== "notifications_module_missing") {
+        // eslint-disable-next-line no-console
+        console.warn("[push] registration skipped:", result.reason);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [state]);
+
   const signIn = useCallback(async (orgSlug: string) => {
     const result = await signInFlow({ orgSlug });
     if (!result.ok) {
@@ -81,10 +121,11 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
 
   const signOut = useCallback(async () => {
     if (state.status === "signed-in") {
-      await signOutFlow(
-        { orgSlug: state.activeOrg.orgSlug, token: state.token },
-        storage,
-      );
+      const client = { orgSlug: state.activeOrg.orgSlug, token: state.token };
+      // Best-effort unregister so this device stops receiving push.
+      // Doesn't gate the sign-out; failures are silently ignored.
+      await unregisterPushToken(client);
+      await signOutFlow(client, storage);
     } else {
       await storage.clearToken();
       await storage.clearProfile();
@@ -106,13 +147,27 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
     return { orgSlug: state.activeOrg.orgSlug, token: state.token };
   }, [state]);
 
+  const session: ActiveSession | null =
+    state.status === "signed-in"
+      ? {
+          orgId: state.activeOrg.orgId,
+          orgSlug: state.activeOrg.orgSlug,
+          orgName: state.activeOrg.orgName,
+          role: state.activeOrg.role,
+          token: state.token,
+          displayName: state.profile.displayName || state.profile.email || "",
+          email: state.profile.email || "",
+        }
+      : null;
+
   const value = useMemo<AuthContextValue>(() => ({
     state,
     signIn,
     signOut,
     switchOrg,
     client,
-  }), [state, signIn, signOut, switchOrg, client]);
+    session,
+  }), [state, signIn, signOut, switchOrg, client, session]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

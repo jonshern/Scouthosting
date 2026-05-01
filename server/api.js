@@ -469,6 +469,50 @@ apiRouter.get("/orgs/:orgId/posts", resolveApiUser, async (req, res) => {
   });
 });
 
+// GET /api/v1/orgs/:orgId/photos — recent public-album photos for the
+// mobile Photos screen. Returns up to 60 photos with their album
+// title + cover info. Privacy: respects the album's visibility flag,
+// and a member-visibility album only shows to org members.
+apiRouter.get("/orgs/:orgId/photos", resolveApiUser, async (req, res) => {
+  const orgId = req.params.orgId;
+  const membership = await membershipFor(req.apiUser.id, orgId);
+  if (!membership) return res.status(404).json({ error: "not_a_member" });
+
+  const albums = await prisma.album.findMany({
+    where: {
+      orgId,
+      OR: [{ visibility: "public" }, { visibility: "members" }],
+    },
+    orderBy: [{ takenAt: "desc" }, { createdAt: "desc" }],
+    take: 12,
+    include: {
+      _count: { select: { photos: true } },
+      photos: {
+        orderBy: { sortOrder: "asc" },
+        take: 6,
+        select: { id: true, filename: true, caption: true, takenAt: true },
+      },
+    },
+  });
+
+  res.json({
+    albums: albums.map((a) => ({
+      id: a.id,
+      title: a.title,
+      visibility: a.visibility,
+      takenAt: a.takenAt,
+      totalPhotos: a._count.photos,
+      coverFilename: a.photos[0]?.filename || null,
+      preview: a.photos.map((p) => ({
+        id: p.id,
+        filename: p.filename,
+        caption: p.caption,
+        takenAt: p.takenAt,
+      })),
+    })),
+  });
+});
+
 // GET /api/v1/orgs/:orgId/dashboard — view-model for the mobile home
 // screen. Reuses lib/dashboard so server-rendered admin and the mobile
 // app stay aligned.

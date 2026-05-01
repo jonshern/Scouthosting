@@ -13,6 +13,7 @@ const KEY_PROFILE = "compass.profile";
 export type StoredProfile = {
   userId: string;
   displayName: string;
+  email: string;
   orgs: { orgId: string; orgSlug: string; orgName: string; role: string }[];
   // The org the user is currently focused on. Defaults to the first
   // membership; settable from the Profile screen.
