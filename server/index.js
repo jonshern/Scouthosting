@@ -259,6 +259,109 @@ app.use("/__super", (req, res, next) => {
   return superAdminRouter(req, res, next);
 });
 
+// Invite acceptance. The link in the invitation email lands here on
+// the org subdomain. We verify the signed token, find or create the
+// User account, attach an OrgMembership at the embedded role, and
+// redirect into the admin (or the public site for parent/scout roles).
+app.get("/invite/:token", async (req, res) => {
+  if (!req.org) return res.status(404).type("text/plain").send("Wrong host for this invite");
+  const { verifyInviteToken, inviteSecret } = await import("../lib/inviteToken.js");
+  const claims = verifyInviteToken(req.params.token, { secret: inviteSecret() });
+  if (!claims) {
+    return res.status(400).type("html").send(inviteErrorPage(req.org, "This invite link is invalid or has expired."));
+  }
+  if (claims.orgId !== req.org.id) {
+    return res.status(400).type("html").send(inviteErrorPage(req.org, "This invite is for a different unit."));
+  }
+  if (req.user) {
+    if (req.user.email.toLowerCase() !== claims.email) {
+      return res.status(400).type("html").send(inviteErrorPage(req.org, `This invite was sent to ${claims.email}. You're signed in as ${req.user.email} — sign out first, then click the link again.`));
+    }
+    await prisma.orgMembership.upsert({
+      where: { userId_orgId: { userId: req.user.id, orgId: req.org.id } },
+      update: {},
+      create: { userId: req.user.id, orgId: req.org.id, role: claims.role },
+    });
+    return res.redirect(claims.role === "scout" || claims.role === "parent" ? "/" : "/admin");
+  }
+  // Not signed in — render an "accept invite" page that pre-fills email
+  // and offers Google SSO + password set.
+  res.type("html").send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Accept invite — ${escape(req.org.displayName)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#f4ecdc;--surface:#fff;--ink:#0d130d;--ink-muted:#5a6258;--line:#d4c8a8;--primary:#0e3320;--accent:#c8e94a;--font-display:"Newsreader",serif;--font-ui:"Inter Tight",sans-serif}
+body{margin:0;font-family:var(--font-ui);background:var(--bg);color:var(--ink);min-height:100vh;display:grid;place-items:center;padding:1rem}
+main{max-width:440px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:2.25rem 2rem}
+h1{font-family:var(--font-display);font-weight:400;letter-spacing:-.02em;margin:0 0 .4rem;font-size:30px}
+h1 em{font-style:italic;color:var(--primary)}
+p{color:var(--ink-muted)}
+label{display:block;margin:1rem 0 0;font-size:.86rem}
+input{display:block;width:100%;margin-top:.3rem;padding:.6rem .75rem;border:1.5px solid var(--line);border-radius:8px;font:inherit;background:#fff;color:var(--ink)}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;margin-top:1.2rem;padding:.7rem;border-radius:8px;border:1.5px solid var(--ink);background:var(--ink);color:var(--bg);font-weight:600;cursor:pointer;text-decoration:none}
+.btn:hover{background:var(--primary);color:var(--accent);border-color:var(--primary)}
+.btn-google{background:#fff;color:var(--ink);border-color:var(--line)}
+.divider{display:flex;align-items:center;gap:.75rem;color:var(--ink-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;font-weight:600;margin:1.2rem 0}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+</style></head><body>
+<main>
+  <h1>Welcome to <em>${escape(req.org.displayName)}.</em></h1>
+  <p>You're being invited as <strong>${escape(claims.role)}</strong>. Create a Compass account (or sign in if you already have one) and you'll land in the unit.</p>
+  <form method="post" action="/invite/${escape(req.params.token)}">
+    ${req.csrfToken ? `<input type="hidden" name="csrf" value="${req.csrfToken}">` : ""}
+    <label>Your name<input name="displayName" required></label>
+    <label>Email<input name="email" type="email" value="${escape(claims.email)}" readonly style="background:#f4ecdc"></label>
+    <label>Choose a password<input name="password" type="password" required minlength="8"></label>
+    <button class="btn" type="submit">Accept invite & create account</button>
+  </form>
+  <div class="divider">or</div>
+  <a class="btn btn-google" href="/auth/google/start?next=${encodeURIComponent(`/invite/${req.params.token}`)}">Continue with Google</a>
+  <p style="font-size:.78rem;margin-top:1rem">By accepting, you agree to <a href="/security.html">Compass's privacy + security model</a>.</p>
+</main></body></html>`);
+});
+
+app.post("/invite/:token", async (req, res) => {
+  if (!req.org) return res.status(404).type("text/plain").send("Wrong host");
+  const { verifyInviteToken, inviteSecret } = await import("../lib/inviteToken.js");
+  const claims = verifyInviteToken(req.params.token, { secret: inviteSecret() });
+  if (!claims) return res.status(400).type("text/plain").send("Invalid or expired invite");
+  if (claims.orgId !== req.org.id) return res.status(400).type("text/plain").send("Wrong org");
+  const password = String(req.body?.password || "");
+  const displayName = String(req.body?.displayName || "").trim();
+  if (!password || password.length < 8 || !displayName) {
+    return res.status(400).type("text/plain").send("Display name + 8+ char password required");
+  }
+  const existing = await prisma.user.findUnique({ where: { email: claims.email } });
+  let user;
+  if (existing) {
+    user = existing;
+  } else {
+    user = await prisma.user.create({
+      data: {
+        email: claims.email,
+        displayName,
+        passwordHash: await hashPassword(password),
+        emailVerified: true, // proven by clicking the signed link
+      },
+    });
+  }
+  await prisma.orgMembership.upsert({
+    where: { userId_orgId: { userId: user.id, orgId: req.org.id } },
+    update: {},
+    create: { userId: user.id, orgId: req.org.id, role: claims.role },
+  });
+  const session = await lucia.createSession(user.id, {});
+  res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
+  res.redirect(claims.role === "scout" || claims.role === "parent" ? "/" : "/admin");
+});
+
+function inviteErrorPage(org, message) {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Invite — ${escape(org.displayName)}</title>
+<style>body{font-family:"Inter Tight",sans-serif;background:#f4ecdc;color:#0d130d;display:grid;place-items:center;min-height:100vh;margin:0;padding:1rem}main{max-width:480px;background:#fff;border:1px solid #d4c8a8;border-radius:14px;padding:2rem;text-align:center}h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em}a{color:#0e3320}</style>
+</head><body><main><h1>Hmm.</h1><p>${escape(message)}</p><p><a href="/">← Back to ${escape(org.displayName)}</a></p></main></body></html>`;
+}
+
 // In-app support form. Available on apex (anonymous can ask billing /
 // signup questions) and on every org subdomain (leaders + members can
 // flag bugs). Files a SupportTicket the super-admin sees in /__super.

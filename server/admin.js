@@ -53,6 +53,12 @@ import {
   POST_POLICY_LABELS,
   normalisePostPolicy,
 } from "../lib/chatPermissions.js";
+import {
+  makeInviteToken,
+  inviteSecret,
+  INVITABLE_ROLES,
+  INVITE_ROLE_LABELS,
+} from "../lib/inviteToken.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -223,6 +229,7 @@ const NAV_SECTIONS = [
       { href: "/admin/members", label: "Members" },
       { href: "/admin/positions", label: "Position roster" },
       { href: "/admin/training", label: "Training" },
+      { href: "/admin/invites", label: "Invites" },
       { href: "/admin/subgroups", label: "Subgroups" },
       { href: "/admin/reports", label: "Reports" },
     ],
@@ -4067,6 +4074,77 @@ adminRouter.get("/analytics", requireLeader, async (req, res) => {
 });
 
 // Audit log — last 200 entries, filterable by entity type.
+// Invite a new leader / parent / admin by email. Sends a signed-token
+// link; recipient clicks, signs up if needed, and lands on the org
+// admin attached at the chosen role.
+adminRouter.get("/invites", requireLeader, async (req, res) => {
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const sample = `https://${escape(req.org.slug)}.${escape(apex)}/invite/<token>`;
+  const sent = req.query.sent ? `<div class="flash flash-ok">Invite sent to ${escape(String(req.query.sent))}.</div>` : "";
+  const body = `
+    <h1>Invite someone</h1>
+    <p class="muted">Send a signed-link invitation. They click, create or sign in to an account, and land in this org at the role you pick. Links expire in 14 days.</p>
+    ${sent}
+    <form class="card" method="post" action="/admin/invites">
+      <label>Email address<input name="email" type="email" required maxlength="200" placeholder="leader@example.com"></label>
+      <label>Role
+        <select name="role">
+          ${INVITABLE_ROLES.map((r) => `<option value="${escape(r)}">${escape(INVITE_ROLE_LABELS[r])}</option>`).join("")}
+        </select>
+      </label>
+      <label>Personal note (optional)<textarea name="note" rows="3" maxlength="500" placeholder="Hey Sarah — sending you the leader invite we talked about Tuesday."></textarea></label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Send invite</button>
+        <a class="btn btn-ghost" href="/admin/members">Cancel</a>
+      </div>
+    </form>
+    <p class="muted small">Invite links look like: <code>${sample}</code></p>`;
+  res.type("html").send(layout(req, { title: "Invite", body }));
+});
+
+adminRouter.post("/invites", requireLeader, async (req, res) => {
+  const email = String(req.body?.email || "").trim().toLowerCase();
+  const role = String(req.body?.role || "leader");
+  const note = String(req.body?.note || "").trim().slice(0, 500);
+  if (!email || !INVITABLE_ROLES.includes(role)) {
+    return res.status(400).type("text/plain").send("email + valid role required");
+  }
+  const token = makeInviteToken(
+    { orgId: req.org.id, email, role, invitedBy: req.user.id },
+    { secret: inviteSecret() },
+  );
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const link = `https://${req.org.slug}.${apex}/invite/${token}`;
+  const subject = `${req.user.displayName} invited you to ${req.org.displayName} on Compass`;
+  const text = [
+    `${req.user.displayName} invited you to join ${req.org.displayName} on Compass — the modern communication and organization platform for volunteer Scout units.`,
+    "",
+    note ? `${note}\n` : null,
+    `Accept the invite (link expires in 14 days):\n${link}`,
+    "",
+    "If you didn't expect this email, you can ignore it. The invite expires automatically.",
+  ]
+    .filter((s) => s !== null)
+    .join("\n");
+  const apexFrom = process.env.MAIL_FROM_DEFAULT || `noreply@${apex}`;
+  await sendBatch([
+    {
+      from: `${req.user.displayName} via Compass <${apexFrom}>`,
+      to: email,
+      subject,
+      text,
+    },
+  ]);
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Invite",
+    action: "invite:sent",
+    summary: `Invited ${email} as ${role}`,
+  });
+  res.redirect(`/admin/invites?sent=${encodeURIComponent(email)}`);
+});
+
 adminRouter.get("/audit", requireLeader, async (req, res) => {
   const entityType = (req.query.type || "").toString();
   const where = { orgId: req.org.id };
