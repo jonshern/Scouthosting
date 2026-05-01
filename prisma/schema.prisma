@@ -536,6 +536,28 @@ model Page {
   aboutBody    String?
   joinBody     String?
   contactNote  String?
+  // Optional hero image filename (uploaded via /admin/content). Sits
+  // in the same per-org storage area as Album photos.
+  heroImage    String?
+  // Two CTA buttons on the hero — primary (e.g. "Join us") and
+  // secondary (e.g. "See the calendar"). Both label + link are user-
+  // editable so a unit can point them at their own targets.
+  ctaPrimaryLabel    String?
+  ctaPrimaryLink     String?
+  ctaSecondaryLabel  String?
+  ctaSecondaryLink   String?
+  // Ordered JSON array of section keys controlling the homepage's
+  // visible blocks: ["hero","about","upcoming","posts","albums",
+  // "join","contact"]. Drag-to-reorder in the admin; null = the
+  // built-in default order.
+  sectionOrder Json?
+  // Map of section key → boolean (true = visible). null = all visible.
+  sectionVisibility Json?
+  // Free-form Markdown for a "what we do" section between about + join.
+  whatWeDoBody String?
+  // Free-form testimonials (parent quotes). JSON array of
+  // { quote, attribution }. null = none.
+  testimonialsJson  Json?
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
 

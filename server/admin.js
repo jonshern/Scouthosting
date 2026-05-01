@@ -59,6 +59,12 @@ import {
   INVITABLE_ROLES,
   INVITE_ROLE_LABELS,
 } from "../lib/inviteToken.js";
+import {
+  SECTIONS as HOMEPAGE_SECTIONS,
+  resolvePlan as resolveHomepagePlan,
+  normaliseSectionPatch as normaliseHomepageSectionPatch,
+  readTestimonials as readHomepageTestimonials,
+} from "../lib/homepageSections.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -159,6 +165,52 @@ function resolvePatrolFromBody(body) {
   const preset = (body?.patrolPreset || "").trim();
   if (preset && preset !== OTHER_PRESET) return preset;
   return body?.patrol?.trim() || null;
+}
+
+function sectionPlannerRows(page) {
+  const order = resolveHomepagePlan(page);
+  const knownSet = new Set(order);
+  // Include hidden sections at the bottom so the admin can re-show them.
+  const all = [...order, ...Object.keys(HOMEPAGE_SECTIONS).filter((k) => !knownSet.has(k))];
+  const vis = page?.sectionVisibility || {};
+  return all
+    .map((key, idx) => {
+      const meta = HOMEPAGE_SECTIONS[key];
+      const visible = vis[key] !== false;
+      return `
+      <li draggable="true" style="cursor:grab" data-key="${escape(key)}">
+        <input type="hidden" name="order[]" value="${escape(key)}">
+        <span style="font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--ink-muted);font-size:.75rem;width:1.4rem">${idx + 1}.</span>
+        <div style="flex:1">
+          <strong>${escape(meta.label)}</strong>
+          <p>${escape(meta.description)}</p>
+        </div>
+        <label style="margin:0;display:flex;align-items:center;gap:.4rem;flex:0 0 auto">
+          <input type="checkbox" name="visible[${escape(key)}]" value="1" ${visible ? "checked" : ""} style="width:auto">
+          Show
+        </label>
+      </li>`;
+    })
+    .join("");
+}
+
+function testimonialFormRows(page) {
+  const rows = readHomepageTestimonials(page);
+  // Always render at least one empty row so admins can add their first.
+  const slots = rows.length ? [...rows, { quote: "", attribution: "" }] : [{ quote: "", attribution: "" }];
+  return slots
+    .map(
+      (t, i) => `
+    <div class="card" style="background:var(--bg);margin-bottom:.5rem">
+      <label style="margin-bottom:.4rem">Quote
+        <textarea name="quote[]" rows="2" placeholder="My son loves it.">${escape(t.quote)}</textarea>
+      </label>
+      <label style="margin-bottom:0">Attribution (optional)
+        <input name="attribution[]" type="text" value="${escape(t.attribution)}" placeholder="— Megan O'Brien, Den 4 parent">
+      </label>
+    </div>`,
+    )
+    .join("");
 }
 
 function memberPositionField({ unitType, current, formId }) {
@@ -1011,11 +1063,42 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
       <label>Contact note
         <textarea name="contactNote" rows="3" placeholder="Optional note above the contact info, e.g. 'Email us anytime.'">${v("contactNote")}</textarea>
       </label>
+      <label>"What we do" body (free-form Markdown — sits between About and Join)
+        <textarea name="whatWeDoBody" rows="5" placeholder="Camping, service projects, community partnerships, anything else.">${v("whatWeDoBody")}</textarea>
+      </label>
+      <h3 style="margin-top:1.25rem;margin-bottom:.4rem">Hero buttons</h3>
+      <p class="muted small">Two CTAs on the hero. Leave both blank to show the default "Visit us / Calendar" pair.</p>
+      <div class="row">
+        <label style="margin:0;flex:1">Primary label<input name="ctaPrimaryLabel" type="text" value="${v("ctaPrimaryLabel")}" placeholder="Visit us"></label>
+        <label style="margin:0;flex:1">Primary link<input name="ctaPrimaryLink" type="text" value="${v("ctaPrimaryLink")}" placeholder="/join or https://…"></label>
+      </div>
+      <div class="row">
+        <label style="margin:0;flex:1">Secondary label<input name="ctaSecondaryLabel" type="text" value="${v("ctaSecondaryLabel")}" placeholder="Calendar"></label>
+        <label style="margin:0;flex:1">Secondary link<input name="ctaSecondaryLink" type="text" value="${v("ctaSecondaryLink")}" placeholder="/events"></label>
+      </div>
       <div class="row">
         <button class="btn btn-primary" type="submit">Save</button>
         <a class="btn btn-ghost" href="/admin">Cancel</a>
         ${page ? `<a class="btn btn-ghost" style="margin-left:auto" href="/admin/content/reset" onclick="return confirm('Reset to defaults?')">Reset to defaults</a>` : ""}
       </div>
+    </form>
+
+    <h2 style="margin-top:1.75rem">Section order &amp; visibility</h2>
+    <p class="muted small">Drag the rows to reorder. Untick "Show" to hide a section. New section types added later auto-appear at the bottom.</p>
+    <form class="card" method="post" action="/admin/content/sections">
+      <ul id="sortable-sections" class="items" style="margin:0;cursor:grab">
+        ${sectionPlannerRows(page)}
+      </ul>
+      <button class="btn btn-primary" type="submit" style="margin-top:.6rem">Save layout</button>
+    </form>
+
+    <h2 style="margin-top:1.75rem">Testimonials</h2>
+    <p class="muted small">Parent or alum quotes that appear in the testimonials block. Leave blank to hide the section.</p>
+    <form class="card" method="post" action="/admin/content/testimonials">
+      <div id="testimonials-list">
+        ${testimonialFormRows(page)}
+      </div>
+      <button class="btn btn-primary" type="submit">Save testimonials</button>
     </form>
 
     <h2 style="margin-top:1.5rem">Theme</h2>
@@ -1073,7 +1156,18 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
 });
 
 adminRouter.post("/content", requireLeader, async (req, res) => {
-  const fields = ["heroHeadline", "heroLede", "aboutBody", "joinBody", "contactNote"];
+  const fields = [
+    "heroHeadline",
+    "heroLede",
+    "aboutBody",
+    "joinBody",
+    "contactNote",
+    "whatWeDoBody",
+    "ctaPrimaryLabel",
+    "ctaPrimaryLink",
+    "ctaSecondaryLabel",
+    "ctaSecondaryLink",
+  ];
   const data = {};
   const changed = [];
   for (const f of fields) {
@@ -1094,6 +1188,64 @@ adminRouter.post("/content", requireLeader, async (req, res) => {
     summary: `Edited home page (${changed.join(", ") || "cleared"})`,
   });
   res.redirect("/admin/content?saved=1");
+});
+
+adminRouter.post("/content/sections", requireLeader, async (req, res) => {
+  // Form posts arrive with order[]=hero, order[]=about, etc., and
+  // visible[hero]=1, visible[about]=1 for checked rows.
+  const order = Array.isArray(req.body?.order) ? req.body.order : [];
+  const visMap = req.body?.visible && typeof req.body.visible === "object" ? req.body.visible : {};
+  // Every known section key is implicitly hidden if not in visMap; we
+  // walk the registry to build a complete map.
+  const visibility = {};
+  for (const key of order) {
+    visibility[key] = visMap[key] === "1" || visMap[key] === true;
+  }
+  let patch;
+  try {
+    patch = normaliseHomepageSectionPatch({ order, visibility });
+  } catch (e) {
+    return res.status(400).type("text/plain").send(e.message);
+  }
+  await prisma.page.upsert({
+    where: { orgId: req.org.id },
+    update: patch,
+    create: { orgId: req.org.id, ...patch },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "update",
+    summary: "Homepage section layout updated",
+  });
+  res.redirect("/admin/content?saved=sections");
+});
+
+adminRouter.post("/content/testimonials", requireLeader, async (req, res) => {
+  const quotes = req.body?.quote;
+  const attrs = req.body?.attribution;
+  const quoteList = Array.isArray(quotes) ? quotes : quotes ? [quotes] : [];
+  const attrList = Array.isArray(attrs) ? attrs : attrs ? [attrs] : [];
+  const testimonials = quoteList
+    .map((q, i) => ({
+      quote: String(q || "").trim(),
+      attribution: String(attrList[i] || "").trim(),
+    }))
+    .filter((t) => t.quote);
+  await prisma.page.upsert({
+    where: { orgId: req.org.id },
+    update: { testimonialsJson: testimonials.length ? testimonials : null },
+    create: { orgId: req.org.id, testimonialsJson: testimonials.length ? testimonials : null },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "update",
+    summary: `Testimonials updated (${testimonials.length})`,
+  });
+  res.redirect("/admin/content?saved=testimonials");
 });
 
 adminRouter.get("/content/reset", requireLeader, async (req, res) => {
