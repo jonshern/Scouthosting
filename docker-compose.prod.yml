@@ -1,0 +1,76 @@
+# Production compose stack.
+#
+# Brings up: Postgres 16, the Compass app, and an nginx reverse proxy
+# that handles wildcard TLS for *.compass.app via a mounted certificate
+# pair (Let's Encrypt or cloud-issued).
+#
+# Usage:
+#   cp .env.example .env.prod && fill in secrets
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d
+#
+# Single-host only — for multi-instance use Fly/ECS/K8s with the same
+# Dockerfile.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: compass-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-compass}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+      POSTGRES_DB: ${POSTGRES_DB:-compass}
+    volumes:
+      - compass-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-compass} -d ${POSTGRES_DB:-compass}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    image: compass:latest
+    container_name: compass-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: ${DATABASE_URL}
+      APEX_DOMAIN: ${APEX_DOMAIN:-compass.app}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN:-.compass.app}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET must be set}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_WEBHOOK_SECRET: ${RESEND_WEBHOOK_SECRET:-}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM: ${TWILIO_FROM:-}
+      GOOGLE_OAUTH_CLIENT_ID: ${GOOGLE_OAUTH_CLIENT_ID:-}
+      GOOGLE_OAUTH_CLIENT_SECRET: ${GOOGLE_OAUTH_CLIENT_SECRET:-}
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-}
+      STORAGE_DIR: /app/var/uploads
+    volumes:
+      - compass-uploads:/app/var/uploads
+    expose:
+      - "8080"
+
+  nginx:
+    image: nginx:alpine
+    container_name: compass-nginx
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./infra/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/certs:/etc/nginx/certs:ro
+
+volumes:
+  compass-pgdata:
+  compass-uploads:

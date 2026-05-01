@@ -1,8 +1,12 @@
 node_modules
 .git
+.gitignore
 .env
 .env.local
 var
+tests
+mobile
+design/source
 *.log
 prisma/dev.db*
 .DS_Store
@@ -10,3 +14,6 @@ prisma/dev.db*
 .idea
 infra
 ROADMAP.md
+README.md
+.github
+.claude
