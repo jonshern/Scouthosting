@@ -46,6 +46,7 @@ import {
   hasFixedSubgroups,
 } from "../lib/orgRoles.js";
 import { SCOPES, scopesForPosition, requireScope } from "../lib/permissions.js";
+import { rollup as rollupAnalytics, track, EVENTS } from "../lib/analytics.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -258,6 +259,7 @@ const NAV_SECTIONS = [
       { href: "/admin/mbc", label: "Merit Badge Counselors" },
       { href: "/admin/oa", label: "OA elections" },
       { href: "/admin/audit", label: "Audit log" },
+      { href: "/admin/analytics", label: "Analytics" },
       { href: "/admin/export", label: "Export" },
     ],
   },
@@ -4057,6 +4059,51 @@ adminRouter.get("/export", requireLeader, async (req, res) => {
   res.type("html").send(layout(req, { title: "Export", body }));
 });
 
+// Privacy-conscious analytics rollup. No third-party tracker, no IPs;
+// just whitelisted server-side events recorded via lib/analytics.track,
+// rolled up over the last 30 / 90 days.
+adminRouter.get("/analytics", requireLeader, async (req, res) => {
+  const now = new Date();
+  const day = 24 * 60 * 60 * 1000;
+  const [last30, last90] = await Promise.all([
+    rollupAnalytics({ orgId: req.org.id, since: new Date(now.getTime() - 30 * day), until: now }),
+    rollupAnalytics({ orgId: req.org.id, since: new Date(now.getTime() - 90 * day), until: now }),
+  ]);
+  const lookup90 = new Map(last90.map((r) => [r.event, r.count]));
+  const rows = last30.map((r) => ({
+    event: r.event,
+    count30: r.count,
+    count90: lookup90.get(r.event) || r.count,
+  }));
+  const tableHtml = rows.length
+    ? `<table style="width:100%;border-collapse:collapse">
+        <thead><tr style="text-align:left;border-bottom:1px solid var(--line)">
+          <th style="padding:.5rem 0">Event</th>
+          <th style="padding:.5rem 0;text-align:right">Last 30 days</th>
+          <th style="padding:.5rem 0;text-align:right">Last 90 days</th>
+        </tr></thead>
+        <tbody>${rows
+          .map(
+            (r) => `<tr style="border-bottom:1px solid var(--line-soft)">
+              <td style="padding:.45rem 0;font-family:var(--font-ui)"><code>${escape(r.event)}</code></td>
+              <td style="padding:.45rem 0;text-align:right;font-variant-numeric:tabular-nums">${r.count30}</td>
+              <td style="padding:.45rem 0;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-muted)">${r.count90}</td>
+            </tr>`,
+          )
+          .join("")}</tbody>
+      </table>`
+    : `<div class="empty">No analytics events recorded yet. Events accumulate as members RSVP, leaders broadcast, the channel-suspension guard fires, etc.</div>`;
+  const body = `
+    <h1>Analytics</h1>
+    <p class="muted">Server-side, privacy-conscious. No third-party tracker, no IPs. Counts rolled up across the unit's events.</p>
+    <div class="card">${tableHtml}</div>
+    <div class="card">
+      <h3 style="margin-top:0">What we measure</h3>
+      <p class="muted small">A small whitelist of events: page views, signups, RSVPs, broadcasts sent, reimbursements approved, channel suspensions. Each event records the org id, an optional user id, and a tiny dimension payload — never an IP or a user agent.</p>
+    </div>`;
+  res.type("html").send(layout(req, { title: "Analytics", body }));
+});
+
 // Audit log — last 200 entries, filterable by entity type.
 adminRouter.get("/audit", requireLeader, async (req, res) => {
   const entityType = (req.query.type || "").toString();
@@ -6001,6 +6048,13 @@ async function decideReimbursement(req, res, status) {
     action: "update",
     summary: `${status === "paid" ? "Paid" : status === "approved" ? "Approved" : "Denied"} ${r.requesterName} · $${(r.amountCents / 100).toFixed(2)}`,
   });
+  if (status === "approved" || status === "paid") {
+    track(EVENTS.REIMBURSEMENT_APPROVED, {
+      orgId: req.org.id,
+      userId: req.user.id,
+      dimensions: { status, amountCents: r.amountCents },
+    });
+  }
   res.redirect("/admin/reimbursements");
 }
 

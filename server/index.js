@@ -15,6 +15,7 @@ import { securityHeaders } from "../lib/securityHeaders.js";
 import { honeypotFields, verifyHoneypot } from "../lib/honeypot.js";
 import { apiRouter } from "./api.js";
 import { logger } from "../lib/log.js";
+import { track, EVENTS } from "../lib/analytics.js";
 
 const log = logger.child("http");
 import { issueToken } from "../lib/apiToken.js";
@@ -226,6 +227,10 @@ app.post("/api/provision", provisionLimiter, async (req, res) => {
   }
   try {
     const org = await provisionOrg(req.body);
+    track(EVENTS.ORG_PROVISIONED, {
+      orgId: org.id,
+      dimensions: { unitType: org.unitType, plan: org.plan },
+    });
     res.status(201).json({
       ok: true,
       tenant: {
