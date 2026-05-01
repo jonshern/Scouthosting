@@ -34,7 +34,67 @@ async function checkAuthProviders() {
 }
 checkAuthProviders();
 
-// 3. Login slug form — forward to the unit's subdomain.
+// 3a. Login email form — POST to /api/auth/login and follow the
+//     redirect the server picks based on role + memberships.
+const loginEmailForm = document.getElementById("login-email-form");
+if (loginEmailForm) {
+  const errBox = document.getElementById("login-email-error");
+  const showError = (msg) => {
+    if (!errBox) return;
+    errBox.textContent = msg;
+    errBox.hidden = false;
+  };
+  loginEmailForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    if (errBox) errBox.hidden = true;
+    const data = Object.fromEntries(new FormData(loginEmailForm).entries());
+    const submitBtn = loginEmailForm.querySelector('button[type="submit"]');
+    const originalLabel = submitBtn.textContent;
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Signing in…";
+    try {
+      const csrf = await fetch("/api/csrf", { credentials: "same-origin" })
+        .then((r) => r.json())
+        .then((b) => b.token)
+        .catch(() => "");
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-Token": csrf,
+        },
+        credentials: "same-origin",
+        body: JSON.stringify(data),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        showError(body.error || "Sign-in failed.");
+        return;
+      }
+      location.href = body.redirect || "/";
+    } catch (err) {
+      showError(err.message || "Network error.");
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalLabel;
+    }
+  });
+}
+
+// 3b. "Don't know where you sign in?" — reveal the slug-finder fallback.
+const showSlugLink = document.getElementById("login-show-slug");
+if (showSlugLink) {
+  showSlugLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    const slugForm = document.getElementById("login-slug-form");
+    const slugDivider = document.getElementById("login-slug-divider");
+    if (slugForm) slugForm.hidden = false;
+    if (slugDivider) slugDivider.hidden = false;
+    showSlugLink.parentElement.hidden = true;
+  });
+}
+
+// 3c. Login slug form — forward to the unit's subdomain.
 const loginSlugForm = document.getElementById("login-slug-form");
 if (loginSlugForm) {
   loginSlugForm.addEventListener("submit", (e) => {

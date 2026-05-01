@@ -579,6 +579,39 @@ app.post("/api/auth/signup", signupLimiter, csrfProtect, async (req, res) => {
   res.status(201).json({ ok: true, user: { id: user.id, email: user.email, displayName: user.displayName } });
 });
 
+// Pick where to send a freshly-signed-in user. Super admins go to the
+// super console; otherwise prefer an org where they hold admin, else
+// fall back to any org membership's home page; if they belong to no
+// org yet, send them to signup. Builds subdomain URLs off the request's
+// own host so it works for both compass.app prod and *.localhost dev
+// without needing APEX_DOMAIN to flip between them.
+async function postLoginRedirect(userId, req) {
+  const hostHeader = (req.headers.host || "").toLowerCase();
+  const [hostname, portFromHost] = hostHeader.split(":");
+  const apex = hostname || (process.env.APEX_DOMAIN || "compass.app").toLowerCase();
+  const protocol = req.protocol || (process.env.NODE_ENV === "production" ? "https" : "http");
+  const port = portFromHost ? `:${portFromHost}` : "";
+  const orgUrl = (slug, path) => `${protocol}://${slug}.${apex}${port}${path}`;
+
+  const u = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      isSuperAdmin: true,
+      memberships: {
+        select: { role: true, org: { select: { slug: true } } },
+        orderBy: { createdAt: "asc" },
+      },
+    },
+  });
+  if (!u) return "/";
+  if (u.isSuperAdmin) return "/__super";
+  const adminMem = u.memberships.find((m) => m.role === "admin");
+  if (adminMem) return orgUrl(adminMem.org.slug, "/admin");
+  const anyMem = u.memberships[0];
+  if (anyMem) return orgUrl(anyMem.org.slug, "/");
+  return "/signup.html";
+}
+
 app.post("/api/auth/login", loginLimiter, csrfProtect, async (req, res) => {
   const { email, password } = req.body || {};
   const emailLc = (email || "").toString().toLowerCase().trim();
@@ -605,7 +638,12 @@ app.post("/api/auth/login", loginLimiter, csrfProtect, async (req, res) => {
   }
   const session = await lucia.createSession(user.id, {});
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
-  res.json({ ok: true, user: { id: user.id, email: user.email, displayName: user.displayName } });
+  const redirect = await postLoginRedirect(user.id, req);
+  res.json({
+    ok: true,
+    user: { id: user.id, email: user.email, displayName: user.displayName },
+    redirect,
+  });
 });
 
 app.post("/api/auth/logout", csrfProtect, async (req, res) => {
@@ -616,6 +654,13 @@ app.post("/api/auth/logout", csrfProtect, async (req, res) => {
 
 app.get("/api/auth/providers", (_req, res) => {
   res.json({ ok: true, providers: { google: googleConfigured } });
+});
+
+// Static HTML pages can't be touched by csrfHtmlInjector, so JS fetches
+// the current CSRF token here before POSTing to /api/auth/login (and
+// any other CSRF-protected JSON endpoint they need to talk to).
+app.get("/api/csrf", (req, res) => {
+  res.json({ ok: true, token: req.csrfToken });
 });
 
 app.get("/api/auth/me", (req, res) => {
