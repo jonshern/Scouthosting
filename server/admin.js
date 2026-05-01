@@ -39,6 +39,12 @@ import {
   describeSubgroup,
 } from "../lib/subgroups.js";
 import { buildDashboardModel } from "../lib/dashboard.js";
+import {
+  subgroupVocab,
+  subgroupPresets,
+  positionOptions,
+  hasFixedSubgroups,
+} from "../lib/orgRoles.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -128,6 +134,59 @@ const escape = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   }[c]));
+
+// Resolve the patrol/den/etc value from a posted member form body. Pack
+// forms post `patrolPreset` (the chosen den) AND optionally `patrol` (the
+// free-form fallback when "Other…" is selected). Troop/Crew/Ship/Post
+// forms post only `patrol`. We collapse both shapes into one trimmed
+// string here so the rest of the handler doesn't care which field shape
+// it got.
+function resolvePatrolFromBody(body) {
+  const preset = (body?.patrolPreset || "").trim();
+  if (preset && preset !== "__other__") return preset;
+  return body?.patrol?.trim() || null;
+}
+
+// Render the position field for a Member edit form. Position vocabulary
+// depends on unit type (Cubmaster / Scoutmaster / Skipper / Advisor). We
+// use a `<datalist>` so admins get the typed suggestions but can still
+// type something custom — the saved value is whatever string ended up
+// in the input, so audits stay precise.
+function memberPositionField({ unitType, current }) {
+  const opts = positionOptions(unitType);
+  const datalist = opts
+    .filter((o) => o !== "Other")
+    .map((o) => `<option value="${escape(o)}">`)
+    .join("");
+  return `<label style="margin:0;flex:1">Position<input name="position" type="text" maxlength="60" placeholder="Pick or type a custom title" list="position-options" value="${escape(current)}"><datalist id="position-options">${datalist}</datalist></label>`;
+}
+
+// Render the subgroup (patrol/den/watch) field for a Member edit form.
+// For unit types with a fixed canonical list (Cub Scout dens) we render
+// a `<select>` with the preset names + an Other option that flips into a
+// free-form input via the small inline script. For free-form unit types
+// (Troops, etc.) we keep a plain text input — the unit picks patrol names.
+function memberSubgroupField({ unitType, current }) {
+  const vocab = subgroupVocab(unitType);
+  const heading = vocab.heading.replace(/s$/, ""); // "Dens" → "Den" for the label
+  if (!hasFixedSubgroups(unitType)) {
+    return `<label style="margin:0;flex:1">${escape(heading)}<input name="patrol" type="text" maxlength="40" value="${escape(current)}"></label>`;
+  }
+  const presets = subgroupPresets(unitType);
+  const inList = presets.some((p) => p.label === current);
+  const options = [
+    `<option value=""${current === "" ? " selected" : ""}>—</option>`,
+    ...presets.map(
+      (p) =>
+        `<option value="${escape(p.label)}"${current === p.label ? " selected" : ""}>${escape(p.label)} <small>(${escape(p.grade)})</small></option>`,
+    ),
+    `<option value="__other__"${!inList && current ? " selected" : ""}>Other…</option>`,
+  ].join("");
+  return `<label style="margin:0;flex:1">${escape(heading)}
+    <select name="patrolPreset" onchange="this.nextElementSibling.style.display=this.value==='__other__'?'block':'none'">${options}</select>
+    <input name="patrol" type="text" maxlength="40" placeholder="Custom ${escape(vocab.singular)} name" value="${escape(!inList ? current : "")}" style="margin-top:.4rem;display:${!inList && current ? "block" : "none"}">
+  </label>`;
+}
 
 // IA: 7 top-level sections + a More overflow. Maps each admin page to the
 // section it most clearly belongs to. Active section is highlighted in
@@ -2939,7 +2998,7 @@ function memberFromBody(body) {
     lastName: body?.lastName?.trim() || "",
     email: body?.email?.trim().toLowerCase() || null,
     phone: body?.phone?.trim() || null,
-    patrol: body?.patrol?.trim() || null,
+    patrol: resolvePatrolFromBody(body),
     position: body?.position?.trim() || null,
     birthdate,
     ...(joinedAt ? { joinedAt } : {}),
@@ -3019,8 +3078,8 @@ async function memberForm({ member, action, submitLabel, orgId }) {
           : ""
       }
       <div class="row">
-        <label style="margin:0;flex:1">Patrol<input name="patrol" type="text" maxlength="40" value="${v("patrol")}"></label>
-        <label style="margin:0;flex:1">Position<input name="position" type="text" maxlength="60" placeholder="e.g. SPL, Scoutmaster" value="${v("position")}"></label>
+        ${memberSubgroupField({ unitType: req.org.unitType, current: v("patrol") })}
+        ${memberPositionField({ unitType: req.org.unitType, current: v("position") })}
       </div>
       <div class="row">
         <label style="margin:0;flex:1">Birthdate (optional)<input name="birthdate" type="date" value="${
