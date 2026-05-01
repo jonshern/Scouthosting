@@ -11,6 +11,7 @@ import { Icon, IconName } from '../theme/atoms';
 import { palette, fontFamilies } from '../theme/tokens';
 
 import HomeScreen from '../screens/HomeScreen';
+import ActivityScreen from '../screens/ActivityScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import EventDetailScreen from '../screens/EventDetailScreen';
 import PaymentScreen from '../screens/PaymentScreen';
@@ -48,6 +49,7 @@ function HomeStackNav() {
       <HomeStack.Screen name="HomeRoot" component={HomeScreen} />
       <HomeStack.Screen name="EventDetail" component={EventDetailScreen} />
       <HomeStack.Screen name="Payment" component={PaymentScreen} />
+      <HomeStack.Screen name="Activity" component={ActivityScreen} />
     </HomeStack.Navigator>
   );
 }

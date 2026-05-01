@@ -354,6 +354,47 @@ apiRouter.get("/auth/me", resolveApiUser, async (req, res) => {
   });
 });
 
+// GET /api/v1/orgs/:orgId/posts — recent activity-feed posts. Used by
+// the mobile activity-feed screen. Returns 30 posts with author +
+// reaction roll-ups.
+apiRouter.get("/orgs/:orgId/posts", resolveApiUser, async (req, res) => {
+  const orgId = req.params.orgId;
+  const membership = await membershipFor(req.apiUser.id, orgId);
+  if (!membership) return res.status(404).json({ error: "not_a_member" });
+
+  const posts = await prisma.post.findMany({
+    where: { orgId, visibility: { in: ["public", "members"] } },
+    orderBy: [{ pinned: "desc" }, { publishedAt: "desc" }],
+    take: 30,
+    include: {
+      author: { select: { displayName: true } },
+      photos: { orderBy: { sortOrder: "asc" }, select: { filename: true, caption: true } },
+    },
+  });
+  if (!posts.length) return res.json({ posts: [] });
+
+  const { summariseReactions } = await import("../lib/postReactions.js");
+  const reactionRows = await prisma.postReaction.findMany({
+    where: { postId: { in: posts.map((p) => p.id) } },
+    select: { postId: true, userId: true, kind: true },
+  });
+  const summary = summariseReactions(reactionRows, req.apiUser.id);
+  res.json({
+    posts: posts.map((p) => ({
+      id: p.id,
+      title: p.title,
+      body: p.body,
+      pinned: p.pinned,
+      publishedAt: p.publishedAt,
+      author: p.author?.displayName || null,
+      photos: p.photos.map((ph) => ({ filename: ph.filename, caption: ph.caption })),
+      reactions: summary.get(p.id) || {
+        likes: 0, bookmarks: 0, youLiked: false, youBookmarked: false,
+      },
+    })),
+  });
+});
+
 // GET /api/v1/orgs/:orgId/dashboard — view-model for the mobile home
 // screen. Reuses lib/dashboard so server-rendered admin and the mobile
 // app stay aligned.
