@@ -23,6 +23,9 @@ import {
   checkChannelTwoDeep,
 } from "../lib/chat.js";
 import { publishMessage, subscribe as subscribeRealtime } from "../lib/realtime.js";
+import { logger } from "../lib/log.js";
+
+const log = logger.child("api");
 
 export const apiRouter = Router();
 
@@ -564,7 +567,7 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
   try {
     publishMessage(channel.id, dto);
   } catch (e) {
-    console.warn(`[realtime] publishMessage failed: ${e.message}`);
+    log.warn("realtime publish failed", { err: e });
   }
   res.status(201).json({ message: dto });
 });
@@ -651,7 +654,7 @@ apiRouter.post("/messages/:id/reactions", resolveApiUser, async (req, res) => {
   try {
     publishMessage(channel.id, dto);
   } catch (e) {
-    console.warn(`[realtime] publishMessage failed: ${e.message}`);
+    log.warn("realtime publish failed", { err: e });
   }
   res.json({ message: dto });
 });

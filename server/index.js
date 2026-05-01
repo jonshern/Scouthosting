@@ -14,6 +14,9 @@ import { rateLimit } from "../lib/rateLimit.js";
 import { securityHeaders } from "../lib/securityHeaders.js";
 import { honeypotFields, verifyHoneypot } from "../lib/honeypot.js";
 import { apiRouter } from "./api.js";
+import { logger } from "../lib/log.js";
+
+const log = logger.child("http");
 import { issueToken } from "../lib/apiToken.js";
 import { verifyResendSignature, normalizeResendEvent } from "../lib/resendWebhook.js";
 
@@ -94,7 +97,42 @@ const app = express();
 app.set("trust proxy", 1);
 app.disable("x-powered-by");
 app.use(securityHeaders);
+
+// Liveness probe for load balancers / orchestrators. Cheap, no DB
+// touch (so a Postgres outage doesn't blackhole the whole node).
+app.get("/healthz", (_req, res) => {
+  res.type("text/plain").send("ok");
+});
+
+// Readiness probe — confirms we can talk to Postgres. Use this for
+// deploy gates; failing readiness sheds traffic without restarting.
+app.get("/readyz", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.type("text/plain").send("ready");
+  } catch (err) {
+    log.error("readiness probe failed", { err });
+    res.status(503).type("text/plain").send("not ready");
+  }
+});
 app.use(originAuth);
+// Request logging: one line per response with method, path, status, ms.
+// Skips static asset and health-check noise. Each request gets a short
+// requestId so downstream log lines can be stitched together.
+app.use((req, res, next) => {
+  const t0 = Date.now();
+  const requestId = crypto.randomBytes(6).toString("base64url");
+  req.log = log.with({ requestId, orgSlug: req.org?.slug });
+  res.on("finish", () => {
+    if (req.path.startsWith("/uploads") || req.path === "/healthz") return;
+    const ms = Date.now() - t0;
+    const fields = { method: req.method, path: req.path, status: res.statusCode, ms };
+    if (res.statusCode >= 500) req.log.error("request", fields);
+    else if (res.statusCode >= 400) req.log.warn("request", fields);
+    else req.log.info("request", fields);
+  });
+  next();
+});
 // Raw body is captured on req.rawBody so signed-webhook handlers
 // (e.g. /api/webhooks/resend) can verify the HMAC over the exact
 // bytes the provider sent, rather than re-serializing req.body.
@@ -640,7 +678,7 @@ app.post("/signup", signupLimiter, csrfProtect, async (req, res, next) => {
   // tripped (so naive bots can't tune around it).
   const hp = verifyHoneypot(req.body || {});
   if (!hp.ok) {
-    console.warn(`[signup] honeypot rejected: ${hp.reason}`);
+    log.warn("signup honeypot rejected", { reason: hp.reason });
     return res.type("html").send(
       publicLoginPage(req.org, { error: "Couldn't create the account. Try again in a moment.", next: nextUrl, googleConfigured, mode: "signup" }),
     );
@@ -679,7 +717,7 @@ app.post("/signup", signupLimiter, csrfProtect, async (req, res, next) => {
   await ensureMembership(user.id, req.org.id, ownedOrgs.some((o) => o.id === req.org.id) ? "admin" : "parent");
 
   // Fire-and-forget verify email; failure shouldn't block signup.
-  sendVerifyEmail(req.org, user).catch((err) => console.warn("verify email failed:", err.message));
+  sendVerifyEmail(req.org, user).catch((err) => log.warn("verify email failed", { err }));
 
   const session = await lucia.createSession(user.id, {});
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
@@ -2238,9 +2276,11 @@ const _isMain = process.argv[1] && path.resolve(process.argv[1]) === _fu(import.
 if (_isMain) {
   const PORT = process.env.PORT || 3000;
   app.listen(PORT, () => {
-    console.log(`Compass running on http://localhost:${PORT}`);
-    console.log(`Marketing:  http://localhost:${PORT}/`);
-    console.log(`Demo org:   http://troop100.localhost:${PORT}/`);
+    log.info("Compass started", {
+      port: Number(PORT),
+      marketing: `http://localhost:${PORT}/`,
+      demoOrg: `http://troop100.localhost:${PORT}/`,
+    });
   });
 }
 
