@@ -5,6 +5,9 @@ export default defineConfig({
     include: ["tests/**/*.test.js"],
     environment: "node",
     globals: false,
+    // Override DATABASE_URL etc. before any test file (or its imports)
+    // touches Prisma. Keeps the dev DB safe from resetDb() truncations.
+    setupFiles: ["./tests/_test-env.js"],
     // Integration tests share one Postgres + one Express app, so they
     // need to run sequentially. Lib-layer unit tests are pure and could
     // parallelise, but vitest's default per-file isolation already
