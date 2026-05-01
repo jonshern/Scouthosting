@@ -221,6 +221,19 @@ npm run db:seed      # seed the demo org
 npm run db:reset     # drop + re-create + re-seed
 ```
 
+### Tests
+
+Tests run against a separate `compass_test` database so the dev seed
+(super-admin + per-org admins) survives a `npm test`. Create it once:
+
+```bash
+sudo -u postgres psql -c "CREATE DATABASE compass_test OWNER compass;"
+npm run db:test:setup    # apply migrations to compass_test
+```
+
+Then `npm test` works against `compass_test` automatically (set via
+`tests/_test-env.js`). Override with `TEST_DATABASE_URL` for CI.
+
 ---
 
 ## Important notes
