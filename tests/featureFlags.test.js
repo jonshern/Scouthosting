@@ -27,13 +27,13 @@ describe("FEATURE_FLAGS registry", () => {
 describe("isEnabled", () => {
   it("returns the default when the org has no override", () => {
     expect(isEnabled({ features: null }, "chat.enabled")).toBe(true);
-    expect(isEnabled({ features: {} }, "calendar.stripePayments")).toBe(false);
+    expect(isEnabled({ features: {} }, "mobile.pushNotifications")).toBe(false);
   });
 
   it("respects org overrides", () => {
-    const org = { features: { "chat.enabled": false, "calendar.stripePayments": true } };
+    const org = { features: { "chat.enabled": false, "mobile.pushNotifications": true } };
     expect(isEnabled(org, "chat.enabled")).toBe(false);
-    expect(isEnabled(org, "calendar.stripePayments")).toBe(true);
+    expect(isEnabled(org, "mobile.pushNotifications")).toBe(true);
   });
 
   it("treats null override as unset (falls back to default)", () => {

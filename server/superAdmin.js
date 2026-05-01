@@ -529,7 +529,7 @@ superAdminRouter.get("/refunds", requireSuperAdmin, async (req, res) => {
   });
   const body = `
     <h1>Refunds</h1>
-    <p class="muted">Issued out-of-band when a unit needs to refund a parent. Recorded here + emitted to the audit log; Stripe-tracked refunds reach the gateway via the paymentRef field.</p>
+    <p class="muted">Operator-issued credit or refund against the unit's SaaS fee. Recorded here + emitted to the audit log; the paymentRef is a free-form pointer to the source invoice or note.</p>
     <a class="btn btn-accent" href="/__super/refunds/new" style="margin-bottom:1rem">+ Issue refund</a>
     <div class="card">
       ${refunds.length
@@ -565,7 +565,7 @@ superAdminRouter.get("/refunds/new", requireSuperAdmin, async (req, res) => {
       </label>
       <div class="row">
         <label style="flex:1">Amount (USD)<input name="amount" type="number" step="0.01" min="0" required></label>
-        <label style="flex:1">Payment ref (optional)<input name="paymentRef" placeholder="ch_… or manual:…"></label>
+        <label style="flex:1">Payment ref (optional)<input name="paymentRef" placeholder="invoice id / manual:…"></label>
       </div>
       <label>Reason<input name="reason" required></label>
       <label>Notes (internal)<textarea name="notes" rows="3"></textarea></label>
@@ -622,7 +622,7 @@ superAdminRouter.get("/billing", requireSuperAdmin, async (req, res) => {
 
   const body = `
     <h1>Billing snapshot</h1>
-    <p class="muted">Read-only roll-up. Stripe is the source of truth for actual invoiced amounts; this view only counts active, non-demo orgs at list-price for sanity-checking the dashboard.</p>
+    <p class="muted">Read-only roll-up. Counts active, non-demo orgs at list-price; whatever billing system actually invoices (manual today) is the source of truth for collected revenue.</p>
     <div class="card">
       <table>
         <thead><tr><th>Plan</th><th>Orgs</th><th>List MRR</th></tr></thead>
