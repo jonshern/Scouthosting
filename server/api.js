@@ -365,6 +365,51 @@ apiRouter.get("/orgs/:orgId/dashboard", resolveApiUser, async (req, res) => {
   res.json(model);
 });
 
+// POST /api/v1/push/register — mobile app posts its push token on
+// launch + on token refresh. Idempotent on the unique token; un-
+// retires a previously-retired token if the user reinstalled.
+apiRouter.post("/push/register", resolveApiUser, async (req, res) => {
+  const token = String(req.body?.token || "").trim();
+  if (!token) return res.status(400).json({ error: "token_required" });
+  const provider = String(req.body?.provider || "expo");
+  const platform = req.body?.platform ? String(req.body.platform) : null;
+  const deviceLabel = req.body?.deviceLabel
+    ? String(req.body.deviceLabel).slice(0, 80)
+    : null;
+  const device = await prisma.pushDevice.upsert({
+    where: { token },
+    update: {
+      userId: req.apiUser.id,
+      provider,
+      platform,
+      deviceLabel,
+      retiredAt: null,
+      retiredReason: null,
+    },
+    create: {
+      userId: req.apiUser.id,
+      token,
+      provider,
+      platform,
+      deviceLabel,
+    },
+  });
+  res.status(201).json({ id: device.id });
+});
+
+// POST /api/v1/push/unregister — mobile app calls on logout to take
+// the token out of rotation. Soft-delete so the audit trail keeps
+// the row.
+apiRouter.post("/push/unregister", resolveApiUser, async (req, res) => {
+  const token = String(req.body?.token || "").trim();
+  if (!token) return res.status(400).json({ error: "token_required" });
+  await prisma.pushDevice.updateMany({
+    where: { token, userId: req.apiUser.id },
+    data: { retiredAt: new Date(), retiredReason: "logout" },
+  });
+  res.status(204).end();
+});
+
 // POST /api/v1/support — file a SupportTicket from the mobile app.
 // Same shape as the web /help form; 201 with the ticket id on success.
 apiRouter.post("/support", resolveApiUser, async (req, res) => {
@@ -624,8 +669,46 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
   } catch (e) {
     log.warn("realtime publish failed", { err: e });
   }
+  // Fire push notifications to every channel member except the
+  // poster. Best-effort (failures don't propagate); see lib/push for
+  // the driver matrix. Intentionally fire-and-forget — we don't await.
+  pushChannelMessage(channel, message, req.apiUser).catch((err) => {
+    log.warn("push dispatch failed", { err });
+  });
   res.status(201).json({ message: dto });
 });
+
+async function pushChannelMessage(channel, message, author) {
+  const recipients = await prisma.channelMember.findMany({
+    where: { channelId: channel.id, userId: { not: author.id } },
+    select: { userId: true },
+  });
+  if (!recipients.length) return;
+  const devices = await prisma.pushDevice.findMany({
+    where: {
+      userId: { in: recipients.map((r) => r.userId) },
+      retiredAt: null,
+    },
+    select: { token: true },
+  });
+  if (!devices.length) return;
+  const { sendPushBatch } = await import("../lib/push.js");
+  const preview = String(message.body || "").slice(0, 140);
+  const result = await sendPushBatch(
+    devices.map((d) => ({
+      token: d.token,
+      title: `${author.displayName} · ${channel.name}`,
+      body: preview,
+      data: { kind: "chat", channelId: channel.id, messageId: message.id },
+    })),
+  );
+  if (result.retiredTokens.length) {
+    await prisma.pushDevice.updateMany({
+      where: { token: { in: result.retiredTokens } },
+      data: { retiredAt: new Date(), retiredReason: "device-not-registered" },
+    });
+  }
+}
 
 /* ------------------------------------------------------------------ */
 /* Reactions                                                           */

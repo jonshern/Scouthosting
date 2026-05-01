@@ -154,6 +154,7 @@ model User {
   messages           Message[]
   reactions          Reaction[]
   uploadedPhotos     Photo[]
+  pushDevices        PushDevice[]
 }
 
 // External identity provider linkage. One User can have multiple
@@ -1354,4 +1355,41 @@ model Refund {
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId, createdAt])
+}
+
+// Mobile push-notification device registration.
+//
+// One row per (user, device-installation). The mobile app calls
+// POST /api/v1/push/register on launch with its Expo push token (or
+// raw APNs / FCM token); we store + dedupe on (userId, token). When
+// a leader sends a broadcast, lib/push iterates pushDevices for the
+// audience and dispatches.
+//
+// Unregister happens automatically on logout (mobile clears the
+// stored token + posts /push/unregister) and on receiving a "bad
+// device" response from the push provider (token gets soft-deleted).
+model PushDevice {
+  id          String   @id @default(cuid())
+  userId      String
+  token       String   @unique
+  // "expo" | "apns" | "fcm". Drives which sender lib/push uses.
+  provider    String   @default("expo")
+  // Per-device label so a user can see "iPhone 15 Pro" / "Pixel 8" in
+  // their profile and revoke selectively. Optional.
+  deviceLabel String?
+  // App platform — "ios" | "android" | "web". Useful for partial
+  // outages (Apple downtime → skip ios devices).
+  platform    String?
+  // Soft-delete timestamp set when the push provider returns "bad
+  // device" (recipient uninstalled / disabled notifications). Skipped
+  // by the broadcaster but kept for audit.
+  retiredAt   DateTime?
+  retiredReason String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([retiredAt])
 }
