@@ -1388,14 +1388,42 @@ app.get("/magic/:token", async (req, res, next) => {
 // admin show up automatically in the user's Google/Apple/Outlook calendar.
 app.get("/calendar.ics", async (req, res) => {
   if (!req.org) return res.status(404).send("Not found");
-  const events = await prisma.event.findMany({
-    where: { orgId: req.org.id, startsAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30) } },
-    orderBy: { startsAt: "asc" },
-  });
+  // Optional category filter — /calendar.ics?category=campout subscribes
+  // a family to just the campouts. Normalises spaces / underscores so
+  // the URL works whether the category is "Campout" or "court_of_honor".
+  const rawCategory = String(req.query?.category || "").trim();
+  const where = {
+    orgId: req.org.id,
+    startsAt: { gte: new Date(Date.now() - 1000 * 60 * 60 * 24 * 30) },
+  };
+  let calendarLabel = req.org.displayName;
+  if (rawCategory) {
+    const { normaliseCategory, categoryMeta } = await import("../lib/eventCategories.js");
+    const key = normaliseCategory(rawCategory);
+    if (key) {
+      // Match against the canonical key OR the leader's free-form
+      // input (case-insensitive).
+      const meta = categoryMeta(key);
+      where.OR = [
+        { category: { equals: key, mode: "insensitive" } },
+        { category: { equals: meta.label, mode: "insensitive" } },
+      ];
+      calendarLabel = `${req.org.displayName} — ${meta.label}`;
+    } else {
+      // Unknown category — fall back to a literal-match filter so the
+      // leader's custom category names still work.
+      where.category = { equals: rawCategory, mode: "insensitive" };
+      calendarLabel = `${req.org.displayName} — ${rawCategory}`;
+    }
+  }
+  const events = await prisma.event.findMany({ where, orderBy: { startsAt: "asc" } });
+  const filenameSuffix = rawCategory
+    ? `-${rawCategory.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`
+    : "";
   res
     .set("Content-Type", "text/calendar; charset=utf-8")
-    .set("Content-Disposition", `inline; filename="${req.org.slug}.ics"`)
-    .send(icsForOrg(events, { orgSlug: req.org.slug, displayName: req.org.displayName }));
+    .set("Content-Disposition", `inline; filename="${req.org.slug}${filenameSuffix}.ics"`)
+    .send(icsForOrg(events, { orgSlug: req.org.slug, displayName: calendarLabel }));
 });
 
 // Per-event ICS download — used by the "Add to Apple Calendar" /
