@@ -1087,11 +1087,64 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
     <h2 style="margin-top:1.75rem">Section order &amp; visibility</h2>
     <p class="muted small">Drag the rows to reorder. Untick "Show" to hide a section. New section types added later auto-appear at the bottom.</p>
     <form class="card" method="post" action="/admin/content/sections">
-      <ul id="sortable-sections" class="items" style="margin:0;cursor:grab">
+      <ul id="sortable-sections" class="items" style="margin:0">
         ${sectionPlannerRows(page)}
       </ul>
       <button class="btn btn-primary" type="submit" style="margin-top:.6rem">Save layout</button>
     </form>
+    <script>
+      // Drag-reorder the section planner rows. Native HTML5 DnD is
+      // sufficient — no library needed. We refresh the order[] hidden
+      // inputs after each drop so the form posts the new order.
+      (function () {
+        const list = document.getElementById("sortable-sections");
+        if (!list) return;
+        let dragging = null;
+
+        function getRow(target) {
+          while (target && target !== list) {
+            if (target.tagName === "LI") return target;
+            target = target.parentNode;
+          }
+          return null;
+        }
+
+        list.addEventListener("dragstart", (e) => {
+          const row = getRow(e.target);
+          if (!row) return;
+          dragging = row;
+          row.style.opacity = "0.5";
+          // Ensure dragover gets fired in Firefox.
+          if (e.dataTransfer) {
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", row.dataset.key || "");
+          }
+        });
+
+        list.addEventListener("dragend", () => {
+          if (dragging) dragging.style.opacity = "1";
+          dragging = null;
+        });
+
+        list.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          if (!dragging) return;
+          const target = getRow(e.target);
+          if (!target || target === dragging) return;
+          const rect = target.getBoundingClientRect();
+          const before = e.clientY < rect.top + rect.height / 2;
+          if (before) target.parentNode.insertBefore(dragging, target);
+          else target.parentNode.insertBefore(dragging, target.nextSibling);
+        });
+
+        // Touch fallback — promote a long-press into drag mode for
+        // phones / tablets where HTML5 DnD doesn't fire.
+        list.querySelectorAll("li").forEach((li) => {
+          li.style.cursor = "grab";
+          li.setAttribute("draggable", "true");
+        });
+      })();
+    </script>
 
     <h2 style="margin-top:1.75rem">Testimonials</h2>
     <p class="muted small">Parent or alum quotes that appear in the testimonials block. Leave blank to hide the section.</p>
