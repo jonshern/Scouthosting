@@ -64,7 +64,7 @@ strip that surfaces the constant `ROSTER` data declared at the top of
       progress bar showing replied/total.
     - **Activity** &mdash; "The last few hours." Six rows. Each carries a
       tone-tinted circular icon (cash, check, mail, clipboard) reflecting
-      the kind of activity (payment, RSVP, message, form submission).
+      the kind of activity (reimbursement, RSVP, message, form submission).
 5. **Roster strip** &mdash; condensed table preview of the first seven
    scouts with patrol chips, rank, age, parent / guardian, last-seen.
    The README's full Roster view is its own admin surface; this dashboard

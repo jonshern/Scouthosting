@@ -11,7 +11,6 @@ export type RootTabParamList = {
 export type HomeStackParamList = {
   HomeRoot: undefined;
   EventDetail: { eventId: string };
-  Payment: { eventId: string };
   Activity: undefined;
 };
 

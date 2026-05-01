@@ -14,7 +14,6 @@ import HomeScreen from '../screens/HomeScreen';
 import ActivityScreen from '../screens/ActivityScreen';
 import CalendarScreen from '../screens/CalendarScreen';
 import EventDetailScreen from '../screens/EventDetailScreen';
-import PaymentScreen from '../screens/PaymentScreen';
 import PhotosScreen from '../screens/PhotosScreen';
 import PhotoPermissionsScreen from '../screens/PhotoPermissionsScreen';
 import MessagesScreen from '../screens/MessagesScreen';
@@ -48,7 +47,6 @@ function HomeStackNav() {
     <HomeStack.Navigator screenOptions={{ headerShown: false }}>
       <HomeStack.Screen name="HomeRoot" component={HomeScreen} />
       <HomeStack.Screen name="EventDetail" component={EventDetailScreen} />
-      <HomeStack.Screen name="Payment" component={PaymentScreen} />
       <HomeStack.Screen name="Activity" component={ActivityScreen} />
     </HomeStack.Navigator>
   );

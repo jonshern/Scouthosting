@@ -37,9 +37,11 @@ on; email goes to everyone unless they've unsubscribed.
 ### Add an event
 
 Calendar → Events → "Add event". Title, start, optional end, optional
-RRULE for recurring. Attach a permission slip; collect dues at signup
-via Stripe (if `calendar.stripePayments` is on). Members can RSVP
-from the public site or from email.
+RRULE for recurring. Attach a permission slip + a per-attendee cost
+note. Compass doesn't process payments — units collect via their
+existing channels (check, Venmo, Zelle, Scoutbook payments) — but
+the cost shows up on the event detail page so families know what to
+bring. Members can RSVP from the public site or from email.
 
 ### Set up sign-up sheets
 

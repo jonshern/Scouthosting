@@ -98,8 +98,10 @@ mirror the marketing site. Inside the codebase:
   event for "drivers / potluck / gear" coordination.
 - **Trip plans** — `TripPlan` + `Meal` + `Ingredient` + shopping list
   derivation in `lib/shoppingList.js`.
-- **Treasurer** — `Reimbursement` model with status flow + Stripe-
-  collected dues. Money writes gated on TREASURER scope (see
+- **Treasurer** — `Reimbursement` model with status flow + per-event
+  P&L roll-ups in `/admin/treasurer`. Compass tracks money but does
+  not process payments — units collect through their existing
+  channels. Money-affecting writes gated on TREASURER scope (see
   `lib/permissions.js`).
 
 ## Security
