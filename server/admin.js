@@ -48,6 +48,11 @@ import {
 import { SCOPES, scopesForPosition, requireScope } from "../lib/permissions.js";
 import { rollup as rollupAnalytics, track, EVENTS } from "../lib/analytics.js";
 import { parseRoster, mapMemberRows } from "../lib/rosterImport.js";
+import {
+  POST_POLICIES,
+  POST_POLICY_LABELS,
+  normalisePostPolicy,
+} from "../lib/chatPermissions.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -8035,6 +8040,27 @@ adminRouter.get("/channels/:id", requireLeader, async (req, res) => {
     ${yptBlock}
     <div class="row" style="margin:.6rem 0 1rem">${actionForms}</div>
 
+    <form class="card" method="post" action="/admin/channels/${escape(channel.id)}/post-policy">
+      <h3 style="margin-top:0">Who can post here?</h3>
+      <p class="muted small">Adult leaders + admins always pass; this gate scopes everyone else. ${
+        channel.kind === "patrol"
+          ? `For patrol channels, "section" lets only ${escape(channel.patrolName || "patrol")} members post — useful so the Tiger Den parent doesn't post in the Wolf Den channel.`
+          : channel.patrolName
+            ? `Section policy keys off this channel's patrolName: ${escape(channel.patrolName)}.`
+            : `"Section" needs a patrolName — this channel doesn't have one, so it falls back to "members" semantics.`
+      }</p>
+      ${POST_POLICIES.map(
+        (p) => `
+        <label style="display:flex;align-items:flex-start;gap:.6rem;margin:0 0 .55rem;font-weight:400">
+          <input type="radio" name="postPolicy" value="${escape(p)}" ${channel.postPolicy === p ? "checked" : ""} style="width:auto;margin-top:.25rem;margin-right:0">
+          <span><strong>${escape(POST_POLICY_LABELS[p])}</strong></span>
+        </label>`,
+      ).join("")}
+      <div class="row" style="margin-top:.5rem">
+        <button class="btn btn-primary small" type="submit">Save policy</button>
+      </div>
+    </form>
+
     <h2>Members <span class="muted small" style="font-weight:400">(${channel.members.length})</span></h2>
     <ul class="items">${memberRows || `<li class="empty">No members yet — try <a href="/admin/channels/provision">re-provisioning</a>.</li>`}</ul>
 
@@ -8042,6 +8068,36 @@ adminRouter.get("/channels/:id", requireLeader, async (req, res) => {
     <ul class="items">${messageRows}</ul>
   `;
   res.type("html").send(layout(req, { title: channel.name, body }));
+});
+
+adminRouter.post("/channels/:id/post-policy", requireLeader, async (req, res) => {
+  const channel = await prisma.channel.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, postPolicy: true, name: true },
+  });
+  if (!channel) return res.status(404).send("Not found");
+  let next;
+  try {
+    next = normalisePostPolicy(req.body?.postPolicy);
+  } catch (e) {
+    return res.status(400).type("text/plain").send(e.message);
+  }
+  if (next === channel.postPolicy) {
+    return res.redirect(`/admin/channels/${channel.id}`);
+  }
+  await prisma.channel.update({
+    where: { id: channel.id },
+    data: { postPolicy: next },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Channel",
+    entityId: channel.id,
+    action: "update",
+    summary: `Post policy: ${channel.postPolicy} → ${next} (${channel.name})`,
+  });
+  res.redirect(`/admin/channels/${channel.id}`);
 });
 
 adminRouter.post("/channels/:id/suspend", requireLeader, async (req, res) => {

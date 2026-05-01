@@ -1177,6 +1177,14 @@ model Channel {
   name            String
   patrolName      String?  // for kind=patrol; matches Member.patrol
   eventId         String?  @unique  // for kind=event; one channel per event
+  // Who's allowed to post a message to this channel:
+  //   "everyone" — any org member can post (broadcast-style)
+  //   "members"  — only ChannelMember rows can post (default)
+  //   "section"  — only members whose Member.patrol matches patrolName
+  //                can post (e.g. only Wolf Den parents post in Wolf Den)
+  //   "leaders"  — only adult leaders + admins can post (announcement-only)
+  // Adult leaders + admins always pass; this gate scopes who *else* can post.
+  postPolicy      String   @default("members")
   isSuspended     Boolean  @default(false)
   suspendedReason String?
   archivedAt      DateTime?

@@ -23,6 +23,7 @@ import {
   checkChannelTwoDeep,
 } from "../lib/chat.js";
 import { publishMessage, subscribe as subscribeRealtime } from "../lib/realtime.js";
+import { canPostToChannel } from "../lib/chatPermissions.js";
 import { logger } from "../lib/log.js";
 
 const log = logger.child("api");
@@ -476,13 +477,40 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
   const membership = await membershipFor(req.apiUser.id, channel.orgId);
   if (!membership) return res.status(404).json({ error: "not_found" });
 
-  // Caller must be in the channel (or a leader/admin).
-  if (channel.kind !== "troop" && membership.role !== "leader" && membership.role !== "admin") {
-    const member = await prisma.channelMember.findFirst({
-      where: { channelId: channel.id, userId: req.apiUser.id },
-      select: { id: true },
-    });
-    if (!member) return res.status(403).json({ error: "not_in_channel" });
+  // Resolve the channel-membership row + Member directory entry once,
+  // then defer the policy decision to lib/chatPermissions.canPostToChannel.
+  const isLeader = membership.role === "leader" || membership.role === "admin";
+  const [channelMembership, member] = await Promise.all([
+    isLeader
+      ? Promise.resolve(null)
+      : prisma.channelMember.findFirst({
+          where: { channelId: channel.id, userId: req.apiUser.id },
+          select: { id: true },
+        }),
+    isLeader || !req.apiUser.email
+      ? Promise.resolve(null)
+      : prisma.member.findFirst({
+          where: { orgId: channel.orgId, email: req.apiUser.email.toLowerCase() },
+          select: { patrol: true },
+        }),
+  ]);
+  const decision = canPostToChannel(channel, {
+    role: membership.role,
+    isLeader,
+    channelMembership,
+    member,
+  });
+  if (!decision.ok) {
+    if (decision.reason === "suspended") {
+      return res.status(409).json({
+        error: "channel_suspended",
+        reason: channel.suspendedReason,
+      });
+    }
+    if (decision.reason === "archived") {
+      return res.status(409).json({ error: "archived" });
+    }
+    return res.status(403).json({ error: decision.reason });
   }
 
   const body = String(req.body?.body || "").trim();
@@ -505,13 +533,6 @@ apiRouter.post("/channels/:id/messages", resolveApiUser, async (req, res) => {
       });
     }
     throw e;
-  }
-
-  if (channel.isSuspended) {
-    return res.status(409).json({
-      error: "channel_suspended",
-      reason: channel.suspendedReason,
-    });
   }
 
   // Optional inline attachment — poll, rsvp, or photo. The same column
