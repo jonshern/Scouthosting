@@ -65,6 +65,7 @@ import {
   normaliseSectionPatch as normaliseHomepageSectionPatch,
   readTestimonials as readHomepageTestimonials,
 } from "../lib/homepageSections.js";
+import { categoryMeta as eventCategoryMeta } from "../lib/eventCategories.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -1876,10 +1877,15 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
     take: 20,
   });
 
-  const renderRow = (e) => `
+  const renderRow = (e) => {
+    const meta = e.category ? eventCategoryMeta(e.category) : null;
+    const tag = meta
+      ? `<span class="tag" style="background:var(--${meta.color});${meta.color === "accent" || meta.color === "butter" ? "color:var(--ink)" : "color:#fff"};border-color:var(--${meta.color})">${escape(meta.label)}</span>`
+      : "";
+    return `
     <li>
       <div>
-        <h3>${escape(e.title)}</h3>
+        <h3>${escape(e.title)} ${tag}</h3>
         <p>${escape(
           e.startsAt.toLocaleString("en-US", {
             weekday: "short",
@@ -1888,9 +1894,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
             hour: "numeric",
             minute: "2-digit",
           })
-        )}${e.location ? ` · ${escape(e.location)}` : ""}${
-    e.category ? ` <span class="tag">${escape(e.category)}</span>` : ""
-  }</p>
+        )}${e.location ? ` · ${escape(e.location)}` : ""}</p>
       </div>
       <div class="row">
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rsvps">RSVPs</a>
@@ -1909,6 +1913,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
         </form>
       </div>
     </li>`;
+  };
 
   const subscribeUrl = `https://${req.org.slug}.${process.env.APEX_DOMAIN || "compass.app"}/calendar.ics`;
   const body = `

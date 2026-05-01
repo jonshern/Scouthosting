@@ -1427,7 +1427,12 @@ app.get("/events", async (req, res, next) => {
   ).flat().sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)).slice(0, 50);
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderEventsList(req.org, expanded, { apexDomain: APEX_DOMAIN }));
+    .send(
+      renderEventsList(req.org, expanded, {
+        apexDomain: APEX_DOMAIN,
+        categoryFilter: req.query?.category ? String(req.query.category) : "",
+      }),
+    );
 });
 
 // Members-only trip plan view.

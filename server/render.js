@@ -333,6 +333,9 @@ function renderSlotsBlock({ event, slots, user, flash }) {
 }
 
 import { metaTags, eventJsonLd, organizationJsonLd } from "../lib/seo.js";
+import { categoryMeta } from "../lib/eventCategories.js";
+
+const PALETTE_VAR = (key) => `var(--${key})`;
 
 export function renderEventDetail(org, e, ctx = {}) {
   const start = new Date(e.startsAt);
@@ -373,7 +376,15 @@ export function renderEventDetail(org, e, ctx = {}) {
   <section class="event-detail">
     <a class="back" href="/events">← All events</a>
     <h1>${escapeHtml(e.title)}</h1>
-    ${e.category ? `<p class="muted small" style="margin-top:-.4rem">${escapeHtml(e.category)}</p>` : ""}
+    ${
+      e.category
+        ? (() => {
+            const meta = categoryMeta(e.category);
+            const ink = meta.color === "accent" || meta.color === "butter";
+            return `<p style="margin-top:-.4rem"><span class="event-cat-tag" style="background:${PALETTE_VAR(meta.color)};${ink ? "color:var(--ink)" : "color:#fff"};display:inline-block;padding:.18rem .65rem;border-radius:999px;font-size:.7rem;font-weight:700;letter-spacing:.04em">${escapeHtml(meta.label)}</span></p>`;
+          })()
+        : ""
+    }
 
     ${rsvpBlock}
     ${slotsBlock}
@@ -636,10 +647,48 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
 }
 
 export function renderEventsList(org, events, ctx = {}) {
-  const items = events.length
-    ? events
+  // Build a category-filter chip row from the categories actually
+  // present in the visible events. URL-driven so it works without JS:
+  // /events?category=campout filters to that bucket, /events clears.
+  const filter = ctx.categoryFilter ? String(ctx.categoryFilter) : "";
+  const visible = filter
+    ? events.filter((e) => (e.category || "").toLowerCase().replace(/[\s_]+/g, "-") === filter.toLowerCase().replace(/[\s_]+/g, "-"))
+    : events;
+  const presentCategories = Array.from(
+    new Map(
+      events
+        .filter((e) => e.category)
+        .map((e) => [e.category, categoryMeta(e.category)]),
+    ).entries(),
+  );
+  const filterChips = presentCategories.length
+    ? `<div class="event-filters" style="display:flex;flex-wrap:wrap;gap:.4rem;margin:1rem 0">
+        <a class="event-chip${!filter ? " event-chip--on" : ""}" href="/events">All</a>
+        ${presentCategories
+          .map(([raw, meta]) => {
+            const slug = String(raw).toLowerCase().replace(/[\s_]+/g, "-");
+            const on = slug === filter.toLowerCase().replace(/[\s_]+/g, "-");
+            return `<a class="event-chip${on ? " event-chip--on" : ""}" href="/events?category=${encodeURIComponent(slug)}" style="--cc:${PALETTE_VAR(meta.color)}">${escapeHtml(meta.label)}</a>`;
+          })
+          .join("")}
+      </div>
+      <style>
+        .event-chip{display:inline-flex;align-items:center;gap:.35rem;padding:.35rem .85rem;border-radius:999px;font-size:.82rem;font-weight:600;color:var(--ink);background:var(--surface);border:1.5px solid var(--line);text-decoration:none}
+        .event-chip:hover{border-color:var(--ink)}
+        .event-chip--on{background:var(--cc,var(--primary));color:#fff;border-color:var(--cc,var(--primary))}
+        .event-chip[href="/events"].event-chip--on{background:var(--ink);color:#fff;border-color:var(--ink)}
+        .event-cat-tag{display:inline-block;padding:.15rem .55rem;border-radius:999px;font-size:.7rem;font-weight:700;letter-spacing:.04em;color:#fff}
+        .event-list .events li{position:relative}
+      </style>`
+    : "";
+  const items = visible.length
+    ? visible
         .map((e) => {
           const d = new Date(e.startsAt);
+          const meta = e.category ? categoryMeta(e.category) : null;
+          const tag = meta
+            ? `<span class="event-cat-tag" style="background:${PALETTE_VAR(meta.color)};${meta.color === "accent" || meta.color === "butter" ? "color:var(--ink)" : ""}">${escapeHtml(meta.label)}</span>`
+            : "";
           return `
     <li>
       <time datetime="${escapeHtml(d.toISOString())}">
@@ -647,10 +696,8 @@ export function renderEventsList(org, events, ctx = {}) {
         <span class="d">${d.getDate()}</span>
       </time>
       <div>
-        <h3><a href="/events/${escapeHtml(e.id)}" style="color:inherit;text-decoration:none">${escapeHtml(e.title)}</a></h3>
-        <p>${escapeHtml(fmtTime(e.startsAt))}${e.location ? ` · ${escapeHtml(e.location)}` : ""}${
-            e.category ? ` · ${escapeHtml(e.category)}` : ""
-          }</p>
+        <h3><a href="/events/${escapeHtml(e.id)}" style="color:inherit;text-decoration:none">${escapeHtml(e.title)}</a> ${tag}</h3>
+        <p>${escapeHtml(fmtTime(e.startsAt))}${e.location ? ` · ${escapeHtml(e.location)}` : ""}</p>
       </div>
     </li>`;
         })
@@ -661,13 +708,16 @@ export function renderEventsList(org, events, ctx = {}) {
     <a class="back" href="/">← Home</a>
     <h1>Upcoming events</h1>
     <p class="muted">All scheduled events — subscribe once and keep them in your phone calendar.</p>
-    <p style="margin:1rem 0 2rem">
+    <p style="margin:1rem 0 0">
       <a class="btn primary" href="/calendar.ics">Subscribe to calendar (.ics)</a>
     </p>
+    ${filterChips}
     ${
-      events.length
+      visible.length
         ? `<ul class="events">${items}</ul>`
-        : `<p class="muted">No upcoming events on the calendar.</p>`
+        : filter
+          ? `<p class="muted">No <strong>${escapeHtml(filter)}</strong> events scheduled. <a href="/events">See all →</a></p>`
+          : `<p class="muted">No upcoming events on the calendar.</p>`
     }
   </section>`;
   const url = `https://${org.slug}.${ctx.apexDomain || "compass.app"}/events`;
