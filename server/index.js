@@ -2001,6 +2001,113 @@ app.get("/forms", async (req, res, next) => {
     .send(renderForms(req.org, forms, { user: req.user, role }));
 });
 
+// Member self-service. A signed-in member can edit their own
+// contact info + communication preferences from the org subdomain
+// without bothering a leader. The matching Member row is found by
+// email (the same heuristic admin auth uses); if there's no Member
+// for this email, we render a "ask your leader to add you to the
+// directory" message.
+app.get("/me", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect("/login?next=/me");
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (!role) return res.status(403).type("text/plain").send("Not a member of this unit.");
+  const member = await prisma.member.findFirst({
+    where: { orgId: req.org.id, email: req.user.email.toLowerCase() },
+  });
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(renderSelfServicePage(req.org, req.user, member, role, req.csrfToken, req.query));
+});
+
+app.post("/me", csrfProtect, async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect("/login?next=/me");
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (!role) return res.status(403).type("text/plain").send("Not a member of this unit.");
+  const member = await prisma.member.findFirst({
+    where: { orgId: req.org.id, email: req.user.email.toLowerCase() },
+  });
+  if (!member) return res.redirect("/me?notlinked=1");
+  const phone = String(req.body?.phone || "").trim().slice(0, 40) || null;
+  const commPreference = ["email", "sms", "both", "none"].includes(req.body?.commPreference)
+    ? req.body.commPreference
+    : "email";
+  const smsOptIn = req.body?.smsOptIn === "1";
+  await prisma.member.update({
+    where: { id: member.id },
+    data: { phone, commPreference, smsOptIn },
+  });
+  res.redirect("/me?saved=1");
+});
+
+function renderSelfServicePage(org, user, member, role, csrfToken, query) {
+  const escapeAttr = (s) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  const sel = (cond) => (cond ? " selected" : "");
+  const checked = (cond) => (cond ? " checked" : "");
+  const flash = query?.saved
+    ? `<div class="flash flash-ok" style="background:#e3f29b;border:1px solid #c8e94a;padding:.6rem .85rem;border-radius:8px;margin:1rem 0">Saved.</div>`
+    : query?.notlinked
+      ? `<div class="flash" style="background:#fbe8e3;border:1px solid #f0bcb1;padding:.6rem .85rem;border-radius:8px;margin:1rem 0;color:#7d2614">No directory entry for ${escapeAttr(user.email)} yet — ask a unit leader to add you.</div>`
+      : "";
+  const linked = member
+    ? `<form method="post" action="/me" class="card" style="background:#fff;border:1px solid #d4c8a8;border-radius:14px;padding:1.5rem">
+        ${csrfToken ? `<input type="hidden" name="csrf" value="${escapeAttr(csrfToken)}">` : ""}
+        <h2 style="margin-top:0">Your contact details</h2>
+        <p style="color:#5a6258;font-size:.92rem">These are what a leader sees in the directory and what we use when sending broadcasts.</p>
+        <label style="display:block;margin:1rem 0">Name
+          <input type="text" value="${escapeAttr(member.firstName + " " + member.lastName)}" disabled style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #e6dcc0;border-radius:8px;background:#f4ecdc;color:#5a6258">
+          <span style="color:#5a6258;font-size:.78rem">Ask a leader to fix typos in your name.</span>
+        </label>
+        <label style="display:block;margin:1rem 0">Email
+          <input type="email" value="${escapeAttr(member.email)}" disabled style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #e6dcc0;border-radius:8px;background:#f4ecdc;color:#5a6258">
+        </label>
+        <label style="display:block;margin:1rem 0">Phone
+          <input name="phone" type="tel" value="${escapeAttr(member.phone || "")}" placeholder="555-0142" style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #d4c8a8;border-radius:8px">
+        </label>
+        <label style="display:block;margin:1rem 0">How should we reach you?
+          <select name="commPreference" style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #d4c8a8;border-radius:8px">
+            <option value="email"${sel(member.commPreference === "email")}>Email only</option>
+            <option value="sms"${sel(member.commPreference === "sms")}>Text only</option>
+            <option value="both"${sel(member.commPreference === "both")}>Both email and text</option>
+            <option value="none"${sel(member.commPreference === "none")}>Don't contact me (still in directory)</option>
+          </select>
+        </label>
+        <label style="display:flex;align-items:center;gap:.5rem;margin:1rem 0">
+          <input name="smsOptIn" type="checkbox" value="1"${checked(member.smsOptIn)}>
+          I consent to receiving text messages at the phone number above.
+        </label>
+        <button type="submit" style="background:#0d130d;color:#f4ecdc;border:1.5px solid #0d130d;padding:.65rem 1.1rem;border-radius:8px;font-weight:600;cursor:pointer">Save</button>
+      </form>`
+    : `<div class="flash" style="background:#fbe8e3;border:1px solid #f0bcb1;padding:1rem 1.2rem;border-radius:8px;color:#7d2614;margin:1rem 0">
+        We couldn't find a directory entry matching <strong>${escapeAttr(user.email)}</strong>. Ask a unit leader to add you, then come back.
+      </div>`;
+  return `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My settings — ${escapeAttr(org.displayName)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:"Inter Tight",sans-serif;background:#f4ecdc;color:#0d130d;min-height:100vh}
+main{max-width:560px;margin:0 auto;padding:2rem 1rem}
+h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em}
+h1 em{font-style:italic;color:#0e3320}
+.muted{color:#5a6258;font-size:.92rem}
+input:focus,select:focus{outline:2px solid #0e3320;outline-offset:1px}
+</style></head><body>
+<main>
+<a href="/" style="color:#5a6258;text-decoration:none;font-size:.86rem">← ${escapeAttr(org.displayName)}</a>
+<h1>My <em>settings.</em></h1>
+<p class="muted">Signed in as ${escapeAttr(user.displayName || user.email)}${role && role !== "parent" ? ` · <strong>${escapeAttr(role)}</strong>` : ""}.</p>
+${flash}
+${linked}
+<p class="muted" style="margin-top:1.5rem">For everything else (medical info, family link-ups, position changes), ask your unit leader.</p>
+</main></body></html>`;
+}
+
 // Members-only directory. A signed-in user with any membership in this
 // org sees the roster; everyone else gets a sign-in prompt.
 app.get("/members", async (req, res, next) => {
