@@ -1359,15 +1359,16 @@ model SupportTicket {
   @@index([orgId])
 }
 
-// Refund record — paired with a Stripe refund (or manual write-off).
-// Linked to the original Payment / Reimbursement when possible. The
-// super-admin records why and how much; we emit it to the audit log
-// and (for Stripe-tracked payments) reflect it back to Stripe via the
-// refund API.
+// Operator-issued refund / billing credit. Compass doesn't process
+// payments — units collect dues out-of-band (check, Venmo, Scoutbook,
+// etc.) — but we *do* charge the unit a SaaS fee. This row records
+// when the super-admin gives a unit a credit or refund against that
+// fee. paymentRef is a free-form pointer to whatever billing system
+// processed it (today: a manual note; future: an invoice id).
 model Refund {
   id           String   @id @default(cuid())
   orgId        String
-  paymentRef   String?  // Stripe charge id, or "manual:<note>"
+  paymentRef   String?  // free-form ref to the source payment
   amountCents  Int
   reason       String
   issuedBy     String   // User.id of the super-admin who issued it

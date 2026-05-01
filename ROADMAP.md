@@ -1,12 +1,14 @@
 # Compass Roadmap
 
 **Compass is the communication hub for Scout units** — troops, Cub Scout
-packs, Venturing crews, Sea Scout ships. The Evite + SignUpGenius +
-Mailchimp + 2008-vintage hosting platform every unit currently duct-tapes
-together, replaced by one tool. Calendar with RSVPs and payment, sign-up
-sheets for potlucks and drivers, group email and SMS, photos with
-per-scout privacy controls, public homepage. Built for the way volunteer
-units actually run.
+packs, Venturing crews, Sea Scout ships, Girl Scout troops. The Evite +
+SignUpGenius + Mailchimp + GroupMe + 2008-vintage hosting platform every
+unit currently duct-tapes together, replaced by one tool. Group chat
+with YPT two-deep enforcement, Sunday newsletters, calendar with RSVPs,
+sign-up sheets for potlucks and drivers, group email and SMS, photos
+with per-scout privacy controls, public homepage. Built for the way
+volunteer units actually run. Compass tracks money but doesn't process
+it — units keep collecting through their existing channels.
 
 **Scoutbook handles advancement, and we don't try to compete with it.**
 Scouting America's official tool already tracks ranks, merit badges,
@@ -385,8 +387,8 @@ So Compass:
 - **Does not** build a parallel rank / merit-badge tracker. Period.
 - **Focuses on what Scoutbook deliberately doesn't cover** — the
   operational + communication layer that makes a unit run. Calendar
-  with RSVP / payment / carpools, sign-up sheets for potlucks and
-  drivers, group email + SMS, photos with per-scout privacy controls,
+  with RSVP + carpools, sign-up sheets for potlucks and drivers,
+  group email + SMS, photos with per-scout privacy controls,
   the public homepage families see when they Google "Scouts BSA Anytown".
 - **Treats advancement-adjacent tooling as Scoutbook flow-improvers,
   not replacements** — service-hour capture from our calendar that
@@ -534,9 +536,14 @@ we build goes through the comms / operations filter first.
 
 ## Phase 9 — Money
 
+Compass does **not** process payments. Card-handling, Stripe, dues
+collection — all out of scope. Units already collect dues via check,
+Venmo, Zelle, or Scoutbook payments; adding a payments stack would
+duplicate that and introduce PCI compliance surface for no
+differentiation. Treasurer features here are about **tracking**
+(reimbursements, ledgers, reports) — not collecting.
+
 - [ ] Scout account ledger (credits, debits, fundraising)
-- [ ] Dues schedules + automatic invoicing
-- [ ] Event payments via Stripe
 - [x] **Treasurer report (per-event P&L)** — `/admin/treasurer` lists
       every event with income (cost × yes-RSVPs), expenses (sum of
       paid reimbursements assigned to that event), and the net.
@@ -682,9 +689,9 @@ read-only until the threshold is restored.
 ## Phase 13 — Open API & integrations
 
 - [ ] Versioned REST API (read+write) with OAuth2
-- [ ] Webhooks (event created, advancement recorded, payment received)
+- [ ] Webhooks (event created, advancement recorded, RSVP changed)
 - [ ] Native integrations: Scoutbook, Internet Advancement, Google/Apple
-      Calendar, Stripe, Mailgun, Slack, Discord
+      Calendar, Mailgun, Slack, Discord
 - [ ] Public migration tool: import from TroopWebHost export
 
 ## Phase 14 — Trust & compliance
