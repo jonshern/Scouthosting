@@ -175,10 +175,11 @@ function pageShell(org, title, body) {
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)} — ${escapeHtml(org.displayName)}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/styles.css">
 <style>
-:root{--green-700:${escapeHtml(org.primaryColor || "#1d6b39")};--gold:${escapeHtml(org.accentColor || "#caa54a")}}
+:root{--primary:${escapeHtml(org.primaryColor || "#0e3320")};--accent:${escapeHtml(org.accentColor || "#c8e94a")};--green-700:var(--primary);--gold:var(--accent)}
 .event-detail{padding:3rem 0}
 .event-detail .meta{display:grid;grid-template-columns:120px 1fr;gap:.6rem 1.5rem;margin:1.5rem 0;color:var(--ink-700)}
 .event-detail .meta dt{font-size:.78rem;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-500);font-weight:600}
@@ -200,7 +201,7 @@ function pageShell(org, title, body) {
 .rsvp-flash-err{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614}
 .slots-list{list-style:none;padding:0;margin:.5rem 0 0;display:grid;gap:.6rem}
 .slots-list li{background:#fbf8ee;border:1px solid #eef0e7;border-radius:10px;padding:.85rem 1rem;display:flex;justify-content:space-between;gap:1rem;align-items:flex-start;flex-wrap:wrap}
-.slots-list h3{margin:0 0 .15rem;font-size:1rem;font-family:Inter,sans-serif}
+.slots-list h3{margin:0 0 .15rem;font-size:1rem;font-family:'Inter Tight',Inter,sans-serif}
 .slots-list p{margin:0;color:var(--ink-700);font-size:.92rem}
 .slots-list .slot-head{flex:1;min-width:220px}
 .slots-list .tag{display:inline-block;background:#fff;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.78rem;color:var(--ink-500);margin-left:.25rem}
@@ -613,7 +614,7 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
       .event-list ul.items{list-style:none;padding:0;margin:0;display:grid;gap:.6rem}
       .event-list ul.items li{display:flex;gap:1.5rem;justify-content:space-between;align-items:flex-start;background:#fff;border:1px solid #eef0e7;border-radius:10px;padding:.85rem 1rem}
       .event-list ul.items li.indent{margin-left:1.5rem;background:#fbf8ee}
-      .event-list ul.items h3{margin:0 0 .15rem;font-size:1rem;font-family:Inter,sans-serif}
+      .event-list ul.items h3{margin:0 0 .15rem;font-size:1rem;font-family:'Inter Tight',Inter,sans-serif}
       .event-list ul.items p{margin:0}
       .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.1rem .45rem;border-radius:5px;font-size:.78rem;color:#6b7280;margin-right:.25rem}
       .tag-diet{background:#fff7e6;border-color:#ecd87a;color:#7d5a00}
@@ -1284,7 +1285,7 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
     <style>
       .trip-actions{margin:.6rem 0 1rem}
       .trip-meal{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1rem 1.25rem;margin-bottom:1rem;box-shadow:0 1px 2px rgba(15,58,31,.06),0 6px 18px rgba(15,58,31,.04)}
-      .trip-meal h3{margin:0 0 .15rem;font-size:1.1rem;font-family:Inter,sans-serif}
+      .trip-meal h3{margin:0 0 .15rem;font-size:1.1rem;font-family:'Inter Tight',Inter,sans-serif}
       .trip-meal table,.trip-shop table.shopping{width:100%;border-collapse:collapse;margin-top:.5rem;font-size:.93rem}
       .trip-meal th,.trip-shop th{text-align:left;padding:.4rem .55rem;border-bottom:1px solid #eef0e7;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-500);font-weight:600}
       .trip-meal td,.trip-shop td{padding:.4rem .55rem;border-bottom:1px solid #eef0e7}
