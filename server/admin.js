@@ -43,7 +43,6 @@ import {
   subgroupVocab,
   subgroupPresets,
   positionOptions,
-  hasFixedSubgroups,
 } from "../lib/orgRoles.js";
 import { SCOPES, scopesForPosition, requireScope } from "../lib/permissions.js";
 import { rollup as rollupAnalytics, track, EVENTS } from "../lib/analytics.js";
