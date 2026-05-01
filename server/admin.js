@@ -47,6 +47,7 @@ import {
 } from "../lib/orgRoles.js";
 import { SCOPES, scopesForPosition, requireScope } from "../lib/permissions.js";
 import { rollup as rollupAnalytics, track, EVENTS } from "../lib/analytics.js";
+import { parseRoster, mapMemberRows } from "../lib/rosterImport.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -92,9 +93,9 @@ const ALLOWED_DOC_MIME = new Set([
   "application/zip",
 ]);
 
-// Small CSV uploads (member roster import). Held in memory — these
-// files are tiny by definition (member rosters cap at a few hundred rows)
-// so we skip the temp-file dance.
+// Roster uploads (CSV or Excel). Held in memory — files are small by
+// definition (member rosters cap at a few hundred rows), so we skip
+// the temp-file dance.
 const csvUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 2 * 1024 * 1024, files: 1 },
@@ -103,9 +104,10 @@ const csvUpload = multer({
       file.mimetype === "text/csv" ||
       file.mimetype === "text/plain" ||
       file.mimetype === "application/vnd.ms-excel" ||
+      file.mimetype === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
       file.mimetype === "application/octet-stream"; // some browsers
     if (ok) cb(null, true);
-    else cb(new Error(`Unsupported CSV type: ${file.mimetype}`));
+    else cb(new Error(`Unsupported roster type: ${file.mimetype}`));
   },
 });
 
@@ -530,7 +532,21 @@ code{
   .subnav{padding:.5rem 1rem;overflow-x:auto;flex-wrap:nowrap}
   .subnav-link{white-space:nowrap}
   .main{padding:1.25rem}
+  /* Lists collapse to stacked rows so the right-hand action button
+     doesn't push the title off-screen. */
+  ul.items li{flex-direction:column;align-items:stretch;gap:.55rem}
+  ul.items li > .row{justify-content:flex-start}
+  /* Form rows go single-column. */
+  .row{flex-direction:column;align-items:stretch}
+  .row > label{flex:1 1 auto;width:100%}
 }
+/* Tables (training roster, audit log, reimbursements, ingredients)
+   can be wider than the viewport. Scope a horizontal scroller onto
+   the surrounding card so the table doesn't bleed off-screen on
+   phones — the rest of the card's content is short enough that the
+   horizontal scroll only kicks in for the table itself. */
+.card:has(table.ing-table){overflow-x:auto;-webkit-overflow-scrolling:touch}
+.ing-table{min-width:520px}
 `;
 
 function loginPage({ org, error }) {
@@ -3227,12 +3243,13 @@ async function reconcilePositionTerm(orgId, memberId, _oldPosition, newPosition)
 adminRouter.get("/members/import", requireLeader, async (req, res) => {
   const body = `
     <h1>Bulk import members</h1>
-    <p class="muted">Paste CSV or upload a .csv file. The first row must be a header — recognized column names (case-insensitive):</p>
+    <p class="muted">Upload an Excel workbook (<code>.xlsx</code>) or a CSV file, or paste CSV text. The first row must be a header — recognized column names (case-insensitive, ignores spaces/underscores):</p>
     <p class="muted small"><code>firstName, lastName, email, phone, patrol, position, isYouth, commPreference, smsOptIn, skills, interests, notes</code></p>
+    <p class="muted small">Aliases: <code>first_name</code>/<code>First Name</code>, <code>last_name</code>, <code>den</code>/<code>level</code> for patrol, <code>role</code>/<code>title</code> for position.</p>
 
     <form class="card" method="post" action="/admin/members/import" enctype="multipart/form-data">
-      <h2 style="margin-top:0">Upload a CSV file</h2>
-      <label>File<input name="file" type="file" accept=".csv,text/csv,text/plain"></label>
+      <h2 style="margin-top:0">Upload a roster file</h2>
+      <label>File <span class="muted small">(.xlsx, .xls, .csv)</span><input name="file" type="file" accept=".csv,.xlsx,.xls,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"></label>
       <p class="muted small">— or —</p>
       <label>Paste CSV text
         <textarea name="csv" rows="10" placeholder="firstName,lastName,email,patrol,isYouth&#10;Alex,Park,alex@example.com,Eagles,1&#10;Pat,Adams,pat@example.com,,0"></textarea>
@@ -3246,80 +3263,19 @@ adminRouter.get("/members/import", requireLeader, async (req, res) => {
   res.type("html").send(layout(req, { title: "Import members", body }));
 });
 
-// Tiny CSV parser — handles quoted fields and embedded commas/quotes.
-function parseCsv(text) {
-  const rows = [];
-  let cur = [], field = "", inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }
-        else inQuotes = false;
-      } else field += c;
-    } else {
-      if (c === '"') inQuotes = true;
-      else if (c === ",") { cur.push(field); field = ""; }
-      else if (c === "\n") { cur.push(field); rows.push(cur); cur = []; field = ""; }
-      else if (c === "\r") { /* skip */ }
-      else field += c;
-    }
-  }
-  if (field.length > 0 || cur.length > 0) { cur.push(field); rows.push(cur); }
-  return rows.filter((r) => r.length > 1 || (r.length === 1 && r[0].trim() !== ""));
-}
-
 adminRouter.post("/members/import", requireLeader, csvUpload.single("file"), async (req, res) => {
-  // Prefer uploaded file; fall back to pasted textarea.
-  const fromFile = req.file?.buffer ? req.file.buffer.toString("utf8") : "";
-  const text = (fromFile || String(req.body?.csv || "")).trim();
-  if (!text) return res.redirect("/admin/members");
-  const rows = parseCsv(text);
-  if (rows.length < 2) return res.redirect("/admin/members");
-
-  const header = rows[0].map((h) => h.trim().toLowerCase());
-  const idx = (k) => header.indexOf(k.toLowerCase());
-  const truthy = (v) => /^(1|true|yes|y)$/i.test(String(v || "").trim());
-
-  const data = [];
-  for (let r = 1; r < rows.length; r++) {
-    const row = rows[r];
-    const get = (k) => {
-      const i = idx(k);
-      return i >= 0 ? (row[i] ?? "").trim() : "";
-    };
-    const firstName = get("firstName") || get("first_name") || get("first");
-    const lastName = get("lastName") || get("last_name") || get("last");
-    if (!firstName || !lastName) continue;
-    const pref = get("commPreference") || get("comm") || "email";
-    data.push({
-      orgId: req.org.id,
-      firstName,
-      lastName,
-      email: (get("email") || "").toLowerCase() || null,
-      phone: get("phone") || null,
-      patrol: get("patrol") || null,
-      position: get("position") || null,
-      isYouth: get("isYouth") ? truthy(get("isYouth")) : true,
-      commPreference: ["email", "sms", "both", "none"].includes(pref.toLowerCase())
-        ? pref.toLowerCase()
-        : "email",
-      smsOptIn: truthy(get("smsOptIn") || get("sms_opt_in")),
-      skills: get("skills")
-        ? get("skills")
-            .split(/[;|]/)
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : [],
-      interests: get("interests")
-        ? get("interests")
-            .split(/[;|]/)
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : [],
-      notes: get("notes") || null,
+  let rows = [];
+  try {
+    rows = parseRoster({
+      buffer: req.file?.buffer,
+      filename: req.file?.originalname,
+      text: !req.file ? String(req.body?.csv || "") : "",
     });
+  } catch (e) {
+    return res.status(400).type("text/plain").send(`Couldn't parse the roster: ${e.message}`);
   }
+  if (rows.length < 2) return res.redirect("/admin/members");
+  const data = mapMemberRows({ rows, orgId: req.org.id });
   if (data.length) {
     await prisma.member.createMany({ data });
   }
