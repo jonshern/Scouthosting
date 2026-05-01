@@ -1395,7 +1395,22 @@ export function renderTripPlan(org, ev, plan, headcount, flagged) {
       .tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;padding:.05rem .4rem;border-radius:5px;font-size:.78rem;color:var(--ink-500);margin-right:.25rem}
       .trip-tag{display:inline-block;background:#fbf8ee;border:1px solid #eef0e7;border-radius:999px;padding:.1rem .55rem;font-size:.78rem;color:var(--ink-500);margin-right:.25rem}
       .trip-warn{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:.55rem .85rem;border-radius:8px;margin:.55rem 0;font-size:.92rem}
-      @media print{.site-header,.back,.trip-actions{display:none}.event-list{padding:0}}
+      @media print{
+        @page{margin:0.6in}
+        .site-header,.site-footer,.back,.trip-actions,.no-print{display:none !important}
+        .event-list{padding:0}
+        body{background:#fff !important;color:#000 !important;font-size:11pt}
+        h1{font-size:18pt}
+        h2{font-size:14pt;page-break-after:avoid}
+        h3{font-size:12pt;page-break-after:avoid}
+        .trip-section{page-break-inside:avoid}
+        .trip-tag{border-color:#999 !important;background:#fff !important}
+        .trip-warn{background:#fff !important;border:1.5px solid #000 !important;color:#000 !important}
+        a{color:#000 !important;text-decoration:none}
+        ul,ol{page-break-inside:avoid}
+        table{page-break-inside:auto}
+        tr{page-break-inside:avoid;page-break-after:auto}
+      }
     </style>`;
   return pageShell(org, `Trip plan · ${ev.title}`, body);
 }
