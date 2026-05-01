@@ -4957,9 +4957,12 @@ adminRouter.get("/email", requireLeader, async (req, res) => {
         </label>
       </div>
       <p class="muted small" style="margin-top:-.4rem">Build new audiences in <a href="/admin/subgroups">Subgroups</a>.</p>
-      <label>Subject<input name="subject" type="text" required maxlength="200"></label>
+      <label>Subject<input id="bcast-subject" name="subject" type="text" required maxlength="200">
+        <span class="muted small" id="bcast-subject-count" style="display:block;margin-top:.2rem">0 / 200 characters</span>
+      </label>
       <label>Body
-        <textarea name="body" rows="8" required placeholder="What you want to tell them. Plain text — paragraphs are preserved."></textarea>
+        <textarea id="bcast-body" name="body" rows="8" required placeholder="What you want to tell them. Plain text — paragraphs are preserved."></textarea>
+        <span class="muted small" id="bcast-body-count" style="display:block;margin-top:.2rem">0 characters</span>
       </label>
       <div class="row">
         <button class="btn btn-primary" type="submit" name="action" value="preview">Preview audience</button>
@@ -4967,6 +4970,59 @@ adminRouter.get("/email", requireLeader, async (req, res) => {
         <a class="btn btn-ghost" href="/admin/email/sent" style="margin-left:auto">History →</a>
       </div>
     </form>
+    <script>
+      // Live character counters. SMS segments follow the GSM-7 (160ch
+      // single, 153ch concat) and UCS-2 (70 / 67) rules. Detect Unicode
+      // by scanning for any code point outside the GSM-7 basic alphabet
+      // and Latin-1 punctuation that maps to it.
+      (function () {
+        const subject = document.getElementById("bcast-subject");
+        const subjectCount = document.getElementById("bcast-subject-count");
+        const body = document.getElementById("bcast-body");
+        const bodyCount = document.getElementById("bcast-body-count");
+        if (!subject || !body) return;
+
+        function isGsm7(text) {
+          // GSM-7 basic + extension covers ASCII-printable + a few
+          // accented Latin characters. Anything outside (emoji,
+          // non-Latin scripts, en/em-dash) flips the message to UCS-2.
+          // A simple charcode-range guard is good enough for the
+          // composer hint.
+          for (let i = 0; i < text.length; i++) {
+            const c = text.charCodeAt(i);
+            if (c > 127) return false;
+          }
+          return true;
+        }
+
+        function smsSegments(text) {
+          if (!text.length) return 0;
+          const len = text.length;
+          if (isGsm7(text)) {
+            return len <= 160 ? 1 : Math.ceil(len / 153);
+          }
+          return len <= 70 ? 1 : Math.ceil(len / 67);
+        }
+
+        function update() {
+          subjectCount.textContent = subject.value.length + " / 200 characters";
+          const len = body.value.length;
+          const segs = smsSegments(body.value);
+          let label = len + " character" + (len === 1 ? "" : "s");
+          if (len > 0) {
+            label += " · " + segs + " SMS segment" + (segs === 1 ? "" : "s");
+            if (segs > 1) {
+              label += " (carriers bill per segment for SMS audiences; email-only audiences ignore this)";
+            }
+          }
+          bodyCount.textContent = label;
+        }
+
+        subject.addEventListener("input", update);
+        body.addEventListener("input", update);
+        update();
+      })();
+    </script>
   `;
   res.type("html").send(layout(req, { title: "Email broadcast", body }));
 });
