@@ -354,6 +354,40 @@ apiRouter.get("/auth/me", resolveApiUser, async (req, res) => {
   });
 });
 
+// GET /api/v1/orgs/:orgId/dashboard — view-model for the mobile home
+// screen. Reuses lib/dashboard so server-rendered admin and the mobile
+// app stay aligned.
+apiRouter.get("/orgs/:orgId/dashboard", resolveApiUser, async (req, res) => {
+  const membership = await membershipFor(req.apiUser.id, req.params.orgId);
+  if (!membership) return res.status(404).json({ error: "not_found" });
+  const { buildDashboardModel } = await import("../lib/dashboard.js");
+  const model = await buildDashboardModel({ prisma, orgId: req.params.orgId });
+  res.json(model);
+});
+
+// POST /api/v1/support — file a SupportTicket from the mobile app.
+// Same shape as the web /help form; 201 with the ticket id on success.
+apiRouter.post("/support", resolveApiUser, async (req, res) => {
+  const subject = String(req.body?.subject || "").trim().slice(0, 200);
+  const body = String(req.body?.body || "").trim().slice(0, 5000);
+  const category = String(req.body?.category || "question");
+  const orgId = req.body?.orgId ? String(req.body.orgId) : null;
+  if (!subject || !body) return res.status(400).json({ error: "subject_and_body_required" });
+  const ticket = await prisma.supportTicket.create({
+    data: {
+      orgId,
+      userId: req.apiUser.id,
+      fromEmail: req.apiUser.email,
+      fromName: req.apiUser.displayName,
+      subject,
+      body,
+      category,
+      priority: category === "abuse" ? "urgent" : "normal",
+    },
+  });
+  res.status(201).json({ id: ticket.id });
+});
+
 /* ------------------------------------------------------------------ */
 /* Channels                                                            */
 /* ------------------------------------------------------------------ */

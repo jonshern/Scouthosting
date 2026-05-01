@@ -7,19 +7,26 @@
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
 import { Avatar, Icon } from '../theme/atoms';
 import { fontFamilies, palette, radius, spacing } from '../theme/tokens';
+import type { ProfileStackParamList } from '../navigation/types';
+
+type ProfileNav = NativeStackNavigationProp<ProfileStackParamList, 'ProfileRoot'>;
 
 const ROWS = [
-  { label: 'Photo permissions', sub: 'Per-scout privacy controls', icon: 'image' as const },
-  { label: 'Notifications', sub: 'Quiet hours · push categories', icon: 'bell' as const },
-  { label: 'Linked scouts', sub: 'Sam · Max · request to add', icon: 'profile' as const },
-  { label: 'Pay methods', sub: 'Visa ending 4242 · Apple Pay', icon: 'flag' as const },
-  { label: 'Sign out', sub: 'Active on this device', icon: 'lock' as const },
+  { label: 'Photo permissions', sub: 'Per-scout privacy controls', icon: 'image' as const, route: 'PhotoPermissions' as const },
+  { label: 'Notifications', sub: 'Quiet hours · push categories', icon: 'bell' as const, route: undefined },
+  { label: 'Linked scouts', sub: 'Sam · Max · request to add', icon: 'profile' as const, route: undefined },
+  { label: 'Pay methods', sub: 'Visa ending 4242 · Apple Pay', icon: 'flag' as const, route: undefined },
+  { label: 'Help & support', sub: 'Contact a Compass operator', icon: 'chat' as const, route: 'Support' as const },
+  { label: 'Sign out', sub: 'Active on this device', icon: 'lock' as const, route: undefined },
 ];
 
 export function ProfileScreen() {
+  const navigation = useNavigation<ProfileNav>();
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView contentContainerStyle={{ paddingBottom: 60 }}>
@@ -36,6 +43,9 @@ export function ProfileScreen() {
           {ROWS.map((r, i) => (
             <Pressable
               key={r.label}
+              onPress={() => {
+                if (r.route === 'Support') navigation.navigate('Support');
+              }}
               style={[
                 styles.row,
                 i < ROWS.length - 1 && {

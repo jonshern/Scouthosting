@@ -37,4 +37,5 @@ export type PhotosStackParamList = {
 
 export type ProfileStackParamList = {
   ProfileRoot: undefined;
+  Support: undefined;
 };

@@ -18,6 +18,7 @@ import PhotosScreen from '../screens/PhotosScreen';
 import PhotoPermissionsScreen from '../screens/PhotoPermissionsScreen';
 import MessagesScreen from '../screens/MessagesScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import SupportScreen from '../screens/SupportScreen';
 
 import ChannelsListScreen from '../screens/chat/ChannelsListScreen';
 import ThreadScreen from '../screens/chat/ThreadScreen';
@@ -86,6 +87,7 @@ function ProfileStackNav() {
   return (
     <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
       <ProfileStack.Screen name="ProfileRoot" component={ProfileScreen} />
+      <ProfileStack.Screen name="Support" component={SupportScreen} />
     </ProfileStack.Navigator>
   );
 }
