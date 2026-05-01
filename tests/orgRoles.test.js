@@ -15,6 +15,7 @@ import {
   subgroupPresets,
   positionOptions,
   hasFixedSubgroups,
+  seedSubgroupsForOrg,
 } from "../lib/orgRoles.js";
 
 describe("subgroupVocab", () => {
@@ -23,6 +24,11 @@ describe("subgroupVocab", () => {
     expect(subgroupVocab("Pack").plural).toBe("dens");
     expect(subgroupVocab("Troop").singular).toBe("patrol");
     expect(subgroupVocab("Troop").plural).toBe("patrols");
+  });
+
+  it("uses 'level' for Girl Scout troops", () => {
+    expect(subgroupVocab("GirlScoutTroop").singular).toBe("level");
+    expect(subgroupVocab("GirlScoutTroop").plural).toBe("levels");
   });
 
   it("falls back to Troop vocabulary on unknown unit type (defensive)", () => {
@@ -49,10 +55,24 @@ describe("subgroupPresets", () => {
     expect(subgroupPresets("Troop")).toEqual([]);
   });
 
-  it("hasFixedSubgroups is true for Pack and false for Troop", () => {
+  it("hasFixedSubgroups is true for Pack and GirlScoutTroop, false for Troop", () => {
     expect(hasFixedSubgroups("Pack")).toBe(true);
+    expect(hasFixedSubgroups("GirlScoutTroop")).toBe(true);
     expect(hasFixedSubgroups("Troop")).toBe(false);
     expect(hasFixedSubgroups("Crew")).toBe(false);
+  });
+
+  it("locks the six Girl Scout levels in age order", () => {
+    const presets = subgroupPresets("GirlScoutTroop");
+    const labels = presets.map((p) => p.label);
+    expect(labels).toEqual([
+      "Daisy",
+      "Brownie",
+      "Junior",
+      "Cadette",
+      "Senior",
+      "Ambassador",
+    ]);
   });
 });
 
@@ -91,6 +111,17 @@ describe("positionOptions", () => {
     expect(positionOptions("Crew", "youth")).toContain("Crew President");
   });
 
+  it("Girl Scouts use Troop Leader / Co-Leader / Cookie Manager", () => {
+    const adults = positionOptions("GirlScoutTroop", "adult");
+    expect(adults).toContain("Troop Leader");
+    expect(adults).toContain("Co-Leader");
+    expect(adults).toContain("Cookie Manager");
+    expect(adults).toContain("Service Unit Manager");
+    const youth = positionOptions("GirlScoutTroop", "youth");
+    expect(youth).toContain("Troop President");
+    expect(youth).toContain("Patrol Leader");
+  });
+
   it("merges adult + youth when no audience is specified", () => {
     const all = positionOptions("Troop");
     expect(all).toContain("Scoutmaster");
@@ -106,5 +137,71 @@ describe("positionOptions", () => {
       expect(POSITIONS[ut].adult).toContain("Other");
       expect(POSITIONS[ut].youth).toContain("Other");
     }
+  });
+});
+
+describe("seedSubgroupsForOrg", () => {
+  function fakePrisma() {
+    const subgroups = [];
+    return {
+      _subgroups: subgroups,
+      subgroup: {
+        createMany: async ({ data, skipDuplicates }) => {
+          for (const row of data) {
+            const exists = subgroups.some(
+              (s) => s.orgId === row.orgId && s.name === row.name,
+            );
+            if (exists && skipDuplicates) continue;
+            subgroups.push({ id: `sg-${subgroups.length}`, ...row });
+          }
+          return { count: data.length };
+        },
+        findMany: async ({ where }) =>
+          subgroups.filter(
+            (s) => s.orgId === where.orgId && where.name.in.includes(s.name),
+          ),
+      },
+    };
+  }
+
+  it("creates the six dens for a Cub Scout Pack", async () => {
+    const prisma = fakePrisma();
+    const org = { id: "o1", unitType: "Pack" };
+    const created = await seedSubgroupsForOrg({ prisma, org });
+    expect(created).toHaveLength(6);
+    const names = created.map((s) => s.name).sort();
+    expect(names).toContain("Lion Den");
+    expect(names).toContain("Arrow of Light Den");
+    // Each subgroup filters to its own preset patrol label.
+    const lion = created.find((s) => s.name === "Lion Den");
+    expect(lion.patrols).toEqual(["Lion"]);
+    expect(lion.isYouth).toBe(true);
+  });
+
+  it("creates the six levels for a Girl Scout Troop", async () => {
+    const prisma = fakePrisma();
+    const org = { id: "o1", unitType: "GirlScoutTroop" };
+    const created = await seedSubgroupsForOrg({ prisma, org });
+    expect(created).toHaveLength(6);
+    const names = created.map((s) => s.name);
+    expect(names).toContain("Daisy Level");
+    expect(names).toContain("Ambassador Level");
+  });
+
+  it("no-ops for free-form unit types (Troops, Crews, Ships, Posts)", async () => {
+    for (const ut of ["Troop", "Crew", "Ship", "Post"]) {
+      const prisma = fakePrisma();
+      const out = await seedSubgroupsForOrg({ prisma, org: { id: "o", unitType: ut } });
+      expect(out).toEqual([]);
+      expect(prisma._subgroups).toEqual([]);
+    }
+  });
+
+  it("is idempotent — second seeding doesn't double-insert", async () => {
+    const prisma = fakePrisma();
+    const org = { id: "o1", unitType: "Pack" };
+    await seedSubgroupsForOrg({ prisma, org });
+    await seedSubgroupsForOrg({ prisma, org });
+    expect(prisma._subgroups).toHaveLength(6);
   });
 });

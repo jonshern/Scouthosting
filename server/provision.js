@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 import "dotenv/config";
 
 import { prisma } from "../lib/db.js";
+import { seedSubgroupsForOrg } from "../lib/orgRoles.js";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -29,7 +30,7 @@ const REQUIRED = [
   "scoutmasterEmail",
 ];
 
-const VALID_UNIT_TYPES = ["Troop", "Pack", "Crew", "Ship", "Post"];
+const VALID_UNIT_TYPES = ["Troop", "Pack", "Crew", "Ship", "Post", "GirlScoutTroop"];
 const VALID_PLANS = ["patrol", "troop", "council"];
 
 const RESERVED_SLUGS = new Set([
@@ -60,10 +61,40 @@ export function validateProvisionInput(body = {}) {
   return errors;
 }
 
+// Subdomain prefix per unit type. Most map to a lower-case form of the
+// enum value; Girl Scout troops get a "gstroop" prefix so we don't
+// collide with Scouts BSA "troop" slugs (different program, different
+// numbering — Troop 12 BSA and Girl Scout Troop 12 can both exist in
+// the same town).
+const SLUG_PREFIX = {
+  Troop: "troop",
+  Pack: "pack",
+  Crew: "crew",
+  Ship: "ship",
+  Post: "post",
+  GirlScoutTroop: "gstroop",
+};
+
+// Human-readable display name per unit type. We don't want
+// "GirlScoutTroop 12" leaking into emails or page titles.
+const DISPLAY_PREFIX = {
+  Troop: "Troop",
+  Pack: "Pack",
+  Crew: "Crew",
+  Ship: "Ship",
+  Post: "Post",
+  GirlScoutTroop: "Girl Scout Troop",
+};
+
 export function deriveSlug(unitType, unitNumber) {
-  const t = String(unitType).toLowerCase();
+  const prefix = SLUG_PREFIX[unitType] || String(unitType).toLowerCase();
   const n = String(unitNumber).toLowerCase().replace(/\s+/g, "");
-  return `${t}${n}`;
+  return `${prefix}${n}`;
+}
+
+export function formatDisplayName(unitType, unitNumber) {
+  const prefix = DISPLAY_PREFIX[unitType] || String(unitType);
+  return `${prefix} ${unitNumber}`;
 }
 
 /**
@@ -90,7 +121,7 @@ export async function provisionOrg(input) {
       slug,
       unitType: input.unitType,
       unitNumber: String(input.unitNumber),
-      displayName: `${input.unitType} ${input.unitNumber}`,
+      displayName: formatDisplayName(input.unitType, input.unitNumber),
       tagline: input.tagline?.trim() || null,
       charterOrg,
       city: input.city.trim(),
@@ -110,6 +141,10 @@ export async function provisionOrg(input) {
       isDemo: !!input.isDemo,
     },
   });
+
+  // Seed canonical subgroups (Cub Scout dens, Girl Scout levels, etc.).
+  // Free-form unit types (Troops, Crews, Ships, Posts) get nothing here.
+  await seedSubgroupsForOrg({ prisma, org });
 
   return org;
 }

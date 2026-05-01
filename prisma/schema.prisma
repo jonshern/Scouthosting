@@ -22,11 +22,13 @@ datasource db {
 // ------------------------------------------------------------------
 
 enum UnitType {
-  Troop
-  Pack
-  Crew
-  Ship
-  Post
+  Troop          // Scouts BSA Troop (formerly Boy Scouts)
+  Pack           // Cub Scout Pack
+  Crew           // Venturing Crew
+  Ship           // Sea Scout Ship
+  Post           // Exploring Post
+  GirlScoutTroop // Girl Scouts of the USA Troop (separate organisation
+                 // from Scouts BSA — different program, different vocab)
 }
 
 enum Plan {

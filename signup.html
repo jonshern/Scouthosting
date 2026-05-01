@@ -74,11 +74,16 @@
                 <span class="form-label">Unit type</span>
                 <select name="unitType" required>
                   <option value="">Choose&hellip;</option>
-                  <option>Troop</option>
-                  <option>Pack</option>
-                  <option>Crew</option>
-                  <option>Ship</option>
-                  <option>Post</option>
+                  <optgroup label="Scouts BSA">
+                    <option value="Troop">Troop (Scouts BSA)</option>
+                    <option value="Pack">Pack (Cub Scouts)</option>
+                    <option value="Crew">Crew (Venturing)</option>
+                    <option value="Ship">Ship (Sea Scouts)</option>
+                    <option value="Post">Post (Exploring)</option>
+                  </optgroup>
+                  <optgroup label="Girl Scouts of the USA">
+                    <option value="GirlScoutTroop">Girl Scout Troop</option>
+                  </optgroup>
                 </select>
               </label>
               <label class="form-field">

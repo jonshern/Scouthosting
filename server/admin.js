@@ -45,6 +45,7 @@ import {
   positionOptions,
   hasFixedSubgroups,
 } from "../lib/orgRoles.js";
+import { SCOPES, scopesForPosition, requireScope } from "../lib/permissions.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -624,6 +625,17 @@ async function requireLeader(req, res, next) {
       );
   }
   req.role = role;
+  // Populate the Member directory entry (by email) so position-scope
+  // gates downstream can read req.member.position. Best-effort — it's
+  // fine for a leader to not have a Member row (a fresh admin who hasn't
+  // added themselves to the directory yet).
+  if (req.user.email) {
+    req.member = await prisma.member.findFirst({
+      where: { orgId: req.org.id, email: req.user.email.toLowerCase() },
+      select: { id: true, position: true, isYouth: true, patrol: true },
+    });
+  }
+  req.scopes = req.member ? scopesForPosition(req.member.position) : new Set();
   next();
 }
 
@@ -6006,17 +6018,32 @@ async function decideReimbursement(req, res, status) {
   res.redirect("/admin/reimbursements");
 }
 
-adminRouter.post("/reimbursements/:id/approve", requireLeader, (req, res) =>
-  decideReimbursement(req, res, "approved"),
+// Reimbursement decisions are gated on the TREASURER scope (Treasurer,
+// Cookie Manager, Purser) OR the COMMITTEE_CHAIR scope. Any leader can
+// view the queue, but only positions actually responsible for the unit's
+// money can approve/deny/pay/delete. Org admins always pass.
+const requireMoneyScope = requireScope(SCOPES.TREASURER, SCOPES.COMMITTEE_CHAIR);
+
+adminRouter.post(
+  "/reimbursements/:id/approve",
+  requireLeader,
+  requireMoneyScope,
+  (req, res) => decideReimbursement(req, res, "approved"),
 );
-adminRouter.post("/reimbursements/:id/deny", requireLeader, (req, res) =>
-  decideReimbursement(req, res, "denied"),
+adminRouter.post(
+  "/reimbursements/:id/deny",
+  requireLeader,
+  requireMoneyScope,
+  (req, res) => decideReimbursement(req, res, "denied"),
 );
-adminRouter.post("/reimbursements/:id/pay", requireLeader, (req, res) =>
-  decideReimbursement(req, res, "paid"),
+adminRouter.post(
+  "/reimbursements/:id/pay",
+  requireLeader,
+  requireMoneyScope,
+  (req, res) => decideReimbursement(req, res, "paid"),
 );
 
-adminRouter.post("/reimbursements/:id/delete", requireLeader, async (req, res) => {
+adminRouter.post("/reimbursements/:id/delete", requireLeader, requireMoneyScope, async (req, res) => {
   const r = await prisma.reimbursement.findFirst({
     where: { id: req.params.id, orgId: req.org.id },
     select: { receiptFilename: true, requesterName: true },
