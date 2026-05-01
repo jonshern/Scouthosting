@@ -14,6 +14,7 @@ import { PrismaClient } from "@prisma/client";
 import { save as saveFile } from "../lib/storage.js";
 import { gradientPng } from "../lib/imageGen.js";
 import { buildSeedSubgroups } from "../lib/orgRoles.js";
+import { hashPassword } from "../lib/auth.js";
 
 const prisma = new PrismaClient();
 
@@ -816,6 +817,59 @@ async function seedGirlScoutOrg() {
   return org;
 }
 
+// ---------- Demo login users ----------
+//
+// Creates ready-to-use sign-in accounts so a fresh local install can hit
+// /admin and /__super without the signup dance. Idempotent: existing rows
+// are updated to the canonical password + flags. Demo-only — never run
+// against production. The User.email is the lookup key; passwordHash is
+// rewritten every run.
+
+const DEMO_PASSWORD = "compassdemo123";
+
+async function upsertDemoUser({ email, displayName, isSuperAdmin = false, orgAdminSlugs = [] }) {
+  const passwordHash = await hashPassword(DEMO_PASSWORD);
+  const user = await prisma.user.upsert({
+    where: { email },
+    update: { passwordHash, displayName, isSuperAdmin, emailVerified: true },
+    create: { email, passwordHash, displayName, isSuperAdmin, emailVerified: true },
+  });
+  for (const slug of orgAdminSlugs) {
+    const org = await prisma.org.findUnique({ where: { slug } });
+    if (!org) continue;
+    await prisma.orgMembership.upsert({
+      where: { userId_orgId: { userId: user.id, orgId: org.id } },
+      update: { role: "admin" },
+      create: { userId: user.id, orgId: org.id, role: "admin" },
+    });
+  }
+  return user;
+}
+
+async function seedDemoUsers() {
+  await upsertDemoUser({
+    email: "super@compass.example",
+    displayName: "Demo Super Admin",
+    isSuperAdmin: true,
+  });
+  await upsertDemoUser({
+    email: DEMO.scoutmasterEmail,
+    displayName: DEMO.scoutmasterName,
+    orgAdminSlugs: [DEMO.slug],
+  });
+  await upsertDemoUser({
+    email: PACK_DEMO.scoutmasterEmail,
+    displayName: PACK_DEMO.scoutmasterName,
+    orgAdminSlugs: [PACK_DEMO.slug],
+  });
+  await upsertDemoUser({
+    email: GS_DEMO.scoutmasterEmail,
+    displayName: GS_DEMO.scoutmasterName,
+    orgAdminSlugs: [GS_DEMO.slug],
+  });
+  console.log("✓ Demo login users (4)");
+}
+
 async function main() {
   const org = await prisma.org.upsert({
     where: { slug: DEMO.slug },
@@ -839,10 +893,17 @@ async function main() {
   const pack = await seedPackOrg();
   const gs = await seedGirlScoutOrg();
 
+  await seedDemoUsers();
+
   console.log("\nDemo seeded. Visit:");
   console.log(`  http://${DEMO.slug}.localhost:3000/`);
   console.log(`  http://${pack.slug}.localhost:3000/`);
   console.log(`  http://${gs.slug}.localhost:3000/`);
+  console.log(`\nDemo login (password: ${DEMO_PASSWORD})`);
+  console.log(`  super@compass.example          → super admin · http://localhost:3000/__super`);
+  console.log(`  ${DEMO.scoutmasterEmail.padEnd(30)} → admin · http://${DEMO.slug}.localhost:3000/admin`);
+  console.log(`  ${PACK_DEMO.scoutmasterEmail.padEnd(30)} → admin · http://${pack.slug}.localhost:3000/admin`);
+  console.log(`  ${GS_DEMO.scoutmasterEmail.padEnd(30)} → admin · http://${gs.slug}.localhost:3000/admin`);
 }
 
 main()

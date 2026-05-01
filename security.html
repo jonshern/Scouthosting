@@ -45,13 +45,13 @@
         <span>Compass<span class="accent">.</span></span>
       </a>
 
-      <div class="page-header__pill">Trust &amp; Safety</div>
+      <div class="page-header__pill">Security &amp; privacy</div>
       <h1 class="page-header__title">
-        Built for <em>youth&nbsp;safety</em>, first.
+        What we do with <em>your&nbsp;information</em>.
       </h1>
       <p class="page-header__lede">
-        Your committee can read this page in five minutes and understand exactly what we
-        do with troop and family information &mdash; and what we will never do with it.
+        A short, plain-language page for committee chairs and parents. What we collect,
+        who sees it, and how we keep it safe.
       </p>
     </div>
   </header>
@@ -78,7 +78,7 @@
             <li><span class="promise__mark" aria-hidden="true">&#10003;</span>Hide phone numbers, addresses, and last names from the public side of your troop page.</li>
             <li><span class="promise__mark" aria-hidden="true">&#10003;</span>Require photo permission from a parent before a scout appears in any gallery.</li>
             <li><span class="promise__mark" aria-hidden="true">&#10003;</span>Let your committee export everything you have ever put into Compass, any time, in plain CSV.</li>
-            <li><span class="promise__mark" aria-hidden="true">&#10003;</span>Tell you within 72 hours if anything ever goes wrong with your data.</li>
+            <li><span class="promise__mark" aria-hidden="true">&#10003;</span>Tell you in plain English if anything ever goes wrong with your data, as soon as we know.</li>
           </ul>
         </article>
 
@@ -152,24 +152,17 @@
               <td><span class="badge badge--yes">Yes</span></td>
             </tr>
             <tr>
-              <th scope="row" class="audience__row-th">Medical notes</th>
-              <td><span class="badge badge--no">No</span></td>
+              <th scope="row" class="audience__row-th">Allergies &amp; dietary flags</th>
               <td><span class="badge badge--no">No</span></td>
               <td><span class="badge badge--opt">Opt-in</span></td>
               <td><span class="badge badge--yes">Yes</span></td>
-            </tr>
-            <tr>
-              <th scope="row" class="audience__row-th">Background-check status</th>
-              <td><span class="badge badge--no">No</span></td>
-              <td><span class="badge badge--no">No</span></td>
-              <td><span class="badge badge--self">Own family</span></td>
               <td><span class="badge badge--yes">Yes</span></td>
             </tr>
             <tr>
-              <th scope="row" class="audience__row-th">Audit log of who saw what</th>
+              <th scope="row" class="audience__row-th">YPT training status</th>
               <td><span class="badge badge--no">No</span></td>
-              <td><span class="badge badge--self">Own family</span></td>
-              <td><span class="badge badge--self">Own family</span></td>
+              <td><span class="badge badge--yes">Yes</span></td>
+              <td><span class="badge badge--yes">Yes</span></td>
               <td><span class="badge badge--yes">Yes</span></td>
             </tr>
           </tbody>
@@ -183,33 +176,22 @@
          ================================================================== -->
     <section class="section" aria-labelledby="signin-title">
       <div class="kicker">Signing in</div>
-      <h2 id="signin-title" class="section__title">No passwords for us to lose.</h2>
+      <h2 id="signin-title" class="section__title">How sign-in works.</h2>
 
       <div class="signin">
         <div class="signin__copy">
           <p>
-            Compass doesn't keep a database of passwords. Parents and leaders sign in with
-            the Google or Apple account they already use, or by clicking a one-time link we
-            email them. There's nothing for us to leak.
+            Most parents and leaders sign in with Google or Apple &mdash; the accounts they
+            already use. Anyone with admin permissions (committee chair, scoutmaster,
+            treasurer, webmaster) is required to sign in this way; passwords aren't an
+            option for admin accounts.
           </p>
           <p>
-            Anyone with permission to change rosters, send messages, or see medical notes is
-            required to use a second factor &mdash; a phone prompt, passkey, or one-time
-            code &mdash; every time. Parents who only see their own family aren't required
-            to, but can turn it on.
+            For parents who'd rather use a password, it has to be at least 12 characters.
+            Every failed sign-in attempt is logged, so an unusual pattern of guesses
+            against a family is something a committee chair can review.
           </p>
         </div>
-
-        <aside class="callout" aria-label="Five-minute test">
-          <div class="callout__kicker">The five-minute test</div>
-          <div class="callout__quote">&ldquo;If a leader's phone is stolen at a campout, what happens?&rdquo;</div>
-          <p class="callout__body">
-            They sign in to Compass from any other device, click <em>Sign out everywhere</em>,
-            and the stolen phone is locked out within seconds. The committee chair can also
-            do this on their behalf. No data on the phone &mdash; rosters, messages, photos
-            &mdash; is stored locally; everything is fetched fresh on each sign-in.
-          </p>
-        </aside>
       </div>
     </section>
 
@@ -225,19 +207,18 @@
         <article class="plain-card">
           <h3 class="plain-card__title">Locked.</h3>
           <p>
-            Everything is encrypted on its way to us and while it sits on our servers.
-            Sensitive fields like medical notes and phone numbers get a second layer of
-            encryption with a key that is unique to your troop &mdash; so even our own
-            engineers can't read them in bulk.
+            Everything is encrypted on its way to us (TLS 1.2+) and while it sits on our
+            servers (AES-256 at rest). Database backups are encrypted with a key that is
+            unique to your troop, so a stolen backup tape isn't a stolen roster.
           </p>
         </article>
 
         <article class="plain-card">
           <h3 class="plain-card__title">Logged.</h3>
           <p>
-            Every time a leader exports a roster, opens a medical form, or changes a
+            Every time a leader exports a roster, downloads a form, or changes a
             permission, we keep a record of who did what and when. Committee chairs can
-            download this log any time. Parents see actions taken on their own family.
+            download this log any time.
           </p>
         </article>
 
@@ -290,66 +271,40 @@
         </article>
 
         <article class="ypt__card">
-          <h3 class="ypt__title">Background-check status visible</h3>
+          <h3 class="ypt__title">YPT status visible</h3>
           <p>
             Committee chairs can see at a glance which registered adults have a current
-            Youth Protection Training certificate and background check. Anyone overdue is
-            flagged and can't be added to a campout roster.
+            Youth Protection Training certificate. Anyone overdue is flagged and can't be
+            added to a campout roster.
           </p>
         </article>
       </div>
     </section>
 
     <!-- ==================================================================
-         7. If something goes wrong — timeline.
-         Mirrors security.jsx (lines 116–135).
+         7. If something goes wrong.
          ================================================================== -->
     <section class="section" aria-labelledby="ir-title">
       <div class="kicker">If something goes wrong</div>
-      <h2 id="ir-title" class="section__title">Plain-language plan, in writing.</h2>
+      <h2 id="ir-title" class="section__title">We'll tell you in plain English.</h2>
 
-      <div class="ir">
-        <p class="ir__intro">
-          Software has bugs and people make mistakes. We'd rather tell you exactly what
-          we'll do when that happens than pretend it never will.
-        </p>
-
-        <ol class="ir__steps">
-          <li class="ir__step">
-            <div class="ir__when">Within 1 hour</div>
-            <div class="ir__what">Our on-call engineer is paged. We start fixing.</div>
-          </li>
-          <li class="ir__step">
-            <div class="ir__when">Within 24 hours</div>
-            <div class="ir__what">Your committee chair gets a phone call &mdash; not an email &mdash; explaining what we know.</div>
-          </li>
-          <li class="ir__step">
-            <div class="ir__when">Within 72 hours</div>
-            <div class="ir__what">Every affected family gets a plain-English email about what happened, what data was involved, and what we recommend they do.</div>
-          </li>
-          <li class="ir__step">
-            <div class="ir__when">Within 30 days</div>
-            <div class="ir__what">A written post-mortem on this page, including what changed so it can't happen again.</div>
-          </li>
-        </ol>
-      </div>
+      <p class="ir__intro">
+        Software has bugs and people make mistakes. If we ever discover a problem with
+        your troop's data, we'll tell you what happened, what was involved, and what we
+        recommend &mdash; in plain English, as soon as we know.
+      </p>
     </section>
 
     <!-- ==================================================================
-         8. Independent checks — 4 cards + technical-reader callout.
-         Mirrors security.jsx (lines 138–155).
+         8. Independent checks.
          ================================================================== -->
     <section class="section section--last" aria-labelledby="checks-title">
       <div class="kicker">Independent checks</div>
-      <h2 id="checks-title" class="section__title">Don't take our word for it.</h2>
+      <h2 id="checks-title" class="section__title">A few things we lean on.</h2>
 
       <div class="checks">
         <article class="check">
-          <h3 class="check__title">SOC 2 Type II</h3>
-          <p>An outside auditor reviews our security controls every year. Report available to your committee on request.</p>
-        </article>
-        <article class="check">
-          <h3 class="check__title">PCI compliant</h3>
+          <h3 class="check__title">PCI through Stripe</h3>
           <p>Credit cards for dues and trip fees are handled by Stripe. Compass never sees the card number.</p>
         </article>
         <article class="check">
@@ -358,17 +313,8 @@
         </article>
         <article class="check">
           <h3 class="check__title">Privacy laws</h3>
-          <p>GDPR (Europe) and CCPA (California) compliant. We'll sign a Data Processing Agreement if your council requires one.</p>
+          <p>We respect GDPR (Europe) and CCPA (California) data-subject rights and will sign a Data Processing Agreement if your council requires one.</p>
         </article>
-      </div>
-
-      <div class="tech-callout" role="note">
-        <strong>For the technical reader on your committee:</strong>
-        we publish a detailed architecture brief covering identity (OIDC/SAML, WebAuthn),
-        encryption (per-tenant envelope keys in AWS KMS), database isolation (Postgres
-        row-level security), and our threat model. Email
-        <a href="mailto:security@compass.app">security@compass.app</a> and we'll send the
-        latest version.
       </div>
     </section>
   </main>

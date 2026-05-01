@@ -7,7 +7,15 @@ import { fileURLToPath } from "node:url";
 import "dotenv/config";
 
 import { prisma } from "../lib/db.js";
-import { lucia, attachSession, hashPassword, verifyPassword, roleInOrg } from "../lib/auth.js";
+import {
+  lucia,
+  attachSession,
+  hashPassword,
+  verifyPassword,
+  roleInOrg,
+  isPrivilegedUser,
+  passwordLoginAllowedForRole,
+} from "../lib/auth.js";
 import { originAuth } from "../lib/originAuth.js";
 import { csrfMiddleware, csrfProtect, csrfHtmlInjector } from "../lib/csrf.js";
 import { rateLimit } from "../lib/rateLimit.js";
@@ -573,15 +581,26 @@ app.post("/api/auth/signup", signupLimiter, csrfProtect, async (req, res) => {
 
 app.post("/api/auth/login", loginLimiter, csrfProtect, async (req, res) => {
   const { email, password } = req.body || {};
-  if (!email || !password) {
+  const emailLc = (email || "").toString().toLowerCase().trim();
+  if (!emailLc || !password) {
     return res.status(400).json({ ok: false, error: "email and password required" });
   }
-  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  const user = await prisma.user.findUnique({ where: { email: emailLc } });
   if (!user || !user.passwordHash) {
+    log.warn("login.failed", { email: emailLc, reason: "no-user-or-passwordless", ip: req.ip });
     return res.status(401).json({ ok: false, error: "Invalid credentials" });
   }
-  const ok = await verifyPassword(user.passwordHash, password);
-  if (!ok) {
+  const privileged = await isPrivilegedUser(user.id);
+  if (!passwordLoginAllowedForRole({ privileged })) {
+    log.warn("login.blocked", { email: emailLc, reason: "admin-sso-required", ip: req.ip });
+    return res.status(403).json({
+      ok: false,
+      error: "Admin accounts must sign in with Google or Apple.",
+      code: "sso_required",
+    });
+  }
+  if (!(await verifyPassword(user.passwordHash, password))) {
+    log.warn("login.failed", { email: emailLc, userId: user.id, reason: "wrong-password", ip: req.ip });
     return res.status(401).json({ ok: false, error: "Invalid credentials" });
   }
   const session = await lucia.createSession(user.id, {});
@@ -1029,22 +1048,26 @@ app.get("/login", (req, res, next) => {
 app.post("/login", loginLimiter, csrfProtect, async (req, res, next) => {
   if (!req.org) return next();
   const { email, password } = req.body || {};
+  const emailLc = (email || "").toString().toLowerCase().trim();
   const nextUrl = safeNext(req.query.next);
-  if (!email || !password) {
-    return res.type("html").send(
-      publicLoginPage(req.org, { error: "Email and password required.", next: nextUrl, googleConfigured, mode: "login" })
+  const fail = (error) =>
+    res.type("html").send(
+      publicLoginPage(req.org, { error, next: nextUrl, googleConfigured, mode: "login" })
     );
-  }
-  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+  if (!emailLc || !password) return fail("Email and password required.");
+  const user = await prisma.user.findUnique({ where: { email: emailLc } });
   if (!user || !user.passwordHash) {
-    return res.type("html").send(
-      publicLoginPage(req.org, { error: "Invalid credentials.", next: nextUrl, googleConfigured, mode: "login" })
-    );
+    log.warn("login.failed", { email: emailLc, orgSlug: req.org.slug, reason: "no-user-or-passwordless", ip: req.ip });
+    return fail("Invalid credentials.");
+  }
+  const privileged = await isPrivilegedUser(user.id);
+  if (!passwordLoginAllowedForRole({ privileged })) {
+    log.warn("login.blocked", { email: emailLc, orgSlug: req.org.slug, reason: "admin-sso-required", ip: req.ip });
+    return fail("Admin accounts must sign in with Google or Apple.");
   }
   if (!(await verifyPassword(user.passwordHash, password))) {
-    return res.type("html").send(
-      publicLoginPage(req.org, { error: "Invalid credentials.", next: nextUrl, googleConfigured, mode: "login" })
-    );
+    log.warn("login.failed", { email: emailLc, userId: user.id, orgSlug: req.org.slug, reason: "wrong-password", ip: req.ip });
+    return fail("Invalid credentials.");
   }
   await ensureMembership(user.id, req.org.id, "parent");
   const session = await lucia.createSession(user.id, {});
