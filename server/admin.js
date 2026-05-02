@@ -760,8 +760,7 @@ function loginPage({ org, error }) {
 <style>
 :root{--bg:#f7f8fa;--surface:#ffffff;--ink:#0f172a;--ink-soft:#334155;--ink-muted:#64748b;--line:#e2e8f0;--line-soft:#eef1f5;--primary:#0f172a;--primary-hover:#020617;--accent:#1d4ed8;--accent-soft:#bcd0f4}
 *{box-sizing:border-box}
-body{margin:0;font-family:"Inter Tight","Inter",system-ui,sans-serif;color:var(--ink);background:var(--bg);min-height:100vh;line-height:1.55;display:flex;flex-direction:column}
-.card-wrap{flex:1;display:grid;place-items:center;padding:2rem;width:100%}
+body{margin:0;font-family:"Inter Tight","Inter",system-ui,sans-serif;color:var(--ink);background:var(--bg);display:grid;place-items:center;min-height:100vh;padding:2rem;line-height:1.55}
 .card{max-width:440px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:2.25rem 2rem;box-shadow:0 4px 20px rgba(15,23,42,.08)}
 .kicker{font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--primary);margin-bottom:.65rem}
 h1{font-family:"Newsreader",Georgia,serif;font-size:2rem;font-weight:400;line-height:1.05;letter-spacing:-.025em;margin:0 0 .25rem}
@@ -781,7 +780,6 @@ small.help{display:block;color:var(--ink-muted);margin-top:1.1rem;font-size:.85r
 small.help a{color:var(--primary);font-weight:600}
 small.help a:hover{color:var(--primary-hover)}
 </style></head><body>
-<div class="card-wrap">
 <div class="card">
 <div class="kicker">Compass admin</div>
 <h1>${escape(org.displayName)}</h1>
@@ -794,7 +792,6 @@ ${oauthHtml}
 <button class="btn" type="submit">Sign in</button>
 </form>
 <small class="help">Founding leader? <a href="https://${apex}/signup.html">Claim your account</a></small>
-</div>
 </div></body></html>`;
 }
 
