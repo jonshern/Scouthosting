@@ -4,7 +4,7 @@
 // suspended-channel banner. The composer is hidden when canPost=false
 // (suspended or archived channels).
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -19,6 +19,7 @@ import {
 import { useRoute, type RouteProp } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Icon } from '../../theme/atoms';
 import { MessageBubble } from '../../components/MessageBubble';
 import { fontFamilies, palette, radius, spacing } from '../../theme/tokens';
 import type { ChatStackParamList } from '../../navigation/types';
@@ -26,9 +27,36 @@ import { useAuth } from '../../state/AuthContext';
 import { getChannel, sendMessage, toggleReaction, votePoll, setRsvpResponse } from '../../api/channels';
 import type { RsvpResponse } from '../../api/types';
 import { ApiError } from '../../api/client';
-import type { ChannelDto, MessageDto } from '../../api/types';
+import type { ChannelDto, ChannelKind, MessageDto } from '../../api/types';
 
 const POLL_INTERVAL_MS = 5000;
+
+const CHANNEL_GLYPH: Record<ChannelKind, { color: string; glyph: string }> = {
+  patrol: { color: palette.accent, glyph: '🦅' },
+  troop: { color: palette.primary, glyph: '★' },
+  parents: { color: palette.plum, glyph: '👥' },
+  leaders: { color: palette.raspberry, glyph: '🔒' },
+  event: { color: palette.ember, glyph: '⛺' },
+  custom: { color: palette.teal, glyph: '#' },
+};
+
+function channelMemberSummary(c: ChannelDto): string {
+  switch (c.kind) {
+    case 'patrol':
+      return c.patrolName ? `${c.patrolName} patrol · two-deep` : 'Patrol channel';
+    case 'troop':
+      return 'All troop members';
+    case 'parents':
+      return 'Parents only';
+    case 'leaders':
+      return 'Leaders only · YPT-current';
+    case 'event':
+      return 'Event channel · auto-archives at end';
+    case 'custom':
+    default:
+      return 'Custom channel';
+  }
+}
 
 function fmtTimestamp(iso: string): string {
   const d = new Date(iso);
@@ -292,19 +320,61 @@ export default function ThreadScreen() {
 
   const canPost = channel?.canPost ?? false;
   const youthChannel = !!channel && (channel.kind === 'patrol' || channel.kind === 'troop' || channel.kind === 'event');
+  const meta = channel ? CHANNEL_GLYPH[channel.kind] : { color: palette.primary, glyph: '#' };
+  const pinned = useMemo(
+    () => messages.filter((m) => m.pinned && !m.deleted).slice(-1)[0] || null,
+    [messages],
+  );
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>{channel?.name || route.params.channelName}</Text>
-        {channel?.isSuspended ? (
-          <Text style={styles.suspended}>
-            ⏸ Suspended — {(channel.suspendedReason || 'YPT compliance').replace(/-/g, ' ')}
+        <View style={[styles.headerIcon, { backgroundColor: meta.color }]}>
+          <Text style={styles.headerGlyph}>{meta.glyph}</Text>
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.title} numberOfLines={1}>
+            {channel?.name || route.params.channelName}
           </Text>
-        ) : youthChannel ? (
-          <Text style={styles.twoDeep}>🛡 Two-deep watching</Text>
-        ) : null}
+          <Text style={styles.subtitle} numberOfLines={1}>
+            {channel ? channelMemberSummary(channel) : 'Loading…'}
+          </Text>
+        </View>
       </View>
+
+      {channel?.isSuspended ? (
+        <View style={styles.suspendBanner}>
+          <Icon name="lock" size={12} color={palette.danger} />
+          <Text style={styles.suspendBannerText}>
+            <Text style={{ fontWeight: '700' }}>Suspended</Text>
+            {' · '}
+            {(channel.suspendedReason || 'YPT compliance').replace(/-/g, ' ')}
+          </Text>
+        </View>
+      ) : youthChannel ? (
+        <View style={styles.twoDeepBanner}>
+          <Icon name="check" size={12} color={palette.success} strokeWidth={3} />
+          <Text style={styles.twoDeepBannerText}>
+            <Text style={styles.twoDeepBannerStrong}>TWO-DEEP</Text>
+            <Text style={styles.twoDeepBannerSoft}> · leaders are watching · scouts can chat freely</Text>
+          </Text>
+        </View>
+      ) : null}
+
+      {pinned ? (
+        <View style={styles.pinBanner}>
+          <Icon name="pin" size={14} color={palette.ember} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.pinTitle} numberOfLines={1}>
+              Pinned: {pinned.body || 'attachment'}
+            </Text>
+            <Text style={styles.pinMeta} numberOfLines={1}>
+              {pinned.author?.displayName || 'Leader'} · tap to view
+            </Text>
+          </View>
+          <Icon name="chevron" size={12} color={palette.inkMuted} />
+        </View>
+      ) : null}
 
       <KeyboardAvoidingView
         style={styles.flex}
@@ -387,31 +457,96 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
   header: {
-    paddingHorizontal: spacing.screen,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: spacing.md,
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     borderBottomColor: palette.line,
     borderBottomWidth: 1,
+    backgroundColor: palette.surface,
+  },
+  headerIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerGlyph: {
+    color: '#fff',
+    fontFamily: fontFamilies.ui,
+    fontSize: 16,
+    fontWeight: '700',
   },
   title: {
-    fontFamily: fontFamilies.display,
-    fontSize: 22,
+    fontFamily: fontFamilies.ui,
+    fontSize: 14,
+    fontWeight: '600',
     color: palette.ink,
-    letterSpacing: -0.4,
   },
-  suspended: {
-    marginTop: 4,
+  subtitle: {
     fontFamily: fontFamilies.ui,
-    fontSize: 12,
-    color: palette.danger,
-    fontWeight: '600',
+    fontSize: 11,
+    color: palette.inkMuted,
+    marginTop: 1,
   },
-  twoDeep: {
-    marginTop: 4,
+  twoDeepBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 8,
+    backgroundColor: `${palette.success}14`,
+    borderBottomWidth: 1,
+    borderBottomColor: `${palette.success}33`,
+  },
+  twoDeepBannerText: {
+    flex: 1,
     fontFamily: fontFamilies.ui,
-    fontSize: 12,
+    fontSize: 11,
     color: palette.success,
+  },
+  twoDeepBannerStrong: { fontWeight: '700' },
+  twoDeepBannerSoft: { color: palette.inkSoft, fontWeight: '500' },
+  suspendBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 8,
+    backgroundColor: `${palette.danger}14`,
+    borderBottomWidth: 1,
+    borderBottomColor: `${palette.danger}33`,
+  },
+  suspendBannerText: {
+    flex: 1,
+    fontFamily: fontFamilies.ui,
+    fontSize: 11,
+    color: palette.danger,
+  },
+  pinBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 10,
+    backgroundColor: `${palette.butter}24`,
+    borderBottomWidth: 1,
+    borderBottomColor: `${palette.butter}55`,
+  },
+  pinTitle: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 12,
     fontWeight: '600',
+    color: palette.ink,
+  },
+  pinMeta: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 11,
+    color: palette.inkSoft,
+    marginTop: 1,
   },
   scrollContent: {
     padding: spacing.screen,

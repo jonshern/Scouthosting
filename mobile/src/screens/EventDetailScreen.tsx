@@ -1,8 +1,10 @@
-// Event detail — fetches GET /api/v1/events/:id and lets the viewer
-// set their own RSVP (yes / no / maybe). Multi-scout RSVPs (one
-// parent → multiple kids on one screen) are deferred until the
-// User ↔ Member family-linking API ships; for v1 we use the
-// per-user RSVP shape the rest of the system already supports.
+// Event detail — restructured to the mobile-calendar-v2.jsx layout.
+// Replaces the colored full-bleed hero with a clean top bar + a
+// category-tinted event card (left-border accent stripe, eyebrow,
+// serif title, date line, chip strip with cost / permission slip /
+// duration), a separate description section, and a count-inline RSVP
+// trio (Going · N / Maybe · N / Can't · N) where the user's current
+// pick is filled. Data flow + optimistic update logic unchanged.
 
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -46,6 +48,46 @@ function paletteFor(key: string): string {
   }
 }
 
+function formatDateLine(start: Date, end: Date | null, allDay: boolean): string {
+  const dateOpts: Intl.DateTimeFormatOptions = {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  };
+  const timeOpts: Intl.DateTimeFormatOptions = {
+    hour: "numeric",
+    minute: "2-digit",
+  };
+  const startDate = start.toLocaleDateString("en-US", dateOpts);
+  if (allDay) {
+    if (!end) return startDate;
+    const endDate = end.toLocaleDateString("en-US", dateOpts);
+    return startDate === endDate ? startDate : `${startDate} → ${endDate}`;
+  }
+  const startTime = start.toLocaleTimeString("en-US", timeOpts);
+  if (!end) return `${startDate}, ${startTime}`;
+  const endDate = end.toLocaleDateString("en-US", dateOpts);
+  const endTime = end.toLocaleTimeString("en-US", timeOpts);
+  if (startDate === endDate) return `${startDate}, ${startTime} → ${endTime}`;
+  return `${startDate}, ${startTime} → ${endDate}, ${endTime}`;
+}
+
+function durationLabel(start: Date, end: Date | null, allDay: boolean): string | null {
+  if (!end) return null;
+  const ms = end.getTime() - start.getTime();
+  const days = Math.round(ms / (24 * 3600 * 1000));
+  if (allDay && days >= 1) {
+    return days === 1 ? "1 day" : `${days} days`;
+  }
+  if (ms >= 18 * 3600 * 1000) {
+    const nights = Math.max(1, Math.round(ms / (24 * 3600 * 1000)));
+    return `${nights} night${nights === 1 ? "" : "s"}`;
+  }
+  const hours = Math.round(ms / (3600 * 1000));
+  if (hours >= 1) return `${hours}h`;
+  return null;
+}
+
 export default function EventDetailScreen() {
   const auth = useAuth();
   const route = useRoute<Route>();
@@ -80,8 +122,6 @@ export default function EventDetailScreen() {
       if (!auth.session || !event) return;
       setSubmitting(response);
       const prevRsvp = event.myRsvp?.response || null;
-      // Optimistic: update the displayed RSVP + bump counts before the
-      // API call.
       setEvent((cur) => {
         if (!cur) return cur;
         const counts = { ...cur.rsvps };
@@ -100,7 +140,6 @@ export default function EventDetailScreen() {
           response,
         );
       } catch (e: unknown) {
-        // Roll back the count change on failure.
         setEvent((cur) => {
           if (!cur) return cur;
           const counts = { ...cur.rsvps };
@@ -124,14 +163,21 @@ export default function EventDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={["top"]}>
         <View style={styles.center}><ActivityIndicator color={palette.primary} /></View>
       </SafeAreaView>
     );
   }
   if (error || !event) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe} edges={["top"]}>
+        <View style={styles.topBar}>
+          <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <Icon name="chevronLeft" size={20} color={palette.accent} strokeWidth={2.2} />
+          </Pressable>
+          <Text style={styles.topBarTitle}>Event</Text>
+          <View style={styles.backBtn} />
+        </View>
         <View style={styles.center}>
           <Text style={styles.error}>{error || "Couldn't load this event."}</Text>
           <Pressable style={styles.retry} onPress={load}>
@@ -145,93 +191,128 @@ export default function EventDetailScreen() {
   const accent = paletteFor(event.color);
   const start = new Date(event.startsAt);
   const end = event.endsAt ? new Date(event.endsAt) : null;
-  const facts: { label: string; value: string }[] = [
-    {
-      label: "When",
-      value: end
-        ? `${start.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} —\n${end.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
-        : start.toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }),
-    },
-  ];
-  if (event.locationAddress || event.location) {
-    facts.push({
-      label: "Where",
-      value: event.locationAddress
-        ? `${event.location || ""}${event.location ? "\n" : ""}${event.locationAddress}`
-        : event.location || "",
-    });
-  }
-  if (event.cost) {
-    facts.push({ label: "Cost", value: `$${event.cost} per scout` });
-  }
-  if (event.capacity) {
-    facts.push({ label: "Capacity", value: `${event.rsvps.yes} of ${event.capacity} scouts going` });
-  } else if (event.rsvps.yes > 0) {
-    facts.push({ label: "Going", value: `${event.rsvps.yes} scout${event.rsvps.yes === 1 ? "" : "s"}` });
-  }
+  const dateLine = formatDateLine(start, end, event.allDay);
+  const dur = durationLabel(start, end, event.allDay);
+
+  type Chip = { label: string };
+  const chips: Chip[] = [];
+  if (event.cost && event.cost > 0) chips.push({ label: `$${event.cost}/scout` });
+  if (event.capacity) chips.push({ label: `${event.rsvps.yes}/${event.capacity} going` });
+  if (dur) chips.push({ label: dur });
 
   return (
-    <SafeAreaView style={styles.safe} edges={[]}>
+    <SafeAreaView style={styles.safe} edges={["top"]}>
+      <View style={styles.topBar}>
+        <Pressable onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <Icon name="chevronLeft" size={20} color={palette.accent} strokeWidth={2.2} />
+        </Pressable>
+        <Text style={styles.topBarTitle}>Event</Text>
+        <View style={styles.backBtn} />
+      </View>
+
       <ScrollView contentContainerStyle={{ paddingBottom: 80 }}>
-        <View style={[styles.heroWrap, { backgroundColor: accent }]}>
-          <Pressable style={styles.backButton} onPress={() => navigation.goBack()}>
-            <Icon name="chevronLeft" size={20} color={palette.ink} strokeWidth={2.4} />
-          </Pressable>
-          <View style={styles.heroText}>
-            {event.categoryLabel && (
-              <Text style={styles.heroEyebrow}>{event.categoryLabel.toUpperCase()}</Text>
-            )}
-            <Text style={styles.heroTitle}>{event.title}</Text>
+        <View style={styles.cardWrap}>
+          <View style={[styles.card, { borderColor: accent }]}>
+            <View style={[styles.cardHeader, { backgroundColor: `${accent}14`, borderBottomColor: `${accent}44` }]}>
+              <Icon name="calendar" size={14} color={accent} strokeWidth={2} />
+              <Text style={[styles.cardEyebrow, { color: accent }]}>
+                {(event.categoryLabel || "Event").toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.cardBody}>
+              <Text style={styles.cardTitle}>{event.title}</Text>
+              <Text style={styles.cardDate}>{dateLine}</Text>
+              {(event.location || event.locationAddress) ? (
+                <Text style={styles.cardLocation}>
+                  📍 {event.location || ""}
+                  {event.locationAddress
+                    ? `${event.location ? " · " : ""}${event.locationAddress}`
+                    : ""}
+                </Text>
+              ) : null}
+
+              {chips.length > 0 ? (
+                <View style={styles.chipRow}>
+                  {chips.map((c, i) => (
+                    <View key={i} style={styles.chip}>
+                      <Text style={styles.chipText}>{c.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+
+              <View style={styles.rsvpRow}>
+                {(["yes", "maybe", "no"] as const).map((c) => {
+                  const active = event.myRsvp?.response === c;
+                  const tint =
+                    c === "yes"
+                      ? palette.success
+                      : c === "maybe"
+                        ? palette.ember
+                        : palette.inkMuted;
+                  const label = c === "yes" ? "Going" : c === "maybe" ? "Maybe" : "Can't";
+                  const count = event.rsvps[c] || 0;
+                  return (
+                    <Pressable
+                      key={c}
+                      disabled={submitting !== null}
+                      onPress={() => onRsvp(c)}
+                      style={[
+                        styles.rsvpBtn,
+                        active && { backgroundColor: tint, borderColor: tint },
+                        submitting !== null && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.rsvpBtnLabel,
+                          active && styles.rsvpBtnLabelActive,
+                        ]}
+                      >
+                        {label}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.rsvpBtnSep,
+                          active && styles.rsvpBtnSepActive,
+                        ]}
+                      >
+                        ·
+                      </Text>
+                      <Text
+                        style={[
+                          styles.rsvpBtnCount,
+                          active && styles.rsvpBtnCountActive,
+                        ]}
+                      >
+                        {count}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
           </View>
         </View>
 
-        <View style={styles.facts}>
-          {facts.map((row, i) => (
-            <View
-              key={row.label}
-              style={[
-                styles.factRow,
-                i > 0 && { borderTopWidth: 1, borderTopColor: palette.lineSoft },
-              ]}
-            >
-              <Text style={styles.factLabel}>{row.label.toUpperCase()}</Text>
-              <Text style={styles.factValue}>{row.value}</Text>
-            </View>
-          ))}
-        </View>
-
-        {event.description && (
+        {event.description ? (
           <View style={styles.section}>
             <Text style={styles.sectionLabel}>DETAILS</Text>
             <Text style={styles.bodyText}>{event.description}</Text>
           </View>
-        )}
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>YOUR RSVP</Text>
-          <View style={styles.choiceRow}>
-            {(["yes", "maybe", "no"] as const).map((c) => {
-              const active = event.myRsvp?.response === c;
-              const tint =
-                c === "yes" ? palette.success : c === "maybe" ? palette.ember : palette.danger;
-              return (
-                <Pressable
-                  key={c}
-                  disabled={submitting !== null}
-                  onPress={() => onRsvp(c)}
-                  style={[
-                    styles.choice,
-                    active && { backgroundColor: tint, borderColor: tint },
-                    submitting !== null && { opacity: 0.6 },
-                  ]}
-                >
-                  <Text style={[styles.choiceText, active && { color: "#fff" }]}>
-                    {c === "yes" ? "Going" : c === "maybe" ? "Maybe" : "Can't make it"}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
+          <Text style={styles.rsvpHint}>
+            {event.myRsvp?.response === "yes"
+              ? "You're going. We'll send a reminder the day before."
+              : event.myRsvp?.response === "maybe"
+                ? "You said maybe. Tap Going once you're sure — leaders are watching headcount."
+                : event.myRsvp?.response === "no"
+                  ? "You said you can't make it. Thanks for letting us know."
+                  : "Tap Going / Maybe / Can't above to RSVP."}
+          </Text>
           <Text style={styles.rsvpSummary}>
             {event.rsvps.yes} going · {event.rsvps.maybe} maybe · {event.rsvps.no} can't make it
           </Text>
@@ -243,6 +324,29 @@ export default function EventDetailScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: palette.bg },
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
+    borderBottomColor: palette.line,
+    borderBottomWidth: 1,
+    backgroundColor: palette.surface,
+  },
+  backBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  topBarTitle: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 14,
+    fontWeight: "600",
+    color: palette.ink,
+  },
   center: {
     flex: 1,
     alignItems: "center",
@@ -259,66 +363,114 @@ const styles = StyleSheet.create({
     borderColor: palette.primary,
   },
   retryText: { fontFamily: fontFamilies.ui, color: palette.primary, fontWeight: "600" },
-  heroWrap: {
-    paddingTop: 56,
-    paddingBottom: 32,
-    paddingHorizontal: spacing.screen,
-    minHeight: 220,
+
+  cardWrap: {
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.md,
   },
-  backButton: {
-    position: "absolute",
-    top: 56,
-    left: spacing.screen,
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(255,255,255,0.85)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  heroText: { marginTop: 36 },
-  heroEyebrow: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 11,
-    fontWeight: "700",
-    color: "rgba(255,255,255,0.85)",
-    letterSpacing: 1.6,
-  },
-  heroTitle: {
-    fontFamily: fontFamilies.display,
-    fontSize: 28,
-    color: "#fff",
-    letterSpacing: -0.4,
-    marginTop: 4,
-  },
-  facts: {
+  card: {
     backgroundColor: palette.surface,
-    marginHorizontal: spacing.screen,
-    marginTop: -16,
-    marginBottom: spacing.md,
+    borderWidth: 2,
     borderRadius: radius.cardLg,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.sm,
-    borderWidth: 1,
-    borderColor: palette.line,
+    overflow: "hidden",
   },
-  factRow: { paddingVertical: spacing.md },
-  factLabel: {
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  cardEyebrow: {
     fontFamily: fontFamilies.ui,
     fontSize: 10,
     fontWeight: "700",
-    color: palette.inkMuted,
-    letterSpacing: 1.2,
-    marginBottom: 4,
+    letterSpacing: 1,
   },
-  factValue: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 14,
+  cardBody: {
+    padding: spacing.lg,
+  },
+  cardTitle: {
+    fontFamily: fontFamilies.display,
+    fontSize: 24,
     color: palette.ink,
-    lineHeight: 20,
+    letterSpacing: -0.3,
+    lineHeight: 28,
   },
+  cardDate: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 13,
+    color: palette.inkSoft,
+    marginTop: 6,
+  },
+  cardLocation: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 12,
+    color: palette.inkMuted,
+    marginTop: 4,
+  },
+  chipRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: spacing.md,
+  },
+  chip: {
+    flex: 1,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    backgroundColor: palette.bg,
+    borderRadius: 6,
+    alignItems: "center",
+  },
+  chipText: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 11,
+    color: palette.inkSoft,
+    fontWeight: "500",
+  },
+  rsvpRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginTop: spacing.md,
+  },
+  rsvpBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: palette.line,
+    backgroundColor: palette.bg,
+  },
+  rsvpBtnLabel: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 12,
+    fontWeight: "600",
+    color: palette.inkSoft,
+  },
+  rsvpBtnLabelActive: { color: "#fff" },
+  rsvpBtnSep: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 12,
+    color: palette.inkMuted,
+    opacity: 0.7,
+  },
+  rsvpBtnSepActive: { color: "rgba(255,255,255,0.7)" },
+  rsvpBtnCount: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 12,
+    fontWeight: "600",
+    color: palette.inkSoft,
+  },
+  rsvpBtnCountActive: { color: "#fff" },
+
   section: {
-    marginHorizontal: spacing.screen,
+    marginHorizontal: spacing.md,
     marginTop: spacing.lg,
   },
   sectionLabel: {
@@ -335,30 +487,16 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     color: palette.ink,
   },
-  choiceRow: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 4,
-  },
-  choice: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: radius.cardLg,
-    borderWidth: 1.5,
-    borderColor: palette.line,
-    backgroundColor: palette.surface,
-    alignItems: "center",
-  },
-  choiceText: {
+  rsvpHint: {
     fontFamily: fontFamilies.ui,
-    fontSize: 14,
-    fontWeight: "700",
-    color: palette.ink,
+    fontSize: 13,
+    lineHeight: 19,
+    color: palette.inkSoft,
+    marginBottom: 6,
   },
   rsvpSummary: {
     fontFamily: fontFamilies.ui,
     fontSize: 12,
     color: palette.inkMuted,
-    marginTop: spacing.md,
   },
 });
