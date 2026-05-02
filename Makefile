@@ -12,7 +12,8 @@ PORT       ?= $(shell . ./.env 2>/dev/null; echo $${PORT:-3000})
 .DEFAULT_GOAL := help
 
 .PHONY: help bootstrap dev redeploy seed test e2e clean mobile mobile-build \
-        install db-up db-wait migrate wipe pull dev-bg dev-stop down
+        install db-up db-wait migrate wipe pull dev-bg dev-stop down \
+        staging-deploy staging-logs staging-seed staging-shell
 
 help: ## Show this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "Compass dev targets\n\nUsage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*##/ { printf "  \033[1m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -55,6 +56,22 @@ mobile: ## Start the Expo Metro server (pick iOS / Android / web from its menu).
 
 mobile-build: ## EAS cloud build. PROFILE=development|preview|production, PLATFORM=ios|android|all.
 	cd $(MOBILE) && npx --yes -p eas-cli eas build --profile $(PROFILE) --platform $(PLATFORM)
+
+# --- staging (Fly.io) ---
+# One-time setup is documented in the README "Staging" section. These
+# targets assume `fly auth login` has been done once.
+
+staging-deploy: ## Deploy current main to Fly staging (compass-staging).
+	fly deploy --remote-only
+
+staging-logs: ## Tail logs from the Fly staging app.
+	fly logs
+
+staging-seed: ## Run the demo seed inside the Fly staging app (idempotent).
+	fly ssh console -C "node prisma/seed.js"
+
+staging-shell: ## Open an interactive shell inside the running Fly staging app.
+	fly ssh console
 
 # --- internal helpers (not in `make help`) ---
 
