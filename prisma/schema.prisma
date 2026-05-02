@@ -1042,9 +1042,13 @@ model Subgroup {
 // reconcile). userDisplay snapshots the actor's display name at the
 // time of the action so log lines stay readable after a leader
 // rotates out of the org.
+// AuditLog is org-scoped historically, but the first-party telemetry
+// beacon also writes anonymous marketing-funnel events (no org, no
+// user) here so the rollup story stays unified. orgId is nullable;
+// when null the row represents an apex/marketing event.
 model AuditLog {
   id           String   @id @default(cuid())
-  orgId        String
+  orgId        String?
   userId       String?
   userDisplay  String?
   entityType   String   // "Page", "Announcement", "Post", "Member", ...
@@ -1053,10 +1057,11 @@ model AuditLog {
   summary      String?  // short human-readable: "Edited About body"
   createdAt    DateTime @default(now())
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org Org? @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId, createdAt])
   @@index([orgId, entityType, createdAt])
+  @@index([action, createdAt])
 }
 
 // Driver / carpool plan. Distinct from SignupSlot's generic

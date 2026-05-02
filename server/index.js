@@ -25,6 +25,8 @@ import { apiRouter } from "./api.js";
 import { superAdminRouter } from "./superAdmin.js";
 import { logger } from "../lib/log.js";
 import { track, EVENTS } from "../lib/analytics.js";
+import { marketingTag, firstPartyTag } from "../lib/analyticsTag.js";
+import { supportWidget } from "../lib/supportWidget.js";
 
 const log = logger.child("http");
 import { issueToken } from "../lib/apiToken.js";
@@ -252,16 +254,142 @@ app.get("/sitemap.xml", async (req, res) => {
 import { attachAnnouncementBanner } from "../lib/announcementBanner.js";
 app.use(attachAnnouncementBanner());
 
+/* ------------------ Telemetry / analytics injection ---------------- */
+//
+// Every HTML response gets:
+//   - Plausible (apex only, only when ANALYTICS_PROVIDER=plausible)
+//     injected into <head>
+//   - First-party beacon (everywhere) injected before </body>
+//   - Floating support widget (everywhere) injected before </body>
+//
+// All three are inert when their HTML markers aren't present, so a
+// fragment response (e.g. an HTMX partial) doesn't get a malformed
+// <script> stub.
+
+app.use(function attachTelemetry(req, res, next) {
+  // Skip non-HTML routes and the telemetry endpoint itself.
+  if (req.path === "/__telemetry") return next();
+  const surface = req.org ? "tenant"
+    : req.path.startsWith("/admin") ? "admin"
+    : "marketing";
+
+  const origSend = res.send.bind(res);
+  res.send = function (body) {
+    if (typeof body === "string" && (res.get("Content-Type") || "").includes("text/html")) {
+      const beacon = firstPartyTag({ surface });
+      const widget = supportWidget({
+        surface,
+        csrfToken: typeof req.csrfToken === "function" ? req.csrfToken() : (req.csrfToken || ""),
+        user: req.user ? { email: req.user.email, displayName: req.user.displayName } : null,
+      });
+      // Plausible is apex-only and opt-in. We splice into <head>; the
+      // others go just before </body> so they don't block first paint.
+      if (surface === "marketing") {
+        const tag = marketingTag();
+        if (tag && /<\/head>/i.test(body)) body = body.replace(/<\/head>/i, tag + "</head>");
+      }
+      if (/<\/body>/i.test(body)) {
+        body = body.replace(/<\/body>/i, beacon + widget + "</body>");
+      }
+    }
+    return origSend(body);
+  };
+  next();
+});
+
+/* ------------------ /__telemetry — first-party beacon -------------- */
+//
+// Public endpoint (no Bearer required): the beacon fires from the
+// browser on apex marketing pages where the visitor is unauthenticated.
+// When the caller IS authenticated (cookie session for tenant /
+// admin), we attribute the event to the user + org; otherwise we just
+// record the surface dimension. Either way, we don't store IPs or UAs
+// at the column level — the UA goes into the JSON payload only on
+// `client-error` events so the operator can repro browser bugs.
+//
+// Whitelisted event names are reused from EVENTS so a typo on the
+// client doesn't pollute the AuditLog with unknown actions.
+
+const TELEMETRY_EVENT_MAP = {
+  "page-view": EVENTS.PAGE_VIEW,
+  "element-clicked": EVENTS.ELEMENT_CLICKED,
+  "client-error": EVENTS.CLIENT_ERROR,
+  "fetch-failed": EVENTS.FETCH_FAILED,
+};
+
+app.post("/__telemetry", express.json({ limit: "8kb" }), async (req, res) => {
+  // Always 204 — best-effort, never block the page on telemetry.
+  res.status(204).end();
+  try {
+    const body = req.body || {};
+    const event = TELEMETRY_EVENT_MAP[String(body.event || "")];
+    if (!event) return;
+    const surface = String(body.surface || "marketing").slice(0, 16);
+    const path = String(body.path || "").slice(0, 240);
+    const dims = { surface, path };
+    // Carry through the small set of known dimensions per event type.
+    if (typeof body.label === "string") dims.label = body.label.slice(0, 120);
+    if (typeof body.status === "number") dims.status = body.status;
+    if (typeof body.url === "string") dims.url = body.url.slice(0, 240);
+    if (event === EVENTS.CLIENT_ERROR) {
+      if (typeof body.kind === "string") dims.kind = body.kind.slice(0, 32);
+      if (typeof body.message === "string") dims.message = body.message.slice(0, 240);
+      if (typeof body.source === "string") dims.source = body.source.slice(0, 240);
+      if (typeof body.line === "number") dims.line = body.line;
+      if (typeof body.col === "number") dims.col = body.col;
+      if (typeof body.stack === "string") dims.stack = body.stack.slice(0, 800);
+      if (typeof body.ua === "string") dims.ua = body.ua.slice(0, 200);
+    }
+    await track(event, {
+      orgId: req.org?.id || null,
+      userId: req.user?.id || null,
+      dimensions: dims,
+    });
+  } catch (e) {
+    log.warn("telemetry endpoint failed", { err: e });
+  }
+});
+
 /* ------------------ Marketing site (apex / www) ------------------- */
+//
+// HTML files go through res.send so the telemetry/widget injector
+// upstairs catches them. Non-HTML assets (CSS, JS, images, fonts)
+// fall through to express.static which streams them via res.sendFile
+// — much cheaper than buffering through res.send.
+
+const STATIC_FALLTHROUGH = express.static(ROOT, { extensions: ["html"], index: "index.html" });
 
 app.use((req, res, next) => {
-  // Only serve the marketing site for true apex/www requests, never for an
-  // unrecognized subdomain (those should 404 below).
   if (req.slugFromHost || req.org) return next();
-  return express.static(ROOT, {
-    extensions: ["html"],
-    index: "index.html",
-  })(req, res, next);
+
+  // Resolve the candidate HTML path the same way express.static would,
+  // then read+send if it's HTML. Path safety: only accept GETs whose
+  // path resolves cleanly under ROOT (no traversal).
+  if (req.method !== "GET" && req.method !== "HEAD") return STATIC_FALLTHROUGH(req, res, next);
+  let p = decodeURIComponent(req.path || "/");
+  if (p.endsWith("/")) p += "index.html";
+  if (!p.endsWith(".html")) {
+    // Try with .html extension (matches express.static `extensions: ["html"]`).
+    const withExt = p + ".html";
+    const candidate = path.join(ROOT, withExt);
+    if (candidate.startsWith(ROOT) && fs.existsSync(candidate)) {
+      p = withExt;
+    } else {
+      return STATIC_FALLTHROUGH(req, res, next);
+    }
+  }
+  const file = path.join(ROOT, p);
+  if (!file.startsWith(ROOT) || !fs.existsSync(file)) {
+    return STATIC_FALLTHROUGH(req, res, next);
+  }
+  let html;
+  try {
+    html = fs.readFileSync(file, "utf8");
+  } catch {
+    return STATIC_FALLTHROUGH(req, res, next);
+  }
+  res.set("Content-Type", "text/html; charset=utf-8");
+  return res.send(html);
 });
 
 /* ------------------ JSON API (mobile + external) ------------------ */
