@@ -827,20 +827,29 @@ async function seedGirlScoutOrg() {
 
 const DEMO_PASSWORD = "compassdemo123";
 
-async function upsertDemoUser({ email, displayName, isSuperAdmin = false, orgAdminSlugs = [] }) {
+async function upsertDemoUser({
+  email,
+  displayName,
+  isSuperAdmin = false,
+  orgAdminSlugs = [],
+  orgParentSlugs = [],
+}) {
   const passwordHash = await hashPassword(DEMO_PASSWORD);
   const user = await prisma.user.upsert({
     where: { email },
     update: { passwordHash, displayName, isSuperAdmin, emailVerified: true },
     create: { email, passwordHash, displayName, isSuperAdmin, emailVerified: true },
   });
-  for (const slug of orgAdminSlugs) {
+  for (const [slug, role] of [
+    ...orgAdminSlugs.map((s) => [s, "admin"]),
+    ...orgParentSlugs.map((s) => [s, "parent"]),
+  ]) {
     const org = await prisma.org.findUnique({ where: { slug } });
     if (!org) continue;
     await prisma.orgMembership.upsert({
       where: { userId_orgId: { userId: user.id, orgId: org.id } },
-      update: { role: "admin" },
-      create: { userId: user.id, orgId: org.id, role: "admin" },
+      update: { role },
+      create: { userId: user.id, orgId: org.id, role },
     });
   }
   return user;
@@ -867,7 +876,17 @@ async function seedDemoUsers() {
     displayName: GS_DEMO.scoutmasterName,
     orgAdminSlugs: [GS_DEMO.slug],
   });
-  console.log("✓ Demo login users (4)");
+  // A non-admin parent account so the apex password login path works
+  // against staging (NODE_ENV=production blocks admin password login —
+  // admins must use Google/Apple SSO). Parents are also the actual
+  // primary mobile-app audience, so testing with this user matches
+  // real-world usage better than an admin login would.
+  await upsertDemoUser({
+    email: "parent@example.invalid",
+    displayName: "Demo Parent",
+    orgParentSlugs: [DEMO.slug, PACK_DEMO.slug],
+  });
+  console.log("✓ Demo login users (5)");
 }
 
 async function main() {
@@ -900,6 +919,7 @@ async function main() {
   console.log(`  http://${pack.slug}.localhost:3000/`);
   console.log(`  http://${gs.slug}.localhost:3000/`);
   console.log(`\nDemo login (password: ${DEMO_PASSWORD})`);
+  console.log(`  parent@example.invalid         → parent in troop100 + pack100 (mobile-friendly)`);
   console.log(`  super@compass.example          → super admin · http://localhost:3000/__super`);
   console.log(`  ${DEMO.scoutmasterEmail.padEnd(30)} → admin · http://${DEMO.slug}.localhost:3000/admin`);
   console.log(`  ${PACK_DEMO.scoutmasterEmail.padEnd(30)} → admin · http://${pack.slug}.localhost:3000/admin`);
