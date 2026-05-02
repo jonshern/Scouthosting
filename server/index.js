@@ -45,6 +45,7 @@ import {
   renderSite,
   renderEventDetail,
   renderEventsList,
+  renderCalendarMonth,
   renderDirectory,
   renderPostsList,
   renderPostDetail,
@@ -1623,6 +1624,63 @@ app.get("/events/:id.ics", async (req, res) => {
     .set("Content-Type", "text/calendar; charset=utf-8")
     .set("Content-Disposition", `attachment; filename="event-${ev.id}.ics"`)
     .send(icsFor(ev, { orgSlug: req.org.slug }));
+});
+
+// Public month-grid calendar. Recurring events get expanded so each
+// occurrence shows on its own day. Year/month come from `?y=&m=` and
+// default to the current month.
+app.get("/calendar", async (req, res, next) => {
+  if (!req.org) return next();
+
+  const now = new Date();
+  let year = parseInt(String(req.query.y || ""), 10);
+  let month = parseInt(String(req.query.m || ""), 10);
+  if (!Number.isInteger(year) || year < 1970 || year > 9999) year = now.getFullYear();
+  if (!Number.isInteger(month) || month < 1 || month > 12) month = now.getMonth() + 1;
+
+  // Window: cover the visible grid, which may include trailing days of
+  // the previous month and leading days of the next month.
+  const monthStart = new Date(year, month - 1, 1);
+  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+  const gridStart = new Date(monthStart);
+  gridStart.setDate(gridStart.getDate() - gridStart.getDay()); // back to Sunday
+  const gridEnd = new Date(monthEnd);
+  gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay())); // forward to Saturday
+  gridEnd.setHours(23, 59, 59, 999);
+
+  const candidates = await prisma.event.findMany({
+    where: {
+      orgId: req.org.id,
+      OR: [
+        { startsAt: { gte: gridStart, lte: gridEnd } },
+        { rrule: { not: null } },
+      ],
+    },
+    orderBy: { startsAt: "asc" },
+  });
+
+  const expanded = (
+    await Promise.all(
+      candidates.map((e) =>
+        expandOccurrences(e, { from: gridStart, to: gridEnd, max: 60 }),
+      ),
+    )
+  )
+    .flat()
+    .filter((e) => {
+      const d = new Date(e.startsAt);
+      return d >= gridStart && d <= gridEnd;
+    });
+
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(
+      renderCalendarMonth(req.org, expanded, {
+        year,
+        month,
+        apexDomain: APEX_DOMAIN,
+      }),
+    );
 });
 
 // Public events list (full page).

@@ -265,7 +265,7 @@ ${headSeo}
     </a>
     <nav class="nav"><ul>
       <li><a href="/#about">About</a></li>
-      <li><a href="/events">Calendar</a></li>
+      <li><a href="/calendar">Calendar</a></li>
       <li><a href="/#gallery">Photos</a></li>
       <li><a href="/#contact">Contact</a></li>
     </ul></nav>
@@ -679,6 +679,151 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
   return pageShell(org, "Members", body);
 }
 
+// Month-grid calendar view. `events` is an already-expanded list of
+// occurrences (recurring events flattened to one entry per date) with
+// startsAt as a Date and the parent event's id/title/category preserved.
+// `ctx.year` / `ctx.month` are 1-based; defaults to today.
+export function renderCalendarMonth(org, events, ctx = {}) {
+  const now = new Date();
+  const year = Number.isInteger(ctx.year) ? ctx.year : now.getFullYear();
+  const month = Number.isInteger(ctx.month) ? ctx.month : now.getMonth() + 1; // 1-12
+
+  const first = new Date(year, month - 1, 1);
+  const last = new Date(year, month, 0); // last day of month
+  const startDow = first.getDay(); // 0 Sun … 6 Sat
+  const daysInMonth = last.getDate();
+
+  // Bucket events by local-date key (YYYY-MM-DD) within the visible grid.
+  const byDay = new Map();
+  for (const e of events) {
+    const d = new Date(e.startsAt);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (!byDay.has(key)) byDay.set(key, []);
+    byDay.get(key).push(e);
+  }
+  for (const list of byDay.values()) {
+    list.sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
+  }
+
+  const todayKey = (() => {
+    const t = new Date();
+    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+  })();
+
+  const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
+  const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
+
+  const cellHtml = (cellDate, inMonth) => {
+    const key = `${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2, "0")}-${String(cellDate.getDate()).padStart(2, "0")}`;
+    const list = byDay.get(key) || [];
+    const isToday = key === todayKey;
+    const cls = [
+      "cal-cell",
+      inMonth ? "" : "cal-cell--out",
+      isToday ? "cal-cell--today" : "",
+    ].filter(Boolean).join(" ");
+    const items = list
+      .map((e) => {
+        const meta = e.category ? categoryMeta(e.category) : null;
+        const dot = meta
+          ? `<span class="cal-dot" style="background:${PALETTE_VAR(meta.color)}"></span>`
+          : `<span class="cal-dot"></span>`;
+        return `<a class="cal-event" href="/events/${escapeHtml(e.id)}" title="${escapeHtml(e.title)}">${dot}<span class="cal-event__t">${escapeHtml(e.title)}</span></a>`;
+      })
+      .join("");
+    return `
+      <div class="${cls}">
+        <div class="cal-num"><time datetime="${escapeHtml(key)}">${cellDate.getDate()}</time></div>
+        <div class="cal-events">${items}</div>
+      </div>`;
+  };
+
+  const cells = [];
+  // Leading blanks from the previous month (kept so the grid lines up).
+  for (let i = 0; i < startDow; i++) {
+    const d = new Date(year, month - 1, 1 - (startDow - i));
+    cells.push(cellHtml(d, false));
+  }
+  for (let day = 1; day <= daysInMonth; day++) {
+    cells.push(cellHtml(new Date(year, month - 1, day), true));
+  }
+  // Trailing days to fill out the final week.
+  while (cells.length % 7 !== 0) {
+    const i = cells.length - (startDow + daysInMonth);
+    cells.push(cellHtml(new Date(year, month, 1 + i), false));
+  }
+
+  const monthLabel = first.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const dayHeads = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    .map((d) => `<div class="cal-dayhead">${d}</div>`)
+    .join("");
+
+  const body = `
+  <section class="event-list">
+    <a class="back" href="/">← Home</a>
+    <h1>Calendar</h1>
+    <p class="muted">All troop events at a glance — click any event for details and to RSVP.</p>
+
+    <div class="cal-toolbar">
+      <div class="cal-nav">
+        <a class="btn ghost" href="/calendar?y=${prev.y}&amp;m=${prev.m}" aria-label="Previous month">←</a>
+        <a class="btn ghost" href="/calendar" aria-label="Jump to this month">Today</a>
+        <a class="btn ghost" href="/calendar?y=${next.y}&amp;m=${next.m}" aria-label="Next month">→</a>
+      </div>
+      <h2 class="cal-month">${escapeHtml(monthLabel)}</h2>
+      <div class="cal-actions">
+        <a class="btn ghost" href="/events">List view</a>
+        <a class="btn ghost" href="/calendar.ics">Subscribe (.ics)</a>
+      </div>
+    </div>
+
+    <div class="cal-grid" role="grid" aria-label="${escapeHtml(monthLabel)}">
+      <div class="cal-dayheads" role="row">${dayHeads}</div>
+      <div class="cal-cells" role="rowgroup">${cells.join("")}</div>
+    </div>
+  </section>
+  <style>
+    .cal-toolbar{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin:1rem 0 .8rem}
+    .cal-nav{display:flex;gap:.4rem}
+    .cal-actions{display:flex;gap:.4rem;margin-left:auto;flex-wrap:wrap}
+    .cal-month{margin:0;font-size:1.4rem;font-family:'Inter Tight',Inter,sans-serif;flex:1;text-align:center;min-width:0}
+    .cal-grid{border:1px solid #eef0e7;border-radius:12px;background:#fff;overflow:hidden}
+    .cal-dayheads,.cal-cells{display:grid;grid-template-columns:repeat(7,1fr)}
+    .cal-dayhead{padding:.55rem .5rem;font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-500);background:#fbf8ee;border-bottom:1px solid #eef0e7;text-align:center}
+    .cal-cell{min-height:108px;padding:.4rem .45rem;border-right:1px solid #eef0e7;border-bottom:1px solid #eef0e7;display:flex;flex-direction:column;gap:.25rem;background:#fff}
+    .cal-cell:nth-child(7n){border-right:0}
+    .cal-cells > .cal-cell:nth-last-child(-n+7){border-bottom:0}
+    .cal-cell--out{background:#fafaf6;color:var(--ink-500)}
+    .cal-cell--out .cal-num{opacity:.5}
+    .cal-cell--today{background:#fffbe6}
+    .cal-cell--today .cal-num time{background:var(--primary);color:#fff;border-radius:999px;padding:.05rem .5rem;font-weight:700}
+    .cal-num{font-size:.85rem;font-weight:600;color:var(--ink-700);text-align:right;line-height:1.4}
+    .cal-events{display:flex;flex-direction:column;gap:.18rem;min-height:0;overflow:hidden}
+    .cal-event{display:flex;align-items:center;gap:.35rem;text-decoration:none;color:var(--ink-900);background:#f4f6ee;border:1px solid #eef0e7;border-radius:6px;padding:.18rem .4rem;font-size:.78rem;line-height:1.25;overflow:hidden}
+    .cal-event:hover{background:#eaf0d6;border-color:#d6dcb3}
+    .cal-event__t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
+    .cal-dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;background:var(--primary);flex:0 0 auto}
+    @media (max-width:720px){
+      .cal-cell{min-height:72px;padding:.25rem .3rem}
+      .cal-event__t{font-size:.72rem}
+      .cal-dayhead{font-size:.7rem;padding:.4rem .25rem}
+      .cal-toolbar{gap:.5rem}
+      .cal-month{font-size:1.15rem;flex:1 1 100%;order:-1;text-align:center}
+      .cal-actions{margin-left:0}
+    }
+  </style>`;
+  const url = `https://${org.slug}.${ctx.apexDomain || "compass.app"}/calendar`;
+  const seo = {
+    meta: metaTags({
+      title: `Calendar — ${org.displayName}`,
+      description: `${monthLabel} calendar of meetings, campouts, service projects, and ceremonies for ${org.displayName}.`,
+      url,
+    }),
+    jsonLd: organizationJsonLd({ org, url: `https://${org.slug}.${ctx.apexDomain || "compass.app"}/` }),
+  };
+  return pageShell(org, `Calendar · ${monthLabel}`, body, seo);
+}
+
 export function renderEventsList(org, events, ctx = {}) {
   // Build a category-filter chip row from the categories actually
   // present in the visible events. URL-driven so it works without JS:
@@ -741,8 +886,9 @@ export function renderEventsList(org, events, ctx = {}) {
     <a class="back" href="/">← Home</a>
     <h1>Upcoming events</h1>
     <p class="muted">All scheduled events — subscribe once and keep them in your phone calendar.</p>
-    <p style="margin:1rem 0 0">
-      <a class="btn primary" href="/calendar.ics">Subscribe to calendar (.ics)</a>
+    <p style="margin:1rem 0 0;display:flex;gap:.4rem;flex-wrap:wrap">
+      <a class="btn primary" href="/calendar">Month view</a>
+      <a class="btn ghost" href="/calendar.ics">Subscribe (.ics)</a>
     </p>
     ${filterChips}
     ${

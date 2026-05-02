@@ -1950,6 +1950,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
       </div>
       <div class="row">
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rsvps">RSVPs</a>
+        <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/announce">Announce</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/slots">Sign-up sheet</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/plan">Trip plan</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rides">Carpool</a>
@@ -2194,6 +2195,270 @@ Event details: ${eventUrl}
         channel: "email",
       })),
     },
+  });
+
+  res.redirect(`/admin/events/${ev.id}/rsvps?reminder=${result.sent}`);
+});
+
+// Event-announcement composer. Differs from /admin/email in that the
+// body is *event-specific* — recipients get a templated email with the
+// event title/when/where/description, one-click RSVP buttons, and a
+// visible "Sent to:" footer of the audience names so families can
+// confirm they were on the list (modeled on the troopwebhost roster
+// blast). Reuses audienceFor + emailableMembers + sendBatch + mailLog.
+adminRouter.get("/events/:id/announce", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const [patrols, subgroups] = await Promise.all([
+    prisma.member.findMany({
+      where: { orgId: req.org.id, patrol: { not: null } },
+      distinct: ["patrol"],
+      select: { patrol: true },
+      orderBy: { patrol: "asc" },
+    }),
+    prisma.subgroup.findMany({ where: { orgId: req.org.id }, orderBy: { name: "asc" } }),
+  ]);
+  const patrolOptions = patrols
+    .map((p) => `<option value="${escape(p.patrol)}">${escape(p.patrol)}</option>`)
+    .join("");
+  const subgroupOptions = subgroups
+    .map(
+      (g) => `<option value="subgroup:${escape(g.id)}">${escape(g.name)} — ${escape(describeSubgroup(g))}</option>`,
+    )
+    .join("");
+
+  const when = ev.startsAt.toLocaleString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const body = `
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Calendar</a>
+    <h1>Announce event</h1>
+    <p class="muted">${escape(ev.title)} · ${escape(when)}${ev.location ? ` · ${escape(ev.location)}` : ""}</p>
+    <p class="muted small">Mail driver: <code>${escape(mailDriver)}</code>${
+      mailDriver === "console"
+        ? " — sends are logged to the server console (no real email leaves your machine)."
+        : ""
+    }</p>
+
+    <form class="card" method="post" action="/admin/events/${escape(ev.id)}/announce" style="margin-top:1rem">
+      <div class="row">
+        <label style="margin:0;flex:1">Audience
+          <select name="audience">
+            ${AUDIENCES.map(
+              (a) => `<option value="${escape(a.value)}">${escape(a.label)}</option>`
+            ).join("")}
+            ${
+              subgroups.length
+                ? `<optgroup label="Saved subgroups">${subgroupOptions}</optgroup>`
+                : ""
+            }
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Patrol (if "Specific patrol")
+          <select name="patrol">
+            <option value="">—</option>
+            ${patrolOptions}
+          </select>
+        </label>
+      </div>
+      <p class="muted small" style="margin:.6rem 0 1rem">Build new audiences in <a href="/admin/subgroups">Subgroups</a>.</p>
+
+      <label>Subject
+        <input name="subject" type="text" maxlength="200" value="${escape(`Action needed: ${ev.title}`)}">
+        <span class="muted small" style="display:block;margin-top:.25rem">Defaults work fine. Edit if you want a different headline.</span>
+      </label>
+
+      <label>Extra message <span class="muted small">(optional — appears above the event details)</span>
+        <textarea name="intro" rows="4" placeholder="Add context, reminders, what to bring, etc."></textarea>
+      </label>
+
+      <label class="row" style="align-items:center;gap:.5rem;margin:.4rem 0">
+        <input type="checkbox" name="includeRoster" value="1" checked style="width:auto">
+        <span>Include the recipient list ("Sent to: …") at the bottom of the email</span>
+      </label>
+
+      <div class="row" style="margin-top:.4rem">
+        <button class="btn btn-primary" type="submit" name="action" value="preview">Preview audience</button>
+        <button class="btn btn-primary" type="submit" name="action" value="send">Send announcement</button>
+        <a class="btn btn-ghost" href="/admin/events" style="margin-left:auto">Cancel</a>
+      </div>
+    </form>
+
+    <div class="card" style="margin-top:1rem;background:#fbf8ee">
+      <h2 style="margin-top:0;font-size:1.1rem">What recipients will see</h2>
+      <p class="muted small" style="margin:.2rem 0 .6rem">Each recipient gets a personalized email with their own one-click RSVP buttons. Same engine as the existing reminder send.</p>
+      <ul class="muted small" style="margin:.2rem 0 0;padding-left:1.2rem;line-height:1.6">
+        <li>Headline + event title, when, where, and any description</li>
+        <li>Yes / Maybe / Can't make it buttons (no login required)</li>
+        <li>Link to the full event page</li>
+        <li>Optional "Sent to:" roster of names</li>
+        <li>Unsubscribe link in the footer (List-Unsubscribe header set)</li>
+      </ul>
+    </div>
+  `;
+  res.type("html").send(layout(req, { title: `Announce · ${ev.title}`, body }));
+});
+
+adminRouter.post("/events/:id/announce", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const { audience, patrol, subject, intro, action, includeRoster } = req.body || {};
+  const orgId = req.org.id;
+
+  const all = await audienceFor(orgId, audience, patrol);
+  const recipients = emailableMembers(all);
+
+  let audienceLabel;
+  if (audience === "patrol") {
+    audienceLabel = `Patrol: ${patrol || "—"}`;
+  } else if (typeof audience === "string" && audience.startsWith("subgroup:")) {
+    const sg = await prisma.subgroup.findFirst({
+      where: { id: audience.slice("subgroup:".length), orgId },
+      select: { name: true },
+    });
+    audienceLabel = sg ? `Subgroup: ${sg.name}` : "Subgroup";
+  } else {
+    audienceLabel = AUDIENCES.find((a) => a.value === audience)?.label ?? "Everyone";
+  }
+
+  if (action === "preview") {
+    const list = all
+      .map(
+        (m) =>
+          `<li>${escape(m.firstName)} ${escape(m.lastName)}${m.patrol ? ` <span class="tag">${escape(m.patrol)}</span>` : ""} <span class="muted small">${escape(m.email || "(no email)")} · pref:${escape(m.commPreference)}</span></li>`
+      )
+      .join("");
+    const skipped = all.length - recipients.length;
+    const previewBody = `
+      <a class="back" href="/admin/events/${escape(ev.id)}/announce" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Back to compose</a>
+      <h1>Audience preview</h1>
+      <p class="muted">${escape(ev.title)} · ${escape(audienceLabel)}</p>
+      <p>${all.length} member${all.length === 1 ? "" : "s"} match. Email-eligible: <strong>${recipients.length}</strong> · Skipped (no email / unsubscribed / bounced): <strong>${skipped}</strong></p>
+      <ul class="items">${list || `<li class="empty">Nobody matches this audience.</li>`}</ul>
+    `;
+    return res.type("html").send(layout(req, { title: "Audience preview", body: previewBody }));
+  }
+
+  const cleanSubject = (subject || `Action needed: ${ev.title}`).trim().slice(0, 200);
+  const cleanIntro = (intro || "").trim();
+  const wantRoster = includeRoster === "1" || includeRoster === "on";
+
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+  const portSuffix =
+    process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : "";
+  const base = `${protocol}://${req.org.slug}.${apex}${portSuffix}`;
+
+  const when = ev.startsAt.toLocaleString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const rosterNames = wantRoster
+    ? recipients.map((m) => `${m.firstName} ${m.lastName}`).sort()
+    : [];
+
+  const messages = recipients.map((m) => {
+    const name = `${m.firstName} ${m.lastName}`;
+    const token = makeRsvpToken({ eventId: ev.id, name, email: m.email });
+    const yesUrl = `${base}/rsvp/${token}?response=yes`;
+    const maybeUrl = `${base}/rsvp/${token}?response=maybe`;
+    const noUrl = `${base}/rsvp/${token}?response=no`;
+    const eventUrl = `${base}/events/${ev.id}`;
+    const unsubToken = makeUnsubToken({ memberId: m.id, orgId });
+    const unsubUrl = `${base}/unsubscribe/${unsubToken}`;
+
+    const lines = [`Hi ${m.firstName},`, ""];
+    if (cleanIntro) {
+      lines.push(cleanIntro, "");
+    }
+    lines.push(
+      `${ev.title}`,
+      `When:  ${when}`,
+    );
+    if (ev.location) lines.push(`Where: ${ev.location}`);
+    if (ev.description) {
+      lines.push("", ev.description.trim());
+    }
+    lines.push(
+      "",
+      "RSVP in one click:",
+      `  Going:        ${yesUrl}`,
+      `  Maybe:        ${maybeUrl}`,
+      `  Can't make it: ${noUrl}`,
+      "",
+      `Event details: ${eventUrl}`,
+    );
+    if (rosterNames.length) {
+      lines.push(
+        "",
+        `Sent to: ${rosterNames.join(", ")}`,
+      );
+    }
+    lines.push(
+      "",
+      "—",
+      `${req.org.displayName}`,
+      `Unsubscribe: ${unsubUrl}`,
+    );
+
+    return {
+      to: m.email,
+      subject: cleanSubject,
+      text: lines.join("\n"),
+      from: `${req.user.displayName.replace(/[<>"]/g, "")} (via ${req.org.displayName.replace(/[<>"]/g, "")}) <noreply@${req.org.slug}.${apex}>`,
+      replyTo: req.user.email,
+      headers: {
+        "List-Unsubscribe": `<${unsubUrl}?one_click=1>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    };
+  });
+
+  const result = messages.length
+    ? await sendBatch(messages)
+    : { sent: 0, errors: [] };
+
+  await prisma.mailLog.create({
+    data: {
+      orgId,
+      authorId: req.user.id,
+      subject: cleanSubject,
+      body: `Announcement for ${ev.title}${cleanIntro ? `\n\n${cleanIntro}` : ""}`,
+      channel: "email",
+      audienceLabel,
+      recipientCount: result.sent,
+      status: result.errors.length === 0 ? "sent" : result.sent > 0 ? "partial" : "failed",
+      errors: result.errors.length ? JSON.stringify(result.errors) : null,
+      recipients: recipients.map((m) => ({
+        name: `${m.firstName} ${m.lastName}`,
+        email: m.email,
+        channel: "email",
+      })),
+    },
+  });
+
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Event",
+    entityId: ev.id,
+    action: "announce",
+    summary: `Announced "${ev.title}" to ${audienceLabel} (${result.sent} sent)`,
   });
 
   res.redirect(`/admin/events/${ev.id}/rsvps?reminder=${result.sent}`);
@@ -5008,7 +5273,7 @@ adminRouter.get("/email", requireLeader, async (req, res) => {
           </select>
         </label>
       </div>
-      <p class="muted small" style="margin-top:-.4rem">Build new audiences in <a href="/admin/subgroups">Subgroups</a>.</p>
+      <p class="muted small" style="margin:.6rem 0 1rem">Build new audiences in <a href="/admin/subgroups">Subgroups</a>.</p>
       <label>Subject<input id="bcast-subject" name="subject" type="text" required maxlength="200">
         <span class="muted small" id="bcast-subject-count" style="display:block;margin-top:.2rem">0 / 200 characters</span>
       </label>
