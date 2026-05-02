@@ -57,6 +57,17 @@ export async function resetDb() {
   await prisma.customPage.deleteMany({});
   await prisma.page.deleteMany({});
   await prisma.mailLog.deleteMany({});
+  // Public roadmap board + newsletter scheduling — added with the
+  // design_handoff_compass migrations. Wipe in dependency order:
+  // votes/comments cascade from FeedbackRequest, schedule/rules
+  // cascade from Org, but explicit deletes are cheaper than rebuilding
+  // each test.
+  await prisma.feedbackVote.deleteMany({});
+  await prisma.feedbackComment.deleteMany({});
+  await prisma.feedbackRequest.deleteMany({});
+  await prisma.newsletterRule.deleteMany({});
+  await prisma.newsletterSchedule.deleteMany({});
+  await prisma.supportTicket.deleteMany({});
   await prisma.session.deleteMany({});
   await prisma.oAuthAccount.deleteMany({});
   await prisma.orgMembership.deleteMany({});
