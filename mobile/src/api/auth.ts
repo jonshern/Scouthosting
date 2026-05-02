@@ -1,19 +1,19 @@
 // Mobile-side auth helpers. The flow:
 //
-//   1. signIn() opens the org's /auth/mobile/begin URL in an in-app
+//   1. signIn() opens the apex /auth/mobile/begin URL in an in-app
 //      browser via expo-web-browser. The web flow signs the user in via
 //      Lucia (web cookie) then redirects to compass://auth/callback?token=...
 //   2. The browser session resolves with the deep-link URL; we parse the
 //      token / userId / displayName and persist them in SecureStorage.
-//   3. fetchMe() hits /api/v1/auth/me to get the membership list, which
-//      we cache so the rest of the app knows which orgs the user is in
-//      and which slug to talk to.
+//   3. fetchMe() hits /api/v1/auth/me to get the membership list. The
+//      app picks the active org from that list (first by default; user
+//      can switch via the org picker if they belong to multiple).
 //
 // signOut() revokes the bearer token server-side (best-effort) and then
 // drops all locally-stored creds.
 
 import { apiRequest, type ClientOptions } from "./client";
-import { hostForOrg, type ApiConfig } from "./config";
+import { apexBaseUrl, type ApiConfig } from "./config";
 import type { MeDto } from "./types";
 import type { SecureStorage, StoredProfile } from "./storage";
 
@@ -22,8 +22,6 @@ export type SignInResult =
   | { ok: false; reason: "cancelled" | "missing_token" | "browser_unavailable" };
 
 export type SignInOptions = {
-  /** The org slug to begin sign-in against (e.g. the unit subdomain). */
-  orgSlug: string;
   /** Deep-link scheme registered by the app — defaults to compass://auth/callback. */
   redirectUrl?: string;
   config?: ApiConfig;
@@ -34,9 +32,11 @@ export type SignInOptions = {
 const DEFAULT_REDIRECT = "compass://auth/callback";
 
 /** Run the sign-in flow. Returns the bearer token + identity bits. */
-export async function signIn(opts: SignInOptions): Promise<SignInResult> {
+export async function signIn(opts: SignInOptions = {}): Promise<SignInResult> {
   const redirect = opts.redirectUrl || DEFAULT_REDIRECT;
-  const startUrl = `${hostForOrg(opts.orgSlug, opts.config)}/auth/mobile/begin?redirect=${encodeURIComponent(redirect)}`;
+  // Always start at the apex — org membership is resolved server-side
+  // after sign-in via /api/v1/auth/me.
+  const startUrl = `${apexBaseUrl(opts.config)}/auth/mobile/begin?redirect=${encodeURIComponent(redirect)}`;
 
   // We default to expo-web-browser at runtime; tests inject openAuthSession.
   let openAuthSession = opts.openAuthSession;

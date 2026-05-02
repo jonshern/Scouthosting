@@ -26,7 +26,7 @@ export type AuthState =
 
 type AuthContextValue = {
   state: AuthState;
-  signIn: (orgSlug: string) => Promise<void>;
+  signIn: () => Promise<void>;
   signOut: () => Promise<void>;
   switchOrg: (orgId: string) => Promise<void>;
   /** Build a ClientOptions for hitting the API as the active user. */
@@ -104,20 +104,24 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
     return () => { cancelled = true; };
   }, [state]);
 
-  const signIn = useCallback(async (orgSlug: string) => {
-    const result = await signInFlow({ orgSlug });
+  const signIn = useCallback(async () => {
+    const result = await signInFlow();
     if (!result.ok) {
       // Surface the failure by leaving state at signed-out; caller can
       // re-render an error toast based on the throw.
       throw new Error(`signin_failed: ${result.reason}`);
     }
-    // Use the token to fetch the membership list.
-    const me = await fetchMe({ orgSlug, token: result.token });
+    // Fetch memberships using the new token. The first membership's
+    // slug is sufficient context for /api/v1/auth/me — that route is
+    // host-agnostic on the server (looks up the user from the bearer).
+    const fallbackSlug = result.userId; // any non-empty slug; server doesn't read it
+    const me = await fetchMe({ orgSlug: fallbackSlug, token: result.token });
     if (!me.memberships.length) {
       throw new ApiError(403, "not_a_member", "Account isn't a member of any units yet.");
     }
     const profile = await persistSignIn(storage, result, me);
-    // Empty-orgs case threw above; orgs[0] is guaranteed.
+    // For multi-org users we currently default to the first membership.
+    // A real picker is the next mobile UI follow-up.
     const activeOrg = profile.orgs.find((o) => o.orgId === profile.activeOrgId) || profile.orgs[0]!;
     setState({ status: "signed-in", token: result.token, profile, activeOrg });
   }, [storage]);

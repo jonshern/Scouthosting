@@ -24,3 +24,13 @@ export function hostForOrg(orgSlug: string, config: ApiConfig = DEFAULT_API_CONF
   if (config.baseUrl) return config.baseUrl.replace(/\/$/, "");
   return `https://${orgSlug}.${APEX_DOMAIN}`;
 }
+
+/**
+ * Resolve the apex (org-less) base URL. Used for sign-in: the apex
+ * /auth/mobile/begin endpoint accepts any signed-in user regardless of
+ * org — org selection happens client-side after /api/v1/auth/me.
+ */
+export function apexBaseUrl(config: ApiConfig = DEFAULT_API_CONFIG): string {
+  if (config.baseUrl) return config.baseUrl.replace(/\/$/, "");
+  return `https://${APEX_DOMAIN}`;
+}

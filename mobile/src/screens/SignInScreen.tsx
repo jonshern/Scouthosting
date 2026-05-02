@@ -1,10 +1,13 @@
-// Sign-in landing for unauthenticated mobile users. The user enters
-// their unit's subdomain (e.g. "troop12"); we kick off the
-// /auth/mobile/begin flow on that org's host.
+// Sign-in landing for unauthenticated mobile users. The mobile app is
+// org-agnostic at sign-in: tapping "Sign in" opens
+// https://compass.app/auth/mobile/begin in an in-app browser. The
+// browser flow handles email + password and OAuth (Google, Apple); on
+// success the apex server redirects to compass://auth/callback?token=...
+// and the app fetches /api/v1/auth/me to discover the user's orgs.
 //
 // Visually mirrors the Compass design (Forest & Ember tokens, oversized
-// italic headline). Form is intentionally narrow — the heavy lifting
-// happens in the in-app browser.
+// italic headline). One button — the heavy lifting happens in the
+// in-app browser.
 
 import React, { useState } from "react";
 import {
@@ -15,7 +18,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -25,26 +27,20 @@ import { useAuth } from "../state/AuthContext";
 
 export default function SignInScreen() {
   const auth = useAuth();
-  const [slug, setSlug] = useState("");
   const [busy, setBusy] = useState(false);
 
   const onSubmit = async () => {
-    const cleaned = slug.trim().toLowerCase();
-    if (!cleaned) {
-      Alert.alert("Need your unit's address", "Enter just the subdomain — e.g. \"troop12\".");
-      return;
-    }
     setBusy(true);
     try {
-      await auth.signIn(cleaned);
+      await auth.signIn();
     } catch (e: any) {
       Alert.alert(
         "Couldn't sign in",
         e?.message?.includes("not_a_member")
-          ? "This account isn't on the unit roster yet. Ask a leader to add you."
+          ? "This account isn't on a unit roster yet. Ask a leader to add you."
           : e?.message?.includes("cancelled")
             ? "Sign-in was cancelled."
-            : "Something went wrong reaching that unit. Double-check the address and try again.",
+            : "Something went wrong. Check your connection and try again.",
       );
     } finally {
       setBusy(false);
@@ -63,48 +59,29 @@ export default function SignInScreen() {
             Sign in to your <Text style={styles.italic}>unit.</Text>
           </Text>
           <Text style={styles.lede}>
-            Enter your unit's web address — we'll bounce you through the browser to sign in,
-            then bring you back here.
+            We'll open a browser so you can sign in with your email or with
+            Google / Apple, then bring you back here.
           </Text>
-
-          <Text style={styles.label}>Your unit's site</Text>
-          <View style={styles.suffixRow}>
-            <TextInput
-              autoCapitalize="none"
-              autoCorrect={false}
-              spellCheck={false}
-              keyboardType="url"
-              placeholder="troop100"
-              placeholderTextColor={palette.inkMuted}
-              style={styles.input}
-              value={slug}
-              onChangeText={setSlug}
-              editable={!busy}
-              onSubmitEditing={onSubmit}
-            />
-            <View style={styles.suffix}>
-              <Text style={styles.suffixText}>.compass.app</Text>
-            </View>
-          </View>
 
           <Pressable
             onPress={onSubmit}
-            disabled={busy || !slug.trim()}
+            disabled={busy}
             style={({ pressed }) => [
               styles.cta,
-              (busy || !slug.trim()) && styles.ctaDisabled,
+              busy && styles.ctaDisabled,
               pressed && styles.ctaPressed,
             ]}
           >
             {busy ? (
               <ActivityIndicator color={palette.bg} />
             ) : (
-              <Text style={styles.ctaText}>Continue →</Text>
+              <Text style={styles.ctaText}>Sign in →</Text>
             )}
           </Pressable>
 
           <Text style={styles.fine}>
-            Don't have a site? Visit compass.app on your laptop to set one up first.
+            Don't have an account? Visit compass.app on your laptop to start a
+            unit's site.
           </Text>
         </View>
       </KeyboardAvoidingView>
@@ -142,69 +119,27 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     marginBottom: spacing.xxl,
   },
-  label: {
-    fontFamily: fontFamilies.ui,
-    fontSize: 12,
-    fontWeight: "600",
-    color: palette.ink,
-    marginBottom: spacing.sm,
-  },
-  suffixRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    marginBottom: spacing.lg,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: palette.surface,
-    borderTopLeftRadius: radius.input,
-    borderBottomLeftRadius: radius.input,
-    borderWidth: 1.5,
-    borderColor: palette.line,
-    borderRightWidth: 0,
-    paddingHorizontal: spacing.lg,
-    paddingVertical: spacing.lg,
-    fontFamily: fontFamilies.ui,
-    fontSize: 15,
-    color: palette.ink,
-  },
-  suffix: {
-    justifyContent: "center",
-    paddingHorizontal: spacing.lg,
-    backgroundColor: palette.lineSoft,
-    borderTopRightRadius: radius.input,
-    borderBottomRightRadius: radius.input,
-    borderWidth: 1.5,
-    borderColor: palette.line,
-    borderLeftWidth: 0,
-  },
-  suffixText: {
-    fontFamily: fontFamilies.display,
-    fontSize: 14,
-    color: palette.inkSoft,
-  },
   cta: {
     backgroundColor: palette.ink,
     borderRadius: radius.input,
     paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.xxl,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: spacing.lg,
   },
   ctaDisabled: { opacity: 0.5 },
-  ctaPressed: { backgroundColor: palette.primaryHover },
+  ctaPressed: { opacity: 0.8 },
   ctaText: {
     fontFamily: fontFamilies.ui,
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 16,
+    fontWeight: "700",
     color: palette.bg,
   },
   fine: {
     fontFamily: fontFamilies.ui,
-    fontSize: 12,
+    fontSize: 13,
     color: palette.inkMuted,
     textAlign: "center",
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
   },
 });
