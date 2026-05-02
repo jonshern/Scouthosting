@@ -16,10 +16,12 @@ PORT       ?= $(shell . ./.env 2>/dev/null; echo $${PORT:-3000})
 
 .DEFAULT_GOAL := help
 
-.PHONY: help check env install db-up db-wait migrate seed bootstrap dev dev-bg dev-stop dev-log e2e test down clean reset reseed
+.PHONY: help check env install db-up db-wait migrate seed bootstrap dev dev-bg dev-stop dev-log e2e test down clean reset reseed pull wipe redeploy redeploy-quick \
+        mobile-install mobile-start mobile-ios mobile-android mobile-web mobile-typecheck mobile-test \
+        mobile-build-dev mobile-build-preview mobile-build-prod mobile-doctor
 
 help: ## Show this help.
-	@awk 'BEGIN {FS = ":.*##"; printf "Compass dev targets\n\nUsage: make <target>\n\nTargets:\n"} /^[a-zA-Z_-]+:.*##/ { printf "  \033[1m%-12s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "Compass dev targets\n\nUsage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*##/ { printf "  \033[1m%-15s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
 check: ## Verify node + docker are installed.
 	@test -n "$(NODE_BIN)"   || { echo "node not found — install Node 20+"; exit 1; }
@@ -105,3 +107,63 @@ reset: ## Drop, re-create, and re-migrate the dev database.
 
 reseed: ## Re-run the demo seed against the existing database.
 	$(NPM) run db:seed
+
+pull: ## Sync code: git pull --ff-only + npm install.
+	git pull --ff-only
+	$(NPM) install
+
+wipe: db-up db-wait ## DESTRUCTIVE: drop + recreate the dev DB and reseed demo data.
+	$(NPM) run db:reset
+
+redeploy: dev-stop pull wipe dev-bg e2e ## Full local redeploy: pull latest, wipe DB, reseed, restart, smoke test.
+	@echo
+	@echo "redeploy complete — http://localhost:$(PORT)/"
+	@echo "demo logins (password: compassdemo123):"
+	@echo "  super@compass.example         → http://localhost:$(PORT)/__super"
+	@echo "  scoutmaster@example.invalid   → http://troop100.localhost:$(PORT)/admin"
+	@echo "  cubmaster@example.invalid     → http://pack100.localhost:$(PORT)/admin"
+	@echo "  troop-leader@example.invalid  → http://gstroop100.localhost:$(PORT)/admin"
+
+redeploy-quick: dev-stop wipe dev-bg e2e ## Same as redeploy, but skip git pull / npm install.
+	@echo
+	@echo "redeploy-quick complete — http://localhost:$(PORT)/"
+
+# --- mobile (Expo + EAS) ---
+# PLATFORM=ios|android|all selects the EAS build platform; defaults to "all".
+# Cloud builds require `eas login` once; npx will fetch the eas-cli on demand.
+
+MOBILE   := mobile
+PLATFORM ?= all
+
+mobile-install: ## Install mobile/ deps.
+	cd $(MOBILE) && $(NPM) install
+
+mobile-start: ## Expo dev server (Metro). Scan the QR with Expo Go or a dev client.
+	cd $(MOBILE) && $(NPM) run start
+
+mobile-ios: ## Launch the iOS simulator with the Expo dev client.
+	cd $(MOBILE) && $(NPM) run ios
+
+mobile-android: ## Launch the Android emulator with the Expo dev client.
+	cd $(MOBILE) && $(NPM) run android
+
+mobile-web: ## Run the mobile app as a web bundle (limited fidelity).
+	cd $(MOBILE) && $(NPM) run web
+
+mobile-typecheck: ## tsc --noEmit on mobile/.
+	cd $(MOBILE) && $(NPM) run typecheck
+
+mobile-test: ## Vitest suite under mobile/.
+	cd $(MOBILE) && $(NPM) run test
+
+mobile-doctor: ## Run `expo-doctor` to validate the mobile project (deps, config).
+	cd $(MOBILE) && npx expo-doctor
+
+mobile-build-dev: ## EAS cloud build, "development" profile. Override platform: PLATFORM=ios|android|all.
+	cd $(MOBILE) && npx eas build --profile development --platform $(PLATFORM)
+
+mobile-build-preview: ## EAS cloud build, "preview" profile (internal QA / TestFlight-ready).
+	cd $(MOBILE) && npx eas build --profile preview --platform $(PLATFORM)
+
+mobile-build-prod: ## EAS cloud build, "production" profile (App Store / Play Store).
+	cd $(MOBILE) && npx eas build --profile production --platform $(PLATFORM)
