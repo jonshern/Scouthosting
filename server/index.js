@@ -1627,27 +1627,54 @@ app.get("/events/:id.ics", async (req, res) => {
     .send(icsFor(ev, { orgSlug: req.org.slug }));
 });
 
-// Public month-grid calendar. Recurring events get expanded so each
-// occurrence shows on its own day. Year/month come from `?y=&m=` and
-// default to the current month.
+// Public calendar. Three views, all served from the same route:
+//   ?view=month   (default) — single month grid
+//   ?view=quarter           — three-month grid (prev / current / next)
+//   ?view=agenda            — week-grouped list of upcoming events
+//
+// Year/month come from `?y=&m=` and default to today. `?cat=<slug>`
+// filters by event category. Recurring events get expanded so each
+// occurrence shows on its own day.
 app.get("/calendar", async (req, res, next) => {
   if (!req.org) return next();
 
   const now = new Date();
+  const view = ["month", "quarter", "agenda"].includes(String(req.query.view || ""))
+    ? String(req.query.view)
+    : "month";
+  const categoryFilter = req.query.cat ? String(req.query.cat) : "";
+
   let year = parseInt(String(req.query.y || ""), 10);
   let month = parseInt(String(req.query.m || ""), 10);
   if (!Number.isInteger(year) || year < 1970 || year > 9999) year = now.getFullYear();
   if (!Number.isInteger(month) || month < 1 || month > 12) month = now.getMonth() + 1;
 
-  // Window: cover the visible grid, which may include trailing days of
-  // the previous month and leading days of the next month.
-  const monthStart = new Date(year, month - 1, 1);
-  const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
-  const gridStart = new Date(monthStart);
-  gridStart.setDate(gridStart.getDate() - gridStart.getDay()); // back to Sunday
-  const gridEnd = new Date(monthEnd);
-  gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay())); // forward to Saturday
-  gridEnd.setHours(23, 59, 59, 999);
+  // Window covers the visible grid for month/quarter views, or 90 days
+  // forward for the agenda view. We always pull recurring events too —
+  // expandOccurrences trims them down to the window.
+  let gridStart, gridEnd;
+  if (view === "quarter") {
+    const qStart = new Date(year, month - 2, 1); // prev month
+    const qEnd = new Date(year, month + 1, 0, 23, 59, 59, 999); // last day of next month
+    gridStart = new Date(qStart);
+    gridStart.setDate(gridStart.getDate() - gridStart.getDay()); // back to Sunday
+    gridEnd = new Date(qEnd);
+    gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay())); // forward to Saturday
+    gridEnd.setHours(23, 59, 59, 999);
+  } else if (view === "agenda") {
+    gridStart = new Date(now);
+    gridStart.setHours(0, 0, 0, 0);
+    gridEnd = new Date(gridStart);
+    gridEnd.setDate(gridEnd.getDate() + 90);
+  } else {
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
+    gridStart = new Date(monthStart);
+    gridStart.setDate(gridStart.getDate() - gridStart.getDay()); // back to Sunday
+    gridEnd = new Date(monthEnd);
+    gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay())); // forward to Saturday
+    gridEnd.setHours(23, 59, 59, 999);
+  }
 
   const candidates = await prisma.event.findMany({
     where: {
@@ -1660,10 +1687,10 @@ app.get("/calendar", async (req, res, next) => {
     orderBy: { startsAt: "asc" },
   });
 
-  const expanded = (
+  let expanded = (
     await Promise.all(
       candidates.map((e) =>
-        expandOccurrences(e, { from: gridStart, to: gridEnd, max: 60 }),
+        expandOccurrences(e, { from: gridStart, to: gridEnd, max: 90 }),
       ),
     )
   )
@@ -1673,12 +1700,19 @@ app.get("/calendar", async (req, res, next) => {
       return d >= gridStart && d <= gridEnd;
     });
 
+  if (categoryFilter) {
+    const slug = (s) => String(s || "").toLowerCase().replace(/[\s_]+/g, "-");
+    expanded = expanded.filter((e) => slug(e.category) === slug(categoryFilter));
+  }
+
   res
     .set("Content-Type", "text/html; charset=utf-8")
     .send(
       renderCalendarMonth(req.org, expanded, {
         year,
         month,
+        view,
+        categoryFilter,
         apexDomain: APEX_DOMAIN,
       }),
     );
