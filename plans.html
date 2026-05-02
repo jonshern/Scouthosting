@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en" data-palette="balanced">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Compass plans & pricing. $99/yr flat with 15 GB storage included and bring-your-own domain at no markup. Designed to undercut legacy Scout-hosting platforms by $10/yr while shipping 50% more storage." />
+  <title>Compass · Plans & Pricing</title>
+  <link rel="canonical" href="https://compass.app/plans.html" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/tokens.css" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    /* Page-local layout for plans.html. Tokens come from /tokens.css. */
+    .plans-page { max-width: 1280px; margin: 0 auto; padding: 24px var(--page-pad-x) 64px; }
+
+    /* ── Header band ── */
+    .plans-head { display: grid; grid-template-columns: 1.4fr 0.6fr; gap: 48px; padding: 32px 0 40px; align-items: start; }
+    .plans-head__eyebrow { font-size: 11px; color: var(--accent); font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 14px; }
+    .plans-head__title { font-family: var(--font-display); font-size: 56px; font-weight: 400; letter-spacing: -0.02em; line-height: 1.05; margin: 0 0 18px; color: var(--ink); }
+    .plans-head__title em { color: var(--accent); font-style: italic; }
+    .plans-head__title strong { font-weight: 500; }
+    .plans-head__lede { font-size: 16px; line-height: 1.6; color: var(--ink-soft); margin: 0; max-width: 56ch; }
+
+    .plans-status { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 22px; }
+    .plans-status__label { font-size: 11px; color: var(--ink-muted); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+    .plans-status__row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 0; font-size: 13px; line-height: 1.45; color: var(--ink-soft); }
+    .plans-status__row--settled { color: var(--ink); font-weight: 500; }
+    .plans-status__check { width: 14px; height: 14px; flex-shrink: 0; margin-top: 2px; color: var(--success); }
+    .plans-status__open { width: 14px; height: 14px; border-radius: 7px; background: var(--ember-soft); color: var(--ember); font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 2px; }
+
+    /* ── Tier grid ── */
+    .tiers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; align-items: stretch; }
+    .tier-card { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 28px 24px; display: flex; flex-direction: column; position: relative; }
+    .tier-card--popular { border: 2px solid var(--ember); box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.1), 0 12px 32px rgba(245, 158, 11, 0.1); }
+    .tier-card--dark { background: var(--surface-dark); color: #fff; border-color: rgba(255,255,255,0.12); }
+    .tier-card__ribbon { position: absolute; top: -12px; left: 24px; background: var(--ember); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; padding: 4px 10px; border-radius: var(--radius-chip); }
+    .tier-card__name { font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); }
+    .tier-card--dark .tier-card__name { color: rgba(255,255,255,0.55); }
+    .tier-card__tagline { font-family: var(--font-display); font-size: 19px; font-style: italic; font-weight: 500; color: var(--ink); margin: 6px 0 0; line-height: 1.3; }
+    .tier-card--dark .tier-card__tagline { color: #fff; }
+    .tier-card__price { font-family: var(--font-display); font-size: 56px; font-weight: 400; letter-spacing: -0.02em; line-height: 0.9; margin-top: 22px; color: var(--ink); display: flex; align-items: baseline; gap: 8px; }
+    .tier-card--dark .tier-card__price { color: #fff; }
+    .tier-card__price--small { font-size: 36px; font-style: italic; }
+    .tier-card__price-tbd { display: inline-flex; align-items: center; gap: 4px; padding: 1px 7px; background: var(--ember-soft); color: #a8590a; border-radius: 3px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; font-family: var(--font-mono); vertical-align: baseline; }
+    .tier-card__sub { font-size: 12px; color: var(--ink-soft); margin-top: 8px; line-height: 1.55; }
+    .tier-card--dark .tier-card__sub { color: rgba(255,255,255,0.75); }
+    .tier-card__cta { margin-top: 22px; padding: 11px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; font-family: var(--font-ui); border: none; cursor: pointer; text-align: center; text-decoration: none; display: inline-block; }
+    .tier-card__cta--primary { background: var(--ink); color: #fff; }
+    .tier-card__cta--accent { background: var(--ember); color: #fff; }
+    .tier-card__cta--ghost { background: transparent; color: var(--ink-soft); border: 1px solid var(--line); cursor: not-allowed; opacity: 0.55; }
+    .tier-card--dark .tier-card__cta--ghost { color: rgba(255,255,255,0.55); border-color: rgba(255,255,255,0.25); }
+    .tier-card__features { border-top: 1px solid var(--line-soft); margin-top: 22px; padding-top: 18px; flex: 1; list-style: none; padding-inline-start: 0; }
+    .tier-card--dark .tier-card__features { border-color: rgba(255,255,255,0.12); }
+    .tier-card__feature { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+    .tier-card__feature-check { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; color: var(--success); }
+    .tier-card--dark .tier-card__feature-check { color: var(--ember); }
+    .tier-card__feature-label { font-size: 13px; color: var(--ink); font-weight: 500; }
+    .tier-card--dark .tier-card__feature-label { color: #fff; }
+    .tier-card__feature--inherit .tier-card__feature-label { font-weight: 600; }
+    .tier-card__feature-meta { font-size: 11px; color: var(--ink-muted); margin-left: 6px; font-weight: 500; }
+    .tier-card--dark .tier-card__feature-meta { color: rgba(255,255,255,0.55); }
+    .tier-card__feature-sub { font-size: 11px; color: var(--ink-soft); margin-top: 1px; line-height: 1.45; }
+    .tier-card--dark .tier-card__feature-sub { color: rgba(255,255,255,0.75); }
+    .tier-card__not-included { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+    .tier-card--dark .tier-card__not-included { border-color: rgba(255,255,255,0.12); }
+    .tier-card__not-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+    .tier-card__not-x { width: 12px; height: 12px; flex-shrink: 0; color: var(--ink-muted); }
+    .tier-card__not-label { font-size: 12px; color: var(--ink-muted); }
+    .tier-card--dark .tier-card__not-label { color: rgba(255,255,255,0.55); }
+
+    /* ── Storage panel ── */
+    .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 36px; margin-top: 64px; }
+    .panel--dark { background: var(--surface-dark); color: #fff; border-color: var(--line); }
+    .panel__grid { display: grid; grid-template-columns: 1fr 1.6fr; gap: 48px; align-items: flex-start; }
+    .panel__eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ember); margin-bottom: 14px; }
+    .panel--dark .panel__eyebrow { color: var(--ember); }
+    .panel__title { font-family: var(--font-display); font-size: 38px; font-weight: 400; font-style: italic; letter-spacing: -0.015em; margin: 0 0 14px; line-height: 1.05; color: var(--ink); }
+    .panel--dark .panel__title { color: #fff; }
+    .panel__body { font-size: 14px; line-height: 1.65; color: var(--ink-soft); margin: 0; }
+    .panel--dark .panel__body { color: rgba(255,255,255,0.78); }
+    .panel__body strong { color: var(--ink); }
+    .panel--dark .panel__body strong { color: #fff; }
+
+    .storage-callout { margin-top: 22px; padding: 14px; background: var(--bg); border: 1px solid var(--line-soft); border-radius: 8px; }
+    .storage-callout__label { font-size: 11px; color: var(--ink-muted); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px; }
+    .storage-callout__body { font-size: 13px; color: var(--ink); line-height: 1.5; }
+
+    .scenario-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .scenario { background: var(--bg); border: 1px solid var(--line-soft); border-radius: 10px; padding: 18px; }
+    .scenario__name { font-size: 11px; color: var(--ink-muted); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+    .scenario__num { font-family: var(--font-display); font-size: 30px; font-weight: 500; letter-spacing: -0.02em; color: var(--ink); margin-top: 6px; line-height: 1; }
+    .scenario__sub { font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
+    .scenario__check { font-size: 12px; font-weight: 600; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line-soft); line-height: 1.4; color: var(--success); }
+    .scenario__check--watch { color: var(--ember); }
+
+    .panel-aside-label { font-size: 11px; color: var(--ink-muted); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px; }
+    .panel--dark .panel-aside-label { color: rgba(255,255,255,0.55); }
+
+    .panel-math { margin-top: 14px; padding: 14px; background: rgba(15,23,42,0.04); border: 1px solid var(--line-soft); border-radius: 8px; font-size: 12px; line-height: 1.6; color: var(--ink-soft); }
+    .panel-math strong { color: var(--ink); }
+
+    /* AI tier panel */
+    .ai-pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; background: rgba(254,244,226,0.15); color: #f5d878; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; }
+    .ai-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .ai-card { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 8px; padding: 14px; }
+    .ai-card__num { font-size: 10px; font-weight: 700; color: #f5d878; letter-spacing: 0.08em; margin-bottom: 4px; }
+    .ai-card__title { font-size: 12px; font-weight: 600; line-height: 1.4; color: #fff; }
+    .ai-card__body { font-size: 11px; color: rgba(255,255,255,0.6); margin-top: 4px; line-height: 1.5; }
+    .ai-experiment { margin-top: 14px; padding: 12px; background: rgba(232,149,86,0.15); border: 1px solid rgba(232,149,86,0.3); border-radius: 8px; font-size: 12px; line-height: 1.55; color: rgba(255,255,255,0.85); }
+    .ai-experiment strong { color: #fff; }
+
+    /* FAQ strip */
+    .faq-strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; margin-top: 64px; }
+    .faq-q { font-family: var(--font-display); font-size: 18px; font-style: italic; font-weight: 500; color: var(--ink); margin-bottom: 6px; }
+    .faq-a { font-size: 13px; color: var(--ink-soft); line-height: 1.6; }
+
+    /* Top nav re-uses .topnav from styles.css */
+    @media (max-width: 960px) {
+      .plans-head { grid-template-columns: 1fr; }
+      .tiers { grid-template-columns: 1fr; }
+      .panel__grid { grid-template-columns: 1fr; gap: 32px; }
+      .scenario-grid { grid-template-columns: 1fr; }
+      .ai-grid { grid-template-columns: 1fr; }
+      .faq-strip { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <!-- Top nav, identical to marketing landing -->
+  <header class="topnav" role="banner">
+    <a href="/" class="wordmark" aria-label="Compass — home">
+      <svg width="32" height="32" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="18.5" fill="none" stroke="#0f172a" stroke-width="1.25" />
+        <circle cx="20" cy="20" r="11" fill="none" stroke="#0f172a" stroke-width="0.75" opacity="0.4" />
+        <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#1d4ed8" />
+        <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="#0f172a" opacity="0.85" />
+        <path d="M37 20 L20 22.4 L22.4 20 L20 17.6 Z" fill="#0f172a" opacity="0.5" />
+        <path d="M3 20 L20 17.6 L17.6 20 L20 22.4 Z" fill="#0f172a" opacity="0.5" />
+        <circle cx="20" cy="20" r="1.6" fill="#0f172a" />
+      </svg>
+      <span>Compass<span class="accent">.</span></span>
+    </a>
+    <nav class="topnav__anchors" aria-label="Primary">
+      <a href="/#product">The Product</a>
+      <a href="/security.html">Security</a>
+      <a href="/plans.html" aria-current="page">Pricing</a>
+      <a href="/positioning.html">Positioning</a>
+    </nav>
+    <div class="topnav__actions">
+      <a href="/login.html" class="topnav__signin">Sign in</a>
+      <a href="/signup.html" class="btn btn--accent btn--pill">Start a trial</a>
+    </div>
+  </header>
+
+  <main id="main" class="plans-page">
+    <!-- ===========================================================
+         1. Header band — eyebrow + display headline + lede + status sidebar.
+         Mirrors plans.jsx top banner (lines 158–192).
+         =========================================================== -->
+    <section class="plans-head">
+      <div>
+        <div class="plans-head__eyebrow">Plans</div>
+        <h1 class="plans-head__title">
+          <em>$99 a year.</em><br />
+          <strong>50% more storage</strong> for $10 less.
+        </h1>
+        <p class="plans-head__lede">
+          The typical legacy host: $109/yr · 10 GB · +$25/yr to host your own
+          domain. Compass: $99/yr · 15 GB · BYO domain at no markup. (You still
+          buy the domain at any registrar for ~$15/yr; that's universal.) The
+          committee math takes about ten seconds. The AI add-on is a separate
+          (still-open) question — see below.
+        </p>
+      </div>
+      <aside class="plans-status" aria-label="Pricing decisions: settled vs open">
+        <div class="plans-status__label">What's settled · what's open</div>
+        <div class="plans-status__row plans-status__row--settled">
+          <svg class="plans-status__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+          $99/yr · undercuts TroopWebHost by $10
+        </div>
+        <div class="plans-status__row plans-status__row--settled">
+          <svg class="plans-status__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+          15 GB photos · 50% more than their 10 GB
+        </div>
+        <div class="plans-status__row plans-status__row--settled">
+          <svg class="plans-status__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+          BYO domain at no markup (they charge +$25)
+        </div>
+        <div class="plans-status__row plans-status__row--settled">
+          <svg class="plans-status__check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+          60-day money-back guarantee
+        </div>
+        <div class="plans-status__row">
+          <span class="plans-status__open">?</span>
+          AI add-on price
+        </div>
+        <div class="plans-status__row">
+          <span class="plans-status__open">?</span>
+          Which AI features make v1
+        </div>
+        <div class="plans-status__row">
+          <span class="plans-status__open">?</span>
+          Free tier? (probably not for v1)
+        </div>
+      </aside>
+    </section>
+
+    <!-- ===========================================================
+         2. Tier grid — Troop (popular), Troop+AI (dark, TBD),
+         Council (later).
+         Mirrors plans.jsx tier cards (lines 32–87).
+         =========================================================== -->
+    <section class="tiers" aria-label="Pricing tiers">
+      <!-- Troop -->
+      <article class="tier-card tier-card--popular">
+        <div class="tier-card__ribbon">Most troops pick this</div>
+        <div class="tier-card__name">Troop</div>
+        <div class="tier-card__tagline">
+          The legacy alternative: $109/yr · 10 GB · +$25 to use your own
+          domain. Compass: $99/yr · 15 GB · BYO domain at no markup.
+        </div>
+        <div class="tier-card__price">$99</div>
+        <div class="tier-card__sub">
+          per year, flat — <strong>$10 less than the typical legacy host</strong>.
+          Use your own domain at no markup. 60-day money-back guarantee.
+        </div>
+        <a href="/signup.html" class="tier-card__cta tier-card__cta--primary">Try Troop free for 30 days</a>
+        <ul class="tier-card__features">
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Public troop site</div>
+              <div class="tier-card__feature-sub">Unlimited pages, all 8 themes</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Calendar &amp; events</div>
+              <div class="tier-card__feature-sub">Unlimited</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">People &amp; messaging</div>
+              <div class="tier-card__feature-sub">Unlimited members, two-deep enforced</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Email digests</div>
+              <div class="tier-card__feature-sub">Weekly to families. Sent from your domain (scoutmaster@troop567.org), not ours.</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Photo storage</div>
+              <div class="tier-card__feature-sub"><strong>15 GB included</strong> — <span style="color: var(--ember); font-weight: 600;">50% more than the typical legacy host</span>. Photos auto-resize on upload, so that's roughly 7,500 web-quality images. Overage $1.50/GB/yr.</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Your URL</div>
+              <div class="tier-card__feature-sub">Out of the box: <strong>troop567.compass.app</strong>. Want your own domain like troop567.org? <strong>Bring it, we'll set it up free</strong>. You still pay your registrar ~$15/yr, same as anywhere.</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Scoutbook sync</div>
+              <div class="tier-card__feature-sub">Roster + advancement, two-way</div>
+            </div>
+          </li>
+        </ul>
+        <div class="tier-card__not-included">
+          <div class="tier-card__not-row"><svg class="tier-card__not-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M6 18L18 6"/></svg><span class="tier-card__not-label">AI auto-newsletter</span></div>
+          <div class="tier-card__not-row"><svg class="tier-card__not-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M6 18L18 6"/></svg><span class="tier-card__not-label">AI section builder</span></div>
+          <div class="tier-card__not-row"><svg class="tier-card__not-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 6l12 12M6 18L18 6"/></svg><span class="tier-card__not-label">AI photo curation</span></div>
+        </div>
+      </article>
+
+      <!-- Troop + AI -->
+      <article class="tier-card tier-card--dark">
+        <div class="tier-card__name">Troop + AI</div>
+        <div class="tier-card__tagline">Same plan, with Compass writing for you. Pricing not set yet.</div>
+        <div class="tier-card__price">
+          $99 <span style="font-size: 18px; opacity: 0.6;">+ </span>
+          <span class="tier-card__price-tbd" title="add-on">TBD · add-on</span>
+        </div>
+        <div class="tier-card__sub">
+          <strong>Open question.</strong> See "Why this is hard to price" below — the
+          answer depends on cost-per-troop and feature scope, neither of which we've
+          nailed down.
+        </div>
+        <a href="mailto:hello@compass.app?subject=Notify%20me%20about%20Compass%20AI" class="tier-card__cta tier-card__cta--accent">Coming soon — get notified</a>
+        <ul class="tier-card__features">
+          <li class="tier-card__feature tier-card__feature--inherit">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Everything in Troop<span class="tier-card__feature-meta">· all of it</span></div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">AI auto-newsletter (likely)</div>
+              <div class="tier-card__feature-sub">Drafts your Sunday digest from calendar/RSVP/photos. The killer feature.</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">AI section builder (maybe)</div>
+              <div class="tier-card__feature-sub">"Add a section showing our Eagles" → Compass builds it. Less critical.</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">AI photo curation (maybe)</div>
+              <div class="tier-card__feature-sub">Surfaces the 12 best photos from each campout. Nice-to-have.</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">AI parent replies (deferred)</div>
+              <div class="tier-card__feature-sub">Suggests replies in your voice. Cool but not v1.</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Extra photo storage</div>
+              <div class="tier-card__feature-sub">+35 GB → 50 GB total</div>
+            </div>
+          </li>
+        </ul>
+      </article>
+
+      <!-- Council -->
+      <article class="tier-card">
+        <div class="tier-card__name">Council</div>
+        <div class="tier-card__tagline">Multi-troop, district, or council deployments. Way later.</div>
+        <div class="tier-card__price tier-card__price--small">Custom · later</div>
+        <div class="tier-card__sub">
+          Not v1. Comes after we have <strong>20+ paying troops</strong> and a council
+          asks. The opportunity is real (volume + SSO + white-label) but it's a
+          different sale.
+        </div>
+        <span class="tier-card__cta tier-card__cta--ghost" aria-disabled="true">Not yet</span>
+        <ul class="tier-card__features">
+          <li class="tier-card__feature tier-card__feature--inherit">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Everything in Troop + AI<span class="tier-card__feature-meta">· all of it</span></div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Multi-troop admin</div>
+              <div class="tier-card__feature-sub">One council login across chartered units</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Pooled photo storage</div>
+              <div class="tier-card__feature-sub">1 TB+ per council, burst-friendly</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">SSO + white-label</div>
+              <div class="tier-card__feature-sub">Council brand, Okta/Google Workspace</div>
+            </div>
+          </li>
+          <li class="tier-card__feature">
+            <svg class="tier-card__feature-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12l4 4L19 7"/></svg>
+            <div>
+              <div class="tier-card__feature-label">Migration service</div>
+              <div class="tier-card__feature-sub">We move them off legacy systems</div>
+            </div>
+          </li>
+        </ul>
+      </article>
+    </section>
+
+    <!-- ===========================================================
+         3. Storage panel — 15 GB explanation + 3 sizing scenarios.
+         Mirrors plans.jsx storage section (lines 199–252).
+         =========================================================== -->
+    <section class="panel" aria-labelledby="storage-title">
+      <div class="panel__grid">
+        <div>
+          <div class="panel__eyebrow">Photo storage</div>
+          <h2 id="storage-title" class="panel__title">15 GB. 50% more than the typical legacy host, at lower cost.</h2>
+          <p class="panel__body">
+            <strong>15 GB included for $99/yr · $1.50/GB/yr overage.</strong> A 50-scout
+            troop typically uses ~1–2 GB/yr after auto-resize — plenty of headroom
+            for years. Photos auto-resize to web sizes on upload (full-res original
+            kept 90 days, then dropped unless you click "keep"). We email at <strong>80%
+            full</strong> two months ahead, and will <strong>never block uploads</strong>.
+          </p>
+          <div class="storage-callout">
+            <div class="storage-callout__label">Need more?</div>
+            <div class="storage-callout__body">
+              <strong>$1.50/GB/year</strong>, billed once at renewal. Or upgrade to
+              Troop + AI for +35 GB → 50 GB total.
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="panel-aside-label">What 15 GB actually means</div>
+          <div class="scenario-grid">
+            <div class="scenario">
+              <div class="scenario__name">Small troop</div>
+              <div class="scenario__num">~0.4 GB / yr</div>
+              <div class="scenario__sub">15 scouts · ~6 campouts/yr</div>
+              <div class="scenario__check">✓ 35+ yrs of history</div>
+            </div>
+            <div class="scenario">
+              <div class="scenario__name">Active troop</div>
+              <div class="scenario__num">~1.5 GB / yr</div>
+              <div class="scenario__sub">50 scouts · ~15 campouts/yr</div>
+              <div class="scenario__check">✓ ~10 yrs of history</div>
+            </div>
+            <div class="scenario">
+              <div class="scenario__name">Mega troop</div>
+              <div class="scenario__num">~4 GB / yr</div>
+              <div class="scenario__sub">120 scouts · 30+ events/yr</div>
+              <div class="scenario__check scenario__check--watch">✓ ~3 yrs — then add 35 GB</div>
+            </div>
+          </div>
+          <div class="panel-math">
+            <strong>The math behind 15 GB:</strong> typical event = 30 photos × ~3 MB raw
+            = 90 MB; auto-resize to web brings it to ~25 MB per event. A 50-scout
+            troop at 15 events/yr uses ~400 MB/yr compressed. We sized 15 GB to be
+            <strong>roughly 10–20 years of headroom for the average troop</strong>
+            while keeping our cloud bill honest — not a marketing fantasy that
+            bankrupts us at scale. Mega-troops upgrade to Troop + AI (50 GB total)
+            or buy $1.50/GB add-ons.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===========================================================
+         4. AI tier panel (dark) — open-question framing.
+         Mirrors plans.jsx AI section (lines 254–295).
+         =========================================================== -->
+    <section class="panel panel--dark" aria-labelledby="ai-tier-title">
+      <div class="panel__grid">
+        <div>
+          <div class="ai-pill">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            Bigger open question
+          </div>
+          <h2 id="ai-tier-title" class="panel__title">What is the AI tier, exactly, and what does it cost?</h2>
+          <p class="panel__body">
+            The AI tier is the most strategic and the most uncertain piece. We have
+            a hunch about which features matter — but the actual scope, the
+            cost-to-serve, and the parent willingness-to-pay are all unknown. Worth
+            iterating on before committing.
+          </p>
+          <p class="panel__body" style="margin-top: 14px;">
+            Even the <strong>shape</strong> isn't settled: a flat add-on?
+            Per-feature opt-in? Usage-based? Each has very different cost
+            structure for us and parsability for parents.
+          </p>
+        </div>
+        <div>
+          <div class="panel-aside-label">Where to start</div>
+          <div class="ai-grid">
+            <div class="ai-card">
+              <div class="ai-card__num">01</div>
+              <div class="ai-card__title">Rank the AI features by leader value</div>
+              <div class="ai-card__body">Auto-newsletter is probably the only must-have. Photo curation, section builder, parent replies are nice-to-haves.</div>
+            </div>
+            <div class="ai-card">
+              <div class="ai-card__num">02</div>
+              <div class="ai-card__title">Estimate per-troop API cost</div>
+              <div class="ai-card__body">Newsletter once a week + reminders + occasional gen ≈ $1–$3/troop/yr. Photo curation could swing this 3–5×.</div>
+            </div>
+            <div class="ai-card">
+              <div class="ai-card__num">03</div>
+              <div class="ai-card__title">Pick the pricing shape</div>
+              <div class="ai-card__body">Flat add-on (simple) vs. per-feature (parsable) vs. usage-based (fair). Strong opinion: flat add-on.</div>
+            </div>
+            <div class="ai-card">
+              <div class="ai-card__num">04</div>
+              <div class="ai-card__title">Validate with 5 leader interviews</div>
+              <div class="ai-card__body">Show the auto-newsletter prototype, ask: "Would you pay $X/year for this if it saved 80% of your Sunday?"</div>
+            </div>
+          </div>
+          <div class="ai-experiment">
+            <strong>Cheap experiment:</strong> launch the base $99 tier first.
+            Build the auto-newsletter as a Compass-included feature for the first
+            50 troops, see how often they actually use it, then price the AI tier
+            from real data.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===========================================================
+         5. FAQ strip — 6 quick questions, italic Newsreader headlines.
+         Mirrors plans.jsx FAQ (lines 297–314).
+         =========================================================== -->
+    <section class="faq-strip" aria-label="Frequently asked questions">
+      <div>
+        <div class="faq-q">What if we outgrow Starter?</div>
+        <div class="faq-a">Upgrade in one click — your data, photos, and site come with you. No migration headache.</div>
+      </div>
+      <div>
+        <div class="faq-q">Can we turn AI off?</div>
+        <div class="faq-a">Yes. Plus AI is opt-in feature-by-feature. Turn off auto-newsletter, keep AI photo curation. We bill the same flat rate either way.</div>
+      </div>
+      <div>
+        <div class="faq-q">What about Scouts BSA / Cub Scouts / Venturing?</div>
+        <div class="faq-a">All chartered BSA programs supported. The roster pulls from Scoutbook, so it just works.</div>
+      </div>
+      <div>
+        <div class="faq-q">Is the data ours?</div>
+        <div class="faq-a">Yes. One-click export of everything (people, photos, calendar) as ZIP at any time. We never sell or share.</div>
+      </div>
+      <div>
+        <div class="faq-q">Discount for new troops?</div>
+        <div class="faq-a">90 days free on Starter. New chartering troops get $50 off the first year of Troop.</div>
+      </div>
+      <div>
+        <div class="faq-q">What if we hate it?</div>
+        <div class="faq-a">Full refund within 60 days, no questions, no clawback of your data.</div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer" role="contentinfo">
+    <div class="footer__inner">
+      <a href="/" class="wordmark wordmark--small" aria-label="Compass">
+        <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+          <circle cx="20" cy="20" r="18.5" fill="none" stroke="#0f172a" stroke-width="1.25" />
+          <circle cx="20" cy="20" r="11" fill="none" stroke="#0f172a" stroke-width="0.75" opacity="0.4" />
+          <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#1d4ed8" />
+          <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="#0f172a" opacity="0.85" />
+          <circle cx="20" cy="20" r="1.6" fill="#0f172a" />
+        </svg>
+        <span>Compass<span class="accent">.</span></span>
+      </a>
+      <div class="footer__copy">
+        &copy; 2026 Compass &middot; <a href="/help">Help &amp; support</a> &middot; <a href="/security.html">Security</a> &middot; <a href="/positioning.html">Positioning</a> &middot; Independent &middot; Not affiliated with Scouting America or BSA.
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

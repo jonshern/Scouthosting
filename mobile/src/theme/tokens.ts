@@ -1,7 +1,10 @@
-// Compass design tokens — Forest & Ember (the `bold` palette in
-// design/source/tokens.js). Mirror values exactly; the smoke test asserts
-// 1:1 parity against the canonical palette.
+// Compass design tokens — Slate & Sky (the `balanced` palette in
+// design_handoff_compass/designs/tokens.js). Mirror values exactly; the
+// smoke test asserts 1:1 parity against the canonical palette.
 //
+// The product ships three palettes (safe / balanced / bold). Mobile leads
+// with `balanced` — slate ink, near-black surfaces, sky-blue as the bold
+// pop, amber as the one warm contrast, teal kept for cool variety.
 // Do not introduce new colors here without updating the design system
 // reference first.
 
@@ -38,34 +41,37 @@ export type Palette = {
 };
 
 export const palette: Palette = {
-  name: 'Evergreen & Spectrum',
-  bg: '#f4ecdc',
+  name: 'Slate & Sky',
+  bg: '#f7f8fa',
   surface: '#ffffff',
-  surfaceAlt: '#1a1f1a',
-  ink: '#0d130d',
-  inkSoft: '#2a352a',
-  inkMuted: '#5a6258',
-  line: '#d4c8a8',
-  lineSoft: '#e6dcc0',
-  primary: '#0e3320',
-  primaryHover: '#06200f',
-  accent: '#c8e94a',
-  accentSoft: '#e3f29b',
-  danger: '#a82e1d',
-  success: '#3d6b3a',
-  chip: '#0e3320',
-  sky: '#3a7ab8',
-  skySoft: '#bcd6ec',
-  ember: '#e07a3c',
-  emberSoft: '#f5cba8',
-  raspberry: '#c43d6b',
-  raspberrySoft: '#f0bccc',
-  butter: '#f3c54a',
-  butterSoft: '#faecb8',
-  plum: '#6e3b7a',
-  plumSoft: '#d6bcdc',
-  teal: '#3aa893',
-  tealSoft: '#bce0d8',
+  surfaceAlt: '#eef1f5',
+  ink: '#0f172a',
+  inkSoft: '#334155',
+  inkMuted: '#64748b',
+  line: '#e2e8f0',
+  lineSoft: '#eef1f5',
+  primary: '#0f172a',
+  primaryHover: '#020617',
+  accent: '#1d4ed8',
+  accentSoft: '#bcd0f4',
+  danger: '#dc2626',
+  success: '#059669',
+  chip: '#e2e8f0',
+  // Secondary spectrum — kept distinct so mobile category cards still read
+  // as different things (calendar = sky, outing = ember/amber, photos =
+  // plum/teal etc.). Balanced collapses raspberry/plum to neutrals.
+  sky: '#1d4ed8',
+  skySoft: '#bcd0f4',
+  ember: '#f59e0b',
+  emberSoft: '#fde68a',
+  raspberry: '#0f172a',
+  raspberrySoft: '#cbd5e1',
+  butter: '#f59e0b',
+  butterSoft: '#fde68a',
+  plum: '#475569',
+  plumSoft: '#cbd5e1',
+  teal: '#0891b2',
+  tealSoft: '#bee5ef',
 };
 
 // Type system — Newsreader for display, Inter Tight for UI. System

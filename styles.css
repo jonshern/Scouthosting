@@ -1,66 +1,11 @@
 /* =========================================================================
    Compass — Marketing Site
-   Locked palette: Forest & Ember (the `bold` palette in tokens.js)
-   Locked design: marketing-balanced.jsx
-   Typography: Newsreader (display) + Inter Tight (UI)
+   Lead palette: Slate & Sky (balanced). Tokens live in /tokens.css; this
+   file only contains marketing-page styles (hero, pricing, comparison,
+   migration, CTA, footer).
+   Source designs: marketing-balanced.jsx, plans.jsx, positioning.jsx,
+                   security.jsx, troop-pages.jsx (TroopBalanced).
    ========================================================================= */
-
-/* -------------------------------------------------------------------------
-   Design tokens — extracted from design/source/tokens.js (bold palette).
-   Note: marketing-balanced.jsx falls back to '#1d3a32' for its dark-band
-   `surfaceDark` (the bold palette doesn't define one); we preserve that.
-   ------------------------------------------------------------------------- */
-:root {
-  /* Surfaces */
-  --bg: #f4ecdc;
-  --surface: #ffffff;
-  --surface-alt: #1a1f1a;          /* dark forest band */
-  --surface-dark: #1d3a32;         /* deep evergreen band (compare/stats) */
-  --surface-sand: #ede0bf;         /* migration band tint */
-
-  /* Ink */
-  --ink: #0d130d;
-  --ink-soft: #2a352a;
-  --ink-muted: #5a6258;
-
-  /* Lines */
-  --line: #d4c8a8;
-  --line-soft: #e6dcc0;
-
-  /* Brand */
-  --primary: #0e3320;
-  --primary-hover: #06200f;
-  --accent: #c8e94a;
-  --accent-soft: #e3f29b;
-
-  /* Status */
-  --danger: #a82e1d;
-  --success: #3d6b3a;
-
-  /* Secondary spectrum (categories) */
-  --sky: #3a7ab8;
-  --ember: #e07a3c;
-  --raspberry: #c43d6b;
-  --butter: #f3c54a;
-  --plum: #6e3b7a;
-  --teal: #3aa893;
-
-  /* Typography */
-  --font-display: "Newsreader", "Source Serif Pro", Georgia, serif;
-  --font-ui: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
-
-  /* Shape */
-  --radius-chip: 4px;
-  --radius-button: 6px;
-  --radius-card: 10px;
-  --radius-pill: 999px;
-
-  /* Layout */
-  --page-pad-x: 56px;
-  --page-pad-y: 88px;
-  --max-w: 1200px;
-  --shadow-soft: 0 4px 20px rgba(15, 23, 42, 0.08);
-}
 
 /* -------------------------------------------------------------------------
    Reset / base

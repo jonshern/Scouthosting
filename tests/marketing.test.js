@@ -67,12 +67,18 @@ describe("marketing / index.html", () => {
     expect(html).toContain("TWO-DEEP");
   });
 
-  it("uses the locked Forest & Ember palette as CSS custom properties", () => {
-    expect(html).toMatch(/<link[^>]+href=["']styles\.css["']/);
-    expect(css).toContain("#0e3320"); // primary — deep evergreen
-    expect(css).toContain("#c8e94a"); // accent — chartreuse
-    expect(css).toContain("#f4ecdc"); // bg — warm cream
-    expect(css).toContain("#1a1f1a"); // surfaceAlt — dark forest band
+  it("uses the lead Slate & Sky palette via shared /tokens.css", () => {
+    // tokens.css is loaded BEFORE styles.css so the marketing site
+    // inherits palette + typography from one source of truth.
+    expect(html).toMatch(/<link[^>]+href=["']\/tokens\.css["']/);
+    expect(html).toMatch(/<link[^>]+href=["']\/?styles\.css["']/);
+    // Balanced (Slate & Sky) is the lead palette.
+    const tokensPath = resolve(__dirname, "..", "tokens.css");
+    const tokens = readFileSync(tokensPath, "utf8");
+    expect(tokens).toContain("#0f172a"); // ink/primary — near-black slate
+    expect(tokens).toContain("#1d4ed8"); // accent — sky-blue
+    expect(tokens).toContain("#f7f8fa"); // bg — cool light gray
+    expect(tokens).toContain("#eef1f5"); // surface-alt — cool gray
   });
 
   it("loads both Newsreader and Inter Tight from Google Fonts", () => {

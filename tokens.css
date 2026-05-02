@@ -1,0 +1,147 @@
+/* =========================================================================
+   Compass — Design tokens
+   Single source of truth for palette, typography, shape, and shadows.
+   Loaded BEFORE any page-specific stylesheet so every page (marketing,
+   admin, public troop site, security, plans, positioning) inherits the
+   same values — and a single `data-palette` swap re-skins the entire
+   product.
+
+   See design_handoff_compass/designs/tokens.js for the canonical source.
+   Lead palette: balanced (Slate & Sky). Alternates: safe, bold.
+   ========================================================================= */
+
+:root,
+:root[data-palette="balanced"] {
+  /* Surfaces */
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-alt: #eef1f5;
+  --surface-dark: #0f172a;
+  --surface-sand: #eef1f5;
+
+  /* Ink */
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --ink-muted: #64748b;
+
+  /* Lines */
+  --line: #e2e8f0;
+  --line-soft: #eef1f5;
+
+  /* Brand */
+  --primary: #0f172a;
+  --primary-hover: #020617;
+  --accent: #1d4ed8;
+  --accent-soft: #bcd0f4;
+
+  /* Status */
+  --danger: #dc2626;
+  --success: #059669;
+  --warn: #f59e0b;
+  --warn-soft: #fde68a;
+
+  /* Secondary spectrum (cool, with amber as warm accent) */
+  --sky: #1d4ed8;
+  --sky-soft: #bcd0f4;
+  --ember: #f59e0b;
+  --ember-soft: #fde68a;
+  --raspberry: #0f172a;
+  --raspberry-soft: #cbd5e1;
+  --butter: #f59e0b;
+  --butter-soft: #fde68a;
+  --plum: #475569;
+  --plum-soft: #cbd5e1;
+  --teal: #0891b2;
+  --teal-soft: #bee5ef;
+
+  /* Typography */
+  --font-display: "Newsreader", "Source Serif Pro", Georgia, serif;
+  --font-ui: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Shape */
+  --radius-chip: 4px;
+  --radius-button: 8px;
+  --radius-card: 12px;
+  --radius-modal: 16px;
+  --radius-pill: 999px;
+
+  /* Layout */
+  --page-pad-x: 56px;
+  --page-pad-y: 88px;
+  --max-w: 1200px;
+  --max-w-wide: 1440px;
+
+  /* Shadows */
+  --shadow-soft: 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-card: 0 4px 20px rgba(15, 23, 42, 0.08);
+  --shadow-modal: 0 24px 60px rgba(15, 23, 42, 0.18);
+}
+
+/* Alternate: Pine & Brass — refined heritage (warm cream + pine + brass). */
+:root[data-palette="safe"] {
+  --bg: #f5f1e8;
+  --surface: #ffffff;
+  --surface-alt: #ede6d4;
+  --surface-dark: #1c2a1f;
+  --surface-sand: #ede6d4;
+  --ink: #1c2a1f;
+  --ink-soft: #3d4a3f;
+  --ink-muted: #6b7166;
+  --line: #d9d0bc;
+  --line-soft: #e6dfcc;
+  --primary: #1f4d2c;
+  --primary-hover: #163a20;
+  --accent: #b8862b;
+  --accent-soft: #e7c878;
+  --danger: #9a3a2a;
+  --success: #3d6b3a;
+  --warn: #b8862b;
+  --warn-soft: #e7c878;
+  --sky: #4a6b8c;
+  --sky-soft: #c7d4e1;
+  --ember: #b8862b;
+  --ember-soft: #e7c878;
+  --raspberry: #8c4a3d;
+  --raspberry-soft: #d9b8a8;
+  --butter: #d4a544;
+  --butter-soft: #f0d68f;
+  --plum: #5c4a6b;
+  --plum-soft: #c4b8d4;
+  --teal: #4a8c8c;
+  --teal-soft: #b8d4d4;
+}
+
+/* Alternate: Evergreen & Spectrum — modern, multi-color (bold direction). */
+:root[data-palette="bold"] {
+  --bg: #f4ecdc;
+  --surface: #ffffff;
+  --surface-alt: #1a1f1a;
+  --surface-dark: #1d3a32;
+  --surface-sand: #ede0bf;
+  --ink: #0d130d;
+  --ink-soft: #2a352a;
+  --ink-muted: #5a6258;
+  --line: #d4c8a8;
+  --line-soft: #e6dcc0;
+  --primary: #0e3320;
+  --primary-hover: #06200f;
+  --accent: #c8e94a;
+  --accent-soft: #e3f29b;
+  --danger: #a82e1d;
+  --success: #3d6b3a;
+  --warn: #f3c54a;
+  --warn-soft: #faecb8;
+  --sky: #3a7ab8;
+  --sky-soft: #bcd6ec;
+  --ember: #e07a3c;
+  --ember-soft: #f5cba8;
+  --raspberry: #c43d6b;
+  --raspberry-soft: #f0bccc;
+  --butter: #f3c54a;
+  --butter-soft: #faecb8;
+  --plum: #6e3b7a;
+  --plum-soft: #d6bcdc;
+  --teal: #3aa893;
+  --teal-soft: #bce0d8;
+}

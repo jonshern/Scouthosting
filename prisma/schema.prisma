@@ -123,6 +123,9 @@ model Org {
   channels       Channel[]
   supportTickets SupportTicket[]
   refunds        Refund[]
+  feedbackRequests   FeedbackRequest[]
+  newsletterSchedule NewsletterSchedule?
+  newsletterRules    NewsletterRule[]
 
   @@index([plan])
 }
@@ -156,6 +159,9 @@ model User {
   uploadedPhotos     Photo[]
   pushDevices        PushDevice[]
   postReactions      PostReaction[]
+  feedbackRequests   FeedbackRequest[]
+  feedbackVotes      FeedbackVote[]
+  feedbackComments   FeedbackComment[]
 }
 
 // External identity provider linkage. One User can have multiple
@@ -1445,4 +1451,181 @@ model PushDevice {
 
   @@index([userId])
   @@index([retiredAt])
+}
+
+// ------------------------------------------------------------------
+// Public roadmap / feedback board
+// ------------------------------------------------------------------
+//
+// Design source: design_handoff_compass/designs/feedback.jsx
+//
+// Distinct from SupportTicket above: SupportTicket is a private 1:1
+// help ticket. FeedbackRequest is a public roadmap entry — anyone in
+// the troop (or, when scope=global, any Compass tenant) can vote, and
+// status moves through Submitted → Triaged → Building → Shipped with
+// engineering update notes the team writes back as the work happens.
+
+enum FeedbackStatus {
+  submitted
+  triaged
+  building
+  shipped
+  declined
+}
+
+enum FeedbackKind {
+  feature
+  bug
+  help        // private, gets routed to SupportTicket flow instead
+}
+
+enum FeedbackScope {
+  org         // visible only to this troop
+  global      // visible across the public Compass roadmap
+}
+
+model FeedbackRequest {
+  id            String          @id @default(cuid())
+  // Who wrote it. orgId may be null for anonymous global submissions
+  // (we still record the email on SupportTicket-style flows).
+  orgId         String?
+  userId        String?
+  authorEmail   String?
+  authorName    String?
+
+  kind          FeedbackKind    @default(feature)
+  scope         FeedbackScope   @default(org)
+  status        FeedbackStatus  @default(submitted)
+
+  title         String
+  body          String          @db.Text
+  category      String?         // free-form bucket: Calendar / Events / Safety / etc.
+
+  // Auto-attached context from the composer: troop, role, browser,
+  // last-visited page snapshot. Stored as JSON so we don't need a
+  // schema migration every time we collect a new field.
+  context       Json?
+
+  // Cached vote count — kept in sync by application code on every
+  // FeedbackVote insert/delete. Indexed so "most votes" is cheap.
+  voteCount     Int             @default(0)
+
+  // Latest engineering update note the operator left. Surfaces inline
+  // on the roadmap card. Older updates flow through FeedbackComment.
+  lastUpdate    String?         @db.Text
+  lastUpdatedAt DateTime?
+
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  org           Org?              @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  author        User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  votes         FeedbackVote[]
+  comments      FeedbackComment[]
+
+  @@index([scope, status, voteCount])
+  @@index([orgId, createdAt])
+  @@index([category])
+}
+
+// One vote per (request, user). The unique constraint enforces it at
+// the DB level so the API doesn't have to.
+model FeedbackVote {
+  id        String   @id @default(cuid())
+  requestId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  request FeedbackRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, userId])
+  @@index([userId])
+}
+
+// Threaded comments on a feedback request. `isOperator=true` rows are
+// engineering update notes — they render with the colored panel on
+// the public board and the most recent one is mirrored to
+// FeedbackRequest.lastUpdate.
+model FeedbackComment {
+  id         String   @id @default(cuid())
+  requestId  String
+  userId     String?
+  authorName String?       // for operator-replies posted from /__super
+  body       String        @db.Text
+  isOperator Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+
+  request FeedbackRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  author  User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([requestId, createdAt])
+}
+
+// ------------------------------------------------------------------
+// Newsletter scheduling & automated reminders
+// ------------------------------------------------------------------
+//
+// Design source: design_handoff_compass/designs/newsletter.jsx
+//
+// The existing `Newsletter` model is one published or scheduled issue.
+// `NewsletterSchedule` stores the per-org cadence (every Sunday at 7
+// PM, etc.) used to auto-create draft issues. `NewsletterRule` stores
+// the per-org "set it once, runs forever" reminders (RSVP nudges, dues
+// reminders, post-campout recap, Eagle CoH invites, welcome onboarding).
+
+model NewsletterSchedule {
+  id            String    @id @default(cuid())
+  orgId         String    @unique
+  // ISO weekday (1=Mon … 7=Sun). Sunday default.
+  weekday       Int       @default(7)
+  // Local time of day, "HH:MM".
+  localTime     String    @default("19:00")
+  timezone      String    @default("America/Chicago")
+  senderName    String?
+  replyToEmail  String?
+  // Skip the issue if Compass found fewer than `minStories` stories.
+  minStories    Int       @default(2)
+  // Pause the schedule entirely.
+  paused        Boolean   @default(false)
+  // Last successful auto-draft creation.
+  lastDraftedAt DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+enum NewsletterRuleKind {
+  rsvp_nudge        // 7d before any open RSVP
+  dues_reminder     // 14 / 7 / 1 days before due
+  post_event_recap  // 2 days after a campout, when 5+ photos uploaded
+  eagle_coh_invite  // on Scoutbook BoR pass
+  new_family_drip   // 3-email onboarding drip
+  reengage_quiet    // after 3 missed meetings
+  birthday          // birthday week shoutout
+  packing_list      // 5d before a campout
+  medform_expiry    // 30d before annual medical form expiry
+  custom
+}
+
+model NewsletterRule {
+  id          String              @id @default(cuid())
+  orgId       String
+  kind        NewsletterRuleKind
+  title       String
+  description String?             @db.Text
+  // Free-form configuration: cron-ish schedule, audience filter, etc.
+  config      Json?
+  enabled     Boolean             @default(true)
+  // Audit: when did this rule last fire? what did it do?
+  lastFiredAt DateTime?
+  lastResult  String?             @db.Text
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, enabled])
+  @@index([kind])
 }

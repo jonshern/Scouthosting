@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en" data-palette="balanced">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Compass admin · Feedback & roadmap. Vote on requests from real troops, watch what we're building, and submit what's missing — every Compass feature started as a request from a troop." />
+  <title>Compass · Feedback &amp; roadmap · Troop 12</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/tokens.css" />
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .fb-shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+    .fb-side { background: var(--surface); border-right: 1px solid var(--line); padding: 24px 16px; }
+    .fb-side__brand { font-family: var(--font-display); font-size: 18px; font-weight: 500; color: var(--ink); padding: 4px 8px 18px; letter-spacing: -0.01em; }
+    .fb-side__brand-org { color: var(--ink-muted); font-size: 11px; font-weight: 400; margin-left: 4px; }
+    .fb-side__link { display: flex; align-items: center; justify-content: space-between; padding: 7px 10px; border-radius: 6px; font-size: 13px; color: var(--ink-soft); margin-bottom: 2px; text-decoration: none; }
+    .fb-side__link:hover { background: var(--bg); color: var(--ink); }
+    .fb-side__link--active { color: var(--ember); background: rgba(245,158,11,0.08); font-weight: 600; }
+    .fb-side__link-new { font-size: 10px; font-weight: 700; color: var(--ember); font-family: var(--font-mono); }
+    .fb-side__divider { height: 1px; background: var(--line-soft); margin: 12px 8px; }
+
+    .fb-main { overflow: hidden; background: var(--bg); }
+    .fb-head { padding: 28px 36px 20px; background: var(--surface); border-bottom: 1px solid var(--line-soft); }
+    .fb-head__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+    .fb-head__eyebrow { font-size: 11px; color: var(--ink-muted); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+    .fb-head__title { font-family: var(--font-display); font-size: 32px; font-weight: 400; letter-spacing: -0.02em; margin: 6px 0 0; color: var(--ink); }
+    .fb-head__title em { color: var(--ember); font-style: italic; }
+    .fb-head__lede { font-size: 14px; color: var(--ink-soft); margin: 8px 0 0; max-width: 64ch; line-height: 1.55; }
+
+    .fb-suggest { background: var(--ember); color: #fff; border: none; padding: 10px 16px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; box-shadow: 0 1px 0 rgba(0,0,0,0.08); }
+    .fb-suggest:hover { filter: brightness(0.92); }
+
+    .fb-tabs { display: flex; gap: 8px; margin-top: 22px; flex-wrap: wrap; align-items: center; }
+    .fb-tab { padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); background: transparent; color: var(--ink-soft); display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .fb-tab--active { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .fb-tab__count { font-size: 11px; color: var(--ink-muted); font-family: var(--font-mono); }
+    .fb-tab--active .fb-tab__count { color: rgba(255,255,255,0.6); }
+
+    .fb-search-row { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+    .fb-search { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; color: var(--ink-soft); background: var(--surface); }
+    .fb-sort { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; font-size: 12px; color: var(--ink-soft); background: var(--surface); display: flex; align-items: center; gap: 6px; }
+    .fb-sort strong { color: var(--ink); }
+
+    .fb-list { padding: 20px 36px 36px; }
+    .fb-row { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 20px; margin-bottom: 10px; display: grid; grid-template-columns: 60px 1fr auto; gap: 18px; align-items: flex-start; }
+    .fb-row--mine { border-color: rgba(245,158,11,0.4); border-left: 3px solid var(--ember); }
+
+    .fb-vote { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .fb-vote__btn { width: 44px; height: 44px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-soft); display: flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+    .fb-vote__btn--voted { background: rgba(245,158,11,0.1); border-color: var(--ember); color: var(--ember); }
+    .fb-vote__btn:hover { border-color: var(--ember); color: var(--ember); }
+    .fb-vote__count { font-family: var(--font-display); font-size: 14px; font-weight: 600; color: var(--ink); }
+
+    .fb-row__head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap; }
+    .fb-status { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .fb-status__dot { width: 6px; height: 6px; border-radius: 3px; }
+    .fb-status--submitted { background: var(--surface-alt); color: var(--ink-muted); }
+    .fb-status--submitted .fb-status__dot { background: var(--ink-muted); }
+    .fb-status--triaged { background: rgba(245,158,11,0.15); color: #7a5a1a; }
+    .fb-status--triaged .fb-status__dot { background: #c9892a; }
+    .fb-status--building { background: rgba(5,150,105,0.15); color: #2d5836; }
+    .fb-status--building .fb-status__dot { background: var(--success); }
+    .fb-status--shipped { background: var(--surface-dark); color: var(--bg); }
+    .fb-status--shipped .fb-status__dot { background: #9bd0a8; }
+
+    .fb-cat { font-size: 11px; color: var(--ink-muted); font-weight: 600; }
+    .fb-mine-tag { font-size: 10px; color: var(--ember); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+    .fb-voted-tag { font-size: 10px; color: var(--success); font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+    .fb-meta { font-size: 11px; color: var(--ink-muted); margin-left: auto; }
+
+    .fb-row__title { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.35; }
+    .fb-row__desc { font-size: 13px; color: var(--ink-soft); line-height: 1.55; margin-top: 4px; }
+    .fb-update { margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: 12px; line-height: 1.5; display: flex; align-items: flex-start; gap: 8px; }
+    .fb-update--triaged { background: rgba(245,158,11,0.15); color: #7a5a1a; }
+    .fb-update--building { background: rgba(5,150,105,0.15); color: #2d5836; }
+    .fb-update--shipped { background: var(--surface-dark); color: var(--bg); }
+    .fb-update__icon { flex-shrink: 0; margin-top: 2px; }
+    .fb-row__foot { display: flex; gap: 16px; margin-top: 8px; font-size: 11px; color: var(--ink-muted); }
+
+    .fb-row__cta { background: transparent; border: none; font-size: 12px; color: var(--ink-soft); cursor: pointer; padding: 4px 8px; border-radius: 4px; text-decoration: none; }
+    .fb-row__cta:hover { background: var(--bg); color: var(--ink); }
+
+    /* Composer modal (visible by default for design demo) */
+    .fb-composer { position: fixed; inset: 0; background: rgba(40,40,38,0.55); display: none; align-items: center; justify-content: center; padding: 40px; z-index: 100; }
+    .fb-composer--open { display: flex; }
+    .fb-composer__panel { background: var(--surface); border-radius: 14px; width: 720px; max-width: 100%; box-shadow: 0 24px 60px rgba(0,0,0,0.18); overflow: hidden; }
+    .fb-composer__head { padding: 20px 28px; border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; justify-content: space-between; }
+    .fb-composer__title { font-family: var(--font-display); font-size: 22px; font-weight: 500; color: var(--ink); margin-top: 2px; letter-spacing: -0.01em; }
+    .fb-composer__close { background: transparent; border: none; color: var(--ink-muted); cursor: pointer; padding: 6px; }
+    .fb-composer__section { padding: 16px 28px 0; }
+    .fb-composer__label { font-size: 11px; color: var(--ink-muted); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+    .fb-composer__type-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .fb-composer__type { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
+    .fb-composer__type--active { border-color: var(--ember); background: rgba(245,158,11,0.04); }
+    .fb-composer__type-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+    .fb-composer__type--active .fb-composer__type-name { color: var(--ember); }
+    .fb-composer__type-sub { font-size: 11px; color: var(--ink-muted); margin-top: 2px; }
+    .fb-composer__field { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; font-size: 14px; color: var(--ink); background: var(--surface); font-weight: 500; }
+    .fb-composer__field--body { font-size: 13px; line-height: 1.55; min-height: 120px; font-weight: 400; }
+    .fb-composer__field--select { display: flex; align-items: center; justify-content: space-between; font-weight: 400; }
+    .fb-composer__row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .fb-composer__charcount { font-size: 11px; color: var(--ink-muted); }
+    .fb-composer__attach-row { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; font-size: 11px; color: var(--ink-muted); }
+    .fb-composer__attach-row > div { display: flex; gap: 12px; }
+    .fb-context { background: var(--bg); border: 1px dashed var(--line); border-radius: 8px; padding: 12px 14px; }
+    .fb-context__inner { display: flex; align-items: flex-start; gap: 10px; }
+    .fb-context__body { font-size: 11px; color: var(--ink-soft); line-height: 1.6; }
+    .fb-context__body strong { color: var(--ink); }
+    .fb-composer__actions { padding: 20px 28px; display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--line-soft); margin-top: 16px; }
+    .fb-composer__legal { font-size: 11px; color: var(--ink-muted); line-height: 1.5; }
+    .fb-composer__legal strong { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <div class="fb-shell">
+    <aside class="fb-side">
+      <div class="fb-side__brand">Compass <span class="fb-side__brand-org">Troop 12</span></div>
+      <a class="fb-side__link" href="/admin/index.html">Dashboard</a>
+      <a class="fb-side__link" href="/admin/calendar.html">Calendar</a>
+      <a class="fb-side__link" href="#people">People</a>
+      <a class="fb-side__link" href="/admin/newsletter.html">Newsletter</a>
+      <a class="fb-side__link" href="#photos">Photos</a>
+      <a class="fb-side__link" href="#site">Site editor</a>
+      <a class="fb-side__link" href="#settings">Settings</a>
+      <div class="fb-side__divider"></div>
+      <a class="fb-side__link fb-side__link--active" href="/admin/feedback.html" aria-current="page">
+        Feedback &amp; roadmap
+        <span class="fb-side__link-new">NEW</span>
+      </a>
+      <a class="fb-side__link" href="#help">Get help</a>
+    </aside>
+
+    <main class="fb-main">
+      <header class="fb-head">
+        <div class="fb-head__top">
+          <div>
+            <div class="fb-head__eyebrow">Public roadmap</div>
+            <h1 class="fb-head__title"><em>What gets built next</em> is up to you.</h1>
+            <p class="fb-head__lede">
+              Every Compass feature started as a request from a real troop. Vote
+              on what matters, watch it ship, request what's missing. We read
+              every one and reply within a week.
+            </p>
+          </div>
+          <button class="fb-suggest" type="button" onclick="document.getElementById('composer').classList.add('fb-composer--open')">+ Suggest a feature</button>
+        </div>
+
+        <div class="fb-tabs">
+          <button class="fb-tab fb-tab--active" type="button">All <span class="fb-tab__count">8</span></button>
+          <button class="fb-tab" type="button">Submitted <span class="fb-tab__count">2</span></button>
+          <button class="fb-tab" type="button">Triaged <span class="fb-tab__count">2</span></button>
+          <button class="fb-tab" type="button">Building <span class="fb-tab__count">2</span></button>
+          <button class="fb-tab" type="button">Shipped <span class="fb-tab__count">2</span></button>
+          <div class="fb-search-row">
+            <div class="fb-search">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+              <span>Search…</span>
+            </div>
+            <div class="fb-sort">
+              Sort: <strong>Most votes</strong>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div class="fb-list">
+        <!-- Building -->
+        <article class="fb-row">
+          <div class="fb-vote">
+            <button class="fb-vote__btn fb-vote__btn--voted" aria-label="142 votes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            <div class="fb-vote__count">142</div>
+          </div>
+          <div>
+            <div class="fb-row__head">
+              <span class="fb-status fb-status--building"><span class="fb-status__dot"></span>Building</span>
+              <span class="fb-cat">Calendar</span>
+              <span class="fb-voted-tag">You voted</span>
+              <span class="fb-meta">#247 · 3 weeks ago</span>
+            </div>
+            <div class="fb-row__title">Recurring events that auto-skip school holidays</div>
+            <div class="fb-row__desc">Our weekly meeting takes a break for spring break, Thanksgiving, and Christmas. Right now I have to manually delete those occurrences. The calendar should know our school district's calendar and skip them.</div>
+            <div class="fb-update fb-update--building">
+              <svg class="fb-update__icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>
+              <span><strong>Update:</strong> Started build · ETA late April · Eng note: pulling US school calendars from CDC dataset, troop picks district</span>
+            </div>
+            <div class="fb-row__foot">
+              <span>Sarah K · Troop 412 · Austin TX</span>
+              <span>18 comments</span>
+            </div>
+          </div>
+          <a class="fb-row__cta" href="#thread-247">Open thread →</a>
+        </article>
+
+        <!-- Triaged · mine -->
+        <article class="fb-row fb-row--mine">
+          <div class="fb-vote">
+            <button class="fb-vote__btn fb-vote__btn--voted" aria-label="89 votes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            <div class="fb-vote__count">89</div>
+          </div>
+          <div>
+            <div class="fb-row__head">
+              <span class="fb-status fb-status--triaged"><span class="fb-status__dot"></span>Triaged</span>
+              <span class="fb-cat">Events</span>
+              <span class="fb-mine-tag">Your request</span>
+              <span class="fb-meta">#312 · 5 days ago</span>
+            </div>
+            <div class="fb-row__title">Bulk-mark RSVPs for scouts who showed up but didn't respond</div>
+            <div class="fb-row__desc">Half my scouts forget to RSVP and just show up. After the campout I want to bulk-mark them as "attended" without going through 30 individual checkboxes.</div>
+            <div class="fb-update fb-update--triaged">
+              <svg class="fb-update__icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>
+              <span><strong>Update:</strong> Triaged · queued for May. We're thinking a post-event "who showed up?" prompt.</span>
+            </div>
+            <div class="fb-row__foot"><span>You · Troop 567 New Hope</span><span>7 comments</span></div>
+          </div>
+          <a class="fb-row__cta" href="#thread-312">Open thread →</a>
+        </article>
+
+        <!-- Shipped -->
+        <article class="fb-row">
+          <div class="fb-vote">
+            <button class="fb-vote__btn" aria-label="234 votes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            <div class="fb-vote__count">234</div>
+          </div>
+          <div>
+            <div class="fb-row__head">
+              <span class="fb-status fb-status--shipped"><span class="fb-status__dot"></span>Shipped</span>
+              <span class="fb-cat">Calendar</span>
+              <span class="fb-meta">#198 · 2 months ago</span>
+            </div>
+            <div class="fb-row__title">iCal feed so events sync to family Google/Apple calendars</div>
+            <div class="fb-row__desc">Parents shouldn't have to manually re-add troop events to their personal calendars. Compass should publish a per-troop iCal subscription URL.</div>
+            <div class="fb-update fb-update--shipped">
+              <svg class="fb-update__icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>
+              <span><strong>Update:</strong> Shipped Mar 12 · find it under Settings → Calendar feed</span>
+            </div>
+            <div class="fb-row__foot"><span>Mike R · Troop 88 · Denver CO</span><span>31 comments</span></div>
+          </div>
+          <a class="fb-row__cta" href="#thread-198">Open thread →</a>
+        </article>
+
+        <!-- Submitted -->
+        <article class="fb-row">
+          <div class="fb-vote">
+            <button class="fb-vote__btn" aria-label="67 votes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            <div class="fb-vote__count">67</div>
+          </div>
+          <div>
+            <div class="fb-row__head">
+              <span class="fb-status fb-status--submitted"><span class="fb-status__dot"></span>Submitted</span>
+              <span class="fb-cat">Safety</span>
+              <span class="fb-meta">#301 · 1 week ago</span>
+            </div>
+            <div class="fb-row__title">Two-deep enforcement on phone calls (not just messaging)</div>
+            <div class="fb-row__desc">YPT requires two-deep on phone calls too. Compass should let leaders log call-with-scout events with a second adult attested, just like the messaging flow.</div>
+            <div class="fb-row__foot"><span>Janet T · Troop 1990 · Portland OR</span><span>4 comments</span></div>
+          </div>
+          <a class="fb-row__cta" href="#thread-301">Open thread →</a>
+        </article>
+
+        <!-- Building -->
+        <article class="fb-row">
+          <div class="fb-vote">
+            <button class="fb-vote__btn fb-vote__btn--voted" aria-label="118 votes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            <div class="fb-vote__count">118</div>
+          </div>
+          <div>
+            <div class="fb-row__head">
+              <span class="fb-status fb-status--building"><span class="fb-status__dot"></span>Building</span>
+              <span class="fb-cat">Members</span>
+              <span class="fb-voted-tag">You voted</span>
+              <span class="fb-meta">#289 · 6 weeks ago</span>
+            </div>
+            <div class="fb-row__title">Print-friendly roster with merit badge progress</div>
+            <div class="fb-row__desc">For Court of Honor I print a packet for each scout. Need a one-page-per-scout PDF with their photo, rank, partials, and merit badge progress, formatted for a binder.</div>
+            <div class="fb-update fb-update--building">
+              <svg class="fb-update__icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>
+              <span><strong>Update:</strong> In design · sharing layout drafts in #scoutmasters Slack this Friday</span>
+            </div>
+            <div class="fb-row__foot"><span>David L · Troop 567 New Hope</span><span>22 comments</span></div>
+          </div>
+          <a class="fb-row__cta" href="#thread-289">Open thread →</a>
+        </article>
+
+        <!-- Triaged -->
+        <article class="fb-row">
+          <div class="fb-vote">
+            <button class="fb-vote__btn" aria-label="54 votes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            <div class="fb-vote__count">54</div>
+          </div>
+          <div>
+            <div class="fb-row__head">
+              <span class="fb-status fb-status--triaged"><span class="fb-status__dot"></span>Triaged</span>
+              <span class="fb-cat">Integrations</span>
+              <span class="fb-meta">#156 · 3 weeks ago</span>
+            </div>
+            <div class="fb-row__title">Scoutbook sync: pull rank advancement automatically</div>
+            <div class="fb-row__desc">Right now I export from Scoutbook and import to Compass. The two should just talk to each other.</div>
+            <div class="fb-update fb-update--triaged">
+              <svg class="fb-update__icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>
+              <span><strong>Update:</strong> Triaged · waiting on Scoutbook API access (we've applied)</span>
+            </div>
+            <div class="fb-row__foot"><span>Amy B · Troop 24 · Chicago IL</span><span>14 comments</span></div>
+          </div>
+          <a class="fb-row__cta" href="#thread-156">Open thread →</a>
+        </article>
+
+        <!-- Submitted -->
+        <article class="fb-row">
+          <div class="fb-vote">
+            <button class="fb-vote__btn" aria-label="32 votes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            <div class="fb-vote__count">32</div>
+          </div>
+          <div>
+            <div class="fb-row__head">
+              <span class="fb-status fb-status--submitted"><span class="fb-status__dot"></span>Submitted</span>
+              <span class="fb-cat">Communications</span>
+              <span class="fb-meta">#223 · 2 weeks ago</span>
+            </div>
+            <div class="fb-row__title">Spanish-language version of family-facing emails</div>
+            <div class="fb-row__desc">40% of our pack speaks Spanish at home. The English-only digest is a real adoption barrier.</div>
+            <div class="fb-row__foot"><span>Carlos M · Pack 309 · El Paso TX</span><span>9 comments</span></div>
+          </div>
+          <a class="fb-row__cta" href="#thread-223">Open thread →</a>
+        </article>
+
+        <!-- Shipped -->
+        <article class="fb-row">
+          <div class="fb-vote">
+            <button class="fb-vote__btn" aria-label="412 votes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+            <div class="fb-vote__count">412</div>
+          </div>
+          <div>
+            <div class="fb-row__head">
+              <span class="fb-status fb-status--shipped"><span class="fb-status__dot"></span>Shipped</span>
+              <span class="fb-cat">Communications</span>
+              <span class="fb-meta">#178 · 4 months ago</span>
+            </div>
+            <div class="fb-row__title">AI-drafted weekly digest from calendar + photos</div>
+            <div class="fb-row__desc">Writing the Sunday newsletter takes 2+ hours every week. The data is all in Compass already. Why am I rewriting it into an email?</div>
+            <div class="fb-update fb-update--shipped">
+              <svg class="fb-update__icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg>
+              <span><strong>Update:</strong> Shipped Feb 28 · <a href="/admin/newsletter.html" style="color: inherit; text-decoration: underline;">Auto-newsletter</a> (Troop + AI tier)</span>
+            </div>
+            <div class="fb-row__foot"><span>Original idea · Troop 88</span><span>67 comments</span></div>
+          </div>
+          <a class="fb-row__cta" href="#thread-178">Open thread →</a>
+        </article>
+      </div>
+    </main>
+  </div>
+
+  <!-- Composer modal -->
+  <div id="composer" class="fb-composer" role="dialog" aria-labelledby="composer-title" aria-modal="true">
+    <form class="fb-composer__panel" onsubmit="event.preventDefault(); document.getElementById('composer').classList.remove('fb-composer--open');">
+      <div class="fb-composer__head">
+        <div>
+          <div class="fb-head__eyebrow">New request</div>
+          <div id="composer-title" class="fb-composer__title">Tell us what's missing</div>
+        </div>
+        <button type="button" class="fb-composer__close" onclick="document.getElementById('composer').classList.remove('fb-composer--open')" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M6 18L18 6"/></svg>
+        </button>
+      </div>
+
+      <div class="fb-composer__section">
+        <div class="fb-composer__label">What kind of request?</div>
+        <div class="fb-composer__type-grid">
+          <label class="fb-composer__type fb-composer__type--active">
+            <input type="radio" name="type" value="feature" checked hidden />
+            <div class="fb-composer__type-name">Feature request</div>
+            <div class="fb-composer__type-sub">Something we should build</div>
+          </label>
+          <label class="fb-composer__type">
+            <input type="radio" name="type" value="bug" hidden />
+            <div class="fb-composer__type-name">Bug report</div>
+            <div class="fb-composer__type-sub">Something is broken</div>
+          </label>
+          <label class="fb-composer__type">
+            <input type="radio" name="type" value="help" hidden />
+            <div class="fb-composer__type-name">Get help now</div>
+            <div class="fb-composer__type-sub">I'm stuck (private ticket)</div>
+          </label>
+        </div>
+      </div>
+
+      <div class="fb-composer__section">
+        <div class="fb-composer__label">Title — one short sentence</div>
+        <input class="fb-composer__field" name="title" type="text" required placeholder="Bulk-mark RSVPs for scouts who showed up but didn't respond" />
+      </div>
+
+      <div class="fb-composer__section fb-composer__row2">
+        <div>
+          <div class="fb-composer__label">Category</div>
+          <div class="fb-composer__field fb-composer__field--select">
+            <span><strong>Events</strong> · RSVPs, attendance, signups</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+        </div>
+        <div>
+          <div class="fb-composer__label">Visibility</div>
+          <div class="fb-composer__field fb-composer__field--select">
+            <span><strong>Public roadmap</strong> · others can vote</span>
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <div class="fb-composer__section">
+        <div class="fb-composer__label">Tell us more — what would this fix?</div>
+        <textarea class="fb-composer__field fb-composer__field--body" name="body" maxlength="2000" placeholder="Half my scouts forget to RSVP and just show up. After the campout I want to bulk-mark them as 'attended' without going through 30 individual checkboxes."></textarea>
+        <div class="fb-composer__attach-row">
+          <div>
+            <span>📎 Attach a screenshot</span>
+            <span>🎥 Record a screen-recording</span>
+          </div>
+          <span class="fb-composer__charcount">0 / 2000</span>
+        </div>
+      </div>
+
+      <div class="fb-composer__section">
+        <div class="fb-context">
+          <div class="fb-context__inner">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--ink-soft)" stroke-width="2" style="flex-shrink: 0; margin-top: 2px;"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/></svg>
+            <div class="fb-context__body">
+              <strong>We'll attach context automatically:</strong> Troop 567 New Hope, your role (Scoutmaster), browser (Chrome 122 · macOS), and a redacted snapshot of your last visited page (Events list, no scout names). You can review and remove any of this before submit.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="fb-composer__actions">
+        <div class="fb-composer__legal">
+          We reply to every request within <strong>5 business days</strong>.<br />
+          Public requests appear on the roadmap once triaged (~24h).
+        </div>
+        <div style="display: flex; gap: 8px;">
+          <button type="button" class="nl-btn nl-btn--ghost" style="background: transparent; border: 1px solid var(--line); color: var(--ink-soft); padding: 8px 14px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: var(--font-ui);">Save draft</button>
+          <button type="submit" class="fb-suggest" style="padding: 8px 18px;">Submit request</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

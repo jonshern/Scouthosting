@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<!--
+  Compass — Weekly Digest email template.
+
+  Source design: design_handoff_compass/designs/newsletter.jsx → NewsletterRecipientView
+                 design_handoff_compass/designs/email.jsx       → CompassEmailBody
+
+  This is the flagship AI-drafted Sunday digest. Designed to look like a
+  proper magazine "Issue #N", not a marketing blast — the family opens
+  it from "Eric Schulz · Troop 567" (their own scoutmaster), not from
+  compass.app, because we send via the troop's own domain through
+  Postmark when configured.
+
+  Layout: 640px max width, all inline styles (Gmail/Outlook safe),
+  table-based for the action buttons (also Gmail/Outlook safe).
+
+  Variables to interpolate at send time:
+    {{ISSUE_NUMBER}}      e.g. 25
+    {{WEEK_LABEL}}        e.g. "Week of March 15"
+    {{TROOP_NAME}}        e.g. "Troop 567"
+    {{TROOP_LOCATION}}    e.g. "New Hope"
+    {{HEADLINE}}          AI-drafted top-of-issue line
+    {{INTRO}}             Editor's intro paragraph
+    {{STORIES_HTML}}      Pre-rendered list of <ItemRow> blocks
+    {{SIGNOFF_QUOTE}}     One-line italic quote
+    {{SIGNOFF_NAME}}      Sender name + role
+    {{UNSUBSCRIBE_URL}}
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <title>The Weekly Trail Mix · Issue {{ISSUE_NUMBER}}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet" />
+  <style>
+    /* Reset Outlook/Gmail quirks. */
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { -ms-interpolation-mode: bicubic; border: 0; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; background: #f7f8fa; }
+    a { text-decoration: none; }
+    @media (max-width: 600px) {
+      .container { width: 100% !important; border-radius: 0 !important; }
+      .px-pad { padding-left: 18px !important; padding-right: 18px !important; }
+      .stack { display: block !important; width: 100% !important; }
+    }
+  </style>
+</head>
+<body style="margin: 0; padding: 24px 12px; background: #f7f8fa; font-family: 'Inter Tight', 'Inter', system-ui, sans-serif; color: #0f172a;">
+  <!-- Preheader (hidden in email body but shown in inbox preview) -->
+  <div style="display: none; max-height: 0; overflow: hidden; opacity: 0; mso-hide: all;">
+    {{HEADLINE}} — your 5-minute Sunday digest from Compass.
+  </div>
+
+  <table role="presentation" cellspacing="0" cellpadding="0" align="center" width="640" class="container" style="max-width: 640px; width: 100%; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,0.06);">
+    <!-- Brand strip (dark slate) -->
+    <tr>
+      <td style="background: #0f172a; color: #ffffff; padding: 14px 28px;">
+        <table role="presentation" cellspacing="0" cellpadding="0" width="100%">
+          <tr>
+            <td style="vertical-align: middle;">
+              <table role="presentation" cellspacing="0" cellpadding="0">
+                <tr>
+                  <td style="vertical-align: middle; padding-right: 10px;">
+                    <svg width="26" height="26" viewBox="0 0 40 40" aria-hidden="true">
+                      <circle cx="20" cy="20" r="18.5" fill="none" stroke="#fff" stroke-width="1.25"/>
+                      <circle cx="20" cy="20" r="11" fill="none" stroke="#fff" stroke-width="0.75" opacity="0.4"/>
+                      <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#1d4ed8"/>
+                      <circle cx="20" cy="20" r="1.6" fill="#fff"/>
+                    </svg>
+                  </td>
+                  <td style="vertical-align: middle;">
+                    <span style="font-family: 'Newsreader', Georgia, serif; font-size: 18px; font-weight: 500; letter-spacing: -0.01em;">Compass</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+            <td align="right" style="font-size: 11px; color: rgba(255,255,255,0.65); letter-spacing: 0.04em;">
+              {{TROOP_NAME}} · {{TROOP_LOCATION}}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Hero (issue masthead) -->
+    <tr>
+      <td class="px-pad" style="padding: 28px 28px 8px;">
+        <div style="font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #f59e0b; margin-bottom: 8px;">
+          The Weekly Trail Mix · Issue #{{ISSUE_NUMBER}}
+        </div>
+        <h1 style="font-family: 'Newsreader', Georgia, serif; font-size: 28px; font-weight: 400; letter-spacing: -0.02em; line-height: 1.1; margin: 0; color: #0f172a;">
+          {{HEADLINE}}
+        </h1>
+        <div style="font-family: 'Newsreader', Georgia, serif; font-size: 14px; font-style: italic; color: #64748b; margin-top: 6px;">
+          {{WEEK_LABEL}}
+        </div>
+      </td>
+    </tr>
+
+    <!-- Intro paragraph (editor's note) -->
+    <tr>
+      <td class="px-pad" style="padding: 16px 28px 20px; border-bottom: 1px solid #eef1f5;">
+        <p style="font-size: 15px; color: #334155; line-height: 1.6; margin: 0;">{{INTRO}}</p>
+      </td>
+    </tr>
+
+    <!-- Story cards (interpolated server-side) -->
+    {{STORIES_HTML}}
+
+    <!-- Example story 1 — Campout (rendered for fallback / preview) -->
+    <tr>
+      <td class="px-pad" style="padding: 24px 28px; border-bottom: 1px solid #eef1f5;">
+        <div style="display: inline-block; padding: 3px 8px; background: #fde68a; color: #f59e0b; border-radius: 4px; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px;">
+          Campout · 3 days
+        </div>
+        <h2 style="font-family: 'Newsreader', Georgia, serif; font-size: 20px; font-weight: 500; letter-spacing: -0.015em; margin: 0; color: #0f172a; line-height: 1.2;">
+          Spring Campout — Tomahawk SR
+        </h2>
+        <div style="font-family: 'Newsreader', Georgia, serif; font-size: 13px; font-style: italic; color: #64748b; margin-top: 4px;">
+          Fri May 15 → Sun May 17 · $45/scout
+        </div>
+        <p style="font-size: 14px; color: #334155; line-height: 1.6; margin: 12px 0;">
+          24 of 28 spots taken — a few left for late deciders. RSVPs close Wednesday.
+        </p>
+        <table role="presentation" cellspacing="0" cellpadding="0">
+          <tr>
+            <td style="background: #0f172a; border-radius: 8px;">
+              <a href="{{RSVP_URL}}" style="display: inline-block; padding: 10px 18px; font-size: 13px; font-weight: 600; color: #ffffff; text-decoration: none;">RSVP &amp; pay $45 →</a>
+            </td>
+            <td style="padding-left: 14px; font-size: 12px; color: #64748b;">14 going · 10 spots left</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Example story 2 — Eagle achievement -->
+    <tr>
+      <td class="px-pad" style="padding: 24px 28px; border-bottom: 1px solid #eef1f5;">
+        <div style="display: inline-block; padding: 3px 8px; background: #cbd5e1; color: #475569; border-radius: 4px; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px;">
+          Achievement
+        </div>
+        <h2 style="font-family: 'Newsreader', Georgia, serif; font-size: 20px; font-weight: 500; letter-spacing: -0.015em; margin: 0; color: #0f172a; line-height: 1.2;">
+          🦅 Eli M. earns Eagle
+        </h2>
+        <div style="font-family: 'Newsreader', Georgia, serif; font-size: 13px; font-style: italic; color: #64748b; margin-top: 4px;">
+          Board of Review passed Mar 9
+        </div>
+        <p style="font-size: 14px; color: #334155; line-height: 1.6; margin: 12px 0;">
+          Our 34th Eagle since 1962. Court of Honor April 13.
+        </p>
+        <table role="presentation" cellspacing="0" cellpadding="0">
+          <tr>
+            <td style="background: #0f172a; border-radius: 8px;">
+              <a href="{{COH_URL}}" style="display: inline-block; padding: 10px 18px; font-size: 13px; font-weight: 600; color: #ffffff; text-decoration: none;">Add CoH to my calendar →</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Example story 3 — Service (with counter) -->
+    <tr>
+      <td class="px-pad" style="padding: 24px 28px; border-bottom: 1px solid #eef1f5;">
+        <div style="display: inline-block; padding: 3px 8px; background: #bee5ef; color: #0891b2; border-radius: 4px; font-size: 9px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 10px;">
+          Service · 4 needed
+        </div>
+        <h2 style="font-family: 'Newsreader', Georgia, serif; font-size: 20px; font-weight: 500; letter-spacing: -0.015em; margin: 0; color: #0f172a; line-height: 1.2;">
+          Park cleanup needs 4 more hands
+        </h2>
+        <div style="font-family: 'Newsreader', Georgia, serif; font-size: 13px; font-style: italic; color: #64748b; margin-top: 4px;">
+          Sat Mar 14 · 9 AM – 12 PM · Anderson Park
+        </div>
+        <p style="font-size: 14px; color: #334155; line-height: 1.6; margin: 12px 0;">
+          6 scouts so far. It's a great service hour for rank advancement.
+        </p>
+        <table role="presentation" cellspacing="0" cellpadding="0">
+          <tr>
+            <td style="background: #0f172a; border-radius: 8px;">
+              <a href="{{SERVICE_URL}}" style="display: inline-block; padding: 10px 18px; font-size: 13px; font-weight: 600; color: #ffffff; text-decoration: none;">I'll be there →</a>
+            </td>
+            <td style="padding-left: 14px; font-size: 12px; color: #64748b;">6 of 10 going</td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Sign-off -->
+    <tr>
+      <td class="px-pad" style="padding: 28px; background: #f7f8fa;">
+        <table role="presentation" cellspacing="0" cellpadding="0">
+          <tr>
+            <td style="vertical-align: top; padding-right: 12px;">
+              <div style="width: 36px; height: 36px; border-radius: 18px; background: #475569; color: #ffffff; text-align: center; line-height: 36px; font-weight: 600; font-size: 12px;">{{SIGNOFF_INITIALS}}</div>
+            </td>
+            <td style="vertical-align: top;">
+              <div style="font-family: 'Newsreader', Georgia, serif; font-size: 14px; font-style: italic; color: #0f172a;">"{{SIGNOFF_QUOTE}}"</div>
+              <div style="font-size: 11px; color: #64748b; margin-top: 4px;">{{SIGNOFF_NAME}}</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td class="px-pad" style="padding: 16px 28px 24px; border-top: 1px solid #eef1f5; font-size: 10px; color: #64748b; line-height: 1.6;">
+        <div style="margin-bottom: 8px;">
+          Sent via <strong style="color: #334155;">Compass</strong> · {{TROOP_SLUG}}.compass.app
+        </div>
+        <div style="margin-bottom: 4px;">{{RECIPIENT_COUNT}} troop families · your address stays private (each gets a personal copy).</div>
+        <div>
+          <a href="{{NOTIFICATIONS_URL}}" style="color: #1d4ed8; font-weight: 600;">Manage notifications</a>
+          <span style="margin: 0 5px;">·</span>
+          <a href="{{UNSUBSCRIBE_URL}}" style="color: #1d4ed8; font-weight: 600;">Unsubscribe</a>
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
