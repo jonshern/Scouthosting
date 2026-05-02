@@ -27,6 +27,7 @@ import { logger } from "../lib/log.js";
 import { track, EVENTS } from "../lib/analytics.js";
 import { marketingTag, firstPartyTag } from "../lib/analyticsTag.js";
 import { supportWidget } from "../lib/supportWidget.js";
+import { marketingWidget } from "../lib/marketingWidget.js";
 
 const log = logger.child("http");
 import { issueToken } from "../lib/apiToken.js";
@@ -278,11 +279,18 @@ app.use(function attachTelemetry(req, res, next) {
   res.send = function (body) {
     if (typeof body === "string" && (res.get("Content-Type") || "").includes("text/html")) {
       const beacon = firstPartyTag({ surface });
-      const widget = supportWidget({
-        surface,
-        csrfToken: typeof req.csrfToken === "function" ? req.csrfToken() : (req.csrfToken || ""),
-        user: req.user ? { email: req.user.email, displayName: req.user.displayName } : null,
-      });
+      // Marketing visitors get the lighter chat-style sales widget;
+      // tenants and admins get the full support widget (bug / billing
+      // / feature-request / abuse). Different audiences, different
+      // shapes — see lib/marketingWidget.js for the rationale.
+      const csrf = typeof req.csrfToken === "function" ? req.csrfToken() : (req.csrfToken || "");
+      const widget = surface === "marketing"
+        ? marketingWidget({ csrfToken: csrf })
+        : supportWidget({
+            surface,
+            csrfToken: csrf,
+            user: req.user ? { email: req.user.email, displayName: req.user.displayName } : null,
+          });
       // Plausible is apex-only and opt-in. We splice into <head>; the
       // others go just before </body> so they don't block first paint.
       if (surface === "marketing") {
