@@ -2,55 +2,14 @@
    Compass — Tenant site CSS
    Served at /styles.css from every tenant subdomain (server/index.js routes
    tenant static assets here). Styles both the new template (server/template/
-   site.html — based on unit-site/) AND the classes the server-side renderers
-   in server/render.js still emit (.events, .announcements, .post-feed, etc.).
+   site.html) AND the classes the server-side renderers in server/render.js
+   still emit (.events, .announcements, .post-feed, etc.).
 
-   Locked palette: Forest & Ember (the `bold` palette in design/source/tokens.js).
-   Typography: Newsreader (display) + Inter Tight (UI).
-   Per-org accent overrides come in via inline <style> in the template
-   (--primary / --accent override these defaults).
+   Lead palette: Slate & Sky (balanced). Tokens come from /tokens.css —
+   the tenant template links it before this file. Per-org accent overrides
+   come in via inline <style> in the template (--primary / --accent
+   override these defaults to give each troop its own brand colours).
    ========================================================================= */
-
-:root {
-  --bg: #f4ecdc;
-  --surface: #ffffff;
-  --surface-alt: #1a1f1a;
-  --surface-dark: #1d3a32;
-  --surface-sand: #ede0bf;
-
-  --ink: #0d130d;
-  --ink-soft: #2a352a;
-  --ink-muted: #5a6258;
-
-  --line: #d4c8a8;
-  --line-soft: #e6dcc0;
-
-  --primary: #0e3320;
-  --primary-hover: #06200f;
-  --accent: #c8e94a;
-  --accent-soft: #e3f29b;
-
-  --danger: #a82e1d;
-  --success: #3d6b3a;
-
-  --sky: #3a7ab8;
-  --ember: #e07a3c;
-  --raspberry: #c43d6b;
-  --butter: #f3c54a;
-  --plum: #6e3b7a;
-  --teal: #3aa893;
-
-  --font-display: "Newsreader", "Source Serif Pro", Georgia, serif;
-  --font-ui: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
-
-  --radius-chip: 4px;
-  --radius-button: 6px;
-  --radius-card: 12px;
-  --radius-pill: 999px;
-
-  --shadow-soft: 0 4px 20px rgba(15, 23, 42, 0.08);
-  --max-w: 1200px;
-}
 
 *, *::before, *::after { box-sizing: border-box; }
 

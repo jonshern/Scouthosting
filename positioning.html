@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en" data-palette="balanced">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Compass positioning — no commodity markups. Custom domains, photo storage, email-on-domain, and payments all passed through at cost (or free). We charge $99/yr for the software, not for DNS records." />
+  <title>Compass · No commodity markups</title>
+  <link rel="canonical" href="https://compass.app/positioning.html" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/tokens.css" />
+  <link rel="stylesheet" href="/styles.css" />
+  <style>
+    /* Page-local layout for positioning.html. Tokens come from /tokens.css. */
+    .pos-page { max-width: 1280px; margin: 0 auto; }
+
+    .pos-hero { padding: 64px var(--page-pad-x) 32px; border-bottom: 1px solid var(--line-soft); }
+    .pos-hero__grid { display: grid; grid-template-columns: 1.4fr 0.6fr; gap: 48px; align-items: flex-start; }
+    .pos-hero__eyebrow { font-size: 12px; color: var(--ember); font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; }
+    .pos-hero__title { font-family: var(--font-display); font-size: 64px; font-weight: 400; letter-spacing: -0.025em; line-height: 1.02; margin: 14px 0 0; color: var(--ink); }
+    .pos-hero__title em { font-style: italic; color: var(--ember); }
+    .pos-hero__title s { text-decoration: line-through; text-decoration-color: var(--ink-muted); text-decoration-thickness: 2px; opacity: 0.85; }
+    .pos-hero__lede { font-size: 18px; color: var(--ink-soft); line-height: 1.55; margin: 20px 0 0; max-width: 60ch; }
+    .pos-hero__lede--strong { color: var(--ink); font-weight: 500; margin-top: 14px; }
+
+    .pos-principle { background: var(--surface); border: 2px solid var(--ember); border-radius: 14px; padding: 22px; }
+    .pos-principle__label { font-size: 11px; color: var(--ember); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 10px; }
+    .pos-principle__quote { font-family: var(--font-display); font-size: 22px; font-weight: 400; font-style: italic; color: var(--ink); line-height: 1.25; margin-bottom: 12px; }
+    .pos-principle__body { font-size: 13px; color: var(--ink-soft); line-height: 1.55; }
+
+    .pos-table-wrap { padding: 48px var(--page-pad-x) 24px; }
+    .pos-table-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; }
+    .pos-table-head h2 { font-family: var(--font-display); font-size: 36px; font-weight: 400; letter-spacing: -0.02em; margin: 0; color: var(--ink); }
+    .pos-table-head__count { font-size: 12px; color: var(--ink-muted); font-family: var(--font-mono); }
+
+    .pos-table { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+    .pos-table__head { display: grid; grid-template-columns: 1.4fr 0.9fr 0.9fr 0.9fr; gap: 0; background: var(--surface-dark); color: #fff; padding: 14px 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+    .pos-table__row { padding: 22px 20px; border-top: 1px solid var(--line-soft); }
+    .pos-table__row:first-of-type { border-top: none; }
+    .pos-table__cells { display: grid; grid-template-columns: 1.4fr 0.9fr 0.9fr 0.9fr; gap: 16px; align-items: flex-start; }
+
+    .pos-table__commodity-name { font-size: 15px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+    .pos-table__what { font-size: 12px; color: var(--ink-soft); line-height: 1.5; }
+    .pos-table__big { font-family: var(--font-display); font-size: 22px; font-weight: 500; letter-spacing: -0.01em; }
+    .pos-table__big--cost { color: var(--ink-soft); }
+    .pos-table__big--legacy { color: #a8590a; }
+    .pos-table__big--us { color: var(--success); }
+    .pos-table__note { font-size: 11px; color: var(--ink-muted); margin-top: 4px; line-height: 1.4; }
+    .pos-table__math { margin-top: 12px; padding: 8px 12px; background: var(--bg); border-radius: 6px; font-size: 11px; color: var(--ink-soft); font-family: var(--font-mono); }
+
+    .pos-money { padding: 24px var(--page-pad-x) 24px; }
+    .pos-money__panel { background: var(--surface-dark); color: #fff; border-radius: 14px; padding: 36px; }
+    .pos-money__grid { display: grid; grid-template-columns: 1fr 1.4fr; gap: 48px; align-items: flex-start; }
+    .pos-money__eyebrow { font-size: 12px; color: var(--ember); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 12px; }
+    .pos-money__title { font-family: var(--font-display); font-size: 32px; font-weight: 400; letter-spacing: -0.02em; margin: 0; line-height: 1.1; color: #fff; }
+    .pos-money__title em { font-style: italic; }
+    .pos-money__body { font-size: 14px; color: rgba(255,255,255,0.75); line-height: 1.65; margin-top: 16px; }
+
+    .pos-money__aside-label { font-size: 12px; color: rgba(255,255,255,0.6); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 16px; }
+    .pos-money__cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .pos-money__card { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 14px; }
+    .pos-money__card-title { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+    .pos-money__card-body { font-size: 12px; color: rgba(255,255,255,0.7); line-height: 1.5; }
+
+    .pos-caveat { padding: 24px var(--page-pad-x) 64px; }
+    .pos-caveat__panel { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; }
+    .pos-caveat__inner { display: flex; gap: 16px; align-items: flex-start; }
+    .pos-caveat__bang { width: 28px; height: 28px; border-radius: 14px; background: rgba(245,158,11,0.18); color: var(--ember); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-weight: 700; }
+    .pos-caveat__label { font-size: 13px; font-weight: 700; color: var(--ink); letter-spacing: 0.04em; text-transform: uppercase; margin-bottom: 6px; }
+    .pos-caveat__body { font-size: 14px; color: var(--ink-soft); line-height: 1.65; }
+    .pos-caveat__body strong { color: var(--ink); }
+
+    @media (max-width: 1000px) {
+      .pos-hero__grid { grid-template-columns: 1fr; }
+      .pos-hero__title { font-size: 48px; }
+      .pos-table__head { grid-template-columns: 1fr; }
+      .pos-table__head > div:not(:first-child) { display: none; }
+      .pos-table__cells { grid-template-columns: 1fr; }
+      .pos-table__cells > div:not(:first-child)::before { display: block; font-size: 10px; color: var(--ink-muted); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+      .pos-money__grid { grid-template-columns: 1fr; }
+      .pos-money__cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="topnav" role="banner">
+    <a href="/" class="wordmark" aria-label="Compass — home">
+      <svg width="32" height="32" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="18.5" fill="none" stroke="#0f172a" stroke-width="1.25" />
+        <circle cx="20" cy="20" r="11" fill="none" stroke="#0f172a" stroke-width="0.75" opacity="0.4" />
+        <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#1d4ed8" />
+        <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="#0f172a" opacity="0.85" />
+        <path d="M37 20 L20 22.4 L22.4 20 L20 17.6 Z" fill="#0f172a" opacity="0.5" />
+        <path d="M3 20 L20 17.6 L17.6 20 L20 22.4 Z" fill="#0f172a" opacity="0.5" />
+        <circle cx="20" cy="20" r="1.6" fill="#0f172a" />
+      </svg>
+      <span>Compass<span class="accent">.</span></span>
+    </a>
+    <nav class="topnav__anchors" aria-label="Primary">
+      <a href="/#product">The Product</a>
+      <a href="/security.html">Security</a>
+      <a href="/plans.html">Pricing</a>
+      <a href="/positioning.html" aria-current="page">Positioning</a>
+    </nav>
+    <div class="topnav__actions">
+      <a href="/login.html" class="topnav__signin">Sign in</a>
+      <a href="/signup.html" class="btn btn--accent btn--pill">Start a trial</a>
+    </div>
+  </header>
+
+  <main id="main" class="pos-page">
+    <!-- ===========================================================
+         1. Hero — “We charge for software, not DNS records.”
+         Mirrors positioning.jsx hero (lines 78–104).
+         =========================================================== -->
+    <section class="pos-hero">
+      <div class="pos-hero__grid">
+        <div>
+          <div class="pos-hero__eyebrow">How we price</div>
+          <h1 class="pos-hero__title">
+            We charge you for <em>software</em>.<br />
+            Not for <s>DNS records</s>.
+          </h1>
+          <p class="pos-hero__lede">
+            The dirty secret of legacy scout software is that most of what you're
+            paying for is commodity infrastructure marked up 10× to 1,000×. A
+            custom domain costs us roughly two cents a year to host. Photo storage
+            is pennies a gigabyte. Email is fractions of a fraction of a cent.
+            Charging $25 a year to "host your domain" is theater.
+          </p>
+          <p class="pos-hero__lede pos-hero__lede--strong">
+            So we don't. We pass the boring stuff through at cost and charge a
+            fair, flat price for the part that's actually hard: the software.
+          </p>
+        </div>
+        <aside class="pos-principle">
+          <div class="pos-principle__label">The principle</div>
+          <div class="pos-principle__quote">"No commodity markups."</div>
+          <div class="pos-principle__body">
+            If something is genuinely cheap for us, it should be cheap (or free)
+            for you. We make money on a flat $99/yr — not on penny-ante markups
+            your committee chair has to decode.
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===========================================================
+         2. Cost-vs-charge table — five line items.
+         Mirrors positioning.jsx table (lines 106–155).
+         =========================================================== -->
+    <section class="pos-table-wrap" aria-labelledby="table-title">
+      <div class="pos-table-head">
+        <h2 id="table-title">What it actually costs vs. what they charge</h2>
+        <div class="pos-table-head__count">5 line items</div>
+      </div>
+
+      <div class="pos-table">
+        <div class="pos-table__head" role="row">
+          <div role="columnheader">Commodity</div>
+          <div role="columnheader">Real cost</div>
+          <div role="columnheader">Typical legacy host</div>
+          <div role="columnheader" style="color: var(--accent-soft);">Compass</div>
+        </div>
+
+        <!-- Row 1: Custom domain -->
+        <div class="pos-table__row">
+          <div class="pos-table__cells">
+            <div>
+              <div class="pos-table__commodity-name">Custom domain hosting</div>
+              <div class="pos-table__what">Routing your troop567.org to our servers — one DNS record on your end, one row in our DB, an auto-renewing TLS cert.</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--cost">~2¢ / yr</div>
+              <div class="pos-table__note">Let's Encrypt + a few CPU cycles</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--legacy">+$25 / yr</div>
+              <div class="pos-table__note">On top of your registrar fee</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--us">$0</div>
+              <div class="pos-table__note">BYO domain, we configure it free</div>
+            </div>
+          </div>
+          <div class="pos-table__math">→ Markup factor: ~1,250×</div>
+        </div>
+
+        <!-- Row 2: Photo storage -->
+        <div class="pos-table__row">
+          <div class="pos-table__cells">
+            <div>
+              <div class="pos-table__commodity-name">Photo storage</div>
+              <div class="pos-table__what">Object storage for compressed, web-resized photos. Auto-resize on upload keeps file sizes in check.</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--cost">~$0.28 / GB / yr</div>
+              <div class="pos-table__note">S3-class storage at scale</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--legacy">$1 / GB / yr</div>
+              <div class="pos-table__note">10 GB included, then meter</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--us">$1.50 / GB / yr</div>
+              <div class="pos-table__note">15 GB included, transparent overage</div>
+            </div>
+          </div>
+          <div class="pos-table__math">→ Their markup ~3.5× cost · ours ~5×, but starts at 50% more headroom and we say so</div>
+        </div>
+
+        <!-- Row 3: Email on domain -->
+        <div class="pos-table__row">
+          <div class="pos-table__cells">
+            <div>
+              <div class="pos-table__commodity-name">Email from your own domain</div>
+              <div class="pos-table__what">The digest, RSVP confirms, password resets sent from scoutmaster@troop567.org — properly authenticated (SPF/DKIM/DMARC aligned to your domain), so it lands in inboxes and looks like it comes from your troop, not from us.</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--cost">~$9 / yr / troop</div>
+              <div class="pos-table__note">Postmark, ~600 emails/mo on a 50-scout troop</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--legacy">Sent from a shared domain</div>
+              <div class="pos-table__note">Their domain, not yours — shared sender reputation, looks third-party in the inbox</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--us">$0 extra</div>
+              <div class="pos-table__note">Add 3 DNS records, we handle the rest. Email actually comes from your troop.</div>
+            </div>
+          </div>
+          <div class="pos-table__math">→ Architecturally hard for shared-tenant systems to do — every troop on one sending domain is the design, not a setting.</div>
+        </div>
+
+        <!-- Row 4: Payments -->
+        <div class="pos-table__row">
+          <div class="pos-table__cells">
+            <div>
+              <div class="pos-table__commodity-name">Payment processing</div>
+              <div class="pos-table__what">Collecting dues, trip fees, fundraising via Stripe.</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--cost">2.9% + 30¢</div>
+              <div class="pos-table__note">Stripe's actual rate</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--legacy">Adds platform fee on top</div>
+              <div class="pos-table__note">Often 1–2% over Stripe</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--us">2.9% + 30¢ — at cost</div>
+              <div class="pos-table__note">We pass Stripe through. No markup.</div>
+            </div>
+          </div>
+          <div class="pos-table__math">→ On a $50,000 / yr troop budget, our pass-through saves ~$500–$1,000 vs typical platform fees</div>
+        </div>
+
+        <!-- Row 5: Bandwidth/hosting -->
+        <div class="pos-table__row">
+          <div class="pos-table__cells">
+            <div>
+              <div class="pos-table__commodity-name">Bandwidth / hosting</div>
+              <div class="pos-table__what">Serving the public troop site, admin dashboard, mobile app.</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--cost">~$1–3 / troop / yr</div>
+              <div class="pos-table__note">CDN + compute on Cloudflare/Render</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--legacy">Bundled in $109 base</div>
+              <div class="pos-table__note">Fine — but the base is what funds the markups above</div>
+            </div>
+            <div>
+              <div class="pos-table__big pos-table__big--us">Bundled in $99 base</div>
+              <div class="pos-table__note">Same — but our base is $10 less</div>
+            </div>
+          </div>
+          <div class="pos-table__math">→ Hosting itself is genuinely cheap. Always has been.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===========================================================
+         3. Where we DO make money (dark panel).
+         Mirrors positioning.jsx money panel (lines 158–187).
+         =========================================================== -->
+    <section class="pos-money" aria-labelledby="money-title">
+      <div class="pos-money__panel">
+        <div class="pos-money__grid">
+          <div>
+            <div class="pos-money__eyebrow">So how do we make money?</div>
+            <h3 id="money-title" class="pos-money__title"><em>The software.</em><br />That's it.</h3>
+            <p class="pos-money__body">
+              A flat $99/yr per troop. We make our margin on the part that's
+              actually hard to build: a calendar that doesn't break, RSVPs that
+              work on a parent's phone in a parking lot, a public site that doesn't
+              look homemade, two-deep messaging that actually enforces two-deep.
+            </p>
+          </div>
+          <div>
+            <div class="pos-money__aside-label">What our $99 actually pays for</div>
+            <div class="pos-money__cards">
+              <div class="pos-money__card">
+                <div class="pos-money__card-title">Engineering</div>
+                <div class="pos-money__card-body">Two engineers, full-time. The product gets better every week.</div>
+              </div>
+              <div class="pos-money__card">
+                <div class="pos-money__card-title">Customer support</div>
+                <div class="pos-money__card-body">Real humans. ~30 min on the phone setting up your domain. Inbox triaged daily.</div>
+              </div>
+              <div class="pos-money__card">
+                <div class="pos-money__card-title">Security &amp; compliance</div>
+                <div class="pos-money__card-body">Two-deep enforcement, audit logs, SOC 2 path, COPPA-aware data handling.</div>
+              </div>
+              <div class="pos-money__card">
+                <div class="pos-money__card-title">Roadmap research</div>
+                <div class="pos-money__card-body">We talk to scoutmasters every week. Features ship from your problems, not our PM's vibes.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===========================================================
+         4. Honest caveat.
+         Mirrors positioning.jsx caveat (lines 190–202).
+         =========================================================== -->
+    <section class="pos-caveat" aria-labelledby="caveat-title">
+      <div class="pos-caveat__panel">
+        <div class="pos-caveat__inner">
+          <div class="pos-caveat__bang" aria-hidden="true">!</div>
+          <div>
+            <div id="caveat-title" class="pos-caveat__label">The honest caveat</div>
+            <div class="pos-caveat__body">
+              We're not better than the legacy alternatives on every line above by
+              some heroic margin — we're <strong>structurally honest</strong> about
+              which lines have margin and which don't. Storage still costs us real
+              money (just less than typical pricing), so we still mark it up
+              modestly and tell you so. Domains literally cost us pennies, so we
+              charge you nothing extra. The point isn't "we're cheaper" — it's
+              that <strong>the prices on this page will still make sense to you in
+              five years</strong>, because they're tied to what things actually cost.
+              Cloud prices fall. Ours will too.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer" role="contentinfo">
+    <div class="footer__inner">
+      <a href="/" class="wordmark wordmark--small" aria-label="Compass">
+        <svg width="24" height="24" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+          <circle cx="20" cy="20" r="18.5" fill="none" stroke="#0f172a" stroke-width="1.25" />
+          <circle cx="20" cy="20" r="11" fill="none" stroke="#0f172a" stroke-width="0.75" opacity="0.4" />
+          <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#1d4ed8" />
+          <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="#0f172a" opacity="0.85" />
+          <circle cx="20" cy="20" r="1.6" fill="#0f172a" />
+        </svg>
+        <span>Compass<span class="accent">.</span></span>
+      </a>
+      <div class="footer__copy">
+        &copy; 2026 Compass &middot; <a href="/help">Help &amp; support</a> &middot; <a href="/security.html">Security</a> &middot; <a href="/plans.html">Pricing</a> &middot; Independent &middot; Not affiliated with Scouting America or BSA.
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

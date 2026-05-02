@@ -110,18 +110,32 @@ describe("server/template/site.html", () => {
   });
 });
 
-describe("demo/styles.css (tenant CSS)", () => {
-  it("declares the locked Forest & Ember palette as CSS custom properties", () => {
-    expect(tenantCss).toContain("#0e3320"); // primary
-    expect(tenantCss).toContain("#c8e94a"); // accent
-    expect(tenantCss).toContain("#f4ecdc"); // bg
-    expect(tenantCss).toContain("#1a1f1a"); // surface-alt
+describe("tokens.css (shared design tokens)", () => {
+  const tokensCss = readFileSync(resolve(root, "tokens.css"), "utf8");
+
+  it("declares the lead Slate & Sky (balanced) palette as CSS custom properties", () => {
+    // Default :root block IS the balanced palette; alternates live under
+    // [data-palette="safe"] and [data-palette="bold"].
+    expect(tokensCss).toContain("#0f172a"); // ink/primary — near-black slate
+    expect(tokensCss).toContain("#1d4ed8"); // accent — sky-blue
+    expect(tokensCss).toContain("#f7f8fa"); // bg — cool light gray
+    expect(tokensCss).toContain("#eef1f5"); // surface-alt — cool gray
   });
 
-  it("declares Newsreader + Inter Tight as the type stack", () => {
-    expect(tenantCss).toMatch(/--font-display:[^;]*Newsreader/);
-    expect(tenantCss).toMatch(/--font-ui:[^;]*Inter Tight/);
+  it("declares Newsreader + Inter Tight + JetBrains Mono as the type stack", () => {
+    expect(tokensCss).toMatch(/--font-display:[^;]*Newsreader/);
+    expect(tokensCss).toMatch(/--font-ui:[^;]*Inter Tight/);
+    expect(tokensCss).toMatch(/--font-mono:[^;]*JetBrains Mono/);
   });
+
+  it("ships all three palettes (balanced + safe + bold) for re-skinning", () => {
+    expect(tokensCss).toMatch(/\[data-palette="safe"\]/);
+    expect(tokensCss).toMatch(/\[data-palette="bold"\]/);
+    expect(tokensCss).toMatch(/\[data-palette="balanced"\]/);
+  });
+});
+
+describe("demo/styles.css (tenant CSS)", () => {
 
   it("styles every class the render.js helpers still emit", () => {
     const helperClasses = [
