@@ -3418,6 +3418,7 @@ function escapeHtml(s) {
 export { app };
 
 import { fileURLToPath as _fu } from "node:url";
+import { startCronLoop } from "../lib/newsletterCron.js";
 const _isMain = process.argv[1] && path.resolve(process.argv[1]) === _fu(import.meta.url);
 if (_isMain) {
   const PORT = process.env.PORT || 3000;
@@ -3427,6 +3428,9 @@ if (_isMain) {
       marketing: `http://localhost:${PORT}/`,
       demoOrg: `http://troop100.localhost:${PORT}/`,
     });
+    // Newsletter scheduler + reminder rules. No-op when CRON_DISABLED=1
+    // (set on N-1 pods in a multi-pod deployment so only one fires).
+    startCronLoop({ prismaClient: prisma });
   });
 }
 

@@ -64,7 +64,17 @@ import {
   positionOptions,
 } from "../lib/orgRoles.js";
 import { SCOPES, scopesForPosition, requireScope } from "../lib/permissions.js";
-import { rollup as rollupAnalytics, track, EVENTS } from "../lib/analytics.js";
+import {
+  rollup as rollupAnalytics,
+  summarize,
+  topPaths,
+  topClicks,
+  recentErrors,
+  recentFetchFails,
+  pageViewsByDay,
+  track,
+  EVENTS,
+} from "../lib/analytics.js";
 import { parseRoster, mapMemberRows } from "../lib/rosterImport.js";
 import {
   POST_POLICIES,
@@ -4869,50 +4879,238 @@ adminRouter.get("/export", requireLeader, async (req, res) => {
   res.type("html").send(layout(req, { title: "Export", body }));
 });
 
-// Privacy-conscious analytics rollup. No third-party tracker, no IPs;
-// just whitelisted server-side events recorded via lib/analytics.track,
-// rolled up over the last 30 / 90 days.
+// Per-org analytics dashboard. Same shape as /__super/analytics but
+// scoped to req.org.id, so leaders see only their unit's traffic and
+// errors. No third-party tracker, no IPs; data comes from the AuditLog
+// rows the first-party telemetry beacon writes.
+const ADMIN_ANALYTICS_WINDOWS = {
+  "24h": { ms: 24 * 60 * 60 * 1000, label: "Last 24 hours" },
+  "7d":  { ms: 7  * 24 * 60 * 60 * 1000, label: "Last 7 days" },
+  "30d": { ms: 30 * 24 * 60 * 60 * 1000, label: "Last 30 days" },
+  "90d": { ms: 90 * 24 * 60 * 60 * 1000, label: "Last 90 days" },
+};
+
 adminRouter.get("/analytics", requireLeader, async (req, res) => {
-  const now = new Date();
-  const day = 24 * 60 * 60 * 1000;
-  const [last30, last90] = await Promise.all([
-    rollupAnalytics({ orgId: req.org.id, since: new Date(now.getTime() - 30 * day), until: now }),
-    rollupAnalytics({ orgId: req.org.id, since: new Date(now.getTime() - 90 * day), until: now }),
+  const orgId = req.org.id;
+  const windowKey = ADMIN_ANALYTICS_WINDOWS[String(req.query.window || "30d")] ? String(req.query.window || "30d") : "30d";
+  const win = ADMIN_ANALYTICS_WINDOWS[windowKey];
+  const surfaceParam = String(req.query.surface || "all");
+  // Marketing isn't org-scoped (anonymous apex visits) so we omit it
+  // from the picker — leaders only see tenant + admin traffic.
+  const surface = ["tenant", "admin"].includes(surfaceParam) ? surfaceParam : null;
+  const since = new Date(Date.now() - win.ms);
+
+  const [summary, paths, clicks, errors, fails, perDay, eventRollup] = await Promise.all([
+    summarize({ orgId, since }, prisma),
+    topPaths({ orgId, surface, since, limit: 10 }, prisma),
+    topClicks({ orgId, surface, since, limit: 10 }, prisma),
+    recentErrors({ orgId, since, limit: 12 }, prisma),
+    recentFetchFails({ orgId, since, limit: 12 }, prisma),
+    pageViewsByDay({ orgId, since }, prisma),
+    rollupAnalytics({ orgId, since }, prisma),
   ]);
-  const lookup90 = new Map(last90.map((r) => [r.event, r.count]));
-  const rows = last30.map((r) => ({
-    event: r.event,
-    count30: r.count,
-    count90: lookup90.get(r.event) || r.count,
-  }));
-  const tableHtml = rows.length
-    ? `<table style="width:100%;border-collapse:collapse">
-        <thead><tr style="text-align:left;border-bottom:1px solid var(--line)">
-          <th style="padding:.5rem 0">Event</th>
-          <th style="padding:.5rem 0;text-align:right">Last 30 days</th>
-          <th style="padding:.5rem 0;text-align:right">Last 90 days</th>
-        </tr></thead>
-        <tbody>${rows
-          .map(
-            (r) => `<tr style="border-bottom:1px solid var(--line-soft)">
-              <td style="padding:.45rem 0;font-family:var(--font-ui)"><code>${escape(r.event)}</code></td>
-              <td style="padding:.45rem 0;text-align:right;font-variant-numeric:tabular-nums">${r.count30}</td>
-              <td style="padding:.45rem 0;text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-muted)">${r.count90}</td>
-            </tr>`,
-          )
-          .join("")}</tbody>
-      </table>`
-    : `<div class="empty">No analytics events recorded yet. Events accumulate as members RSVP, leaders broadcast, the channel-suspension guard fires, etc.</div>`;
+
+  const days = bucketDaysAdmin(since, new Date(), perDay);
+  const sparkMax = days.reduce((m, d) => Math.max(m, d.count), 1);
+
+  // Tenant + admin only (marketing has no orgId so it would always be 0).
+  const surfaceTotal =
+    summary.pageViewsBySurface.tenant +
+    summary.pageViewsBySurface.admin +
+    (summary.pageViewsBySurface.unknown || 0);
+
+  function windowLink(k) {
+    const cls = k === windowKey ? 'class="tag tag-on"' : 'class="tag"';
+    const q = surface ? `&surface=${encodeURIComponent(surface)}` : "";
+    return `<a href="/admin/analytics?window=${k}${q}" ${cls}>${escape(ADMIN_ANALYTICS_WINDOWS[k].label)}</a>`;
+  }
+  function surfaceLink(s, label) {
+    const active = (s === null && !surface) || s === surface;
+    const cls = active ? 'class="tag tag-on"' : 'class="tag"';
+    const q = s ? `?window=${windowKey}&surface=${encodeURIComponent(s)}` : `?window=${windowKey}`;
+    return `<a href="/admin/analytics${q}" ${cls}>${escape(label)}</a>`;
+  }
+  function surfaceTag(s) {
+    const colors = { tenant: "#3aa893", admin: "#c8e94a", unknown: "#a3a89e" };
+    const c = colors[s] || "#a3a89e";
+    return `<span class="tag" style="background:${c};color:#0d130d;border-color:${c}">${escape(s)}</span>`;
+  }
+  function surfaceBar(s, label, count) {
+    const pct = surfaceTotal ? (count / surfaceTotal) * 100 : 0;
+    return `<div style="margin:.5rem 0">
+      <div style="display:flex;justify-content:space-between;font-size:.84rem;margin-bottom:.25rem">
+        <span>${escape(label)}</span>
+        <span class="muted">${count} · ${pct.toFixed(0)}%</span>
+      </div>
+      <div style="height:8px;background:var(--surface-sand);border-radius:4px;overflow:hidden">
+        <div style="width:${pct.toFixed(2)}%;height:100%;background:var(--accent)"></div>
+      </div>
+    </div>`;
+  }
+
+  const sparkline = `<div style="display:flex;align-items:flex-end;gap:2px;height:60px;margin:.5rem 0">
+    ${days.map((d) => `<div title="${escape(d.day)} · ${d.count}" style="flex:1;height:${Math.max(2, (d.count / sparkMax) * 100).toFixed(2)}%;background:var(--accent);border-radius:2px 2px 0 0"></div>`).join("")}
+  </div>
+  <div class="muted" style="display:flex;justify-content:space-between;font-size:.7rem">
+    <span>${escape(days[0]?.day || "")}</span>
+    <span>${escape(days[days.length - 1]?.day || "")}</span>
+  </div>`;
+
+  // Org-scoped server events ('user-signed-up', 'event-published',
+  // 'newsletter-sent', etc.) shown alongside the page-view roll-up so
+  // leaders can answer "did the new event publish? did the digest go?"
+  const lookupBySurface = new Map();
+  const orgRollupRows = eventRollup.filter((r) => !["page-view", "element-clicked", "client-error", "fetch-failed"].includes(r.event));
+
   const body = `
     <h1>Analytics</h1>
-    <p class="muted">Server-side, privacy-conscious. No third-party tracker, no IPs. Counts rolled up across the unit's events.</p>
-    <div class="card">${tableHtml}</div>
+    <p class="muted" style="margin-top:-.5rem">
+      What's getting used inside <strong>${escape(req.org.displayName)}</strong>:
+      page views, button clicks, errors, and the unit-scoped server
+      events recorded by Compass (RSVPs, signups, broadcasts).
+      <br>No third-party tracker, no IPs.
+    </p>
+
+    <div class="row" style="gap:.4rem;margin-bottom:1rem">
+      ${windowLink("24h")} ${windowLink("7d")} ${windowLink("30d")} ${windowLink("90d")}
+      <span class="muted" style="margin-left:1rem">Surface:</span>
+      ${surfaceLink(null, "all")}
+      ${surfaceLink("tenant", "public site")}
+      ${surfaceLink("admin", "admin")}
+    </div>
+
+    <section class="dash-stats" style="margin-bottom:1.25rem">
+      ${dashboardStatCard("Page views", { value: String(summary.totals.pageViews), hint: win.label.toLowerCase(), color: "sky" })}
+      ${dashboardStatCard("Clicks", { value: String(summary.totals.clicks), hint: "[data-track]", color: "accent" })}
+      ${dashboardStatCard("Errors", { value: String(summary.totals.errors), hint: summary.totals.errors > 0 ? "needs a look" : "all clear", color: summary.totals.errors > 0 ? "raspberry" : "butter" })}
+      ${dashboardStatCard("Fetch fails", { value: String(summary.totals.fetchFails), hint: "non-2xx", color: "ember" })}
+    </section>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div class="card">
+        <h3>Page views by surface</h3>
+        ${surfaceTotal === 0
+          ? `<div class="empty">No page views in this window.</div>`
+          : `${surfaceBar("tenant", "Public site (families)", summary.pageViewsBySurface.tenant)}
+             ${surfaceBar("admin", "Admin (leaders)", summary.pageViewsBySurface.admin)}
+             ${summary.pageViewsBySurface.unknown ? surfaceBar("unknown", "Unknown", summary.pageViewsBySurface.unknown) : ""}`}
+      </div>
+
+      <div class="card">
+        <h3>Page views per day</h3>
+        ${sparkline}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div class="card">
+        <h3>Top paths${surface ? ` · ${escape(surface)}` : ""}</h3>
+        ${paths.length === 0
+          ? `<div class="empty">No page views in this window.</div>`
+          : `<table style="width:100%;border-collapse:collapse">
+              <thead><tr style="text-align:left;border-bottom:1px solid var(--line)">
+                <th style="padding:.45rem 0">Path</th>
+                <th style="padding:.45rem 0;text-align:right">Views</th>
+              </tr></thead>
+              <tbody>${paths.map((p) => `<tr style="border-bottom:1px solid var(--line-soft)">
+                <td style="padding:.45rem 0"><code>${escape(p.path)}</code></td>
+                <td style="padding:.45rem 0;text-align:right;font-variant-numeric:tabular-nums">${p.count}</td>
+              </tr>`).join("")}</tbody>
+            </table>`}
+      </div>
+
+      <div class="card">
+        <h3>Top clicks${surface ? ` · ${escape(surface)}` : ""}</h3>
+        <p class="muted small" style="margin:0 0 .5rem">
+          Add <code>data-track="label"</code> on a button or link to land here.
+        </p>
+        ${clicks.length === 0
+          ? `<div class="empty">No tracked clicks in this window.</div>`
+          : `<table style="width:100%;border-collapse:collapse">
+              <thead><tr style="text-align:left;border-bottom:1px solid var(--line)">
+                <th style="padding:.45rem 0">Label</th>
+                <th style="padding:.45rem 0;text-align:right">Clicks</th>
+              </tr></thead>
+              <tbody>${clicks.map((c) => `<tr style="border-bottom:1px solid var(--line-soft)">
+                <td style="padding:.45rem 0"><code>${escape(c.label)}</code></td>
+                <td style="padding:.45rem 0;text-align:right;font-variant-numeric:tabular-nums">${c.count}</td>
+              </tr>`).join("")}</tbody>
+            </table>`}
+      </div>
+    </div>
+
+    <div class="card" style="margin-bottom:1rem">
+      <h3 style="margin-top:0">Server events</h3>
+      <p class="muted small" style="margin:0 0 .5rem">RSVPs, broadcasts, signups, channel suspensions — recorded server-side via <code>lib/analytics.track</code>, not the browser.</p>
+      ${orgRollupRows.length === 0
+        ? `<div class="empty muted small">No server events in this window. They land here as members RSVP, leaders broadcast, etc.</div>`
+        : `<table style="width:100%;border-collapse:collapse">
+            <thead><tr style="text-align:left;border-bottom:1px solid var(--line)">
+              <th style="padding:.45rem 0">Event</th>
+              <th style="padding:.45rem 0;text-align:right">Count</th>
+            </tr></thead>
+            <tbody>${orgRollupRows.map((r) => `<tr style="border-bottom:1px solid var(--line-soft)">
+              <td style="padding:.45rem 0"><code>${escape(r.event)}</code></td>
+              <td style="padding:.45rem 0;text-align:right;font-variant-numeric:tabular-nums">${r.count}</td>
+            </tr>`).join("")}</tbody>
+          </table>`}
+    </div>
+
+    <div class="card" style="margin-bottom:1rem">
+      <h3 style="margin-top:0">Recent client errors</h3>
+      ${errors.length === 0
+        ? `<div class="empty">No client errors in this window. 🎉</div>`
+        : `<table style="width:100%;border-collapse:collapse">
+            <thead><tr style="text-align:left;border-bottom:1px solid var(--line)">
+              <th style="padding:.45rem 0">Message</th>
+              <th style="padding:.45rem 0">Surface</th>
+              <th style="padding:.45rem 0">Path</th>
+              <th style="padding:.45rem 0">When</th>
+            </tr></thead>
+            <tbody>${errors.map((e) => `<tr style="border-bottom:1px solid var(--line-soft)">
+              <td style="padding:.45rem 0"><strong>${escape(e.message)}</strong></td>
+              <td style="padding:.45rem 0">${surfaceTag(e.surface)}</td>
+              <td style="padding:.45rem 0"><code>${escape(e.path)}</code></td>
+              <td style="padding:.45rem 0;color:var(--ink-muted);font-size:.78rem">${escape(new Date(e.createdAt).toISOString().slice(0, 16).replace("T", " "))}</td>
+            </tr>`).join("")}</tbody>
+          </table>`}
+    </div>
+
     <div class="card">
-      <h3 style="margin-top:0">What we measure</h3>
-      <p class="muted small">A small whitelist of events: page views, signups, RSVPs, broadcasts sent, reimbursements approved, channel suspensions. Each event records the org id, an optional user id, and a tiny dimension payload — never an IP or a user agent.</p>
-    </div>`;
+      <h3 style="margin-top:0">Recent failed fetches</h3>
+      ${fails.length === 0
+        ? `<div class="empty">No non-2xx fetches in this window.</div>`
+        : `<table style="width:100%;border-collapse:collapse">
+            <thead><tr style="text-align:left;border-bottom:1px solid var(--line)">
+              <th style="padding:.45rem 0">Status</th>
+              <th style="padding:.45rem 0">URL</th>
+              <th style="padding:.45rem 0">From</th>
+              <th style="padding:.45rem 0">When</th>
+            </tr></thead>
+            <tbody>${fails.map((f) => `<tr style="border-bottom:1px solid var(--line-soft)">
+              <td style="padding:.45rem 0"><span class="tag" style="${f.status >= 500 ? "background:var(--danger);color:#fff;border-color:var(--danger)" : ""}">${f.status}</span></td>
+              <td style="padding:.45rem 0"><code>${escape(f.url)}</code></td>
+              <td style="padding:.45rem 0"><code style="font-size:.74rem">${escape(f.path)}</code></td>
+              <td style="padding:.45rem 0;color:var(--ink-muted);font-size:.78rem">${escape(new Date(f.createdAt).toISOString().slice(0, 16).replace("T", " "))}</td>
+            </tr>`).join("")}</tbody>
+          </table>`}
+    </div>
+  `;
   res.type("html").send(layout(req, { title: "Analytics", body }));
 });
+
+function bucketDaysAdmin(since, until, perDay) {
+  const sinceDay = new Date(Date.UTC(since.getUTCFullYear(), since.getUTCMonth(), since.getUTCDate()));
+  const untilDay = new Date(Date.UTC(until.getUTCFullYear(), until.getUTCMonth(), until.getUTCDate()));
+  const dayMs = 24 * 60 * 60 * 1000;
+  const byDay = Object.fromEntries(perDay.map((p) => [p.day, p.count]));
+  const out = [];
+  for (let t = sinceDay.getTime(); t <= untilDay.getTime(); t += dayMs) {
+    const d = new Date(t).toISOString().slice(0, 10);
+    out.push({ day: d, count: byDay[d] || 0 });
+  }
+  return out;
+}
 
 // Audit log — last 200 entries, filterable by entity type.
 // Invite a new leader / parent / admin by email. Sends a signed-token
