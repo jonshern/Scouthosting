@@ -60,9 +60,15 @@ import {
 } from "../lib/inviteToken.js";
 import {
   SECTIONS as HOMEPAGE_SECTIONS,
+  BLOCK_TYPES as HOMEPAGE_BLOCK_TYPES,
   resolvePlan as resolveHomepagePlan,
   normaliseSectionPatch as normaliseHomepageSectionPatch,
   readTestimonials as readHomepageTestimonials,
+  readCustomBlocks as readHomepageCustomBlocks,
+  normaliseCustomBlock as normaliseHomepageCustomBlock,
+  isCustomBlockKey as isHomepageBlockKey,
+  customBlockId as homepageBlockId,
+  customBlockKey as homepageBlockKey,
 } from "../lib/homepageSections.js";
 import { categoryMeta as eventCategoryMeta } from "../lib/eventCategories.js";
 
@@ -170,20 +176,42 @@ function resolvePatrolFromBody(body) {
 function sectionPlannerRows(page) {
   const order = resolveHomepagePlan(page);
   const knownSet = new Set(order);
+  const blocks = readHomepageCustomBlocks(page);
+  const blocksById = new Map(blocks.map((b) => [b.id, b]));
   // Include hidden sections at the bottom so the admin can re-show them.
-  const all = [...order, ...Object.keys(HOMEPAGE_SECTIONS).filter((k) => !knownSet.has(k))];
+  const hiddenBuiltins = Object.keys(HOMEPAGE_SECTIONS).filter((k) => !knownSet.has(k));
+  const hiddenBlocks = blocks
+    .map((b) => homepageBlockKey(b.id))
+    .filter((k) => !knownSet.has(k));
+  const all = [...order, ...hiddenBuiltins, ...hiddenBlocks];
   const vis = page?.sectionVisibility || {};
   return all
     .map((key, idx) => {
-      const meta = HOMEPAGE_SECTIONS[key];
+      let label;
+      let description;
+      if (isHomepageBlockKey(key)) {
+        const b = blocksById.get(homepageBlockId(key));
+        if (!b) return ""; // backing block was deleted; skip silently
+        const typeMeta = HOMEPAGE_BLOCK_TYPES[b.type];
+        const title =
+          (b.type === "image" ? b.caption : b.title) ||
+          `Untitled ${typeMeta?.label || "block"}`;
+        label = `${title} <span class="tag">Custom · ${escape(typeMeta?.label || b.type)}</span>`;
+        description = typeMeta?.description || "";
+      } else {
+        const meta = HOMEPAGE_SECTIONS[key];
+        if (!meta) return "";
+        label = escape(meta.label);
+        description = meta.description;
+      }
       const visible = vis[key] !== false;
       return `
       <li draggable="true" style="cursor:grab" data-key="${escape(key)}">
         <input type="hidden" name="order[]" value="${escape(key)}">
         <span style="font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--ink-muted);font-size:.75rem;width:1.4rem">${idx + 1}.</span>
         <div style="flex:1">
-          <strong>${escape(meta.label)}</strong>
-          <p>${escape(meta.description)}</p>
+          <strong>${label}</strong>
+          <p>${escape(description)}</p>
         </div>
         <label style="margin:0;display:flex;align-items:center;gap:.4rem;flex:0 0 auto">
           <input type="checkbox" name="visible[${escape(key)}]" value="1" ${visible ? "checked" : ""} style="width:auto">
@@ -192,6 +220,46 @@ function sectionPlannerRows(page) {
       </li>`;
     })
     .join("");
+}
+
+// Render the "Custom blocks" section of the editor — list of existing
+// blocks with edit/delete actions, plus an "Add a block" picker.
+function customBlockRows(page) {
+  const blocks = readHomepageCustomBlocks(page);
+  if (!blocks.length) {
+    return `<p class="muted small">No custom blocks yet. Add one below to drop a text snippet, photo, or call-to-action onto your homepage.</p>`;
+  }
+  return `<ul class="items" style="margin:0 0 .8rem">${blocks
+    .map((b) => {
+      const typeMeta = HOMEPAGE_BLOCK_TYPES[b.type];
+      const heading =
+        (b.type === "image" ? b.caption : b.title) ||
+        `Untitled ${typeMeta?.label || "block"}`;
+      const preview =
+        b.type === "text"
+          ? (b.body || "").slice(0, 120)
+          : b.type === "image"
+          ? b.filename
+            ? `Image: ${b.filename}`
+            : "No image uploaded yet"
+          : b.type === "cta"
+          ? `${b.buttonLabel || "Button"} → ${b.buttonLink || "(no link)"}`
+          : "";
+      return `
+        <li>
+          <div style="flex:1">
+            <h3 style="margin:0">${escape(heading)} <span class="tag">${escape(typeMeta?.label || b.type)}</span></h3>
+            <p class="muted small" style="margin:.2rem 0 0">${escape(preview)}</p>
+          </div>
+          <div class="row">
+            <a class="btn btn-ghost small" href="/admin/content/blocks/${escape(b.id)}/edit">Edit</a>
+            <form class="inline" method="post" action="/admin/content/blocks/${escape(b.id)}/delete" onsubmit="return confirm('Delete this block?')">
+              <button class="btn btn-danger small" type="submit">Delete</button>
+            </form>
+          </div>
+        </li>`;
+    })
+    .join("")}</ul>`;
 }
 
 function testimonialFormRows(page) {
@@ -251,6 +319,15 @@ function memberSubgroupField({ unitType, current, formId }) {
 const NAV_SECTIONS = [
   { key: "overview", label: "Overview", href: "/admin", pages: [] },
   {
+    key: "site",
+    label: "Site",
+    href: "/admin/content",
+    pages: [
+      { href: "/admin/content", label: "Homepage" },
+      { href: "/admin/pages", label: "Custom pages" },
+    ],
+  },
+  {
     key: "messages",
     label: "Messages",
     href: "/admin/email",
@@ -302,8 +379,6 @@ const NAV_SECTIONS = [
     pages: [
       { href: "/admin/forms", label: "Forms & documents" },
       { href: "/admin/surveys", label: "Surveys" },
-      { href: "/admin/content", label: "Page content" },
-      { href: "/admin/pages", label: "Custom pages" },
     ],
   },
   {
@@ -778,6 +853,7 @@ ${dashboardCss()}
     <p class="dash-summary">${dashboardSummaryLine(model)}</p>
   </div>
   <div class="dash-greeting-actions">
+    <a class="dash-btn-ghost" href="/admin/content">Edit homepage</a>
     <a class="dash-btn-ghost" href="/admin/email">Send a message</a>
     <a class="dash-btn-accent" href="/admin/events">+ New event</a>
   </div>
@@ -1044,8 +1120,8 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
   const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
   const v = (k, fallback = "") => escape(page?.[k] ?? fallback);
   const body = `
-    <h1>Page content</h1>
-    <p class="muted">Anything you save here replaces the default copy on the public site.</p>
+    <h1>Homepage</h1>
+    <p class="muted">Edit the copy and section order on your public site's front page. <a href="/" target="_blank" rel="noopener">View site ↗</a></p>
     <p class="muted small">${MARKDOWN_HINT}</p>
     <form class="card" method="post" action="/admin/content">
       <label>Hero headline
@@ -1081,6 +1157,19 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
         <a class="btn btn-ghost" href="/admin">Cancel</a>
         ${page ? `<a class="btn btn-ghost" style="margin-left:auto" href="/admin/content/reset" onclick="return confirm('Reset to defaults?')">Reset to defaults</a>` : ""}
       </div>
+    </form>
+
+    <h2 style="margin-top:1.75rem">Custom blocks</h2>
+    <p class="muted small">Drop in your own text, photos, or call-to-action cards. Each block appears in the section order below — drag it wherever you want it on the page.</p>
+    ${customBlockRows(page)}
+    <form class="card" method="post" action="/admin/content/blocks" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+      <span class="muted small" style="margin-right:.4rem">Add a block:</span>
+      ${Object.entries(HOMEPAGE_BLOCK_TYPES)
+        .map(
+          ([key, meta]) => `
+        <button class="btn btn-ghost small" type="submit" name="type" value="${escape(key)}">+ ${escape(meta.label)}</button>`,
+        )
+        .join("")}
     </form>
 
     <h2 style="margin-top:1.75rem">Section order &amp; visibility</h2>
@@ -1254,9 +1343,11 @@ adminRouter.post("/content/sections", requireLeader, async (req, res) => {
   for (const key of order) {
     visibility[key] = visMap[key] === "1" || visMap[key] === true;
   }
+  const existing = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const knownBlockIds = readHomepageCustomBlocks(existing).map((b) => b.id);
   let patch;
   try {
-    patch = normaliseHomepageSectionPatch({ order, visibility });
+    patch = normaliseHomepageSectionPatch({ order, visibility }, { knownBlockIds });
   } catch (e) {
     return res.status(400).type("text/plain").send(e.message);
   }
@@ -1299,6 +1390,163 @@ adminRouter.post("/content/testimonials", requireLeader, async (req, res) => {
     summary: `Testimonials updated (${testimonials.length})`,
   });
   res.redirect("/admin/content?saved=testimonials");
+});
+
+// Custom homepage blocks — Squarespace-style "drop in a text/image/CTA"
+// path. POST creates a fresh draft block of the chosen type and
+// redirects to its edit page. The block lives in Page.customBlocks
+// (JSONB array); section ordering treats it as "block:<id>".
+adminRouter.post("/content/blocks", requireLeader, async (req, res) => {
+  const type = String(req.body?.type || "");
+  if (!HOMEPAGE_BLOCK_TYPES[type]) return res.redirect("/admin/content");
+
+  const id = `cb_${crypto.randomBytes(6).toString("hex")}`;
+  const fresh = normaliseHomepageCustomBlock({ id, type });
+
+  const existing = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const blocks = readHomepageCustomBlocks(existing);
+  blocks.push(fresh);
+
+  await prisma.page.upsert({
+    where: { orgId: req.org.id },
+    update: { customBlocks: blocks },
+    create: { orgId: req.org.id, customBlocks: blocks },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "create",
+    summary: `Added ${HOMEPAGE_BLOCK_TYPES[type].label} block`,
+  });
+  res.redirect(`/admin/content/blocks/${id}/edit`);
+});
+
+adminRouter.get("/content/blocks/:id/edit", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const block = readHomepageCustomBlocks(page).find((b) => b.id === req.params.id);
+  if (!block) return res.status(404).send("Block not found");
+  const typeMeta = HOMEPAGE_BLOCK_TYPES[block.type];
+
+  let fields;
+  if (block.type === "text") {
+    fields = `
+      <label>Heading
+        <input name="title" type="text" maxlength="120" value="${escape(block.title || "")}" placeholder="e.g. Our story">
+      </label>
+      <label>Body (Markdown supported)
+        <textarea name="body" rows="8" placeholder="Tell visitors something about your unit.">${escape(block.body || "")}</textarea>
+      </label>`;
+  } else if (block.type === "image") {
+    const preview = block.filename
+      ? `<div style="margin-bottom:.6rem"><img src="/uploads/${escape(block.filename)}" alt="" style="max-width:100%;max-height:240px;border-radius:8px;border:1px solid #eef0e7"></div>`
+      : `<p class="muted small" style="margin:0 0 .6rem">No image uploaded yet. Upload one below.</p>`;
+    fields = `
+      ${preview}
+      <p class="muted small">Upload a new image from the Photos section first, then paste the filename here. (We'll add a one-click picker in a future polish pass.)</p>
+      <label>Image filename
+        <input name="filename" type="text" maxlength="200" value="${escape(block.filename || "")}" placeholder="e.g. spring-camporee.jpg">
+      </label>
+      <label>Caption (optional)
+        <input name="caption" type="text" maxlength="200" value="${escape(block.caption || "")}" placeholder="What's in the photo?">
+      </label>
+      <label>Alt text (for screen readers)
+        <input name="alt" type="text" maxlength="200" value="${escape(block.alt || "")}" placeholder="Brief description">
+      </label>`;
+  } else if (block.type === "cta") {
+    fields = `
+      <label>Heading
+        <input name="title" type="text" maxlength="120" value="${escape(block.title || "")}" placeholder="e.g. Ready to join?">
+      </label>
+      <label>Body
+        <textarea name="body" rows="3" placeholder="A short blurb under the heading.">${escape(block.body || "")}</textarea>
+      </label>
+      <div class="row">
+        <label style="margin:0;flex:1">Button label<input name="buttonLabel" type="text" maxlength="60" value="${escape(block.buttonLabel || "")}" placeholder="Visit us"></label>
+        <label style="margin:0;flex:1">Button link<input name="buttonLink" type="text" maxlength="500" value="${escape(block.buttonLink || "")}" placeholder="/join or https://…"></label>
+      </div>`;
+  }
+
+  const body = `
+    <a class="back" href="/admin/content" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Homepage</a>
+    <h1>Edit ${escape(typeMeta.label)} block</h1>
+    <p class="muted">${escape(typeMeta.description)}</p>
+
+    <form class="card" method="post" action="/admin/content/blocks/${escape(block.id)}">
+      ${fields}
+      <div class="row" style="margin-top:.4rem">
+        <button class="btn btn-primary" type="submit">Save block</button>
+        <a class="btn btn-ghost" href="/admin/content">Cancel</a>
+        <form class="inline" method="post" action="/admin/content/blocks/${escape(block.id)}/delete" onsubmit="return confirm('Delete this block?')" style="margin-left:auto">
+          <button class="btn btn-danger" type="submit">Delete block</button>
+        </form>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout(req, { title: `Edit ${typeMeta.label} block`, body }));
+});
+
+adminRouter.post("/content/blocks/:id", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const blocks = readHomepageCustomBlocks(page);
+  const idx = blocks.findIndex((b) => b.id === req.params.id);
+  if (idx === -1) return res.status(404).send("Block not found");
+
+  let updated;
+  try {
+    updated = normaliseHomepageCustomBlock({ ...blocks[idx], ...req.body, id: blocks[idx].id, type: blocks[idx].type });
+  } catch (e) {
+    return res.status(400).type("text/plain").send(e.message);
+  }
+  blocks[idx] = updated;
+
+  await prisma.page.update({
+    where: { orgId: req.org.id },
+    data: { customBlocks: blocks },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "update",
+    summary: `Edited ${HOMEPAGE_BLOCK_TYPES[updated.type].label} block`,
+  });
+  res.redirect("/admin/content?saved=block");
+});
+
+adminRouter.post("/content/blocks/:id/delete", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const blocks = readHomepageCustomBlocks(page);
+  const target = blocks.find((b) => b.id === req.params.id);
+  const remaining = blocks.filter((b) => b.id !== req.params.id);
+
+  // Also drop the block's key from sectionOrder / sectionVisibility so
+  // the planner doesn't render a stale row.
+  const blockKey = homepageBlockKey(req.params.id);
+  const order = Array.isArray(page?.sectionOrder)
+    ? page.sectionOrder.filter((k) => k !== blockKey)
+    : null;
+  const vis = page?.sectionVisibility ? { ...page.sectionVisibility } : null;
+  if (vis) delete vis[blockKey];
+
+  await prisma.page.update({
+    where: { orgId: req.org.id },
+    data: {
+      customBlocks: remaining,
+      ...(order ? { sectionOrder: order } : {}),
+      ...(vis ? { sectionVisibility: vis } : {}),
+    },
+  });
+  if (target) {
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "Page",
+      action: "delete",
+      summary: `Removed ${HOMEPAGE_BLOCK_TYPES[target.type]?.label || "custom"} block`,
+    });
+  }
+  res.redirect("/admin/content");
 });
 
 adminRouter.get("/content/reset", requireLeader, async (req, res) => {
@@ -2241,14 +2489,12 @@ adminRouter.get("/events/:id/announce", requireLeader, async (req, res) => {
   const body = `
     <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Calendar</a>
     <h1>Announce event</h1>
-    <p class="muted">${escape(ev.title)} · ${escape(when)}${ev.location ? ` · ${escape(ev.location)}` : ""}</p>
-    <p class="muted small">Mail driver: <code>${escape(mailDriver)}</code>${
-      mailDriver === "console"
-        ? " — sends are logged to the server console (no real email leaves your machine)."
-        : ""
+    <p class="muted" style="margin:.2rem 0 0">${escape(ev.title)}</p>
+    <p class="muted small" style="margin:.2rem 0 .8rem">${escape(when)}${ev.location ? ` · ${escape(ev.location)}` : ""} · Mail driver: <code>${escape(mailDriver)}</code>${
+      mailDriver === "console" ? " (logged to console, no real email)" : ""
     }</p>
 
-    <form class="card" method="post" action="/admin/events/${escape(ev.id)}/announce" style="margin-top:1rem">
+    <form class="card" method="post" action="/admin/events/${escape(ev.id)}/announce">
       <div class="row">
         <label style="margin:0;flex:1">Audience
           <select name="audience">
@@ -2276,25 +2522,25 @@ adminRouter.get("/events/:id/announce", requireLeader, async (req, res) => {
         <span class="muted small" style="display:block;margin-top:.25rem">Defaults work fine. Edit if you want a different headline.</span>
       </label>
 
-      <label>Extra message <span class="muted small">(optional — appears above the event details)</span>
+      <label>Extra message <span class="muted small" style="font-weight:400">(optional — appears above the event details)</span>
         <textarea name="intro" rows="4" placeholder="Add context, reminders, what to bring, etc."></textarea>
       </label>
 
-      <label class="row" style="align-items:center;gap:.5rem;margin:.4rem 0">
-        <input type="checkbox" name="includeRoster" value="1" checked style="width:auto">
+      <label style="display:flex;align-items:center;gap:.55rem;margin:.6rem 0 1rem;font-weight:400">
+        <input type="checkbox" name="includeRoster" value="1" checked style="width:auto;margin:0">
         <span>Include the recipient list ("Sent to: …") at the bottom of the email</span>
       </label>
 
-      <div class="row" style="margin-top:.4rem">
-        <button class="btn btn-primary" type="submit" name="action" value="preview">Preview audience</button>
+      <div class="row" style="margin-top:.2rem;gap:.5rem">
         <button class="btn btn-primary" type="submit" name="action" value="send">Send announcement</button>
+        <button class="btn btn-ghost" type="submit" name="action" value="preview">Preview audience</button>
         <a class="btn btn-ghost" href="/admin/events" style="margin-left:auto">Cancel</a>
       </div>
     </form>
 
-    <div class="card" style="margin-top:1rem;background:#fbf8ee">
-      <h2 style="margin-top:0;font-size:1.1rem">What recipients will see</h2>
-      <p class="muted small" style="margin:.2rem 0 .6rem">Each recipient gets a personalized email with their own one-click RSVP buttons. Same engine as the existing reminder send.</p>
+    <details class="card" style="margin-top:1rem;background:#fbf8ee">
+      <summary style="cursor:pointer;font-weight:600">What recipients will see</summary>
+      <p class="muted small" style="margin:.6rem 0 .4rem">Each recipient gets a personalized email with their own one-click RSVP buttons.</p>
       <ul class="muted small" style="margin:.2rem 0 0;padding-left:1.2rem;line-height:1.6">
         <li>Headline + event title, when, where, and any description</li>
         <li>Yes / Maybe / Can't make it buttons (no login required)</li>
@@ -2302,7 +2548,7 @@ adminRouter.get("/events/:id/announce", requireLeader, async (req, res) => {
         <li>Optional "Sent to:" roster of names</li>
         <li>Unsubscribe link in the footer (List-Unsubscribe header set)</li>
       </ul>
-    </div>
+    </details>
   `;
   res.type("html").send(layout(req, { title: `Announce · ${ev.title}`, body }));
 });
@@ -7982,11 +8228,17 @@ adminRouter.get("/newsletters/new", requireLeader, async (req, res) => {
     intro: composed.suggestedIntro,
     posts: composed.posts,
     events: composed.events,
+    pastEvents: composed.pastEvents,
     audience: "everyone",
     audiencePatrol: "",
     visibility: "members",
     selectedPostIds: composed.posts.map((p) => p.id),
-    selectedEventIds: composed.events.map((e) => e.id),
+    // Auto-check upcoming + past so the leader can deselect what they
+    // don't want; matches the "auto-suggest, leader curates" flow.
+    selectedEventIds: [
+      ...composed.events.map((e) => e.id),
+      ...composed.pastEvents.map((e) => e.id),
+    ],
     patrols,
     subgroups,
     formAction: "/admin/newsletters",
@@ -8026,7 +8278,9 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
   });
   if (!issue) return res.status(404).send("Not found");
 
-  const [posts, events, patrols, subgroups] = await Promise.all([
+  const now = new Date();
+  const recapSince = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const [posts, events, pastEvents, patrols, subgroups] = await Promise.all([
     prisma.post.findMany({
       where: { orgId: req.org.id },
       orderBy: { publishedAt: "desc" },
@@ -8041,9 +8295,14 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
       },
     }),
     prisma.event.findMany({
-      where: { orgId: req.org.id, startsAt: { gte: new Date() } },
+      where: { orgId: req.org.id, startsAt: { gte: now } },
       orderBy: { startsAt: "asc" },
       take: 30,
+    }),
+    prisma.event.findMany({
+      where: { orgId: req.org.id, startsAt: { gte: recapSince, lt: now } },
+      orderBy: { startsAt: "desc" },
+      take: 12,
     }),
     prisma.member.findMany({
       where: { orgId: req.org.id, patrol: { not: null } },
@@ -8065,6 +8324,7 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
     intro: issue.intro,
     posts,
     events,
+    pastEvents,
     audience: issue.audience,
     audiencePatrol: issue.audiencePatrol || "",
     visibility: issue.visibility,
@@ -8371,6 +8631,7 @@ function newsletterComposerHtml({
   intro,
   posts,
   events,
+  pastEvents = [],
   audience,
   audiencePatrol,
   visibility,
@@ -8412,20 +8673,20 @@ function newsletterComposerHtml({
         )
         .join("")
     : `<p class="muted small">No posts in the lookback window.</p>`;
-  const eventChecks = events.length
-    ? events
-        .map(
-          (e) => `
+  const renderEventCheckRow = (e) => `
           <label class="row" style="align-items:flex-start;gap:.6rem;padding:.4rem 0;border-top:1px solid #eef0e7">
             <input type="checkbox" name="includedEventIds" value="${escape(e.id)}"${selEvents.has(e.id) ? " checked" : ""}${readonly ? " disabled" : ""} style="margin-top:.25rem">
             <span style="flex:1">
               <strong>${escape(e.title)}</strong>
               <span class="muted small"> · ${escape(fmtDate(e.startsAt))}${e.location ? ` · ${escape(e.location)}` : ""}</span>
             </span>
-          </label>`,
-        )
-        .join("")
+          </label>`;
+  const eventChecks = events.length
+    ? events.map(renderEventCheckRow).join("")
     : `<p class="muted small">Nothing on the calendar yet.</p>`;
+  const pastEventChecks = pastEvents.length
+    ? pastEvents.map(renderEventCheckRow).join("")
+    : `<p class="muted small">No recent events to recap.</p>`;
 
   return `
     <a class="back" href="/admin/newsletters" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Newsletters</a>
@@ -8462,6 +8723,9 @@ function newsletterComposerHtml({
 
       <h3 style="margin-top:1.5rem">Recent posts to include</h3>
       ${postChecks}
+
+      <h3 style="margin-top:1.5rem">Recent events to recap <span class="muted small" style="font-weight:400">(things that already happened)</span></h3>
+      ${pastEventChecks}
 
       <h3 style="margin-top:1.5rem">Upcoming events to include</h3>
       ${eventChecks}

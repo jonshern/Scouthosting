@@ -82,6 +82,95 @@ function renderHeroPhotos(photos) {
     </style>`;
 }
 
+// Render the leader-defined custom blocks (text, image, CTA) that
+// follow the gallery on the public homepage. Blocks render in the
+// order they appear in `page.sectionOrder` (block keys only); blocks
+// with `sectionVisibility[block:<id>] === false` are skipped.
+function renderCustomBlocks(page) {
+  if (!page) return "";
+  const blocks = Array.isArray(page.customBlocks) ? page.customBlocks : [];
+  if (!blocks.length) return "";
+  const vis = page.sectionVisibility || {};
+  const order = Array.isArray(page.sectionOrder) ? page.sectionOrder : [];
+  const blocksById = new Map(
+    blocks.filter((b) => b && typeof b.id === "string").map((b) => [b.id, b]),
+  );
+  // Order blocks by their position in sectionOrder (for blocks that
+  // are placed there); blocks not in sectionOrder fall to the end in
+  // customBlocks-array order.
+  const placed = order
+    .filter((k) => typeof k === "string" && k.startsWith("block:"))
+    .map((k) => k.slice("block:".length))
+    .map((id) => blocksById.get(id))
+    .filter(Boolean);
+  const placedIds = new Set(placed.map((b) => b.id));
+  const tail = blocks.filter((b) => b && b.id && !placedIds.has(b.id));
+  const ordered = [...placed, ...tail];
+
+  const html = ordered
+    .filter((b) => vis[`block:${b.id}`] !== false)
+    .map((b) => renderCustomBlock(b))
+    .filter(Boolean)
+    .join("\n");
+  if (!html) return "";
+  return `${html}
+    <style>
+      .cms-block{padding:3rem 0}
+      .cms-block .wrap{max-width:65ch}
+      .cms-block--image .wrap{max-width:980px}
+      .cms-block h2{font-family:'Newsreader',Georgia,serif;font-size:2rem;margin:0 0 1rem;color:var(--ink-900)}
+      .cms-block .cms-body{line-height:1.7;color:var(--ink-800)}
+      .cms-block--image figure{margin:0}
+      .cms-block--image img{display:block;width:100%;height:auto;border-radius:12px}
+      .cms-block--image figcaption{margin-top:.6rem;color:var(--ink-500);font-size:.9rem;text-align:center}
+      .cms-block--cta .wrap{background:var(--primary);color:#fff;border-radius:14px;padding:2rem 2.25rem;text-align:center;max-width:720px}
+      .cms-block--cta h2{color:#fff;font-family:'Inter Tight',Inter,sans-serif;font-size:1.6rem}
+      .cms-block--cta p{margin:0 0 1.25rem;color:rgba(255,255,255,.85)}
+      .cms-block--cta .btn{background:var(--accent);color:var(--ink);border:0;padding:.7rem 1.4rem;border-radius:8px;font-weight:600;text-decoration:none;display:inline-block}
+    </style>`;
+}
+
+function renderCustomBlock(b) {
+  if (!b || !b.type) return "";
+  if (b.type === "text") {
+    const heading = b.title ? `<h2>${escapeHtml(b.title)}</h2>` : "";
+    const body = b.body ? `<div class="cms-body">${textToHtml(b.body)}</div>` : "";
+    if (!heading && !body) return "";
+    return `
+    <section class="section cms-block cms-block--text">
+      <div class="wrap">${heading}${body}</div>
+    </section>`;
+  }
+  if (b.type === "image") {
+    if (!b.filename) return "";
+    const alt = escapeHtml(b.alt || b.caption || "");
+    const caption = b.caption ? `<figcaption>${escapeHtml(b.caption)}</figcaption>` : "";
+    return `
+    <section class="section cms-block cms-block--image">
+      <div class="wrap">
+        <figure>
+          <img src="/uploads/${escapeHtml(b.filename)}" alt="${alt}" loading="lazy">
+          ${caption}
+        </figure>
+      </div>
+    </section>`;
+  }
+  if (b.type === "cta") {
+    const heading = b.title ? `<h2>${escapeHtml(b.title)}</h2>` : "";
+    const body = b.body ? `<p>${escapeHtml(b.body)}</p>` : "";
+    const button =
+      b.buttonLabel && b.buttonLink
+        ? `<a class="btn" href="${escapeHtml(b.buttonLink)}">${escapeHtml(b.buttonLabel)}</a>`
+        : "";
+    if (!heading && !body && !button) return "";
+    return `
+    <section class="section cms-block cms-block--cta">
+      <div class="wrap">${heading}${body}${button}</div>
+    </section>`;
+  }
+  return "";
+}
+
 function renderGallery(albums) {
   if (!albums || albums.length === 0) {
     return `
@@ -781,35 +870,51 @@ export function renderCalendarMonth(org, events, ctx = {}) {
       <div class="cal-dayheads" role="row">${dayHeads}</div>
       <div class="cal-cells" role="rowgroup">${cells.join("")}</div>
     </div>
+
+    ${
+      events.length === 0
+        ? `<p class="cal-empty">Nothing scheduled in ${escapeHtml(monthLabel)} yet. <a href="/events">Browse all events →</a></p>`
+        : ""
+    }
   </section>
   <style>
-    .cal-toolbar{display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin:1rem 0 .8rem}
-    .cal-nav{display:flex;gap:.4rem}
-    .cal-actions{display:flex;gap:.4rem;margin-left:auto;flex-wrap:wrap}
-    .cal-month{margin:0;font-size:1.4rem;font-family:'Inter Tight',Inter,sans-serif;flex:1;text-align:center;min-width:0}
-    .cal-grid{border:1px solid #eef0e7;border-radius:12px;background:#fff;overflow:hidden}
+    /* Three-column toolbar: prev/today/next on the left, centered month
+       title, view-toggle on the right. Grid keeps the centered title
+       optically centered even when the side groups have different widths. */
+    .cal-toolbar{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:1rem;margin:1.2rem 0 1rem}
+    .cal-nav{display:flex;gap:.35rem;justify-self:start}
+    .cal-actions{display:flex;gap:.35rem;justify-self:end;flex-wrap:wrap}
+    .cal-month{margin:0;font-size:1.45rem;font-family:'Inter Tight',Inter,sans-serif;font-weight:600;letter-spacing:-0.01em;text-align:center;justify-self:center;min-width:0}
+    .cal-grid{border:1px solid #eef0e7;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 1px 2px rgba(15,58,31,.04)}
     .cal-dayheads,.cal-cells{display:grid;grid-template-columns:repeat(7,1fr)}
-    .cal-dayhead{padding:.55rem .5rem;font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-500);background:#fbf8ee;border-bottom:1px solid #eef0e7;text-align:center}
-    .cal-cell{min-height:108px;padding:.4rem .45rem;border-right:1px solid #eef0e7;border-bottom:1px solid #eef0e7;display:flex;flex-direction:column;gap:.25rem;background:#fff}
+    .cal-dayhead{padding:.6rem .5rem;font-size:.74rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-500);background:#fbf8ee;border-bottom:1px solid #eef0e7;text-align:center}
+    .cal-cell{min-height:118px;padding:.45rem .5rem;border-right:1px solid #eef0e7;border-bottom:1px solid #eef0e7;display:flex;flex-direction:column;gap:.3rem;background:#fff}
     .cal-cell:nth-child(7n){border-right:0}
     .cal-cells > .cal-cell:nth-last-child(-n+7){border-bottom:0}
-    .cal-cell--out{background:#fafaf6;color:var(--ink-500)}
-    .cal-cell--out .cal-num{opacity:.5}
+    .cal-cell--out{background:#fafaf6}
+    .cal-cell--out .cal-num{opacity:.45}
+    .cal-cell--out .cal-event{opacity:.7}
     .cal-cell--today{background:#fffbe6}
-    .cal-cell--today .cal-num time{background:var(--primary);color:#fff;border-radius:999px;padding:.05rem .5rem;font-weight:700}
-    .cal-num{font-size:.85rem;font-weight:600;color:var(--ink-700);text-align:right;line-height:1.4}
-    .cal-events{display:flex;flex-direction:column;gap:.18rem;min-height:0;overflow:hidden}
-    .cal-event{display:flex;align-items:center;gap:.35rem;text-decoration:none;color:var(--ink-900);background:#f4f6ee;border:1px solid #eef0e7;border-radius:6px;padding:.18rem .4rem;font-size:.78rem;line-height:1.25;overflow:hidden}
-    .cal-event:hover{background:#eaf0d6;border-color:#d6dcb3}
+    .cal-num{font-size:.82rem;font-weight:600;color:var(--ink-700);text-align:right;line-height:1.4;height:1.5rem;display:flex;align-items:center;justify-content:flex-end}
+    .cal-num time{display:inline-flex;align-items:center;justify-content:center;min-width:1.4rem;height:1.4rem;padding:0 .35rem;border-radius:999px}
+    .cal-cell--today .cal-num time{background:var(--primary);color:#fff;font-weight:700}
+    .cal-events{display:flex;flex-direction:column;gap:.2rem;min-height:0;overflow:hidden}
+    .cal-event{display:flex;align-items:center;gap:.4rem;text-decoration:none;color:var(--ink-900);background:#f4f6ee;border:1px solid #eef0e7;border-radius:6px;padding:.22rem .45rem;font-size:.78rem;line-height:1.25;overflow:hidden;transition:background .12s,border-color .12s}
+    .cal-event:hover{background:#eaf0d6;border-color:#cdd9a8}
+    .cal-event:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
     .cal-event__t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
-    .cal-dot{display:inline-block;width:.55rem;height:.55rem;border-radius:50%;background:var(--primary);flex:0 0 auto}
+    .cal-dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--ink-500);flex:0 0 auto}
+    .cal-empty{padding:2rem 1rem;text-align:center;color:var(--ink-500);font-size:.92rem}
     @media (max-width:720px){
-      .cal-cell{min-height:72px;padding:.25rem .3rem}
-      .cal-event__t{font-size:.72rem}
-      .cal-dayhead{font-size:.7rem;padding:.4rem .25rem}
-      .cal-toolbar{gap:.5rem}
-      .cal-month{font-size:1.15rem;flex:1 1 100%;order:-1;text-align:center}
-      .cal-actions{margin-left:0}
+      .cal-toolbar{grid-template-columns:1fr;justify-items:center;gap:.5rem;margin:.8rem 0}
+      .cal-nav,.cal-actions{justify-self:center}
+      .cal-month{font-size:1.15rem;order:-1}
+      .cal-cell{min-height:74px;padding:.28rem .32rem;gap:.2rem}
+      .cal-event{padding:.15rem .35rem}
+      .cal-event__t{font-size:.7rem}
+      .cal-dayhead{font-size:.66rem;padding:.4rem .15rem;letter-spacing:.05em}
+      .cal-num{font-size:.78rem;height:1.3rem}
+      .cal-num time{min-width:1.2rem;height:1.2rem;padding:0 .3rem}
     }
   </style>`;
   const url = `https://${org.slug}.${ctx.apexDomain || "compass.app"}/calendar`;
@@ -2620,6 +2725,7 @@ export function renderSite(org, extras = {}) {
     FEED: raw(renderFeed(posts)),
     EVENTS: raw(renderEvents(extras.events)),
     GALLERY: raw(renderGallery(albums)),
+    CUSTOM_BLOCKS: raw(renderCustomBlocks(page)),
     HERO_PHOTOS: raw(renderHeroPhotos(heroPhotos || [])),
     NAV_AUTH: raw(navAuth),
     NAV_CUSTOM: raw(navCustom),

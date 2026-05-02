@@ -560,6 +560,11 @@ model Page {
   // Free-form testimonials (parent quotes). JSON array of
   // { quote, attribution }. null = none.
   testimonialsJson  Json?
+  // Custom blocks the leader has added — the squarespace-style
+  // "drop in a text/image/CTA" path. JSON array of
+  // { id, type, ...config } objects. Each block's id can appear in
+  // sectionOrder as "block:<id>" so leaders place them anywhere.
+  customBlocks      Json?
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
 
