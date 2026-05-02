@@ -71,7 +71,16 @@ if (loginEmailForm) {
         showError(body.error || "Sign-in failed.");
         return;
       }
-      location.href = body.redirect || "/";
+      // Honor ?next= when the page was opened with one (e.g. the mobile
+      // app's /auth/mobile/begin flow bounces here with
+      // ?next=/auth/mobile/begin?redirect=compass://...). Restrict to
+      // same-origin paths to prevent open-redirect.
+      const explicitNext = new URLSearchParams(window.location.search).get("next");
+      const safeNext =
+        explicitNext && explicitNext.startsWith("/") && !explicitNext.startsWith("//")
+          ? explicitNext
+          : null;
+      location.href = safeNext || body.redirect || "/";
     } catch (err) {
       showError(err.message || "Network error.");
     } finally {

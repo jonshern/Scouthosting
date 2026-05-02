@@ -1278,17 +1278,25 @@ function safeNext(nextRaw) {
 /* ------------------ Mobile-app auth handshake -------------------- */
 
 // The mobile app opens this URL in an in-app browser. If the user isn't
-// signed in, we redirect to /login?next=... and bounce back here once
+// signed in, we redirect to a login page and bounce back here once
 // they are. Once signed in (Lucia cookie present), we mint a fresh
 // ApiToken and redirect to the deep-link scheme so the app receives it.
 //
+// This handler works at BOTH apex and org subdomains:
+//   - Apex (compass.app/auth/mobile/begin) — recommended path. Mobile is
+//     a single binary, not per-org; org selection happens client-side
+//     after /api/v1/auth/me returns the membership list. Login bounces
+//     through the apex /login.html page.
+//   - Org subdomain (troop100.compass.app/auth/mobile/begin) — kept for
+//     back-compat with older mobile builds and OAuth deep-links. Login
+//     bounces through the org's branded /login page.
+//
 // Flow:
-//   compass app  →  https://<org>/auth/mobile/begin?redirect=compass://callback
+//   compass app  →  https://compass.app/auth/mobile/begin?redirect=compass://callback
 //                   (in-app browser, sees cookie or signs the user in)
 //                →  Location: compass://callback?token=<raw>&user=<id>
 //   app then calls /api/v1/auth/me with the bearer to populate state.
-app.get("/auth/mobile/begin", async (req, res, next) => {
-  if (!req.org) return next();
+app.get("/auth/mobile/begin", async (req, res) => {
   const redirect = String(req.query.redirect || "");
   // Allow only the compass:// custom scheme. Everything else returns
   // 400 — we don't want to hand out tokens to arbitrary URLs.
@@ -1296,8 +1304,12 @@ app.get("/auth/mobile/begin", async (req, res, next) => {
     return res.status(400).type("text/plain").send("Missing or invalid redirect= scheme.");
   }
   if (!req.user) {
-    const next = `/auth/mobile/begin?redirect=${encodeURIComponent(redirect)}`;
-    return res.redirect(`/login?next=${encodeURIComponent(next)}`);
+    const back = `/auth/mobile/begin?redirect=${encodeURIComponent(redirect)}`;
+    // Apex uses the static /login.html page (which fetches CSRF then
+    // POSTs JSON to /api/auth/login). Org subdomains have their own
+    // branded /login route.
+    const loginPath = req.org ? "/login" : "/login.html";
+    return res.redirect(`${loginPath}?next=${encodeURIComponent(back)}`);
   }
   const deviceLabel = String(req.query.device || req.headers["user-agent"] || "Mobile device").slice(0, 80);
   const token = await issueToken(req.user.id, deviceLabel, prisma);

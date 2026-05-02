@@ -140,6 +140,70 @@ for (const org of DEMO_ORGS) {
   });
 }
 
+test("apex /auth/mobile/begin: full mobile sign-in round-trip", async () => {
+  // Mobile-app flow: user signs in at the apex (no org context),
+  // /auth/mobile/begin issues a token + redirects to compass://...,
+  // app then calls /api/v1/auth/me to discover memberships.
+
+  // 1. CSRF + cookie
+  const csrf = await req("localhost", "/api/csrf");
+  assert.equal(csrf.status, 200);
+  const csrfTok = JSON.parse(csrf.body).token;
+  let cookies = cookieJar(csrf.setCookies);
+
+  // 2. Apex email/password login (single-org user — troop admin)
+  const loginBody = JSON.stringify({
+    email: "scoutmaster@example.invalid",
+    password: DEMO_PASSWORD,
+  });
+  const login = await req("localhost", "/api/auth/login", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Content-Length": Buffer.byteLength(loginBody),
+      "X-CSRF-Token": csrfTok,
+      Cookie: cookies,
+    },
+    body: loginBody,
+  });
+  assert.equal(login.status, 200, `login: ${login.body.slice(0, 200)}`);
+  cookies = [cookieJar(login.setCookies), cookies].filter(Boolean).join("; ");
+
+  // 3. /auth/mobile/begin at apex (no req.org) with valid Lucia cookie.
+  const begin = await req(
+    "localhost",
+    "/auth/mobile/begin?redirect=compass%3A%2F%2Fcallback",
+    { headers: { Cookie: cookies } },
+  );
+  assert.equal(begin.status, 302);
+  const loc = begin.headers.location || "";
+  assert.match(loc, /^compass:\/\/callback\?/, `expected deep-link, got ${loc}`);
+  const url = new URL(loc);
+  const token = url.searchParams.get("token");
+  assert.ok(token && token.length > 16, "token in deep-link");
+
+  // 4. Bad redirect scheme → 400
+  const bad = await req(
+    "localhost",
+    "/auth/mobile/begin?redirect=https%3A%2F%2Fevil.com",
+    { headers: { Cookie: cookies } },
+  );
+  assert.equal(bad.status, 400);
+
+  // 5. /api/v1/auth/me with bearer returns the membership list.
+  const me = await req("localhost", "/api/v1/auth/me", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  assert.equal(me.status, 200);
+  const meBody = JSON.parse(me.body);
+  assert.ok(Array.isArray(meBody.memberships) && meBody.memberships.length > 0);
+  const slugs = meBody.memberships.map((m) => m.orgSlug);
+  assert.ok(
+    slugs.includes("troop100"),
+    `expected troop100 in memberships, got ${slugs.join(",")}`,
+  );
+});
+
 test("apex super-admin login via JSON API (super@compass.example)", async () => {
   // Apex login is a single-page JS gate: GET /api/csrf, POST /api/auth/login.
   const csrfRes = await req("localhost", "/api/csrf");
