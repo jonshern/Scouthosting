@@ -5,8 +5,8 @@
   "description": "The planning and communication hub for Scout units. Multi-tenant website platform with calendar, photos, group email, trip & meal planning, and a CMS. Defers advancement to Scoutbook.",
   "type": "module",
   "scripts": {
-    "start": "node server/index.js",
-    "dev": "node --watch server/index.js",
+    "start": "node --import ./lib/otelBootstrap.js server/index.js",
+    "dev": "node --watch --import ./lib/otelBootstrap.js server/index.js",
     "provision": "node server/provision.js",
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
@@ -43,7 +43,12 @@
   },
   "optionalDependencies": {
     "@google-cloud/storage": "^7.13.0",
-    "nodemailer": "^6.9.16"
+    "nodemailer": "^6.9.16",
+    "@opentelemetry/sdk-node": "^0.55.0",
+    "@opentelemetry/auto-instrumentations-node": "^0.53.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.55.0",
+    "@opentelemetry/resources": "^1.28.0",
+    "@opentelemetry/semantic-conventions": "^1.28.0"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
