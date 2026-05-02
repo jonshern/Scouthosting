@@ -40,8 +40,18 @@ COPY --from=deps --chown=compass:compass /app/prisma ./prisma
 COPY --chown=compass:compass package.json package-lock.json ./
 COPY --chown=compass:compass server ./server
 COPY --chown=compass:compass lib ./lib
-COPY --chown=compass:compass index.html signup.html login.html security.html ./
-COPY --chown=compass:compass styles.css security.css ./
+# Apex static assets. Each new top-level *.html / *.css / *.js needs
+# to be added here — Express serves these as the marketing/login surface.
+# script.js is the login form's submit handler; tokens.css holds every
+# CSS custom property the rest of the stylesheet reads. Missing either
+# silently breaks the apex experience (login button no-ops, palette
+# tokens fall back, fonts go to system defaults).
+COPY --chown=compass:compass \
+  index.html signup.html login.html security.html \
+  pitch.html plans.html positioning.html \
+  styles.css security.css tokens.css \
+  script.js \
+  ./
 
 RUN chown -R compass:compass /app
 USER compass
