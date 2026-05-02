@@ -10,36 +10,36 @@
    ------------------------------------------------------------------------- */
 :root {
   /* Surfaces */
-  --bg: #f4ecdc;
+  --bg: #f7f8fa;
   --surface: #ffffff;
-  --surface-alt: #1a1f1a;          /* dark forest band */
+  --surface-alt: #eef1f5;          /* dark forest band */
 
   /* Ink */
-  --ink: #0d130d;
-  --ink-soft: #2a352a;
-  --ink-muted: #5a6258;
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --ink-muted: #64748b;
 
   /* Lines */
-  --line: #d4c8a8;
-  --line-soft: #e6dcc0;
+  --line: #e2e8f0;
+  --line-soft: #eef1f5;
 
   /* Brand */
-  --primary: #0e3320;              /* deep evergreen */
-  --primary-hover: #06200f;
-  --accent: #c8e94a;               /* chartreuse */
-  --accent-soft: #e3f29b;
+  --primary: #0f172a;              /* deep evergreen */
+  --primary-hover: #020617;
+  --accent: #1d4ed8;               /* chartreuse */
+  --accent-soft: #bcd0f4;
 
   /* Status */
-  --danger: #a82e1d;
-  --success: #3d6b3a;
+  --danger: #dc2626;
+  --success: #059669;
 
   /* Secondary spectrum (event categories) */
-  --sky: #3a7ab8;
-  --ember: #e07a3c;
-  --raspberry: #c43d6b;
-  --butter: #f3c54a;
-  --plum: #6e3b7a;
-  --teal: #3aa893;
+  --sky: #1d4ed8;
+  --ember: #f59e0b;
+  --raspberry: #0f172a;
+  --butter: #f59e0b;
+  --plum: #475569;
+  --teal: #0891b2;
 
   /* Typography */
   --font-display: "Newsreader", "Source Serif Pro", Georgia, serif;

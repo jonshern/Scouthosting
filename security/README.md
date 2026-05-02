@@ -7,7 +7,7 @@ troop and family information.
 
 This folder is a hand-coded HTML/CSS recreation of the locked design at
 `design/source/security.jsx → SecurityCard` &mdash; using the
-**Forest &amp; Ember** palette from `design/source/tokens.js` (`bold`).
+**Slate &amp; Sky** palette from `design/source/tokens.js` (`balanced`).
 
 ## What's in this folder
 
@@ -47,7 +47,7 @@ the assertions in well under a second.
 The page mirrors `SecurityCard` in `security.jsx` &mdash; eight content
 sections plus a footer:
 
-1. **Page header** &mdash; dark forest band with a topographic line backdrop,
+1. **Page header** &mdash; slate band with a topographic line backdrop,
    wordmark, "Trust &amp; Safety" pill, oversized italic-+-accent headline
    ("Built for *youth&nbsp;safety*, first.") and a five-minute-read promise.
 2. **Promises** &mdash; two-column list. Five "always do" with green check
@@ -61,13 +61,13 @@ sections plus a footer:
    explanation alongside the "five-minute test" callout: *"If a leader's
    phone is stolen at a campout, what happens?"*
 5. **What happens to your data** &mdash; three plain cards: Locked,
-   Logged, Yours. Italic chartreuse card titles end with a period
+   Logged, Yours. Italic sky-blue card titles end with a period
    (`Locked.` / `Logged.` / `Yours.`) per the locked design.
 6. **Youth protection** &mdash; four cards covering the defaults a
    Scoutmaster would set on by default: no public contact info, photo
    opt-in, two-deep messaging, background-check status visibility.
 7. **If something goes wrong** &mdash; an incident-response timeline with
-   four chartreuse italic windows (1h / 24h / 72h / 30d) and the
+   four sky-blue italic windows (1h / 24h / 72h / 30d) and the
    plain-English commitment for each.
 8. **Independent checks** &mdash; four certification / compliance cards
    (SOC 2 Type II, PCI, parent-consent, GDPR/CCPA) plus a sand-tinted
@@ -79,8 +79,8 @@ sections plus a footer:
 
 ## Locked design choices honored
 
-- **Palette:** Forest &amp; Ember only. Deep evergreen `#0e3320` primary,
-  chartreuse `#c8e94a` accent, warm cream `#f4ecdc` page bg, `#1d3a32`
+- **Palette:** Slate &amp; Sky only. Slate primary `#0f172a` primary,
+  sky-blue `#1d4ed8` accent, cool light gray `#f7f8fa` page bg, `#0f172a`
   for the dark header band.
 - **Type:** Newsreader display with the italic-+-accent treatment on
   signature words (*youth&nbsp;safety*, *Locked.*, *Logged.*, *Yours.*,

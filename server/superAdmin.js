@@ -70,7 +70,7 @@ function shell(req, { title, body }) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#0d130d;--surface:#1a1f1a;--surface-alt:#1d3a32;--ink:#f4ecdc;--ink-muted:#a3a89e;--line:#2a352a;--accent:#c8e94a;--danger:#e07a3c;--font-display:"Newsreader",serif;--font-ui:"Inter Tight",sans-serif}
+:root{--bg:#020617;--surface:#0f172a;--surface-alt:#1e293b;--ink:#f7f8fa;--ink-muted:#94a3b8;--line:#334155;--accent:#1d4ed8;--danger:#f59e0b;--font-display:"Newsreader",serif;--font-ui:"Inter Tight",sans-serif}
 *{box-sizing:border-box}
 body{margin:0;font-family:var(--font-ui);background:var(--bg);color:var(--ink);line-height:1.5}
 a{color:var(--accent)} a:hover{color:#fff}
@@ -495,9 +495,9 @@ superAdminRouter.get("/analytics", requireSuperAdmin, async (req, res) => {
     return `<a href="/__super/analytics${q}" ${cls}>${escape(label)}</a>`;
   }
   function surfaceTag(s) {
-    const colors = { marketing: "#3a7ab8", tenant: "#3aa893", admin: "#c8e94a" };
-    const c = colors[s] || "#a3a89e";
-    return `<span class="tag" style="background:${c};color:#0d130d;border-color:${c}">${escape(s)}</span>`;
+    const colors = { marketing: "#1d4ed8", tenant: "#0891b2", admin: "#f59e0b" };
+    const c = colors[s] || "#94a3b8";
+    return `<span class="tag" style="background:${c};color:#0f172a;border-color:${c}">${escape(s)}</span>`;
   }
   function surfaceBar(s, label, count) {
     const pct = surfaceTotal ? (count / surfaceTotal) * 100 : 0;

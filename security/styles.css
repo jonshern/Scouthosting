@@ -6,33 +6,33 @@
    ========================================================================= */
 
 :root {
-  --bg: #f4ecdc;
+  --bg: #f7f8fa;
   --surface: #ffffff;
-  --surface-alt: #ede0bf;          /* sand surface for callouts */
-  --surface-dark: #1d3a32;         /* dark forest header band */
+  --surface-alt: #eef1f5;          /* sand surface for callouts */
+  --surface-dark: #0f172a;         /* dark forest header band */
 
-  --ink: #0d130d;
-  --ink-soft: #2a352a;
-  --ink-muted: #5a6258;
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --ink-muted: #64748b;
 
-  --line: #d4c8a8;
-  --line-soft: #e6dcc0;
+  --line: #e2e8f0;
+  --line-soft: #eef1f5;
 
-  --primary: #0e3320;
-  --primary-hover: #06200f;
-  --accent: #c8e94a;
-  --accent-soft: #e3f29b;
+  --primary: #0f172a;
+  --primary-hover: #020617;
+  --accent: #1d4ed8;
+  --accent-soft: #bcd0f4;
 
-  --danger: #a82e1d;
-  --success: #3d6b3a;
+  --danger: #dc2626;
+  --success: #059669;
 
-  --sky: #3a7ab8;
-  --sky-soft: #bcd6ec;
-  --ember: #e07a3c;
-  --raspberry: #c43d6b;
-  --butter: #f3c54a;
-  --plum: #6e3b7a;
-  --teal: #3aa893;
+  --sky: #1d4ed8;
+  --sky-soft: #bcd0f4;
+  --ember: #f59e0b;
+  --raspberry: #0f172a;
+  --butter: #f59e0b;
+  --plum: #475569;
+  --teal: #0891b2;
 
   --font-display: "Newsreader", "Source Serif Pro", Georgia, serif;
   --font-ui: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;

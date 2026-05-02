@@ -6,8 +6,8 @@ on its custom subdomain (e.g. `12.compass.app`).
 
 This folder is a hand-coded HTML/CSS recreation of the locked design at
 `design/source/troop-pages.jsx → TroopBalanced` — the dark-forest hero
-variant — using the **Forest & Ember** palette from
-`design/source/tokens.js` (`bold`).
+variant — using the **Slate & Sky** palette from
+`design/source/tokens.js` (`balanced`).
 
 ## What's in this folder
 
@@ -96,9 +96,9 @@ teal / accent) so the gallery reads as deliberate, not broken.
 
 ## Locked design choices honored
 
-- **Palette:** Forest & Ember only. Deep evergreen `#0e3320` primary,
-  chartreuse `#c8e94a` accent, warm cream `#f4ecdc` page bg, dark forest
-  `#1a1f1a` for inverted bands.
+- **Palette:** Slate & Sky only. Slate primary `#0f172a` primary,
+  sky-blue `#1d4ed8` accent, cool light gray `#f7f8fa` page bg, slate
+  `#eef1f5` for inverted bands.
 - **Type:** Newsreader for display (with italic-+-accent treatment on
   signature words like *Troop 12.*, *about.*, *events.*, *announcements.*,
   *gallery.*), Inter Tight for UI.
@@ -107,7 +107,7 @@ teal / accent) so the gallery reads as deliberate, not broken.
 - **Event color-coding:** each upcoming event uses one of the secondary
   spectrum tones for its date numeral and the right-edge accent bar.
 - **Disclaimer:** present in the footer per the brief.
-- **Inverted dark band:** the events section sits on `#1a1f1a` for visual
+- **Inverted dark band:** the events section sits on `#eef1f5` for visual
   rhythm between the cream sections, matching the README's "Inverted dark
   bands appear at section transitions" guidance.
 

@@ -620,8 +620,8 @@ const PACK_DEMO = {
   scoutmasterName: "Demo Cubmaster",
   scoutmasterEmail: "cubmaster@example.invalid",
   committeeChairEmail: "pack-committee@example.invalid",
-  primaryColor: "#0e3320",
-  accentColor: "#c8e94a",
+  primaryColor: "#0f172a",
+  accentColor: "#1d4ed8",
   plan: "patrol",
   isDemo: true,
 };
@@ -735,8 +735,8 @@ const GS_DEMO = {
   scoutmasterName: "Demo Troop Leader",
   scoutmasterEmail: "troop-leader@example.invalid",
   committeeChairEmail: "gs-committee@example.invalid",
-  primaryColor: "#0e3320",
-  accentColor: "#c8e94a",
+  primaryColor: "#0f172a",
+  accentColor: "#1d4ed8",
   plan: "patrol",
   isDemo: true,
 };

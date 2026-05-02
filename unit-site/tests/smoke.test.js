@@ -38,10 +38,10 @@ describe("unit-site / index.html", () => {
       resolve(__dirname, "..", "styles.css"),
       "utf8"
     );
-    expect(css).toContain("#0e3320"); // primary — deep evergreen
-    expect(css).toContain("#c8e94a"); // accent — chartreuse
-    expect(css).toContain("#f4ecdc"); // bg — warm cream
-    expect(css).toContain("#1a1f1a"); // surfaceAlt — dark forest band
+    expect(css).toContain("#0f172a"); // primary — deep evergreen
+    expect(css).toContain("#1d4ed8"); // accent — chartreuse
+    expect(css).toContain("#f7f8fa"); // bg — warm cream
+    expect(css).toContain("#eef1f5"); // surfaceAlt — dark forest band
   });
 
   it("loads both Newsreader and Inter Tight from Google Fonts", () => {
