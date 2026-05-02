@@ -54,7 +54,7 @@ mobile: ## Start the Expo Metro server (pick iOS / Android / web from its menu).
 	cd $(MOBILE) && $(NPM) run start
 
 mobile-build: ## EAS cloud build. PROFILE=development|preview|production, PLATFORM=ios|android|all.
-	cd $(MOBILE) && npx eas build --profile $(PROFILE) --platform $(PLATFORM)
+	cd $(MOBILE) && npx --yes -p eas-cli eas build --profile $(PROFILE) --platform $(PLATFORM)
 
 # --- internal helpers (not in `make help`) ---
 
