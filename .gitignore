@@ -13,3 +13,7 @@ prisma/migrations/dev.db*
 
 # Local uploads (per-org photo storage)
 var/
+
+# Per-machine docker-compose overrides (e.g. remap host port when 5432
+# is already taken). Each developer keeps their own.
+docker-compose.override.yml
