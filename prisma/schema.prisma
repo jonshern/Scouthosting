@@ -484,6 +484,30 @@ model MailLog {
   // Recipient snapshot — JSON array of { name, email, phone, channel } so the
   // history shows who got the message even if directory entries change later.
   recipients      Json
+
+  events          MailEvent[]
+}
+
+// Per-recipient tracking events for a MailLog row: image-pixel "open"s
+// (email only) and link "click"s (email + SMS). Each row is one event;
+// roll up at query time. We never store raw IP — only a SHA-256 hash —
+// so the table can satisfy a "show me a parent's data" request without
+// surfacing PII beyond what they typed in.
+model MailEvent {
+  id          String   @id @default(cuid())
+  orgId       String
+  mailLogId   String
+  recipient   String   // email or E.164 phone, matched against MailLog.recipients[]
+  kind        String   // "open" | "click"
+  url         String?  // destination URL for clicks
+  userAgent   String?
+  ipHash      String?  // SHA-256 of the request IP, never the raw IP
+  createdAt   DateTime @default(now())
+
+  mailLog     MailLog  @relation(fields: [mailLogId], references: [id], onDelete: Cascade)
+
+  @@index([mailLogId, kind])
+  @@index([orgId, createdAt])
 }
 
 // Newsletter — a recurring digest the unit emails its families. Distinct

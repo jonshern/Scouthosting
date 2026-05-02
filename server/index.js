@@ -68,6 +68,7 @@ import { googleOAuth, googleConfigured, fetchGoogleProfile, appleOAuth, appleCon
 import { generateState, generateCodeVerifier } from "arctic";
 import { icsFor, icsForOrg, expandOccurrences } from "../lib/calendar.js";
 import { verifyRsvpToken } from "../lib/rsvpToken.js";
+import { verifyTrackingToken } from "../lib/trackingToken.js";
 import { verifyUnsubToken } from "../lib/unsubToken.js";
 import { makeSignedToken, verifySignedToken } from "../lib/signedToken.js";
 import { send as sendMail } from "../lib/mail.js";
@@ -2659,6 +2660,89 @@ app.post("/events/:id/slots/:slotId/release", async (req, res, next) => {
     }
   });
   res.redirect(`/events/${req.params.id}?slot=released`);
+});
+
+// Email open tracking pixel. Returns a 1x1 transparent PNG and records
+// a "view" event in MailEvent. Errors silently fall through to the PNG
+// so a flaky tracker never breaks the user's mail rendering.
+const TRACKING_PIXEL = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=",
+  "base64",
+);
+function sendTrackingPixel(res) {
+  res
+    .set("Content-Type", "image/png")
+    .set("Cache-Control", "no-store, max-age=0")
+    .set("Content-Length", TRACKING_PIXEL.length)
+    .end(TRACKING_PIXEL);
+}
+function hashIp(req) {
+  const ip =
+    (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() ||
+    req.ip ||
+    "";
+  if (!ip) return null;
+  return crypto.createHash("sha256").update(ip).digest("hex").slice(0, 32);
+}
+
+app.get("/t/o/:token.png", async (req, res, next) => {
+  if (!req.org) return next();
+  const claims = verifyTrackingToken(req.params.token);
+  if (!claims || claims.kind !== "open") return sendTrackingPixel(res);
+  try {
+    const log = await prisma.mailLog.findUnique({
+      where: { id: claims.mailLogId },
+      select: { id: true, orgId: true },
+    });
+    if (log && log.orgId === req.org.id) {
+      await prisma.mailEvent.create({
+        data: {
+          orgId: log.orgId,
+          mailLogId: log.id,
+          recipient: claims.recipient,
+          kind: "open",
+          userAgent: (req.headers["user-agent"] || "").toString().slice(0, 500),
+          ipHash: hashIp(req),
+        },
+      });
+    }
+  } catch {
+    // never let a logging failure stop the pixel
+  }
+  sendTrackingPixel(res);
+});
+
+app.get("/t/c/:token", async (req, res, next) => {
+  if (!req.org) return next();
+  const target = (req.query.to || "").toString();
+  const claims = verifyTrackingToken(req.params.token, { url: target });
+  // On any failure send the user back to home rather than to an
+  // unverified destination — protects against open redirect.
+  if (!claims || claims.kind !== "click" || !/^https?:\/\//i.test(target)) {
+    return res.redirect("/");
+  }
+  try {
+    const log = await prisma.mailLog.findUnique({
+      where: { id: claims.mailLogId },
+      select: { id: true, orgId: true },
+    });
+    if (log && log.orgId === req.org.id) {
+      await prisma.mailEvent.create({
+        data: {
+          orgId: log.orgId,
+          mailLogId: log.id,
+          recipient: claims.recipient,
+          kind: "click",
+          url: target.slice(0, 2000),
+          userAgent: (req.headers["user-agent"] || "").toString().slice(0, 500),
+          ipHash: hashIp(req),
+        },
+      });
+    }
+  } catch {
+    // never let a logging failure block the redirect
+  }
+  res.redirect(target);
 });
 
 // Email-link RSVP. The token encodes (eventId, name, email) + response,

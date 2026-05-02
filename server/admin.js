@@ -18,6 +18,25 @@ import { moveFromTemp, remove as removeFile } from "../lib/storage.js";
 import { googleConfigured, appleConfigured } from "../lib/oauth.js";
 import { sendBatch, mailDriver } from "../lib/mail.js";
 import { sendSmsBatch, smsDriver, normalisePhone } from "../lib/sms.js";
+import { trackEmail, trackSmsBody } from "../lib/trackedMessage.js";
+
+// Returns a stable id we can stamp into both the outbound tracking
+// tokens and the MailLog row created after the send. Format mirrors
+// cuid (string + hex) so dashboards that group by id-prefix keep
+// working.
+function newMailLogId() {
+  return "ml_" + crypto.randomBytes(12).toString("hex");
+}
+
+function trackingBaseUrl(req) {
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+  const portSuffix =
+    process.env.PORT && process.env.NODE_ENV !== "production"
+      ? `:${process.env.PORT}`
+      : "";
+  return `${protocol}://${req.org.slug}.${apex}${portSuffix}`;
+}
 import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dietary.js";
 import { reconcilePositionTerm as reconcileTerm } from "../lib/positionTerms.js";
 import { makeUnsubToken } from "../lib/unsubToken.js";
@@ -2377,10 +2396,8 @@ adminRouter.post("/events/:id/reminder", requireLeader, async (req, res) => {
   );
 
   const apex = process.env.APEX_DOMAIN || "compass.app";
-  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
-  const base = `${protocol}://${req.org.slug}.${apex}${
-    process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : ""
-  }`;
+  const base = trackingBaseUrl(req);
+  const mailLogId = newMailLogId();
 
   const when = ev.startsAt.toLocaleString("en-US", {
     weekday: "long",
@@ -2408,19 +2425,23 @@ Quick RSVP for ${ev.title} — ${when}${ev.location ? ` at ${ev.location}` : ""}
 Event details: ${eventUrl}
 
 — ${req.org.displayName}`;
-    return {
+    return trackEmail({
+      baseUrl: base,
+      mailLogId,
+      recipient: m.email,
       to: m.email,
       subject: `RSVP: ${ev.title}`,
       text,
       from: `${req.user.displayName.replace(/[<>"]/g, "")} (via ${req.org.displayName.replace(/[<>"]/g, "")}) <noreply@${req.org.slug}.${apex}>`,
       replyTo: req.user.email,
-    };
+    });
   });
 
   const result = await sendBatch(messages);
 
   await prisma.mailLog.create({
     data: {
+      id: mailLogId,
       orgId: req.org.id,
       authorId: req.user.id,
       subject: `RSVP: ${ev.title}`,
@@ -2600,11 +2621,9 @@ adminRouter.post("/events/:id/announce", requireLeader, async (req, res) => {
   const cleanIntro = (intro || "").trim();
   const wantRoster = includeRoster === "1" || includeRoster === "on";
 
+  const mailLogId = newMailLogId();
   const apex = process.env.APEX_DOMAIN || "compass.app";
-  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
-  const portSuffix =
-    process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : "";
-  const base = `${protocol}://${req.org.slug}.${apex}${portSuffix}`;
+  const base = trackingBaseUrl(req);
 
   const when = ev.startsAt.toLocaleString("en-US", {
     weekday: "long",
@@ -2662,7 +2681,10 @@ adminRouter.post("/events/:id/announce", requireLeader, async (req, res) => {
       `Unsubscribe: ${unsubUrl}`,
     );
 
-    return {
+    return trackEmail({
+      baseUrl: base,
+      mailLogId,
+      recipient: m.email,
       to: m.email,
       subject: cleanSubject,
       text: lines.join("\n"),
@@ -2672,7 +2694,7 @@ adminRouter.post("/events/:id/announce", requireLeader, async (req, res) => {
         "List-Unsubscribe": `<${unsubUrl}?one_click=1>`,
         "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
       },
-    };
+    });
   });
 
   const result = messages.length
@@ -2681,6 +2703,7 @@ adminRouter.post("/events/:id/announce", requireLeader, async (req, res) => {
 
   await prisma.mailLog.create({
     data: {
+      id: mailLogId,
       orgId,
       authorId: req.user.id,
       subject: cleanSubject,
@@ -5630,6 +5653,11 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
   if (!subject?.trim() || !body?.trim()) return res.redirect("/admin/email");
 
   const cleanBody = body.trim();
+  // Pre-allocate the MailLog id so the tracking pixel + click tokens
+  // we stamp into the outgoing messages can reference the same row
+  // we'll insert after the send completes.
+  const mailLogId = newMailLogId();
+  const baseUrl = trackingBaseUrl(req);
   // "via" pattern: leader's display name in the visible From, our
   // verified domain in the addr-spec so DKIM/SPF still passes. Replies
   // route to the leader directly via Reply-To.
@@ -5647,19 +5675,27 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
       "List-Unsubscribe": `<${unsubUrl}?one_click=1>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     };
-    return {
+    return trackEmail({
+      baseUrl,
+      mailLogId,
+      recipient: m.email,
       to: m.email,
       subject: subject.trim(),
       text: cleanBody + footer,
       from: `${fromName} <${fromAddr}>`,
       replyTo: req.user.email,
       headers,
-    };
+    });
   });
 
   const smsMessages = smsRecipients.map((m) => ({
     to: m.phone,
-    body: `${req.user.displayName}: ${subject.trim()}\n${cleanBody.slice(0, 1000)}`,
+    body: trackSmsBody({
+      baseUrl,
+      mailLogId,
+      recipient: m.phone,
+      body: `${req.user.displayName}: ${subject.trim()}\n${cleanBody.slice(0, 1000)}`,
+    }),
   }));
 
   const [emailResult, smsResult] = await Promise.all([
@@ -5688,6 +5724,7 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
 
   await prisma.mailLog.create({
     data: {
+      id: mailLogId,
       orgId,
       authorId: req.user.id,
       subject: subject.trim(),
@@ -5729,31 +5766,161 @@ adminRouter.get("/email/sent", requireLeader, async (req, res) => {
     take: 50,
   });
 
+  // Roll up open / click counts in one query so we don't N+1 the list.
+  // groupBy returns one row per (mailLogId, kind); fold into a map.
+  const counts = log.length
+    ? await prisma.mailEvent.groupBy({
+        by: ["mailLogId", "kind"],
+        where: { mailLogId: { in: log.map((m) => m.id) } },
+        _count: { _all: true },
+      })
+    : [];
+  const byId = new Map();
+  for (const row of counts) {
+    if (!byId.has(row.mailLogId)) byId.set(row.mailLogId, { open: 0, click: 0 });
+    byId.get(row.mailLogId)[row.kind] = row._count._all;
+  }
+  // For unique-recipient counts (one parent opening 5 times = 1 viewer)
+  // we'd run a separate distinct query — skipped for the list view to
+  // keep the page fast; the detail page surfaces unique recipients.
+
   const items = log
-    .map(
-      (m) => `
+    .map((m) => {
+      const c = byId.get(m.id) || { open: 0, click: 0 };
+      const total = m.recipientCount || 0;
+      const openRate = total ? Math.round((c.open / total) * 100) : 0;
+      return `
     <li>
-      <div>
-        <h3>${escape(m.subject)}</h3>
+      <div style="flex:1">
+        <h3><a href="/admin/email/sent/${escape(m.id)}" style="color:inherit;text-decoration:none">${escape(m.subject)}</a></h3>
         <p>
           <span class="tag">${escape(m.audienceLabel)}</span>
           <span class="tag">${escape(m.channel)}</span>
           <span class="tag">${escape(m.status)}</span>
           <span class="muted small">${escape(m.sentAt.toLocaleString("en-US"))}</span>
-          <span class="muted small">· ${m.recipientCount} sent</span>
         </p>
       </div>
-    </li>`
-    )
+      <div class="row" style="gap:1.1rem;flex-wrap:nowrap;align-items:center">
+        <div style="text-align:right;min-width:5rem"><strong>${total}</strong><br><span class="muted small">sent</span></div>
+        <div style="text-align:right;min-width:5rem" title="Pixel opens. Inflated by Apple Mail Privacy Protection / Gmail image proxy.">
+          <strong>${c.open}</strong>${total ? ` <span class="muted small">(${openRate}%)</span>` : ""}<br>
+          <span class="muted small">views</span>
+        </div>
+        <div style="text-align:right;min-width:5rem" title="Click-throughs on tracked links — the most reliable signal.">
+          <strong>${c.click}</strong><br><span class="muted small">clicks</span>
+        </div>
+        <a class="btn btn-ghost small" href="/admin/email/sent/${escape(m.id)}">Details</a>
+      </div>
+    </li>`;
+    })
     .join("");
 
   const body = `
     <h1>Email history</h1>
-    <p class="muted">Last 50 broadcasts.</p>
+    <p class="muted">Last 50 broadcasts. <span class="muted small">Open rates from the tracking pixel are noisy — Apple Mail and Gmail pre-load images, so opens read high. Clicks are the reliable signal.</span></p>
     ${log.length ? `<ul class="items">${items}</ul>` : `<div class="empty">Nothing has been sent yet.</div>`}
     <p style="margin-top:1.25rem"><a class="btn btn-ghost" href="/admin/email">← Compose</a></p>
   `;
   res.type("html").send(layout(req, { title: "Email history", body }));
+});
+
+// Per-message detail: who got it, who opened (unique recipients),
+// who clicked, and which URLs got the most clicks.
+adminRouter.get("/email/sent/:id", requireLeader, async (req, res) => {
+  const log = await prisma.mailLog.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!log) return res.status(404).send("Not found");
+
+  const events = await prisma.mailEvent.findMany({
+    where: { mailLogId: log.id },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const opens = events.filter((e) => e.kind === "open");
+  const clicks = events.filter((e) => e.kind === "click");
+  const uniqueOpeners = new Set(opens.map((e) => e.recipient));
+  const uniqueClickers = new Set(clicks.map((e) => e.recipient));
+
+  // Per-URL click rollup
+  const urlMap = new Map();
+  for (const c of clicks) {
+    const key = c.url || "(unknown)";
+    urlMap.set(key, (urlMap.get(key) || 0) + 1);
+  }
+  const urlRows = [...urlMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(
+      ([url, count]) => `
+        <li>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <a href="${escape(url)}" target="_blank" rel="noopener" style="color:var(--ink-900)">${escape(url)}</a>
+          </span>
+          <span style="text-align:right;min-width:3rem"><strong>${count}</strong></span>
+        </li>`,
+    )
+    .join("");
+
+  // Per-recipient rollup (one row per recipient with their open + click count)
+  const recipients = Array.isArray(log.recipients) ? log.recipients : [];
+  const perRecipient = recipients
+    .map((r) => {
+      const key = (r.email || r.phone || "").toLowerCase();
+      const o = opens.filter((e) => e.recipient === key).length;
+      const cl = clicks.filter((e) => e.recipient === key).length;
+      return { name: r.name, address: r.email || r.phone || "", channel: r.channel, opens: o, clicks: cl };
+    })
+    .sort((a, b) => b.clicks - a.clicks || b.opens - a.opens);
+  const recipientRows = perRecipient
+    .map(
+      (r) => `
+        <li>
+          <div style="flex:1">
+            <strong>${escape(r.name)}</strong>
+            <span class="muted small"> · ${escape(r.address)}${r.channel ? ` · ${escape(r.channel)}` : ""}</span>
+          </div>
+          <div class="row" style="gap:1.1rem;flex-wrap:nowrap">
+            <div style="min-width:3.5rem;text-align:right" title="Pixel opens. Apple Mail / Gmail proxies inflate this."><strong>${r.opens}</strong> <span class="muted small">v</span></div>
+            <div style="min-width:3.5rem;text-align:right"><strong>${r.clicks}</strong> <span class="muted small">c</span></div>
+          </div>
+        </li>`,
+    )
+    .join("");
+
+  const body = `
+    <a class="back" href="/admin/email/sent" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Email history</a>
+    <h1>${escape(log.subject)}</h1>
+    <p class="muted">
+      <span class="tag">${escape(log.audienceLabel)}</span>
+      <span class="tag">${escape(log.channel)}</span>
+      <span class="tag">${escape(log.status)}</span>
+      <span class="muted small">· Sent ${escape(log.sentAt.toLocaleString("en-US"))}</span>
+    </p>
+
+    <div class="card" style="display:flex;gap:2rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
+      <div><strong style="font-size:1.5rem">${log.recipientCount}</strong> <span class="muted">sent</span></div>
+      <div title="Unique recipients whose mail client loaded the pixel.">
+        <strong style="font-size:1.5rem">${uniqueOpeners.size}</strong>
+        <span class="muted">unique views</span>
+        <span class="muted small">(${opens.length} total)</span>
+      </div>
+      <div title="Unique recipients who clicked any tracked link.">
+        <strong style="font-size:1.5rem">${uniqueClickers.size}</strong>
+        <span class="muted">unique clickers</span>
+        <span class="muted small">(${clicks.length} clicks)</span>
+      </div>
+    </div>
+
+    <p class="muted small" style="margin:.6rem 0 1.25rem">View counts from the tracking pixel are noisy — Apple Mail Privacy Protection and Gmail image proxies pre-load the pixel whether or not the recipient really saw the email. <strong>Click counts are the reliable engagement signal.</strong></p>
+
+    <h2 style="margin-top:1.25rem">Top clicked links</h2>
+    ${urlRows ? `<ul class="items">${urlRows}</ul>` : `<div class="empty">No clicks yet.</div>`}
+
+    <h2 style="margin-top:1.5rem">Recipients</h2>
+    ${recipientRows ? `<ul class="items">${recipientRows}</ul>` : `<div class="empty">No recipient snapshot.</div>`}
+  `;
+  res.type("html").send(layout(req, { title: log.subject, body }));
 });
 
 /* ------------------------------------------------------------------ */
@@ -8511,6 +8678,7 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
   const apex = process.env.APEX_DOMAIN || "compass.app";
   const orgHost = `${req.org.slug}.${apex}`;
   const baseUrl = `https://${orgHost}`;
+  const mailLogId = newMailLogId();
   const { html, text } = renderNewsletterHtml({
     org: req.org,
     newsletter: issue,
@@ -8533,7 +8701,10 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
       "</body>",
       `<p style="font-size:11px;color:#5a6258;text-align:center;margin-top:18px"><a href="${escape(unsubUrl)}" style="color:#5a6258">Unsubscribe</a></p></body>`,
     );
-    return {
+    return trackEmail({
+      baseUrl,
+      mailLogId,
+      recipient: m.email,
       to: m.email,
       subject: issue.title,
       text: personalText,
@@ -8541,7 +8712,7 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
       from: `${fromName} <${fromAddr}>`,
       replyTo: req.user.email,
       headers,
-    };
+    });
   });
 
   const result = messages.length
@@ -8553,6 +8724,7 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
   // even if the directory changes later.
   const mailLog = await prisma.mailLog.create({
     data: {
+      id: mailLogId,
       orgId: req.org.id,
       authorId: req.user.id,
       subject: issue.title,
