@@ -1529,6 +1529,362 @@ apiRouter.post(
   },
 );
 
+/* ------------------------------------------------------------------ */
+/* Public roadmap / feedback board                                     */
+/* ------------------------------------------------------------------ */
+//
+// GET  /api/v1/feedback                 — list (filter: status, scope, mine, voted)
+// POST /api/v1/feedback                 — submit a new request
+// POST /api/v1/feedback/:id/vote        — toggle vote (one per user)
+// GET  /api/v1/feedback/:id/comments    — list comments on a request
+// POST /api/v1/feedback/:id/comments    — add a comment
+//
+// Visibility rules:
+//   scope=org       — visible only to members of that org
+//   scope=global    — visible across the public Compass roadmap
+// Status transitions (submitted → triaged → building → shipped/declined)
+// happen from /__super; not exposed on the public API.
+
+apiRouter.get("/feedback", resolveApiUser, async (req, res) => {
+  const { orgId, status, scope, sort = "votes" } = req.query;
+
+  const where = {};
+  if (status && typeof status === "string") where.status = status;
+  if (scope === "global") {
+    where.scope = "global";
+  } else if (orgId && typeof orgId === "string") {
+    // Caller must be a member of that org for org-scoped reads.
+    const m = await membershipFor(req.apiUser.id, orgId);
+    if (!m) return res.status(404).json({ error: "not_found" });
+    where.OR = [{ scope: "global" }, { scope: "org", orgId }];
+  } else {
+    where.scope = "global";
+  }
+
+  const orderBy = sort === "newest"
+    ? { createdAt: "desc" }
+    : sort === "status"
+      ? [{ status: "asc" }, { voteCount: "desc" }]
+      : [{ voteCount: "desc" }, { createdAt: "desc" }];
+
+  const requests = await prisma.feedbackRequest.findMany({
+    where,
+    orderBy,
+    take: 100,
+    select: {
+      id: true, kind: true, scope: true, status: true,
+      title: true, body: true, category: true,
+      authorName: true, voteCount: true,
+      lastUpdate: true, lastUpdatedAt: true,
+      orgId: true, userId: true,
+      createdAt: true, updatedAt: true,
+      _count: { select: { comments: true, votes: true } },
+    },
+  });
+
+  // Decorate with mine/voted flags relative to the caller.
+  const ids = requests.map((r) => r.id);
+  const myVotes = ids.length
+    ? await prisma.feedbackVote.findMany({
+        where: { userId: req.apiUser.id, requestId: { in: ids } },
+        select: { requestId: true },
+      })
+    : [];
+  const myVoteSet = new Set(myVotes.map((v) => v.requestId));
+
+  res.json({
+    requests: requests.map((r) => ({
+      ...r,
+      commentCount: r._count.comments,
+      mine: r.userId === req.apiUser.id,
+      voted: myVoteSet.has(r.id),
+      _count: undefined,
+    })),
+  });
+});
+
+apiRouter.post("/feedback", resolveApiUser, async (req, res) => {
+  const {
+    orgId, kind = "feature", scope = "org", title, body,
+    category = null, context = null,
+  } = req.body || {};
+  if (!title || typeof title !== "string" || title.length < 4) {
+    return res.status(400).json({ error: "title_required" });
+  }
+  if (!body || typeof body !== "string" || body.length < 4) {
+    return res.status(400).json({ error: "body_required" });
+  }
+  if (!["feature", "bug", "help"].includes(kind)) {
+    return res.status(400).json({ error: "invalid_kind" });
+  }
+  if (!["org", "global"].includes(scope)) {
+    return res.status(400).json({ error: "invalid_scope" });
+  }
+  if (scope === "org") {
+    if (!orgId) return res.status(400).json({ error: "orgId_required_for_org_scope" });
+    const m = await membershipFor(req.apiUser.id, orgId);
+    if (!m) return res.status(403).json({ error: "not_a_member" });
+  }
+
+  // "help" requests are private — route them to SupportTicket flow
+  // instead of populating the public roadmap.
+  if (kind === "help") {
+    const ticket = await prisma.supportTicket.create({
+      data: {
+        orgId: orgId || null,
+        userId: req.apiUser.id,
+        fromEmail: req.apiUser.email,
+        fromName: req.apiUser.displayName,
+        category: "feature",
+        subject: title.slice(0, 255),
+        body,
+        priority: "normal",
+      },
+      select: { id: true, status: true, createdAt: true },
+    });
+    return res.status(201).json({ ticket, routed: "support" });
+  }
+
+  const created = await prisma.feedbackRequest.create({
+    data: {
+      orgId: scope === "org" ? orgId : null,
+      userId: req.apiUser.id,
+      authorEmail: req.apiUser.email,
+      authorName: req.apiUser.displayName,
+      kind, scope,
+      title: title.slice(0, 255),
+      body,
+      category: category ? String(category).slice(0, 64) : null,
+      context: context && typeof context === "object" ? context : null,
+    },
+    select: {
+      id: true, kind: true, scope: true, status: true,
+      title: true, body: true, category: true, voteCount: true,
+      createdAt: true,
+    },
+  });
+  res.status(201).json({ request: created });
+});
+
+apiRouter.post("/feedback/:id/vote", resolveApiUser, async (req, res) => {
+  const requestId = req.params.id;
+  const r = await prisma.feedbackRequest.findUnique({
+    where: { id: requestId },
+    select: { id: true, scope: true, orgId: true },
+  });
+  if (!r) return res.status(404).json({ error: "not_found" });
+
+  if (r.scope === "org" && r.orgId) {
+    const m = await membershipFor(req.apiUser.id, r.orgId);
+    if (!m) return res.status(404).json({ error: "not_found" });
+  }
+
+  // Toggle: delete if exists, otherwise create. Vote count is kept in
+  // sync atomically inside a transaction.
+  const existing = await prisma.feedbackVote.findUnique({
+    where: { requestId_userId: { requestId, userId: req.apiUser.id } },
+    select: { id: true },
+  });
+
+  if (existing) {
+    await prisma.$transaction([
+      prisma.feedbackVote.delete({ where: { id: existing.id } }),
+      prisma.feedbackRequest.update({
+        where: { id: requestId },
+        data: { voteCount: { decrement: 1 } },
+      }),
+    ]);
+    const fresh = await prisma.feedbackRequest.findUnique({
+      where: { id: requestId },
+      select: { voteCount: true },
+    });
+    return res.json({ voted: false, voteCount: fresh.voteCount });
+  }
+
+  await prisma.$transaction([
+    prisma.feedbackVote.create({
+      data: { requestId, userId: req.apiUser.id },
+    }),
+    prisma.feedbackRequest.update({
+      where: { id: requestId },
+      data: { voteCount: { increment: 1 } },
+    }),
+  ]);
+  const fresh = await prisma.feedbackRequest.findUnique({
+    where: { id: requestId },
+    select: { voteCount: true },
+  });
+  res.json({ voted: true, voteCount: fresh.voteCount });
+});
+
+apiRouter.get("/feedback/:id/comments", resolveApiUser, async (req, res) => {
+  const requestId = req.params.id;
+  const r = await prisma.feedbackRequest.findUnique({
+    where: { id: requestId },
+    select: { id: true, scope: true, orgId: true },
+  });
+  if (!r) return res.status(404).json({ error: "not_found" });
+  if (r.scope === "org" && r.orgId) {
+    const m = await membershipFor(req.apiUser.id, r.orgId);
+    if (!m) return res.status(404).json({ error: "not_found" });
+  }
+  const comments = await prisma.feedbackComment.findMany({
+    where: { requestId },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true, body: true, isOperator: true,
+      authorName: true, userId: true, createdAt: true,
+    },
+  });
+  res.json({ comments });
+});
+
+apiRouter.post("/feedback/:id/comments", resolveApiUser, async (req, res) => {
+  const requestId = req.params.id;
+  const { body } = req.body || {};
+  if (!body || typeof body !== "string" || body.length < 2) {
+    return res.status(400).json({ error: "body_required" });
+  }
+  const r = await prisma.feedbackRequest.findUnique({
+    where: { id: requestId },
+    select: { id: true, scope: true, orgId: true },
+  });
+  if (!r) return res.status(404).json({ error: "not_found" });
+  if (r.scope === "org" && r.orgId) {
+    const m = await membershipFor(req.apiUser.id, r.orgId);
+    if (!m) return res.status(404).json({ error: "not_found" });
+  }
+  const comment = await prisma.feedbackComment.create({
+    data: {
+      requestId,
+      userId: req.apiUser.id,
+      body,
+      isOperator: false,
+    },
+    select: { id: true, body: true, isOperator: true, createdAt: true },
+  });
+  res.status(201).json({ comment });
+});
+
+/* ------------------------------------------------------------------ */
+/* Newsletter scheduling & rules                                       */
+/* ------------------------------------------------------------------ */
+//
+// GET  /api/v1/orgs/:orgId/newsletter/schedule  — current schedule
+// PUT  /api/v1/orgs/:orgId/newsletter/schedule  — upsert
+// GET  /api/v1/orgs/:orgId/newsletter/rules     — list rules
+// POST /api/v1/orgs/:orgId/newsletter/rules     — create rule
+// PATCH /api/v1/newsletter/rules/:id            — update / toggle
+// DELETE /api/v1/newsletter/rules/:id           — delete
+
+const NL_RULE_KINDS = new Set([
+  "rsvp_nudge", "dues_reminder", "post_event_recap", "eagle_coh_invite",
+  "new_family_drip", "reengage_quiet", "birthday", "packing_list",
+  "medform_expiry", "custom",
+]);
+
+async function requireOrgAdmin(req, orgId) {
+  const m = await prisma.orgMembership.findUnique({
+    where: { userId_orgId: { userId: req.apiUser.id, orgId } },
+    select: { role: true },
+  });
+  if (!m) return null;
+  if (m.role !== "admin" && m.role !== "leader") return null;
+  return m;
+}
+
+apiRouter.get("/orgs/:orgId/newsletter/schedule", resolveApiUser, async (req, res) => {
+  const { orgId } = req.params;
+  const m = await membershipFor(req.apiUser.id, orgId);
+  if (!m) return res.status(404).json({ error: "not_found" });
+  const schedule = await prisma.newsletterSchedule.findUnique({ where: { orgId } });
+  res.json({ schedule });
+});
+
+apiRouter.put("/orgs/:orgId/newsletter/schedule", resolveApiUser, async (req, res) => {
+  const { orgId } = req.params;
+  const m = await requireOrgAdmin(req, orgId);
+  if (!m) return res.status(403).json({ error: "forbidden" });
+
+  const {
+    weekday = 7, localTime = "19:00", timezone = "America/Chicago",
+    senderName = null, replyToEmail = null, minStories = 2, paused = false,
+  } = req.body || {};
+
+  if (typeof weekday !== "number" || weekday < 1 || weekday > 7) {
+    return res.status(400).json({ error: "invalid_weekday" });
+  }
+  if (typeof localTime !== "string" || !/^\d{1,2}:\d{2}$/.test(localTime)) {
+    return res.status(400).json({ error: "invalid_localTime" });
+  }
+
+  const schedule = await prisma.newsletterSchedule.upsert({
+    where: { orgId },
+    create: {
+      orgId, weekday, localTime, timezone,
+      senderName, replyToEmail, minStories, paused,
+    },
+    update: {
+      weekday, localTime, timezone,
+      senderName, replyToEmail, minStories, paused,
+    },
+  });
+  res.json({ schedule });
+});
+
+apiRouter.get("/orgs/:orgId/newsletter/rules", resolveApiUser, async (req, res) => {
+  const { orgId } = req.params;
+  const m = await membershipFor(req.apiUser.id, orgId);
+  if (!m) return res.status(404).json({ error: "not_found" });
+  const rules = await prisma.newsletterRule.findMany({
+    where: { orgId },
+    orderBy: { createdAt: "asc" },
+  });
+  res.json({ rules });
+});
+
+apiRouter.post("/orgs/:orgId/newsletter/rules", resolveApiUser, async (req, res) => {
+  const { orgId } = req.params;
+  const m = await requireOrgAdmin(req, orgId);
+  if (!m) return res.status(403).json({ error: "forbidden" });
+  const { kind, title, description = null, config = null, enabled = true } = req.body || {};
+  if (!NL_RULE_KINDS.has(kind)) return res.status(400).json({ error: "invalid_kind" });
+  if (!title || typeof title !== "string") return res.status(400).json({ error: "title_required" });
+  const rule = await prisma.newsletterRule.create({
+    data: { orgId, kind, title: title.slice(0, 255), description, config, enabled },
+  });
+  res.status(201).json({ rule });
+});
+
+apiRouter.patch("/newsletter/rules/:id", resolveApiUser, async (req, res) => {
+  const rule = await prisma.newsletterRule.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, orgId: true },
+  });
+  if (!rule) return res.status(404).json({ error: "not_found" });
+  const m = await requireOrgAdmin(req, rule.orgId);
+  if (!m) return res.status(403).json({ error: "forbidden" });
+  const data = {};
+  if (typeof req.body?.enabled === "boolean") data.enabled = req.body.enabled;
+  if (typeof req.body?.title === "string") data.title = req.body.title.slice(0, 255);
+  if (typeof req.body?.description === "string") data.description = req.body.description;
+  if (req.body?.config !== undefined) data.config = req.body.config;
+  const updated = await prisma.newsletterRule.update({ where: { id: rule.id }, data });
+  res.json({ rule: updated });
+});
+
+apiRouter.delete("/newsletter/rules/:id", resolveApiUser, async (req, res) => {
+  const rule = await prisma.newsletterRule.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, orgId: true },
+  });
+  if (!rule) return res.status(404).json({ error: "not_found" });
+  const m = await requireOrgAdmin(req, rule.orgId);
+  if (!m) return res.status(403).json({ error: "forbidden" });
+  await prisma.newsletterRule.delete({ where: { id: rule.id } });
+  res.status(204).end();
+});
+
 // JSON 404 fallthrough — catches /api/v1/* paths the router didn't handle.
 apiRouter.use((req, res) => {
   res.status(404).json({ error: "not_found" });
