@@ -52,6 +52,13 @@ import {
 } from "../lib/chat.js";
 import { tallyCredits, formatCsvRow } from "../lib/credits.js";
 import { recordAudit } from "../lib/audit.js";
+import { deriveBillingStatus, billingBanner } from "../lib/billingState.js";
+import {
+  isConfigured as stripeConfigured,
+  createCheckoutSession,
+  cancelAtPeriodEnd as stripeCancel,
+  reactivateSubscription as stripeReactivate,
+} from "../lib/stripe.js";
 import {
   matchSubgroup,
   buildCurrentTrainingsMap,
@@ -817,6 +824,49 @@ async function requireLeader(req, res, next) {
   req.role = role;
   next();
 }
+
+// Billing-gate. Reads (GET/HEAD/OPTIONS) always pass — leaders can see
+// what they had even after a trial ends; only state-changing requests
+// are blocked. Mounted as router-level middleware below so we don't
+// have to wire it onto every POST individually.
+//
+// Always-allowed paths: /billing/* (so they can fix it), /logout (so
+// they can sign out), /login (already public anyway). Anything else
+// gets a 402-flavoured redirect to /admin/billing where the leader can
+// subscribe / update card.
+const ALWAYS_WRITEABLE_PATHS = [
+  /^\/billing(\/|$)/,
+  /^\/logout$/,
+  /^\/login$/,
+];
+
+function billingGateMiddleware(req, res, next) {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
+    return next();
+  }
+  const path = req.path || "/";
+  if (ALWAYS_WRITEABLE_PATHS.some((re) => re.test(path))) return next();
+  if (!req.org) return next();
+  const state = deriveBillingStatus(req.org);
+  if (state.gate === "writeable") return next();
+  // For HTML form posts, redirect to /admin/billing with a hint;
+  // for JSON callers, return a 402.
+  const accept = String(req.headers.accept || "");
+  if (accept.includes("application/json")) {
+    return res.status(402).json({
+      error: "billing_required",
+      status: state.status,
+      reason: state.reason,
+    });
+  }
+  return res.redirect(`/admin/billing?blocked=${encodeURIComponent(state.status)}`);
+}
+
+// Order matters: gate must run AFTER requireLeader (so we have req.org
+// + req.user) but before any per-route handler. Express runs router-
+// level middleware in declaration order, so this stays effective for
+// every POST registered after this point.
+adminRouter.use(billingGateMiddleware);
 
 /* ------------------------------------------------------------------ */
 /* Login / logout                                                      */
@@ -9675,6 +9725,157 @@ adminRouter.post("/ypt/:membershipId", requireLeader, async (req, res) => {
   }
 
   res.redirect("/admin/ypt");
+});
+
+/* ------------------------------------------------------------------ */
+/* Billing — Stripe checkout + status page                             */
+/* ------------------------------------------------------------------ */
+
+// GET /admin/billing — read-only status + actions for the current org.
+// Always reachable (passes the gate above) so a leader who hits an
+// expired-trial wall can land here and fix it.
+adminRouter.get("/billing", requireLeader, async (req, res) => {
+  const state = deriveBillingStatus(req.org);
+  const banner = billingBanner(state);
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const blocked = req.query.blocked ? String(req.query.blocked) : null;
+  const flash = req.query.success === "1"
+    ? `<div class="flash flash-ok">Subscription activated. Thanks for supporting Compass!</div>`
+    : req.query.canceled === "1"
+    ? `<div class="flash flash-warn">Cancellation scheduled. You'll keep access until ${escape(state.status === "active" && req.org.currentPeriodEnd ? new Date(req.org.currentPeriodEnd).toLocaleDateString() : "the end of your billing period")}.</div>`
+    : "";
+  const blockedNotice = blocked
+    ? `<div class="flash flash-err">That action requires an active subscription (status: <strong>${escape(blocked)}</strong>). Subscribe below to restore write access.</div>`
+    : "";
+  const bannerHtml = banner
+    ? `<div class="flash flash-${banner.tone === "danger" ? "err" : banner.tone === "warn" ? "warn" : "ok"}"><strong>${escape(banner.headline)}</strong><br>${escape(banner.body)}</div>`
+    : "";
+
+  const trialRow = state.status === "trialing"
+    ? `<tr><th>Trial ends</th><td>${escape(req.org.trialEndsAt ? new Date(req.org.trialEndsAt).toLocaleDateString() : "—")} (${state.trialDaysLeft} day${state.trialDaysLeft === 1 ? "" : "s"} left)</td></tr>`
+    : "";
+  const periodRow = req.org.currentPeriodEnd
+    ? `<tr><th>Current period ends</th><td>${escape(new Date(req.org.currentPeriodEnd).toLocaleDateString())}</td></tr>`
+    : "";
+  const cancelRow = req.org.cancelAtPeriodEnd
+    ? `<tr><th>Scheduled to cancel</th><td>Yes — at the end of the current period.</td></tr>`
+    : "";
+
+  const stripeReady = stripeConfigured();
+  const showSubscribe = state.status === "trialing" || state.status === "expired" || state.status === "canceled";
+  const showCancel = state.status === "active" && !req.org.cancelAtPeriodEnd;
+  const showReactivate = state.status === "active" && req.org.cancelAtPeriodEnd;
+
+  const csrfToken = res.locals?.csrfToken || req.csrfToken?.() || "";
+  const csrfHidden = `<input type="hidden" name="_csrf" value="${escape(csrfToken)}">`;
+
+  const subscribeBtn = showSubscribe
+    ? stripeReady
+      ? `<form method="POST" action="/admin/billing/checkout">${csrfHidden}<button class="btn btn-primary" type="submit">Subscribe — $99 / year</button></form>`
+      : `<p class="muted">Stripe isn't configured on this deployment. Set <code>STRIPE_SECRET_KEY</code>, <code>STRIPE_PRICE_ID</code>, and <code>STRIPE_WEBHOOK_SECRET</code> to enable checkout.</p>`
+    : "";
+  const cancelBtn = showCancel
+    ? `<form method="POST" action="/admin/billing/cancel" onsubmit="return confirm('Cancel at the end of the current period? You\\'ll keep access until then.')">${csrfHidden}<button class="btn btn-secondary" type="submit">Cancel subscription</button></form>`
+    : "";
+  const reactivateBtn = showReactivate
+    ? `<form method="POST" action="/admin/billing/reactivate">${csrfHidden}<button class="btn btn-primary" type="submit">Resume subscription</button></form>`
+    : "";
+
+  const body = `
+<h1>Billing</h1>
+${bannerHtml}
+${blockedNotice}
+${flash}
+<table class="kv">
+  <tr><th>Unit</th><td>${escape(req.org.displayName)} (<code>${escape(req.org.slug)}.${escape(apex)}</code>)</td></tr>
+  <tr><th>Status</th><td><strong>${escape(state.status)}</strong></td></tr>
+  ${trialRow}
+  ${periodRow}
+  ${cancelRow}
+</table>
+<div class="actions" style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:1.5rem">
+  ${subscribeBtn}
+  ${cancelBtn}
+  ${reactivateBtn}
+</div>
+<h2 style="margin-top:2.5rem">What you get</h2>
+<ul>
+  <li>Your unit's subdomain at <code>${escape(req.org.slug)}.${escape(apex)}</code>, on for the year.</li>
+  <li>Unlimited members, leaders, events, RSVPs, and broadcasts.</li>
+  <li>50 GB photo library with per-scout privacy controls.</li>
+  <li>Email + chat support during US business hours.</li>
+</ul>
+<p class="muted" style="margin-top:1.5rem">Need a council-wide plan? <a href="mailto:hello@compass.app?subject=Compass%20for%20our%20district">Email us</a> for multi-unit pricing.</p>
+<style>
+table.kv{border-collapse:collapse;margin-top:1rem}
+table.kv th{text-align:left;padding:0.5rem 1rem 0.5rem 0;color:#5a6268;font-weight:600;vertical-align:top}
+table.kv td{padding:0.5rem 0;vertical-align:top}
+.muted{color:#5a6268;font-size:0.9rem}
+</style>
+`;
+  res.type("html").send(layout(req, { title: "Billing", body }));
+});
+
+// POST /admin/billing/checkout — start a Stripe Checkout session.
+adminRouter.post("/billing/checkout", requireLeader, async (req, res) => {
+  if (!stripeConfigured()) {
+    return res.redirect("/admin/billing?blocked=stripe_not_configured");
+  }
+  try {
+    const apex = process.env.APEX_DOMAIN || "compass.app";
+    const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+    const portSuffix = process.env.PORT && process.env.NODE_ENV !== "production"
+      ? `:${process.env.PORT}` : "";
+    const base = `${protocol}://${req.org.slug}.${apex}${portSuffix}`;
+    const { url } = await createCheckoutSession(req.org, req.user, {
+      successUrl: `${base}/admin/billing?success=1`,
+      cancelUrl: `${base}/admin/billing`,
+    });
+    return res.redirect(303, url);
+  } catch (err) {
+    return res.status(500).type("html").send(
+      layout(req, {
+        title: "Billing",
+        body: `<h1>Couldn't start checkout</h1><p>${escape(err.message)}</p><p><a href="/admin/billing">← Back to billing</a></p>`,
+      })
+    );
+  }
+});
+
+// POST /admin/billing/cancel — schedule cancel at period end.
+adminRouter.post("/billing/cancel", requireLeader, async (req, res) => {
+  try {
+    await stripeCancel(req.org);
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "Org",
+      entityId: req.org.id,
+      action: "billing.cancel_requested",
+      summary: "Leader scheduled cancellation at period end.",
+    });
+    return res.redirect("/admin/billing?canceled=1");
+  } catch (err) {
+    return res.redirect(`/admin/billing?blocked=${encodeURIComponent(err.message)}`);
+  }
+});
+
+// POST /admin/billing/reactivate — undo a pending cancellation.
+adminRouter.post("/billing/reactivate", requireLeader, async (req, res) => {
+  try {
+    await stripeReactivate(req.org);
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "Org",
+      entityId: req.org.id,
+      action: "billing.reactivated",
+      summary: "Leader resumed an in-flight cancellation.",
+    });
+    return res.redirect("/admin/billing?success=1");
+  } catch (err) {
+    return res.redirect(`/admin/billing?blocked=${encodeURIComponent(err.message)}`);
+  }
 });
 
 /* ------------------------------------------------------------------ */

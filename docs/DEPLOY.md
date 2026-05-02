@@ -17,6 +17,9 @@ for single-host stacks (Postgres + app + nginx). Multi-instance setups
 | `RESEND_WEBHOOK_SECRET` | for email | Verifies bounce/complaint webhooks |
 | `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `TWILIO_FROM` | for SMS | Falls back to a logging driver if missing |
 | `GOOGLE_OAUTH_CLIENT_ID` + `GOOGLE_OAUTH_CLIENT_SECRET` + `GOOGLE_OAUTH_REDIRECT_URI` | for SSO | Login still works without these |
+| `STRIPE_SECRET_KEY` | for billing | `sk_test_…` in staging, `sk_live_…` in prod. Without it, `/admin/billing` renders read-only. |
+| `STRIPE_PRICE_ID` | for billing | The Stripe Price ID for the $99/yr Unit subscription (`price_…`). |
+| `STRIPE_WEBHOOK_SECRET` | for billing | `whsec_…` from the Stripe Dashboard endpoint that points at `/api/webhooks/stripe`. |
 | `STORAGE_DIR` | optional | Default `/app/var/uploads`. Mount a persistent volume. |
 | `LOG_LEVEL` | optional | `debug` / `info` / `warn` / `error`. Default `info` in prod. |
 | `NODE_ENV` | optional | Set to `production` for JSON logs + cookie security. |

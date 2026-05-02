@@ -37,6 +37,19 @@ enum Plan {
   council
 }
 
+// Stripe subscription state, snapshotted from webhook events. `trialing`
+// is the default for a freshly-provisioned org (60-day trial set in
+// provision.js); `expired` is the post-trial state when the org never
+// converted (distinct from `canceled`, which means they had a paid
+// subscription and stopped).
+enum SubscriptionStatus {
+  trialing
+  active
+  past_due
+  canceled
+  expired
+}
+
 enum Role {
   scout
   parent
@@ -82,6 +95,18 @@ model Org {
   // know to nudge their charter org.
   suspendedAt         DateTime?
   suspendedReason     String?
+  // Stripe billing state. Webhook events (lib/stripe.js) are the single
+  // writer for these fields — admin UI reads them but never mutates them
+  // directly. `subscriptionStatus` is the gate for plan enforcement
+  // (lib/billingState.js). A null `stripeCustomerId` is fine: the org is
+  // either pre-checkout (still trialing) or grandfathered.
+  stripeCustomerId    String?  @unique
+  stripeSubscriptionId String? @unique
+  stripePriceId       String?
+  subscriptionStatus  SubscriptionStatus @default(trialing)
+  trialEndsAt         DateTime?
+  currentPeriodEnd    DateTime?
+  cancelAtPeriodEnd   Boolean  @default(false)
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

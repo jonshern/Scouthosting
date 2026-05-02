@@ -83,7 +83,114 @@ member data:
       (graduated up from Phase 14).
 - [ ] `[security]` Penetration test before first paid council customer.
 
-## Phase 0 — Marketing & demo (DONE in this commit)
+## Production-launch readiness (paid GA gate)
+
+These are the gaps between today's free-beta state and "we can take a
+council's credit card and serve real youth data." Sequenced so each item
+unblocks the next; do them in order.
+
+1. [x] **Stripe + plan gating.** Single product (Unit, $99/yr), 60-day
+       free trial set on Org at provision time, no nonprofit discount
+       in v1, USD only. Webhook handler at `/api/webhooks/stripe`
+       (signature-verified in `lib/stripe.js`) syncs
+       `subscriptionStatus` / `currentPeriodEnd` / `cancelAtPeriodEnd`
+       on `checkout.session.completed`,
+       `customer.subscription.{created,updated,deleted}`,
+       `invoice.payment_{failed,succeeded}`. `lib/billingState.js`
+       derives a 3-state gate (writeable / readonly / suspended) with
+       a 7-day past-due grace window so a Sunday-morning card-failure
+       doesn't lock a leader out. `adminRouter` mounts a router-level
+       middleware that 402-redirects writes to `/admin/billing` once
+       the gate flips. Demo orgs (`isDemo`) bypass billing entirely.
+       Admin billing screen at `/admin/billing` (status, subscribe,
+       cancel-at-period-end, resume). Stripe SDK is an optional
+       dependency so dev / self-hosted deploys without keys still
+       boot. Env vars in `docs/DEPLOY.md`. 23 unit tests
+       (`tests/billingState.test.js`, `tests/stripeWebhook.test.js`).
+       Open follow-ups: in-app payment-method update flow, dunning
+       email cadence, integration test that walks a real Stripe
+       Checkout session in test mode.
+2. [ ] **Password reset UI.** Backend exists (`/forgot` and
+       `/reset/:token` routes with hash-bound signed tokens); the
+       publicly-facing forms aren't wired into the login page. A
+       locked-out admin currently has no self-recovery path. Add
+       `/forgot` form on the login surface + `/reset/:token` form,
+       both CSRF-protected and styled with the Compass design tokens.
+3. [ ] **Sentry error tracking.** OTel covers traces; we have nothing
+       catching unhandled exceptions in production. Wire
+       `@sentry/node` (server) + `@sentry/browser` (admin shell) with
+       `requestId` + `orgSlug` tags from the existing log context.
+       Source maps uploaded on build. Release tagging from the same
+       env var the structured logger reads.
+4. [ ] **`[infra]` Persistent job queue (pg-boss).** Newsletter cron
+       is `setInterval` with `CRON_DISABLED` as a single-pod leader
+       election. Fine for one job; breaks the moment we add reminder
+       emails, Stripe webhook retries, image processing, or scale to
+       a second pod. Migrate the newsletter tick to pg-boss; create
+       queues for `email-broadcast`, `stripe-webhook-retry`, and
+       `rsvp-reminder`. Boss runs on the same Postgres — no new
+       infra to operate.
+5. [ ] `[security]` **2FA for leader/admin roles.** Already in the
+       security backlog; promote here. TOTP first (`otplib` +
+       QR via `qrcode`), 8 single-use recovery codes hashed at rest,
+       enforced on admin-membership login. WebAuthn / passkeys as a
+       follow-up.
+6. [ ] **COPPA / parental-consent flow.** Scouts under 13 are common;
+       collecting their data without verifiable parental consent is
+       a federal-trade-commission problem. Age-gate at signup
+       (`Member.birthdate` already exists). Under-13 youth records
+       can be created by leaders / parents but flagged
+       `consentRequiredAt` until the linked parent confirms via a
+       signed-token email. No notifications go to a youth's own
+       contact methods until consent is on file. Surfaced on the
+       member detail page and the org-wide compliance report.
+7. [ ] **Per-user account deletion + GDPR erasure.** Per-org export
+       exists; per-user delete and "right to be forgotten" don't.
+       Self-service `/account/delete` with email confirmation, a
+       30-day soft-delete window (so an accidental click is
+       recoverable), then hard-delete via a pg-boss job.
+       Org-scoped data the user authored (posts, comments, RSVPs)
+       gets author-anonymised rather than deleted to preserve unit
+       history.
+8. [ ] **`[infra]` Status page + runbook.** `docs/RUNBOOK.md`
+       (incident response: who's on call, escalation tree, common
+       failure modes + recovery steps, rollback procedure for a
+       bad deploy). Public status page — start with a static
+       Cloudflare Page that the on-call updates manually; graduate
+       to a self-hosted Cachet / Atlassian Statuspage when paid
+       customers > 5.
+9. [ ] **`[infra]` Automated backups + restore drill.** Backup
+       commands are documented; nothing runs them on a schedule.
+       Cloud SQL automated backups (or Fly Postgres scheduled
+       snapshots) + a quarterly restore-to-staging drill that
+       writes the verification result to AuditLog. PITR enabled.
+       Per-org logical export (today's `/admin/export`) covers
+       customer self-serve.
+10. [ ] **Accessibility CI.** No automated a11y signal today. Add
+        `@axe-core/playwright` smoke run over the public site, the
+        login page, and the four most-used admin pages
+        (dashboard, events, members, broadcasts). Block CI on new
+        critical / serious violations; existing baseline allowed
+        on a snapshot.
+11. [ ] **Report-content / moderation queue.** Admins can hide /
+        delete comments today; there's no member-driven report
+        flow and no escalation path for a youth-safety issue.
+        `Report` model (reporterId, targetType, targetId, reason,
+        status), `Report this` link on every comment / post / chat
+        message, queue at `/admin/moderation` with one-click
+        hide-and-acknowledge. Reports tagged `youth-safety`
+        auto-route as urgent SupportTickets to the super-admin
+        queue.
+12. [ ] **Standard Terms of Service + Privacy Policy + DPA.** No
+        legal docs exist today; we can't take a credit card without
+        them. Adapt a vetted SaaS template (Stripe Atlas / Common
+        Paper / Termly) tailored for: youth-data handling, COPPA
+        disclosures, FERPA where relevant, sub-processor list,
+        breach-notification SLA, data-retention defaults, dispute
+        venue. Live at `/terms`, `/privacy`, `/dpa` on the apex
+        marketing site; checkout has a "by clicking Subscribe you
+        agree to…" line; signup page captures `acceptedTermsAt` /
+        `acceptedTermsVersion` per user.
 
 - [x] Public marketing site (`index.html`) — pitch, features, pricing, FAQ
 - [x] Compiled feature inventory from screenshots + TroopWebHost

@@ -1,43 +1,36 @@
-# Fly.io staging config.
+# fly.toml app configuration file generated for compass-staging on 2026-05-02T12:42:08-05:00
 #
-# Build: uses the existing root Dockerfile (multi-stage Node 22-slim
-# runtime). The CMD runs `prisma migrate deploy` then starts Express.
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
-# Postgres lives in a separate Fly app (compass-staging-db). It's
-# attached via `fly postgres attach`, which sets DATABASE_URL as a
-# secret automatically.
-#
-# Auto-stop after idle keeps the staging bill near-zero on the hobby
-# plan; first request after idle takes ~2s to wake up.
 
-app = "compass-staging"           # change if Fly says the name is taken
-primary_region = "ord"            # us-central; pick another with `fly platform regions`
+app = 'compass-staging'
+primary_region = 'ord'
 
 [build]
-  dockerfile = "Dockerfile"
+  dockerfile = 'Dockerfile'
 
 [env]
-  NODE_ENV = "production"
-  PORT = "8080"
-  APEX_DOMAIN = "compass-staging.fly.dev"
-  PUSH_DRIVER = "console"         # bump to "expo" once EXPO_ACCESS_TOKEN is set as a secret
+  APEX_DOMAIN = 'compass-staging.fly.dev'
+  NODE_ENV = 'production'
+  PORT = '8080'
+  PUSH_DRIVER = 'console'
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
 
   [[http_service.checks]]
-    grace_period = "10s"
-    interval = "30s"
-    method = "GET"
-    timeout = "5s"
-    path = "/healthz"
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/healthz'
 
-# Default machine size is shared-cpu-1x with 256 MB. Bump these later
-# (e.g. via `fly scale memory 512`) if the dev server starts OOMing.
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "256mb"
+  size = 'shared-cpu-1x'
+  memory = '256mb'
+  cpus = 1
+  memory_mb = 256

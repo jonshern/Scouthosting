@@ -115,8 +115,16 @@ export async function provisionOrg(input) {
 
   const charterOrg = input.charterOrg.trim();
 
+  // 60-day free trial set at provision time. The Stripe webhook only
+  // takes over once the leader actually checks out; until then,
+  // lib/billingState.js gates write access on trialEndsAt.
+  const TRIAL_DAYS = 60;
+  const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+
   const org = await prisma.org.create({
     data: {
+      trialEndsAt,
+      subscriptionStatus: "trialing",
       slug,
       unitType: input.unitType,
       unitNumber: String(input.unitNumber),

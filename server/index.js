@@ -31,6 +31,7 @@ import { supportWidget } from "../lib/supportWidget.js";
 const log = logger.child("http");
 import { issueToken } from "../lib/apiToken.js";
 import { verifyResendSignature, normalizeResendEvent } from "../lib/resendWebhook.js";
+import { verifyStripeSignature, syncFromStripeEvent } from "../lib/stripe.js";
 
 // Buckets: tight on auth surfaces (login/signup are the brute-force
 // targets), looser on /api/provision since legitimate provisioning is
@@ -694,6 +695,37 @@ app.post("/api/webhooks/resend", async (req, res) => {
   });
 
   res.json({ ok: true, kind: event.kind, email: event.email, affected: updated.count });
+});
+
+// POST /api/webhooks/stripe — subscription state sync. Signature verified
+// over the raw request body (captured on req.rawBody by the json middleware
+// above). All work happens in lib/stripe.js#syncFromStripeEvent so this
+// handler stays a thin transport layer.
+//
+// Always responds 200 to handled and ignored event types; only signature
+// failure → 401 (so Stripe surfaces the misconfig in their dashboard).
+app.post("/api/webhooks/stripe", async (req, res) => {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) return res.status(503).json({ error: "webhook_not_configured" });
+
+  const rawBody = req.rawBody || JSON.stringify(req.body || {});
+  const sig = req.headers["stripe-signature"];
+  const v = verifyStripeSignature(rawBody, sig, secret);
+  if (!v.ok) {
+    log.warn({ reason: v.reason }, "stripe webhook signature failed");
+    return res.status(401).json({ error: "bad_signature", reason: v.reason });
+  }
+
+  try {
+    const result = await syncFromStripeEvent(req.body);
+    return res.json({ ok: true, ...result });
+  } catch (err) {
+    log.error({ err: err.message, type: req.body?.type }, "stripe webhook handler errored");
+    // 500 → Stripe will retry. That's the correct behaviour for a
+    // transient DB blip; if it's a persistent bug we'll see it in
+    // the audit log.
+    return res.status(500).json({ error: "handler_error" });
+  }
 });
 
 /* ------------------ Provisioning API ------------------------------ */
