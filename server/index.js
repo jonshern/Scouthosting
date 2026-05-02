@@ -441,18 +441,18 @@ app.get("/choose-org", async (req, res, next) => {
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:'Inter Tight',system-ui,sans-serif;color:#0d130d;background:#f4ecdc;display:grid;place-items:center;min-height:100vh;padding:2rem}
-.shell{max-width:520px;width:100%;background:#fff;border:1px solid #d4c8a8;border-radius:14px;padding:2.25rem 2rem 2rem;box-shadow:0 12px 30px rgba(0,0,0,.05)}
-.eyebrow{font-size:11px;color:#5a6258;letter-spacing:.14em;text-transform:uppercase;font-weight:600;margin-bottom:.5rem}
+*{box-sizing:border-box}body{margin:0;font-family:'Inter Tight',system-ui,sans-serif;color:#0f172a;background:#f7f8fa;display:grid;place-items:center;min-height:100vh;padding:2rem}
+.shell{max-width:520px;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:2.25rem 2rem 2rem;box-shadow:0 12px 30px rgba(0,0,0,.05)}
+.eyebrow{font-size:11px;color:#64748b;letter-spacing:.14em;text-transform:uppercase;font-weight:600;margin-bottom:.5rem}
 h1{font-family:Newsreader,Georgia,serif;font-weight:400;font-size:32px;line-height:1.1;letter-spacing:-.02em;margin:0 0 .5rem}
-.lede{color:#2a352a;margin:0 0 1.5rem;font-size:15px}
+.lede{color:#334155;margin:0 0 1.5rem;font-size:15px}
 ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.6rem}
-.org{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border:1px solid #d4c8a8;border-radius:10px;text-decoration:none;color:inherit;transition:border-color .12s,background .12s}
-.org:hover{border-color:#0e3320;background:#fafaf7}
-.org__name{font-weight:600;font-size:16px;color:#0d130d}
-.org__meta{font-size:12.5px;color:#5a6258}
-.fine{margin-top:1.25rem;font-size:13px;color:#5a6258;text-align:center}
-.fine a{color:#0e3320;font-weight:500}
+.org{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:inherit;transition:border-color .12s,background .12s}
+.org:hover{border-color:#0f172a;background:#fafaf7}
+.org__name{font-weight:600;font-size:16px;color:#0f172a}
+.org__meta{font-size:12.5px;color:#64748b}
+.fine{margin-top:1.25rem;font-size:13px;color:#64748b;text-align:center}
+.fine a{color:#0f172a;font-weight:500}
 </style></head><body>
 <div class="shell">
 <div class="eyebrow">§ Choose your unit</div>
@@ -496,7 +496,7 @@ app.get("/invite/:token", async (req, res) => {
 <title>Accept invite — ${escape(req.org.displayName)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f4ecdc;--surface:#fff;--ink:#0d130d;--ink-muted:#5a6258;--line:#d4c8a8;--primary:#0e3320;--accent:#c8e94a;--font-display:"Newsreader",serif;--font-ui:"Inter Tight",sans-serif}
+:root{--bg:#f7f8fa;--surface:#fff;--ink:#0f172a;--ink-muted:#64748b;--line:#e2e8f0;--primary:#0f172a;--accent:#1d4ed8;--font-display:"Newsreader",serif;--font-ui:"Inter Tight",sans-serif}
 body{margin:0;font-family:var(--font-ui);background:var(--bg);color:var(--ink);min-height:100vh;display:grid;place-items:center;padding:1rem}
 main{max-width:440px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:2.25rem 2rem}
 h1{font-family:var(--font-display);font-weight:400;letter-spacing:-.02em;margin:0 0 .4rem;font-size:30px}
@@ -516,7 +516,7 @@ input{display:block;width:100%;margin-top:.3rem;padding:.6rem .75rem;border:1.5p
   <form method="post" action="/invite/${escape(req.params.token)}">
     ${req.csrfToken ? `<input type="hidden" name="csrf" value="${req.csrfToken}">` : ""}
     <label>Your name<input name="displayName" required></label>
-    <label>Email<input name="email" type="email" value="${escape(claims.email)}" readonly style="background:#f4ecdc"></label>
+    <label>Email<input name="email" type="email" value="${escape(claims.email)}" readonly style="background:#f7f8fa"></label>
     <label>Choose a password<input name="password" type="password" required minlength="8"></label>
     <button class="btn" type="submit">Accept invite & create account</button>
   </form>
@@ -563,7 +563,7 @@ app.post("/invite/:token", async (req, res) => {
 
 function inviteErrorPage(org, message) {
   return `<!doctype html><html><head><meta charset="utf-8"><title>Invite — ${escape(org.displayName)}</title>
-<style>body{font-family:"Inter Tight",sans-serif;background:#f4ecdc;color:#0d130d;display:grid;place-items:center;min-height:100vh;margin:0;padding:1rem}main{max-width:480px;background:#fff;border:1px solid #d4c8a8;border-radius:14px;padding:2rem;text-align:center}h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em}a{color:#0e3320}</style>
+<style>body{font-family:"Inter Tight",sans-serif;background:#f7f8fa;color:#0f172a;display:grid;place-items:center;min-height:100vh;margin:0;padding:1rem}main{max-width:480px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:2rem;text-align:center}h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em}a{color:#0f172a}</style>
 </head><body><main><h1>Hmm.</h1><p>${escape(message)}</p><p><a href="/">← Back to ${escape(org.displayName)}</a></p></main></body></html>`;
 }
 
@@ -579,7 +579,7 @@ app.get("/help", (req, res) => {
 <title>Help — ${orgName}</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f4ecdc;--surface:#fff;--ink:#0d130d;--ink-muted:#5a6258;--line:#d4c8a8;--primary:#0e3320;--accent:#c8e94a;--font-display:"Newsreader",serif;--font-ui:"Inter Tight",sans-serif}
+:root{--bg:#f7f8fa;--surface:#fff;--ink:#0f172a;--ink-muted:#64748b;--line:#e2e8f0;--primary:#0f172a;--accent:#1d4ed8;--font-display:"Newsreader",serif;--font-ui:"Inter Tight",sans-serif}
 body{margin:0;font-family:var(--font-ui);background:var(--bg);color:var(--ink);min-height:100vh;padding:2rem 1rem}
 main{max-width:560px;margin:0 auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:2rem}
 h1{font-family:var(--font-display);font-weight:400;letter-spacing:-.02em;margin:0 0 .4rem}
@@ -639,12 +639,12 @@ app.post("/help", async (req, res) => {
   res.set("Content-Type", "text/html; charset=utf-8").send(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Thanks — Compass</title>
-<style>body{font-family:"Inter Tight",sans-serif;background:#f4ecdc;color:#0d130d;display:grid;place-items:center;min-height:100vh;margin:0;padding:1rem}main{max-width:520px;background:#fff;border:1px solid #d4c8a8;border-radius:14px;padding:2rem;text-align:center}h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em}a{color:#0e3320}</style>
+<style>body{font-family:"Inter Tight",sans-serif;background:#f7f8fa;color:#0f172a;display:grid;place-items:center;min-height:100vh;margin:0;padding:1rem}main{max-width:520px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:2rem;text-align:center}h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em}a{color:#0f172a}</style>
 </head><body>
 <main>
   <h1>We got it.</h1>
   <p>A Compass operator will reply to <strong>${escape(email)}</strong> within one business day.</p>
-  <p style="color:#5a6258;font-size:.86rem">Reference: <code>${escape(ticket.id)}</code></p>
+  <p style="color:#64748b;font-size:.86rem">Reference: <code>${escape(ticket.id)}</code></p>
   <p><a href="/">← back to ${escape(req.org?.displayName || "Compass")}</a></p>
 </main></body></html>`);
 });
@@ -1809,19 +1809,19 @@ app.get("/calendar.json", async (req, res, next) => {
     // primary/accent fallbacks. The FullCalendar consumer only needs a
     // CSS color string.
     const map = {
-      primary: req.org.primaryColor || "#0e3320",
-      accent: req.org.accentColor || "#c8e94a",
+      primary: req.org.primaryColor || "#0f172a",
+      accent: req.org.accentColor || "#1d4ed8",
       sky: "#3a93c5",
       raspberry: "#c44066",
       plum: "#7d4f8a",
       butter: "#e6c44a",
     };
-    return map[color] || req.org.primaryColor || "#0e3320";
+    return map[color] || req.org.primaryColor || "#0f172a";
   };
 
   const out = expanded.map((e) => {
     const meta = e.category ? categoryMeta(e.category) : null;
-    const bg = meta ? palette(meta.color) : (req.org.primaryColor || "#0e3320");
+    const bg = meta ? palette(meta.color) : (req.org.primaryColor || "#0f172a");
     return {
       id: e.id,
       title: e.title,
@@ -1831,7 +1831,7 @@ app.get("/calendar.json", async (req, res, next) => {
       url: `/events/${e.id}`,
       backgroundColor: bg,
       borderColor: bg,
-      textColor: meta && (meta.color === "accent" || meta.color === "butter") ? "#0e3320" : "#fff",
+      textColor: meta && (meta.color === "accent" || meta.color === "butter") ? "#0f172a" : "#fff",
       extendedProps: {
         location: e.location || "",
         category: meta?.label || e.category || "",
@@ -2519,27 +2519,27 @@ function renderSelfServicePage(org, user, member, role, csrfToken, query) {
   const sel = (cond) => (cond ? " selected" : "");
   const checked = (cond) => (cond ? " checked" : "");
   const flash = query?.saved
-    ? `<div class="flash flash-ok" style="background:#e3f29b;border:1px solid #c8e94a;padding:.6rem .85rem;border-radius:8px;margin:1rem 0">Saved.</div>`
+    ? `<div class="flash flash-ok" style="background:#bcd0f4;border:1px solid #1d4ed8;padding:.6rem .85rem;border-radius:8px;margin:1rem 0">Saved.</div>`
     : query?.notlinked
       ? `<div class="flash" style="background:#fbe8e3;border:1px solid #f0bcb1;padding:.6rem .85rem;border-radius:8px;margin:1rem 0;color:#7d2614">No directory entry for ${escapeAttr(user.email)} yet — ask a unit leader to add you.</div>`
       : "";
   const linked = member
-    ? `<form method="post" action="/me" class="card" style="background:#fff;border:1px solid #d4c8a8;border-radius:14px;padding:1.5rem">
+    ? `<form method="post" action="/me" class="card" style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.5rem">
         ${csrfToken ? `<input type="hidden" name="csrf" value="${escapeAttr(csrfToken)}">` : ""}
         <h2 style="margin-top:0">Your contact details</h2>
-        <p style="color:#5a6258;font-size:.92rem">These are what a leader sees in the directory and what we use when sending broadcasts.</p>
+        <p style="color:#64748b;font-size:.92rem">These are what a leader sees in the directory and what we use when sending broadcasts.</p>
         <label style="display:block;margin:1rem 0">Name
-          <input type="text" value="${escapeAttr(member.firstName + " " + member.lastName)}" disabled style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #e6dcc0;border-radius:8px;background:#f4ecdc;color:#5a6258">
-          <span style="color:#5a6258;font-size:.78rem">Ask a leader to fix typos in your name.</span>
+          <input type="text" value="${escapeAttr(member.firstName + " " + member.lastName)}" disabled style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #eef1f5;border-radius:8px;background:#f7f8fa;color:#64748b">
+          <span style="color:#64748b;font-size:.78rem">Ask a leader to fix typos in your name.</span>
         </label>
         <label style="display:block;margin:1rem 0">Email
-          <input type="email" value="${escapeAttr(member.email)}" disabled style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #e6dcc0;border-radius:8px;background:#f4ecdc;color:#5a6258">
+          <input type="email" value="${escapeAttr(member.email)}" disabled style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #eef1f5;border-radius:8px;background:#f7f8fa;color:#64748b">
         </label>
         <label style="display:block;margin:1rem 0">Phone
-          <input name="phone" type="tel" value="${escapeAttr(member.phone || "")}" placeholder="555-0142" style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #d4c8a8;border-radius:8px">
+          <input name="phone" type="tel" value="${escapeAttr(member.phone || "")}" placeholder="555-0142" style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #e2e8f0;border-radius:8px">
         </label>
         <label style="display:block;margin:1rem 0">How should we reach you?
-          <select name="commPreference" style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #d4c8a8;border-radius:8px">
+          <select name="commPreference" style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #e2e8f0;border-radius:8px">
             <option value="email"${sel(member.commPreference === "email")}>Email only</option>
             <option value="sms"${sel(member.commPreference === "sms")}>Text only</option>
             <option value="both"${sel(member.commPreference === "both")}>Both email and text</option>
@@ -2550,7 +2550,7 @@ function renderSelfServicePage(org, user, member, role, csrfToken, query) {
           <input name="smsOptIn" type="checkbox" value="1"${checked(member.smsOptIn)}>
           I consent to receiving text messages at the phone number above.
         </label>
-        <button type="submit" style="background:#0d130d;color:#f4ecdc;border:1.5px solid #0d130d;padding:.65rem 1.1rem;border-radius:8px;font-weight:600;cursor:pointer">Save</button>
+        <button type="submit" style="background:#0f172a;color:#f7f8fa;border:1.5px solid #0f172a;padding:.65rem 1.1rem;border-radius:8px;font-weight:600;cursor:pointer">Save</button>
       </form>`
     : `<div class="flash" style="background:#fbe8e3;border:1px solid #f0bcb1;padding:1rem 1.2rem;border-radius:8px;color:#7d2614;margin:1rem 0">
         We couldn't find a directory entry matching <strong>${escapeAttr(user.email)}</strong>. Ask a unit leader to add you, then come back.
@@ -2561,15 +2561,15 @@ function renderSelfServicePage(org, user, member, role, csrfToken, query) {
 <title>My settings — ${escapeAttr(org.displayName)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
 <style>
-body{margin:0;font-family:"Inter Tight",sans-serif;background:#f4ecdc;color:#0d130d;min-height:100vh}
+body{margin:0;font-family:"Inter Tight",sans-serif;background:#f7f8fa;color:#0f172a;min-height:100vh}
 main{max-width:560px;margin:0 auto;padding:2rem 1rem}
 h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em}
-h1 em{font-style:italic;color:#0e3320}
-.muted{color:#5a6258;font-size:.92rem}
-input:focus,select:focus{outline:2px solid #0e3320;outline-offset:1px}
+h1 em{font-style:italic;color:#0f172a}
+.muted{color:#64748b;font-size:.92rem}
+input:focus,select:focus{outline:2px solid #0f172a;outline-offset:1px}
 </style></head><body>
 <main>
-<a href="/" style="color:#5a6258;text-decoration:none;font-size:.86rem">← ${escapeAttr(org.displayName)}</a>
+<a href="/" style="color:#64748b;text-decoration:none;font-size:.86rem">← ${escapeAttr(org.displayName)}</a>
 <h1>My <em>settings.</em></h1>
 <p class="muted">Signed in as ${escapeAttr(user.displayName || user.email)}${role && role !== "parent" ? ` · <strong>${escapeAttr(role)}</strong>` : ""}.</p>
 ${flash}

@@ -6,7 +6,7 @@ or scoutmaster lands on after signing in.
 
 This folder is a hand-coded HTML/CSS recreation of the locked design at
 `design/source/admin-pages.jsx → AdminBalanced` &mdash; using the
-**Forest & Ember** palette from `design/source/tokens.js` (`bold`).
+**Slate & Sky** palette from `design/source/tokens.js` (`balanced`).
 
 ## What's in this folder
 
@@ -49,11 +49,11 @@ strip that surfaces the constant `ROSTER` data declared at the top of
 
 1. **Top nav** &mdash; wordmark + seven section tabs (Overview / Calendar /
    Roster / Messages / Photos / Forms / Money), Overview underlined in
-   chartreuse and marked `aria-current="page"`. Right side: notification
+   sky-blue and marked `aria-current="page"`. Right side: notification
    bell, search button, JM avatar.
 2. **Greeting block** &mdash; dark-evergreen card with a "Troop 12 &middot;
    This week" pill, oversized italic-+-accent headline (`Tuesday, evening.`
-   with the comma + word in chartreuse italic), context-aware deadline
+   with the comma + word in sky-blue italic), context-aware deadline
    subhead, and dual CTAs ("Send reminder" + "+ New event").
 3. **Stats row** &mdash; four cards (Scouts active / RSVPs needed / Account
    balance / Unread), each with a different secondary-spectrum top-border
@@ -74,13 +74,13 @@ strip that surfaces the constant `ROSTER` data declared at the top of
 
 ## Locked design choices honored
 
-- **Palette:** Forest & Ember only. Deep evergreen `#0e3320` primary,
-  chartreuse `#c8e94a` accent, warm cream `#f4ecdc` page bg, `#1d3a32`
+- **Palette:** Slate & Sky only. Slate primary `#0f172a` primary,
+  sky-blue `#1d4ed8` accent, cool light gray `#f7f8fa` page bg, `#0f172a`
   for the greeting card (matches AdminBalanced's `surfaceDark` reference).
 - **Type:** Newsreader display with the italic-+-accent treatment on
   signature words (the comma in *Tuesday, evening.*, the en-dash in
   *32 scouts, three patrols.*), Inter Tight UI.
-- **Greeting card:** chartreuse glow blooming from the corner; pill
+- **Greeting card:** sky-blue glow blooming from the corner; pill
   kicker; 64px headline; a single contextual deadline sentence in muted
   white; ghost + accent buttons.
 - **Color-coded stats:** four different tones above the same neutral

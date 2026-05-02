@@ -512,34 +512,37 @@ ${body}
 }
 
 const ADMIN_SHELL_CSS = `
-/* Compass admin shell — Forest & Ember tokens. Per-org branding lives
-   on the public site; the admin uses the locked Compass palette for
-   consistency across every unit's leader experience. */
+/* Compass admin shell — Slate & Sky (balanced) tokens.
+   Per-org branding lives on the public site; the admin uses the
+   single locked Compass palette so leaders across every unit see
+   the same chrome.
+   Mirrors /tokens.css#balanced exactly — keep them in lockstep
+   when the canonical palette moves. */
 :root {
-  --bg:#f4ecdc;
+  --bg:#f7f8fa;
   --surface:#ffffff;
-  --surface-alt:#1a1f1a;
-  --surface-dark:#1d3a32;
-  --surface-sand:#ede0bf;
-  --ink:#0d130d;
-  --ink-soft:#2a352a;
-  --ink-muted:#5a6258;
-  --line:#d4c8a8;
-  --line-soft:#e6dcc0;
-  --primary:#0e3320;
-  --primary-hover:#06200f;
-  --accent:#c8e94a;
-  --accent-soft:#e3f29b;
-  --danger:#a82e1d;
-  --success:#3d6b3a;
-  --sky:#3a7ab8;
-  --sky-soft:#bcd6ec;
-  --ember:#e07a3c;
-  --raspberry:#c43d6b;
-  --raspberry-soft:#f0bccc;
-  --butter:#f3c54a;
-  --plum:#6e3b7a;
-  --teal:#3aa893;
+  --surface-alt:#eef1f5;
+  --surface-dark:#0f172a;
+  --surface-sand:#eef1f5;
+  --ink:#0f172a;
+  --ink-soft:#334155;
+  --ink-muted:#64748b;
+  --line:#e2e8f0;
+  --line-soft:#eef1f5;
+  --primary:#0f172a;
+  --primary-hover:#020617;
+  --accent:#1d4ed8;
+  --accent-soft:#bcd0f4;
+  --danger:#dc2626;
+  --success:#059669;
+  --sky:#1d4ed8;
+  --sky-soft:#bcd0f4;
+  --ember:#f59e0b;
+  --raspberry:#0f172a;
+  --raspberry-soft:#cbd5e1;
+  --butter:#f59e0b;
+  --plum:#475569;
+  --teal:#0891b2;
   --shadow:0 4px 20px rgba(15,23,42,.08);
   --font-display:"Newsreader","Source Serif Pro",Georgia,serif;
   --font-ui:"Inter Tight","Inter",system-ui,-apple-system,sans-serif;
@@ -737,7 +740,7 @@ function loginPage({ org, error }) {
 </a>`
     : "";
   const appleHtml = appleConfigured
-    ? `<a class="btn-google" style="background:#0d130d;color:#fff;border-color:#0d130d" href="https://${apex}/auth/apple/start?next=${adminNext}">
+    ? `<a class="btn-google" style="background:#0f172a;color:#fff;border-color:#0f172a" href="https://${apex}/auth/apple/start?next=${adminNext}">
   <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" fill="#fff">
     <path d="M16.4 12.5c0-2.6 2.1-3.9 2.2-3.9-1.2-1.7-3-2-3.7-2-1.6-.2-3 .9-3.8.9-.8 0-2-.9-3.2-.9-1.7 0-3.2 1-4.1 2.5-1.7 3-.4 7.4 1.3 9.8.8 1.2 1.7 2.5 3 2.5 1.2 0 1.7-.8 3.2-.8s1.9.8 3.2.8c1.3 0 2.2-1.2 3-2.4.9-1.4 1.3-2.7 1.3-2.8 0-.1-2.5-.9-2.4-3.7zM14.2 4.4c.7-.8 1.1-2 1-3.2-1 0-2.2.7-2.9 1.5-.7.7-1.2 1.9-1.1 3 1.2.1 2.4-.5 3-1.3z"/>
   </svg>
@@ -755,7 +758,7 @@ function loginPage({ org, error }) {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f4ecdc;--surface:#ffffff;--ink:#0d130d;--ink-soft:#2a352a;--ink-muted:#5a6258;--line:#d4c8a8;--line-soft:#e6dcc0;--primary:#0e3320;--primary-hover:#06200f;--accent:#c8e94a;--accent-soft:#e3f29b}
+:root{--bg:#f7f8fa;--surface:#ffffff;--ink:#0f172a;--ink-soft:#334155;--ink-muted:#64748b;--line:#e2e8f0;--line-soft:#eef1f5;--primary:#0f172a;--primary-hover:#020617;--accent:#1d4ed8;--accent-soft:#bcd0f4}
 *{box-sizing:border-box}
 body{margin:0;font-family:"Inter Tight","Inter",system-ui,sans-serif;color:var(--ink);background:var(--bg);display:grid;place-items:center;min-height:100vh;padding:2rem;line-height:1.55}
 .card{max-width:440px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:2.25rem 2rem;box-shadow:0 4px 20px rgba(15,23,42,.08)}
@@ -2249,9 +2252,9 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
   const body = `
     <h1>Calendar</h1>
     <p class="muted">Members can <strong>subscribe</strong> to your event feed and have every event you publish show up on their phone calendar automatically.</p>
-    <div class="card" style="margin-bottom:1rem;background:#faf3e3;border:1px solid #c8e94a">
+    <div class="card" style="margin-bottom:1rem;background:#faf3e3;border:1px solid #1d4ed8">
       <div class="row" style="align-items:center;gap:.6rem">
-        <code style="flex:1;background:#fff;padding:.45rem .65rem;border-radius:6px;border:1px solid #d4c8a8;overflow:auto;white-space:nowrap">${escape(subscribeUrl)}</code>
+        <code style="flex:1;background:#fff;padding:.45rem .65rem;border-radius:6px;border:1px solid #e2e8f0;overflow:auto;white-space:nowrap">${escape(subscribeUrl)}</code>
         <button type="button" class="btn btn-ghost small" onclick="navigator.clipboard.writeText('${escape(subscribeUrl)}').then(()=>{this.textContent='Copied'},()=>{this.textContent='Copy failed'})">Copy</button>
       </div>
       <p class="muted small" style="margin:.5rem 0 0">Share this URL in a welcome email or post it on your public site. Google Calendar / Apple Calendar / Outlook all accept it via "Subscribe to calendar from URL". Updates fan out automatically when the calendar refreshes (typically every few hours).</p>
@@ -2338,13 +2341,13 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
     <style>
       .admin-fc-host{background:#fff;border:1px solid #eef0e7;border-radius:12px;padding:1.1rem;margin-bottom:1.5rem;box-shadow:0 1px 2px rgba(15,58,31,.04)}
       .admin-fc-host.fc{font-family:inherit}
-      .fc .fc-toolbar-title{font-family:'Inter Tight',Inter,sans-serif;font-size:1.3rem;font-weight:600;letter-spacing:-0.01em;color:var(--ink-900,#0d130d)}
+      .fc .fc-toolbar-title{font-family:'Inter Tight',Inter,sans-serif;font-size:1.3rem;font-weight:600;letter-spacing:-0.01em;color:var(--ink-900,#0f172a)}
       .fc .fc-button{background:#f7f4e8;border:1px solid #e2dab8;color:#3a4036;font-weight:600;text-transform:none;box-shadow:none;padding:.4rem .8rem;font-size:.85rem}
       .fc .fc-button:hover{background:#efe9d2;border-color:#cdc093}
       .fc .fc-button:focus{box-shadow:0 0 0 2px rgba(14,51,32,.18)}
       .fc .fc-button-primary:not(:disabled).fc-button-active,
       .fc .fc-button-primary:not(:disabled):active{background:#1d6b39;border-color:#1d6b39;color:#fff}
-      .fc .fc-col-header-cell-cushion{font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#5a6258;padding:.55rem 0}
+      .fc .fc-col-header-cell-cushion{font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#64748b;padding:.55rem 0}
       .fc .fc-day-today{background:#fffbe6 !important}
       .fc .fc-event{cursor:pointer;border-radius:5px;font-size:.78rem;font-weight:500}
       .fc .fc-event:hover{filter:brightness(1.05)}
@@ -4931,9 +4934,9 @@ adminRouter.get("/analytics", requireLeader, async (req, res) => {
     return `<a href="/admin/analytics${q}" ${cls}>${escape(label)}</a>`;
   }
   function surfaceTag(s) {
-    const colors = { tenant: "#3aa893", admin: "#c8e94a", unknown: "#a3a89e" };
+    const colors = { tenant: "#0891b2", admin: "#1d4ed8", unknown: "#a3a89e" };
     const c = colors[s] || "#a3a89e";
-    return `<span class="tag" style="background:${c};color:#0d130d;border-color:${c}">${escape(s)}</span>`;
+    return `<span class="tag" style="background:${c};color:#0f172a;border-color:${c}">${escape(s)}</span>`;
   }
   function surfaceBar(s, label, count) {
     const pct = surfaceTotal ? (count / surfaceTotal) * 100 : 0;
@@ -5675,7 +5678,7 @@ adminRouter.get("/members/:id/messages", requireLeader, async (req, res) => {
     });
 
   const statusTag = (s) => {
-    if (s === "sent") return `<span class="tag" style="background:#e3f29b;border-color:#c8e94a;color:#0e3320">sent</span>`;
+    if (s === "sent") return `<span class="tag" style="background:#bcd0f4;border-color:#1d4ed8;color:#0f172a">sent</span>`;
     if (s === "partial") return `<span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">partial</span>`;
     if (s === "failed") return `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">failed</span>`;
     return `<span class="tag">${escape(s)}</span>`;
@@ -8621,9 +8624,9 @@ function renderNewsletterStatusTag(n) {
     const when = n.publishedAt
       ? new Date(n.publishedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })
       : "";
-    return `<span class="tag" style="background:#e3f29b;border-color:#c8e94a;color:#0e3320">sent · ${escape(when)}</span>`;
+    return `<span class="tag" style="background:#bcd0f4;border-color:#1d4ed8;color:#0f172a">sent · ${escape(when)}</span>`;
   }
-  return `<span class="tag" style="background:#fbf8ee;border-color:#eef0e7;color:#5a6258">draft</span>`;
+  return `<span class="tag" style="background:#fbf8ee;border-color:#eef0e7;color:#64748b">draft</span>`;
 }
 
 adminRouter.get("/newsletters", requireLeader, async (req, res) => {
@@ -8766,7 +8769,7 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
   ]);
 
   const statusBlock = issue.status === "sent"
-    ? `<div class="card" style="background:#e3f29b;border:1px solid #c8e94a"><strong>Sent ${escape(new Date(issue.publishedAt).toLocaleString("en-US"))}</strong>${issue.author ? ` by ${escape(issue.author.displayName)}` : ""}.${issue.mailLogId ? ` <a href="/admin/email/sent">See in mail history →</a>` : ""}</div>`
+    ? `<div class="card" style="background:#bcd0f4;border:1px solid #1d4ed8"><strong>Sent ${escape(new Date(issue.publishedAt).toLocaleString("en-US"))}</strong>${issue.author ? ` by ${escape(issue.author.displayName)}` : ""}.${issue.mailLogId ? ` <a href="/admin/email/sent">See in mail history →</a>` : ""}</div>`
     : req.query.tested
       ? `<div class="flash flash-ok">Test sent to ${escape(req.user.email)}. Check your inbox to see the families' view.</div>`
       : "";
@@ -8920,7 +8923,7 @@ adminRouter.post("/newsletters/:id/test-send", requireLeader, async (req, res) =
       text: `(This is a test send to your own address. Family broadcasts go out via "Send now" on the newsletter page.)\n\n${text}`,
       html: html.replace(
         "</body>",
-        `<p style="font-size:11px;color:#5a6258;text-align:center;margin-top:18px;padding:.6rem;background:#f4ecdc;border-radius:6px">This is a test send to your own address. The audience copy goes out when you hit <strong>Send now</strong>.</p></body>`,
+        `<p style="font-size:11px;color:#64748b;text-align:center;margin-top:18px;padding:.6rem;background:#f7f8fa;border-radius:6px">This is a test send to your own address. The audience copy goes out when you hit <strong>Send now</strong>.</p></body>`,
       ),
       from: `${fromName} <noreply@${req.org.slug}.${apex}>`,
       replyTo: req.user.email,
@@ -8984,7 +8987,7 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
     const personalText = `${text}\n\nUnsubscribe: ${unsubUrl}`;
     const personalHtml = html.replace(
       "</body>",
-      `<p style="font-size:11px;color:#5a6258;text-align:center;margin-top:18px"><a href="${escape(unsubUrl)}" style="color:#5a6258">Unsubscribe</a></p></body>`,
+      `<p style="font-size:11px;color:#64748b;text-align:center;margin-top:18px"><a href="${escape(unsubUrl)}" style="color:#64748b">Unsubscribe</a></p></body>`,
     );
     return trackEmail({
       baseUrl,
@@ -9234,7 +9237,7 @@ function channelStatusBadge(c) {
   if (c.isSuspended) {
     return `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">suspended${c.suspendedReason ? `: ${escape(c.suspendedReason.replace(/-/g, " "))}` : ""}</span>`;
   }
-  return `<span class="tag" style="background:#e3f29b;border-color:#c8e94a;color:#0e3320">active</span>`;
+  return `<span class="tag" style="background:#bcd0f4;border-color:#1d4ed8;color:#0f172a">active</span>`;
 }
 
 adminRouter.get("/channels", requireLeader, async (req, res) => {
@@ -9376,7 +9379,7 @@ adminRouter.get("/channels/:id", requireLeader, async (req, res) => {
       const yptBadge = yptOk === null
         ? ""
         : yptOk
-          ? `<span class="tag" style="background:#e3f29b;border-color:#c8e94a;color:#0e3320">YPT current</span>`
+          ? `<span class="tag" style="background:#bcd0f4;border-color:#1d4ed8;color:#0f172a">YPT current</span>`
           : `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">YPT expired/missing</span>`;
       return `
         <li>
@@ -9591,7 +9594,7 @@ adminRouter.get("/ypt", requireLeader, async (req, res) => {
           ? `<span class="tag" style="background:#fbe8e3;border-color:#f0bcb1;color:#7d2614">expired</span>`
           : new Date(m.yptCurrentUntil).getTime() - today.getTime() < 60 * 86400000
             ? `<span class="tag" style="background:#fff7e6;border-color:#ecd87a;color:#7d5a00">expiring &lt; 60d</span>`
-            : `<span class="tag" style="background:#e3f29b;border-color:#c8e94a;color:#0e3320">current</span>`;
+            : `<span class="tag" style="background:#bcd0f4;border-color:#1d4ed8;color:#0f172a">current</span>`;
       return `
         <tr>
           <td><strong>${escape(m.user.displayName)}</strong>${tag}<br><span class="muted small">${escape(m.user.email)} · ${escape(m.role)}</span></td>

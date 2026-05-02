@@ -24,7 +24,7 @@ If no codebase exists yet, recommended stack:
 
 ## Fidelity
 
-**High-fidelity.** Pixel-perfect mockups with final colors, typography, spacing, and interaction intent. Recreate UI pixel-perfectly using the codebase's libraries. The Forest & Ember palette and Newsreader / Inter Tight type system are **locked**.
+**High-fidelity.** Pixel-perfect mockups with final colors, typography, spacing, and interaction intent. Recreate UI pixel-perfectly using the codebase's libraries. The Slate & Sky palette and Newsreader / Inter Tight type system are **locked**.
 
 The other palette directions (Pine & Brass, Slate & Sky) and the alternate marketing variants (`marketing-safe.jsx`, `marketing-bold.jsx`) are kept in the source folder for reference only — **do not implement them**.
 
@@ -32,35 +32,35 @@ The other palette directions (Pine & Brass, Slate & Sky) and the alternate marke
 
 ## Locked design system
 
-### Palette — "Forest & Ember" (the `bold` palette in `tokens.js`)
+### Palette — "Slate & Sky" (the `balanced` palette in `tokens.js`)
 
 | Token | Hex | Use |
 |---|---|---|
-| `bg` | `#f4ecdc` | Warm cream page background |
+| `bg` | `#f7f8fa` | Cool light gray page background |
 | `surface` | `#ffffff` | Cards, sheets |
-| `surfaceAlt` | `#1a1f1a` | Inverted/dark sections |
-| `ink` | `#0d130d` | Primary text |
-| `inkSoft` | `#2a352a` | Body text |
-| `inkMuted` | `#5a6258` | Captions, meta |
-| `line` | `#d4c8a8` | Borders |
-| `lineSoft` | `#e6dcc0` | Subtle dividers |
-| `primary` | `#0e3320` | Deep evergreen — primary brand |
-| `primaryHover` | `#06200f` | Hover state |
-| `accent` | `#c8e94a` | Chartreuse highlight (use sparingly) |
-| `accentSoft` | `#e3f29b` | Tints |
-| `danger` | `#a82e1d` | Errors |
-| `success` | `#3d6b3a` | Success / YPT-compliance affirmations |
+| `surfaceAlt` | `#eef1f5` | Inverted slate sections |
+| `ink` | `#0f172a` | Primary text |
+| `inkSoft` | `#334155` | Body text |
+| `inkMuted` | `#64748b` | Captions, meta |
+| `line` | `#e2e8f0` | Borders |
+| `lineSoft` | `#eef1f5` | Subtle dividers |
+| `primary` | `#0f172a` | Slate primary — primary brand |
+| `primaryHover` | `#020617` | Hover state |
+| `accent` | `#1d4ed8` | Sky-blue highlight (use sparingly) |
+| `accentSoft` | `#bcd0f4` | Tints |
+| `danger` | `#dc2626` | Errors |
+| `success` | `#059669` | Success / YPT-compliance affirmations |
 
 **Secondary spectrum** — used for category coding (event types, stat cards, channel icons):
 
 | Token | Hex | Default category |
 |---|---|---|
-| `sky` | `#3a7ab8` | Informational, calendar |
-| `ember` | `#e07a3c` | Outdoor events, campouts |
-| `raspberry` | `#c43d6b` | Urgent alerts |
-| `butter` | `#f3c54a` | Finance, money, dues |
-| `plum` | `#6e3b7a` | Photos, private/personal |
-| `teal` | `#3aa893` | Scoutbook sync, success-y |
+| `sky` | `#1d4ed8` | Informational, calendar |
+| `ember` | `#f59e0b` | Outdoor events, campouts |
+| `raspberry` | `#0f172a` | Urgent alerts |
+| `butter` | `#f59e0b` | Finance, money, dues |
+| `plum` | `#475569` | Photos, private/personal |
+| `teal` | `#0891b2` | Scoutbook sync, success-y |
 
 ### Typography
 
@@ -85,7 +85,7 @@ Inter Tight weights used: 400, 500, 600, 700.
 | Body | 14–15px Inter Tight | 400 | 1.5 | 0 |
 | Meta / caption | 11–12px Inter Tight | 500 | 1.4 | 0.04em–0.16em uppercase |
 
-**Italic + accent-fill is the signature treatment:** display headlines often emphasize a phrase via `font-style: italic; color: var(--accent)` or by wrapping in a chartreuse/ember background block. Keep it.
+**Italic + accent-fill is the signature treatment:** display headlines often emphasize a phrase via `font-style: italic; color: var(--accent)` or by wrapping in a sky-blue/ember background block. Keep it.
 
 ### Spacing & shape
 
@@ -93,7 +93,7 @@ Inter Tight weights used: 400, 500, 600, 700.
 - Page padding (web): 56px horizontal, 88px vertical between major sections
 - Mobile screen padding: 20px horizontal
 - Shadow (subtle): `0 4px 20px rgba(15,23,42,0.08)` — used on floating elements
-- Inverted dark bands (`surfaceAlt #1a1f1a`) appear at section transitions for visual rhythm
+- Inverted dark bands (`surfaceAlt #eef1f5`) appear at section transitions for visual rhythm
 
 ---
 
@@ -106,11 +106,11 @@ Inter Tight weights used: 400, 500, 600, 700.
 Single-page site. Sections in order:
 
 1. **Top nav** — wordmark left, anchors right (Product / Security / Pricing / Sign in), CTA button (Start free trial)
-2. **Hero** — kicker line "The Compass Field Notes / Modern Software for Volunteer Units / Independent · Not affiliated with BSA". Headline: *"Your troop's website shouldn't look like 2008."* (with "look like 2008" in chartreuse accent block). Right column: pill badge "SECURITY-FIRST · BUILT FOR MINORS' DATA", body copy, CTAs.
+2. **Hero** — kicker line "The Compass Field Notes / Modern Software for Volunteer Units / Independent · Not affiliated with BSA". Headline: *"Your troop's website shouldn't look like 2008."* (with "look like 2008" in sky-blue accent block). Right column: pill badge "SECURITY-FIRST · BUILT FOR MINORS' DATA", body copy, CTAs.
 3. **Photo strip** — three landscape photos, top-bordered in accent / sky / raspberry
-4. **Stats / values band** — dark forest background. Four cells: AES-256 encryption · SSO (SAML/OIDC/WebAuthn) · Two-deep YPT-aligned audit · $12 flat per unit
+4. **Stats / values band** — slate background. Four cells: AES-256 encryption · SSO (SAML/OIDC/WebAuthn) · Two-deep YPT-aligned audit · $12 flat per unit
 5. **Features (4 editorial blocks)** — alternating image/text layout, numbered 01–04. Each features one of: Calendar, Website, Messages, Memories. Use real product copy from the JSX.
-6. **Old vs. New comparison** — dark forest band. Side-by-side browser-window mocks: deliberately ugly "Old hosting platform" (Times-on-grey, table layouts, hit counter, animated GIF) vs. clean Compass screenshot. Caption: "The site your families see is your front door."
+6. **Old vs. New comparison** — slate band. Side-by-side browser-window mocks: deliberately ugly "Old hosting platform" (Times-on-grey, table layouts, hit counter, animated GIF) vs. clean Compass screenshot. Caption: "The site your families see is your front door."
 7. **Pricing** — 2-column. Highlighted "Unit · $12/mo" tier (one price for any unit type) and "District · Talk to us" tier. Listed features each tier. Footnote: non-profit discount, Stripe pass-through.
 8. **Migration band** — list of platforms we migrate from (TroopWebHost, ScoutLander, Scoutbook export, generic Wix/Squarespace, Google Sites, Mailchimp lists)
 9. **CTA** — "Set up your troop's home base before next week's meeting." Free 30-day trial, no credit card.
@@ -302,7 +302,7 @@ design_handoff_compass/
 ├── README.md                              ← this file
 ├── Scout Host Designs.html                ← open this in a browser to view all designs interactively
 └── source/
-    ├── tokens.js                          ← Forest & Ember palette + type system (use `bold` palette)
+    ├── tokens.js                          ← Slate & Sky palette + type system (use `balanced` palette)
     ├── atoms.jsx                          ← shared SHMark, SHWordmark, Avatar, Photo, Chip
     ├── ios-frame.jsx                      ← iPhone bezel
     ├── marketing-balanced.jsx             ← marketing site (locked design)

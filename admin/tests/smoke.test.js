@@ -27,11 +27,11 @@ describe("admin / index.html", () => {
 
   it("uses the locked Forest & Ember palette as CSS custom properties", () => {
     expect(html).toMatch(/<link[^>]+href=["']styles\.css["']/);
-    expect(css).toContain("#0e3320"); // primary
-    expect(css).toContain("#c8e94a"); // accent
-    expect(css).toContain("#f4ecdc"); // bg
-    expect(css).toContain("#1a1f1a"); // surfaceAlt — dark forest band
-    expect(css).toContain("#1d3a32"); // surfaceDark — greeting band
+    expect(css).toContain("#0f172a"); // primary
+    expect(css).toContain("#1d4ed8"); // accent
+    expect(css).toContain("#f7f8fa"); // bg
+    expect(css).toContain("#eef1f5"); // surfaceAlt — dark forest band
+    expect(css).toContain("#0f172a"); // surfaceDark — greeting band
   });
 
   it("loads both Newsreader and Inter Tight from Google Fonts", () => {
