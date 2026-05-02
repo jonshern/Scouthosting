@@ -401,4 +401,58 @@ describe("/api/v1/feedback", () => {
     const r = await request.get("/api/v1/feedback");
     expect(r.status).toBe(401);
   });
+
+  it("defaults orgId to the tenant subdomain context when omitted", async () => {
+    // admin/feedback.html (served on tenant subdomain) calls
+    // /api/v1/feedback with no ?orgId= and expects to get its own
+    // org's rows back. The tenant resolver populates req.org from the
+    // Host header; the GET handler falls back to req.org.id.
+    const org = await prisma.org.findUnique({ where: { slug: TEST_ORG_SLUG } });
+    const { token } = await seedUser({
+      email: "leader@test.invalid",
+      displayName: "Leader",
+      orgId: org.id,
+      role: "leader",
+    });
+    await prisma.feedbackRequest.create({
+      data: {
+        orgId: org.id,
+        title: "Tenant-default request",
+        body: "Should be visible without ?orgId=",
+        scope: "org",
+      },
+    });
+
+    const r = await request
+      .get("/api/v1/feedback")
+      .set("Host", `${TEST_ORG_SLUG}.localhost`)
+      .set("Authorization", `Bearer ${token}`);
+    expect(r.status).toBe(200);
+    expect(r.body.requests.some((req) => req.title === "Tenant-default request")).toBe(true);
+  });
+
+  it("POST defaults orgId to the tenant subdomain context for org-scope submits", async () => {
+    const org = await prisma.org.findUnique({ where: { slug: TEST_ORG_SLUG } });
+    const { token } = await seedUser({
+      email: "leader@test.invalid",
+      displayName: "Leader",
+      orgId: org.id,
+      role: "leader",
+    });
+
+    const r = await request
+      .post("/api/v1/feedback")
+      .set("Host", `${TEST_ORG_SLUG}.localhost`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({
+        scope: "org",
+        title: "Cookie-authed submit without orgId",
+        body: "Picks up org from Host header.",
+      });
+    expect(r.status).toBe(201);
+    const created = await prisma.feedbackRequest.findFirst({
+      where: { title: "Cookie-authed submit without orgId" },
+    });
+    expect(created.orgId).toBe(org.id);
+  });
 });

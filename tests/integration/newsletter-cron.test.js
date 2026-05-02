@@ -8,7 +8,12 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from "vitest";
 import { app } from "../../server/index.js"; // ensure prisma client is initialized
 import { prisma } from "../../lib/db.js";
-import { runCronTick, lastFireTime, startCronLoop } from "../../lib/newsletterCron.js";
+import {
+  runCronTick,
+  runRsvpNudgeHandler,
+  lastFireTime,
+  startCronLoop,
+} from "../../lib/newsletterCron.js";
 import { resetDb, TEST_ORG_SLUG } from "./_setup.js";
 
 beforeAll(() => {
@@ -178,15 +183,19 @@ describe("runCronTick — rule firing", () => {
 
   it("fires an enabled rule and updates lastFiredAt + lastResult", async () => {
     const org = await getTestOrg();
+    // Use a rule kind that's still on the v1 scaffold path so the
+    // contract under test is "the tick fires + records something",
+    // not the rsvp_nudge handler's specific behaviour (which is
+    // covered separately below).
     const rule = await prisma.newsletterRule.create({
-      data: { orgId: org.id, kind: "rsvp_nudge", title: "RSVP nudge", enabled: true },
+      data: { orgId: org.id, kind: "dues_reminder", title: "Q1 dues", enabled: true },
     });
     const result = await runCronTick({ prismaClient: prisma, logger: SILENT_LOGGER });
     expect(result.rulesFired).toBe(1);
 
     const fresh = await prisma.newsletterRule.findUnique({ where: { id: rule.id } });
     expect(fresh.lastFiredAt).not.toBeNull();
-    expect(fresh.lastResult).toContain("rsvp_nudge");
+    expect(fresh.lastResult).toContain("dues_reminder");
   });
 
   it("does NOT fire a disabled rule", async () => {
@@ -234,5 +243,121 @@ describe("startCronLoop()", () => {
       if (saved == null) delete process.env.CRON_DISABLED;
       else process.env.CRON_DISABLED = saved;
     }
+  });
+});
+
+describe("runRsvpNudgeHandler", () => {
+  beforeEach(resetDb);
+
+  it("sends a nudge to every member who hasn't RSVP'd to a signup-required event in the next 7 days", async () => {
+    const org = await getTestOrg();
+    const now = new Date();
+    const ev = await prisma.event.create({
+      data: {
+        orgId: org.id,
+        title: "Spring Camporee",
+        startsAt: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000),
+        endsAt: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+        signupRequired: true,
+        location: "Tomahawk SR",
+      },
+    });
+    // Three members; two unresponded, one already said yes.
+    await prisma.member.createMany({
+      data: [
+        { orgId: org.id, firstName: "Alice", lastName: "A.", email: "alice@test.invalid" },
+        { orgId: org.id, firstName: "Bob",   lastName: "B.", email: "bob@test.invalid" },
+        { orgId: org.id, firstName: "Carol", lastName: "C.", email: "carol@test.invalid" },
+      ],
+    });
+    await prisma.rsvp.create({
+      data: { orgId: org.id, eventId: ev.id, name: "Carol C.", email: "carol@test.invalid", response: "yes" },
+    });
+    const rule = await prisma.newsletterRule.create({
+      data: { orgId: org.id, kind: "rsvp_nudge", title: "RSVP nudge", enabled: true },
+    });
+
+    const result = await runRsvpNudgeHandler({ now, rule, prismaClient: prisma, logger: SILENT_LOGGER });
+    expect(result).toContain("1 event");
+    expect(result).toContain("2 nudges sent");
+  });
+
+  it("counts zero events when no signup-required event is in the next 7 days", async () => {
+    const org = await getTestOrg();
+    const now = new Date();
+    // Event is 30 days out — outside the horizon.
+    await prisma.event.create({
+      data: {
+        orgId: org.id,
+        title: "Future Trek",
+        startsAt: new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000),
+        endsAt: new Date(now.getTime() + 32 * 24 * 60 * 60 * 1000),
+        signupRequired: true,
+      },
+    });
+    await prisma.member.create({
+      data: { orgId: org.id, firstName: "A", lastName: "A", email: "a@x.invalid" },
+    });
+    const rule = await prisma.newsletterRule.create({
+      data: { orgId: org.id, kind: "rsvp_nudge", title: "Nudge", enabled: true },
+    });
+    const result = await runRsvpNudgeHandler({ now, rule, prismaClient: prisma, logger: SILENT_LOGGER });
+    expect(result).toContain("0 events");
+  });
+
+  it("skips members who unsubscribed, bounced, or set commPreference=none", async () => {
+    const org = await getTestOrg();
+    const now = new Date();
+    await prisma.event.create({
+      data: {
+        orgId: org.id,
+        title: "Camporee",
+        startsAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+        endsAt: new Date(now.getTime() + 4 * 24 * 60 * 60 * 1000),
+        signupRequired: true,
+      },
+    });
+    await prisma.member.createMany({
+      data: [
+        { orgId: org.id, firstName: "A", lastName: "A", email: "a@x.invalid", emailUnsubscribed: true },
+        { orgId: org.id, firstName: "B", lastName: "B", email: "b@x.invalid", bouncedAt: new Date() },
+        { orgId: org.id, firstName: "C", lastName: "C", email: "c@x.invalid", commPreference: "none" },
+        { orgId: org.id, firstName: "D", lastName: "D", email: "d@x.invalid" }, // only this one gets the nudge
+      ],
+    });
+    const rule = await prisma.newsletterRule.create({
+      data: { orgId: org.id, kind: "rsvp_nudge", title: "Nudge", enabled: true },
+    });
+    const result = await runRsvpNudgeHandler({ now, rule, prismaClient: prisma, logger: SILENT_LOGGER });
+    expect(result).toContain("1 nudge");
+  });
+
+  it("integrates through runCronTick — a real rule fires and updates lastFiredAt + lastResult", async () => {
+    const org = await getTestOrg();
+    const now = new Date();
+    await prisma.event.create({
+      data: {
+        orgId: org.id,
+        title: "Camporee",
+        startsAt: new Date(now.getTime() + 2 * 24 * 60 * 60 * 1000),
+        endsAt: new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000),
+        signupRequired: true,
+      },
+    });
+    await prisma.member.create({
+      data: { orgId: org.id, firstName: "A", lastName: "A", email: "a@x.invalid" },
+    });
+    const rule = await prisma.newsletterRule.create({
+      data: { orgId: org.id, kind: "rsvp_nudge", title: "Nudge", enabled: true },
+    });
+
+    const out = await runCronTick({ now, prismaClient: prisma, logger: SILENT_LOGGER });
+    expect(out.rulesFired).toBe(1);
+
+    const fresh = await prisma.newsletterRule.findUnique({ where: { id: rule.id } });
+    expect(fresh.lastFiredAt).not.toBeNull();
+    // Real handler result, not the scaffold message.
+    expect(fresh.lastResult).not.toContain("scaffold");
+    expect(fresh.lastResult).toContain("nudge");
   });
 });

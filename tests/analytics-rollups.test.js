@@ -15,6 +15,7 @@ import {
   recentFetchFails,
   pageViewsByDay,
   topOrgs,
+  marketingFunnel,
 } from "../lib/analytics.js";
 
 function fakePrisma({ auditRows = [], orgRows = [] } = {}) {
@@ -30,6 +31,9 @@ function fakePrisma({ auditRows = [], orgRows = [] } = {}) {
         if (take) rows = rows.slice(0, take);
         if (select) rows = rows.map((r) => Object.fromEntries(Object.keys(select).map((k) => [k, r[k]])));
         return rows;
+      },
+      async count({ where } = {}) {
+        return auditRows.filter((r) => matches(r, where)).length;
       },
       async groupBy({ by, where, _count, orderBy, take }) {
         const filtered = auditRows.filter((r) => matches(r, where));
@@ -260,5 +264,55 @@ describe("topOrgs()", () => {
     const rows = [row("page-view", { surface: "marketing" }, { orgId: null })];
     const top = await topOrgs({ since: new Date(0) }, fakePrisma({ auditRows: rows }));
     expect(top).toEqual([]);
+  });
+});
+
+describe("marketingFunnel()", () => {
+  it("counts views, CTA clicks, /signup views, and signups in order", async () => {
+    const rows = [
+      // 4 marketing page views, 1 of which is /signup.html
+      row("page-view", { surface: "marketing", path: "/" }),
+      row("page-view", { surface: "marketing", path: "/plans.html" }),
+      row("page-view", { surface: "marketing", path: "/" }),
+      row("page-view", { surface: "marketing", path: "/signup.html" }),
+      // tenant view doesn't count
+      row("page-view", { surface: "tenant", path: "/" }),
+      // 2 marketing-surface CTA clicks (with labels)
+      row("element-clicked", { surface: "marketing", label: "topnav-start-trial" }),
+      row("element-clicked", { surface: "marketing", label: "hero-start-trial" }),
+      // unlabelled clicks don't count
+      row("element-clicked", { surface: "marketing" }),
+      // 1 signup
+      row("user-signed-up", { plan: "troop" }),
+    ];
+    const f = await marketingFunnel({ since: new Date(0) }, fakePrisma({ auditRows: rows }));
+    expect(f.stages.map((s) => s.count)).toEqual([4, 2, 1, 1]);
+    // First stage has no conversion; subsequent ones are ratios.
+    expect(f.stages[0].conversion).toBeNull();
+    expect(f.stages[1].conversion).toBeCloseTo(2 / 4);
+    expect(f.stages[2].conversion).toBeCloseTo(1 / 2);
+    expect(f.stages[3].conversion).toBeCloseTo(1 / 1);
+    expect(f.overall).toBeCloseTo(1 / 4);
+  });
+
+  it("returns null conversion + null overall when there are no marketing views", async () => {
+    const f = await marketingFunnel({ since: new Date(0) }, fakePrisma({ auditRows: [] }));
+    expect(f.stages.map((s) => s.count)).toEqual([0, 0, 0, 0]);
+    expect(f.stages[1].conversion).toBeNull();
+    expect(f.overall).toBeNull();
+  });
+
+  it("matches /signup with or without the .html suffix and trailing query", async () => {
+    const rows = [
+      row("page-view", { surface: "marketing", path: "/signup" }),
+      row("page-view", { surface: "marketing", path: "/signup.html" }),
+      row("page-view", { surface: "marketing", path: "/signup?next=%2Fplans" }),
+      row("page-view", { surface: "marketing", path: "/signup#confirm" }),
+      // not a match
+      row("page-view", { surface: "marketing", path: "/signups" }),
+    ];
+    const f = await marketingFunnel({ since: new Date(0) }, fakePrisma({ auditRows: rows }));
+    expect(f.stages[0].count).toBe(5); // total marketing views
+    expect(f.stages[2].count).toBe(4); // /signup views
   });
 });

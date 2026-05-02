@@ -31,6 +31,7 @@ import {
   recentFetchFails,
   pageViewsByDay,
   topOrgs,
+  marketingFunnel,
 } from "../lib/analytics.js";
 import { provisionOrg, validateProvisionInput } from "./provision.js";
 
@@ -464,7 +465,7 @@ superAdminRouter.get("/analytics", requireSuperAdmin, async (req, res) => {
   const surface = ["marketing", "tenant", "admin"].includes(surfaceParam) ? surfaceParam : null;
   const since = new Date(Date.now() - win.ms);
 
-  const [summary, paths, clicks, errors, fails, perDay, orgs] = await Promise.all([
+  const [summary, paths, clicks, errors, fails, perDay, orgs, funnel] = await Promise.all([
     summarize({ since }, prisma),
     topPaths({ surface, since, limit: 12 }, prisma),
     topClicks({ surface, since, limit: 12 }, prisma),
@@ -472,6 +473,7 @@ superAdminRouter.get("/analytics", requireSuperAdmin, async (req, res) => {
     recentFetchFails({ since, limit: 15 }, prisma),
     pageViewsByDay({ since }, prisma),
     topOrgs({ since, limit: 10 }, prisma),
+    marketingFunnel({ since }, prisma),
   ]);
 
   const days = bucketDays(since, new Date(), perDay);
@@ -590,6 +592,43 @@ superAdminRouter.get("/analytics", requireSuperAdmin, async (req, res) => {
               </tr>`).join("")}
             </tbody></table>`}
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Marketing funnel</h2>
+      <div class="muted" style="font-size:.78rem;margin:-.25rem 0 .8rem">
+        Marketing visit → CTA click → /signup view → account signup. Each row's
+        conversion is computed against the previous row.
+      </div>
+      ${funnel.stages[0].count === 0
+        ? `<div class="empty">No marketing-surface page views in this window.</div>`
+        : `<table>
+            <thead>
+              <tr><th>Stage</th><th style="text-align:right">Count</th><th style="text-align:right">Conversion</th></tr>
+            </thead>
+            <tbody>${funnel.stages.map((s) => {
+              const pct = s.conversion == null ? "—" : (s.conversion * 100).toFixed(1) + "%";
+              const max = funnel.stages[0].count;
+              const widthPct = max > 0 ? Math.max(2, (s.count / max) * 100).toFixed(2) : 0;
+              return `<tr>
+                <td>
+                  <strong>${escape(s.label)}</strong>
+                  <div style="height:6px;background:var(--surface-alt);border-radius:3px;overflow:hidden;margin-top:.35rem">
+                    <div style="width:${widthPct}%;height:100%;background:var(--accent)"></div>
+                  </div>
+                </td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums">${s.count}</td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums" class="muted">${pct}</td>
+              </tr>`;
+            }).join("")}</tbody>
+          </table>
+          <div style="margin-top:.85rem;padding:.55rem .75rem;background:var(--surface-alt);border-radius:6px;font-size:.82rem">
+            <strong>Overall:</strong>
+            ${funnel.overall == null
+              ? `<span class="muted">no marketing visits in this window</span>`
+              : `<span style="font-family:JetBrains Mono,ui-monospace,monospace">${(funnel.overall * 100).toFixed(2)}%</span>
+                  of marketing visits converted to a signup`}
+          </div>`}
     </div>
 
     <div class="card">

@@ -104,6 +104,21 @@ describe("admin/feedback.html (public roadmap board + composer modal)", () => {
     expect(updates.length).toBeGreaterThanOrEqual(3);
   });
 
+  it("ships a live-data bootstrap script that wires the page to /api/v1/feedback", () => {
+    // The static rows above are a fallback; the bootstrap replaces
+    // them with real FeedbackRequest data on load. Asserts:
+    expect(html).toMatch(/id="fb-list"/);
+    expect(html).toContain("/api/v1/feedback");
+    // Vote click handler delegates on [data-vote] so it works on
+    // freshly rendered rows.
+    expect(html).toMatch(/closest\('\[data-vote\]'\)/);
+    // POST endpoint for the composer submit.
+    expect(html).toMatch(/method:\s*['"]POST['"]/);
+    // Cookie-authed (no Bearer header in the static page — the leader
+    // session cookie carries the auth).
+    expect(html).toMatch(/credentials:\s*['"]same-origin['"]/);
+  });
+
   it("has exactly one <h1>", () => {
     const h1s = html.match(/<h1[\s>][^]*?<\/h1>/g) || [];
     expect(h1s.length).toBe(1);
