@@ -1546,7 +1546,11 @@ apiRouter.post(
 // happen from /__super; not exposed on the public API.
 
 apiRouter.get("/feedback", resolveApiUser, async (req, res) => {
-  const { orgId, status, scope, sort = "votes" } = req.query;
+  let { orgId, status, scope, sort = "votes" } = req.query;
+  // Default orgId to the tenant-subdomain context when the caller
+  // omits it. Lets admin/feedback.html (served on *.compass.app) call
+  // /api/v1/feedback without knowing its own orgId.
+  if (!orgId && !scope && req.org?.id) orgId = req.org.id;
 
   const where = {};
   if (status && typeof status === "string") where.status = status;
@@ -1604,10 +1608,13 @@ apiRouter.get("/feedback", resolveApiUser, async (req, res) => {
 });
 
 apiRouter.post("/feedback", resolveApiUser, async (req, res) => {
-  const {
+  let {
     orgId, kind = "feature", scope = "org", title, body,
     category = null, context = null,
   } = req.body || {};
+  // Default orgId to the tenant-subdomain context for cookie-authed
+  // calls from admin/feedback.html that don't echo their own orgId.
+  if (!orgId && scope === "org" && req.org?.id) orgId = req.org.id;
   if (!title || typeof title !== "string" || title.length < 4) {
     return res.status(400).json({ error: "title_required" });
   }

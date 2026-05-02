@@ -229,4 +229,37 @@ describe("/__super/analytics", () => {
     // The 7d link is the active one in the nav row.
     expect(r.text).toMatch(/href="\/__super\/analytics\?window=7d"\s+class="tag tag-on">/);
   });
+
+  it("renders the marketing funnel section with empty-state when there are no marketing views", async () => {
+    const cookie = await asSuperAdmin();
+    const r = await request.get("/__super/analytics").set("Host", "compass.app").set("Cookie", cookie);
+    expect(r.text).toContain("Marketing funnel");
+    expect(r.text).toMatch(/No marketing-surface page views in this window/i);
+  });
+
+  it("renders the marketing funnel with stage counts and an overall conversion %", async () => {
+    const cookie = await asSuperAdmin();
+    // 4 marketing views (1 of which is /signup), 2 CTA clicks, 1 signup.
+    for (let i = 0; i < 3; i++) await seedEvent({ action: "page-view", dims: { surface: "marketing", path: "/" } });
+    await seedEvent({ action: "page-view", dims: { surface: "marketing", path: "/signup.html" } });
+    await seedEvent({ action: "element-clicked", dims: { surface: "marketing", label: "topnav-start-trial" } });
+    await seedEvent({ action: "element-clicked", dims: { surface: "marketing", label: "hero-start-trial" } });
+    await seedEvent({ action: "user-signed-up", dims: { plan: "troop" } });
+
+    const r = await request.get("/__super/analytics?window=7d").set("Host", "compass.app").set("Cookie", cookie);
+    expect(r.text).toContain("Marketing funnel");
+    expect(r.text).toContain("Marketing page views");
+    expect(r.text).toContain("CTA clicks");
+    expect(r.text).toContain("/signup page view");
+    expect(r.text).toContain("Account signups");
+    // 4 / 2 / 1 / 1 in that visual order. The right-hand <td> on each
+    // row carries the count with tabular-nums; we just match the four
+    // counts in order in the funnel section.
+    const tableRegion = r.text.split("Marketing funnel")[1].split("Top orgs by activity")[0];
+    expect(tableRegion).toMatch(/tabular-nums">4</);
+    expect(tableRegion).toMatch(/tabular-nums">2</);
+    expect(tableRegion).toMatch(/tabular-nums">1</);
+    // Overall conversion = 1 / 4 = 25%.
+    expect(r.text).toMatch(/25\.00%/);
+  });
 });

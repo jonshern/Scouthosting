@@ -765,6 +765,15 @@ app.post("/api/auth/signup", signupLimiter, csrfProtect, async (req, res) => {
     });
   }
 
+  // Funnel marker — apex/JSON-API signup path. Mirrors the redirect-
+  // signup track() call above so /__super/analytics counts the same
+  // conversion regardless of which path they came in through.
+  track(EVENTS.USER_SIGNED_UP, {
+    orgId: ownedOrgs[0]?.id || null,
+    userId: user.id,
+    dimensions: { surface: "marketing", role: ownedOrgs.length ? "admin" : "parent" },
+  });
+
   const session = await lucia.createSession(user.id, {});
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
   res.status(201).json({ ok: true, user: { id: user.id, email: user.email, displayName: user.displayName } });
@@ -1429,6 +1438,14 @@ app.post("/signup", signupLimiter, csrfProtect, async (req, res, next) => {
 
   // Fire-and-forget verify email; failure shouldn't block signup.
   sendVerifyEmail(req.org, user).catch((err) => log.warn("verify email failed", { err }));
+
+  // Funnel marker — closes the loop on /__super/analytics' marketing-
+  // conversion section. Best-effort; track() never throws.
+  track(EVENTS.USER_SIGNED_UP, {
+    orgId: req.org.id,
+    userId: user.id,
+    dimensions: { surface: "tenant", role: ownedOrgs.length ? "admin" : "parent" },
+  });
 
   const session = await lucia.createSession(user.id, {});
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());

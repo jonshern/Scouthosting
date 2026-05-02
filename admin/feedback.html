@@ -148,7 +148,7 @@
               every one and reply within a week.
             </p>
           </div>
-          <button class="fb-suggest" type="button" data-track="feedback-suggest-feature" onclick="document.getElementById('composer').classList.add('fb-composer--open')">+ Suggest a feature</button>
+          <button class="fb-suggest" type="button" id="fb-suggest" data-track="feedback-suggest-feature" onclick="document.getElementById('composer').classList.add('fb-composer--open')">+ Suggest a feature</button>
         </div>
 
         <div class="fb-tabs">
@@ -170,8 +170,10 @@
         </div>
       </header>
 
-      <div class="fb-list">
-        <!-- Building -->
+      <div class="fb-list" id="fb-list" data-empty="false">
+        <!-- Static fallback rows below render when JS is off / API down.
+             Live data replaces them on load via the bootstrap script
+             at the bottom of this file. -->
         <article class="fb-row">
           <div class="fb-vote">
             <button class="fb-vote__btn fb-vote__btn--voted" data-track="feedback-vote-toggle" aria-label="142 votes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
@@ -447,5 +449,147 @@
       </div>
     </form>
   </div>
+
+  <!-- ============================================================
+       Live-data bootstrap. Progressively enhances the static design
+       above: on load, fetches /api/v1/feedback (cookie-authed via
+       the leader's admin session, scoped to this tenant subdomain),
+       replaces the example rows with real FeedbackRequest rows, and
+       wires vote toggles + the composer modal to the API.
+
+       If the fetch fails (offline, API 500, etc.) the static rows
+       stay visible so the page never goes blank.
+       ============================================================ -->
+  <script>
+  (function(){
+    var listEl = document.getElementById('fb-list');
+    if (!listEl) return;
+
+    var STATUS_LABELS = { submitted:'Submitted', triaged:'Triaged', building:'Building', shipped:'Shipped', declined:'Declined' };
+
+    function escapeHtml(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]);
+    }); }
+
+    function relativeWhen(iso){
+      var t = new Date(iso).getTime();
+      if (!t) return '';
+      var diff = Date.now() - t;
+      var d = Math.floor(diff / 86400000);
+      if (d < 1) return 'today';
+      if (d === 1) return 'yesterday';
+      if (d < 7) return d + ' days ago';
+      var w = Math.floor(d / 7);
+      if (w < 5) return w + ' week' + (w === 1 ? '' : 's') + ' ago';
+      var mo = Math.floor(d / 30);
+      if (mo < 12) return mo + ' month' + (mo === 1 ? '' : 's') + ' ago';
+      return Math.floor(d / 365) + 'y ago';
+    }
+
+    function rowHtml(r){
+      var statusKey = r.status || 'submitted';
+      var statusLabel = STATUS_LABELS[statusKey] || statusKey;
+      var minePill = r.mine ? '<span class="fb-mine-tag">Your request</span>' : '';
+      var votedPill = (!r.mine && r.voted) ? '<span class="fb-voted-tag">You voted</span>' : '';
+      var updateBlock = r.lastUpdate
+        ? '<div class="fb-update fb-update--' + escapeHtml(statusKey) + '"><svg class="fb-update__icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 2"/></svg><span><strong>Update:</strong> ' + escapeHtml(r.lastUpdate) + '</span></div>'
+        : '';
+      var voteBtnClass = 'fb-vote__btn' + (r.voted ? ' fb-vote__btn--voted' : '');
+      var rowClass = 'fb-row' + (r.mine ? ' fb-row--mine' : '');
+      return '<article class="' + rowClass + '" data-id="' + escapeHtml(r.id) + '">' +
+        '<div class="fb-vote">' +
+          '<button class="' + voteBtnClass + '" data-track="feedback-vote-toggle" data-vote="' + escapeHtml(r.id) + '" aria-label="' + r.voteCount + ' votes"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>' +
+          '<div class="fb-vote__count" data-count="' + escapeHtml(r.id) + '">' + r.voteCount + '</div>' +
+        '</div>' +
+        '<div>' +
+          '<div class="fb-row__head">' +
+            '<span class="fb-status fb-status--' + escapeHtml(statusKey) + '"><span class="fb-status__dot"></span>' + escapeHtml(statusLabel) + '</span>' +
+            (r.category ? '<span class="fb-cat">' + escapeHtml(r.category) + '</span>' : '') +
+            minePill + votedPill +
+            '<span class="fb-meta">#' + escapeHtml(r.id.slice(0, 6)) + ' · ' + escapeHtml(relativeWhen(r.createdAt)) + '</span>' +
+          '</div>' +
+          '<div class="fb-row__title">' + escapeHtml(r.title) + '</div>' +
+          '<div class="fb-row__desc">' + escapeHtml(r.body) + '</div>' +
+          updateBlock +
+          '<div class="fb-row__foot">' +
+            '<span>' + escapeHtml(r.authorName || 'Anonymous') + '</span>' +
+            '<span>' + r.commentCount + ' comments</span>' +
+          '</div>' +
+        '</div>' +
+        '<a class="fb-row__cta" data-track="feedback-open-thread" href="#thread-' + escapeHtml(r.id) + '">Open thread →</a>' +
+      '</article>';
+    }
+
+    function render(rows){
+      if (!rows.length) {
+        listEl.innerHTML = '<div style="padding:48px 24px;text-align:center;color:var(--ink-muted);font-size:14px;border:1px dashed var(--line);border-radius:12px">No requests yet — be the first to <a href="#" onclick="document.getElementById(\'composer\').classList.add(\'fb-composer--open\');return false;" style="color:var(--ember);font-weight:600">suggest a feature</a>.</div>';
+        return;
+      }
+      listEl.innerHTML = rows.map(rowHtml).join('');
+    }
+
+    function load(){
+      fetch('/api/v1/feedback', { credentials: 'same-origin', headers: { 'Accept': 'application/json' } })
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(json){
+          if (json && Array.isArray(json.requests)) render(json.requests);
+        })
+        .catch(function(){ /* leave the static fallback visible */ });
+    }
+
+    // Vote toggle — delegated so it works on the freshly-rendered rows.
+    document.addEventListener('click', function(e){
+      var btn = e.target && e.target.closest && e.target.closest('[data-vote]');
+      if (!btn) return;
+      e.preventDefault();
+      var id = btn.getAttribute('data-vote');
+      btn.disabled = true;
+      fetch('/api/v1/feedback/' + encodeURIComponent(id) + '/vote', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Accept': 'application/json' },
+      })
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(json){
+          if (!json) return;
+          btn.classList.toggle('fb-vote__btn--voted', !!json.voted);
+          var counter = listEl.querySelector('[data-count="' + id + '"]');
+          if (counter) counter.textContent = json.voteCount;
+        })
+        .finally(function(){ btn.disabled = false; });
+    });
+
+    // Composer submit — POST the new request, then re-render.
+    var composerForm = document.querySelector('#composer form, .fb-composer__panel');
+    if (composerForm) {
+      composerForm.addEventListener('submit', function(e){
+        e.preventDefault();
+        var fd = new FormData(composerForm);
+        var payload = {
+          kind: fd.get('type') || 'feature',
+          scope: 'org',
+          title: fd.get('title') || '',
+          body: fd.get('body') || '',
+          category: fd.get('category') || null,
+        };
+        if (!payload.title || payload.title.length < 4) return;
+        if (!payload.body || payload.body.length < 4) return;
+        fetch('/api/v1/feedback', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(json){
+            document.getElementById('composer').classList.remove('fb-composer--open');
+            if (json) load();
+          });
+      });
+    }
+
+    load();
+  })();
+  </script>
 </body>
 </html>
