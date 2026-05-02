@@ -23,6 +23,15 @@ import {
   mergeUpdate,
 } from "../lib/featureFlags.js";
 import { recordAudit } from "../lib/audit.js";
+import {
+  summarize,
+  topPaths,
+  topClicks,
+  recentErrors,
+  recentFetchFails,
+  pageViewsByDay,
+  topOrgs,
+} from "../lib/analytics.js";
 import { provisionOrg, validateProvisionInput } from "./provision.js";
 
 const log = logger.child("super");
@@ -108,6 +117,7 @@ label{display:block;font-size:.84rem;color:var(--ink-muted);margin-bottom:.65rem
   <nav>
     <a href="/__super" ${req.path === "/" ? 'class="active"' : ""}>Overview</a>
     <a href="/__super/orgs" ${req.path.startsWith("/orgs") ? 'class="active"' : ""}>Orgs</a>
+    <a href="/__super/analytics" ${req.path.startsWith("/analytics") ? 'class="active"' : ""}>Analytics</a>
     <a href="/__super/support" ${req.path.startsWith("/support") ? 'class="active"' : ""}>Support</a>
     <a href="/__super/refunds" ${req.path.startsWith("/refunds") ? 'class="active"' : ""}>Refunds</a>
     <a href="/__super/billing" ${req.path.startsWith("/billing") ? 'class="active"' : ""}>Billing</a>
@@ -429,6 +439,235 @@ superAdminRouter.post("/orgs/:id/features", requireSuperAdmin, async (req, res) 
 /* ------------------------------------------------------------------ */
 /* Support                                                             */
 /* ------------------------------------------------------------------ */
+
+/* ------------------------------------------------------------------ */
+/* Analytics dashboard                                                  */
+/* ------------------------------------------------------------------ */
+//
+// Reads AuditLog rows with action LIKE 'analytics:%' and renders a
+// summary view: page-views by surface, top paths, top click labels,
+// recent client errors + fetch failures, top orgs by activity, and a
+// 30-day sparkline. All queries are bounded by the time-window picker
+// so a noisy month doesn't slow the page.
+
+const TIME_WINDOWS = {
+  "24h": { ms: 24 * 60 * 60 * 1000, label: "Last 24 hours" },
+  "7d":  { ms: 7  * 24 * 60 * 60 * 1000, label: "Last 7 days" },
+  "30d": { ms: 30 * 24 * 60 * 60 * 1000, label: "Last 30 days" },
+  "90d": { ms: 90 * 24 * 60 * 60 * 1000, label: "Last 90 days" },
+};
+
+superAdminRouter.get("/analytics", requireSuperAdmin, async (req, res) => {
+  const windowKey = TIME_WINDOWS[String(req.query.window || "7d")] ? String(req.query.window || "7d") : "7d";
+  const win = TIME_WINDOWS[windowKey];
+  const surfaceParam = String(req.query.surface || "all");
+  const surface = ["marketing", "tenant", "admin"].includes(surfaceParam) ? surfaceParam : null;
+  const since = new Date(Date.now() - win.ms);
+
+  const [summary, paths, clicks, errors, fails, perDay, orgs] = await Promise.all([
+    summarize({ since }, prisma),
+    topPaths({ surface, since, limit: 12 }, prisma),
+    topClicks({ surface, since, limit: 12 }, prisma),
+    recentErrors({ since, limit: 15 }, prisma),
+    recentFetchFails({ since, limit: 15 }, prisma),
+    pageViewsByDay({ since }, prisma),
+    topOrgs({ since, limit: 10 }, prisma),
+  ]);
+
+  const days = bucketDays(since, new Date(), perDay);
+  const sparkMax = days.reduce((m, d) => Math.max(m, d.count), 1);
+
+  const surfaceTotal =
+    summary.pageViewsBySurface.marketing +
+    summary.pageViewsBySurface.tenant +
+    summary.pageViewsBySurface.admin +
+    summary.pageViewsBySurface.unknown;
+
+  function windowLink(k) {
+    const cls = k === windowKey ? 'class="tag tag-on"' : 'class="tag"';
+    const q = surface ? `&surface=${encodeURIComponent(surface)}` : "";
+    return `<a href="/__super/analytics?window=${k}${q}" ${cls}>${escape(TIME_WINDOWS[k].label)}</a>`;
+  }
+  function surfaceLink(s, label) {
+    const active = (s === null && !surface) || s === surface;
+    const cls = active ? 'class="tag tag-on"' : 'class="tag"';
+    const q = s ? `?window=${windowKey}&surface=${encodeURIComponent(s)}` : `?window=${windowKey}`;
+    return `<a href="/__super/analytics${q}" ${cls}>${escape(label)}</a>`;
+  }
+  function surfaceTag(s) {
+    const colors = { marketing: "#3a7ab8", tenant: "#3aa893", admin: "#c8e94a" };
+    const c = colors[s] || "#a3a89e";
+    return `<span class="tag" style="background:${c};color:#0d130d;border-color:${c}">${escape(s)}</span>`;
+  }
+  function surfaceBar(s, label, count) {
+    const pct = surfaceTotal ? (count / surfaceTotal) * 100 : 0;
+    return `<div style="margin:.5rem 0">
+      <div style="display:flex;justify-content:space-between;font-size:.84rem;margin-bottom:.25rem">
+        <span>${escape(label)}</span>
+        <span class="muted">${count} · ${pct.toFixed(0)}%</span>
+      </div>
+      <div style="height:8px;background:var(--surface-alt);border-radius:4px;overflow:hidden">
+        <div style="width:${pct.toFixed(2)}%;height:100%;background:var(--accent)"></div>
+      </div>
+    </div>`;
+  }
+
+  const sparkline = `<div style="display:flex;align-items:flex-end;gap:2px;height:60px;margin:.5rem 0">
+    ${days.map((d) => `<div title="${escape(d.day)} · ${d.count}" style="flex:1;height:${Math.max(2, (d.count / sparkMax) * 100).toFixed(2)}%;background:var(--accent);border-radius:2px 2px 0 0"></div>`).join("")}
+  </div>
+  <div class="muted" style="display:flex;justify-content:space-between;font-size:.7rem">
+    <span>${escape(days[0]?.day || "")}</span>
+    <span>${escape(days[days.length - 1]?.day || "")}</span>
+  </div>`;
+
+  const body = `
+    <h1>Analytics</h1>
+    <div class="muted" style="margin-top:-.5rem;margin-bottom:1rem">
+      Page views, clicks, errors, and signups across <strong>marketing</strong>,
+      <strong>tenant</strong>, and <strong>admin</strong> surfaces.
+      Reads from <code>AuditLog</code> rows with <code>action LIKE 'analytics:%'</code>.
+    </div>
+
+    <div class="row" style="gap:.4rem;margin-bottom:1rem">
+      ${windowLink("24h")} ${windowLink("7d")} ${windowLink("30d")} ${windowLink("90d")}
+      <span class="muted" style="margin-left:1rem">Surface:</span>
+      ${surfaceLink(null, "all")}
+      ${surfaceLink("marketing", "marketing")}
+      ${surfaceLink("tenant", "tenant")}
+      ${surfaceLink("admin", "admin")}
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:.75rem;margin-bottom:1.5rem">
+      ${statCard("Events", summary.totals.events, win.label.toLowerCase())}
+      ${statCard("Page views", summary.totals.pageViews, "")}
+      ${statCard("Clicks", summary.totals.clicks, "[data-track]")}
+      ${statCard("Errors", summary.totals.errors, summary.totals.errors > 0 ? "needs a look" : "all clear")}
+      ${statCard("Fetch fails", summary.totals.fetchFails, "non-2xx responses")}
+      ${statCard("Signups", summary.totals.signups, "via beacon")}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div class="card">
+        <h2>Page views by surface</h2>
+        ${surfaceTotal === 0
+          ? `<div class="empty">No page views in this window.</div>`
+          : `${surfaceBar("marketing", "Marketing (apex)", summary.pageViewsBySurface.marketing)}
+             ${surfaceBar("tenant", "Tenant (org subdomain)", summary.pageViewsBySurface.tenant)}
+             ${surfaceBar("admin", "Admin (/admin)", summary.pageViewsBySurface.admin)}
+             ${summary.pageViewsBySurface.unknown ? surfaceBar("unknown", "Unknown", summary.pageViewsBySurface.unknown) : ""}`}
+      </div>
+
+      <div class="card">
+        <h2>Page views per day</h2>
+        ${sparkline}
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+      <div class="card">
+        <h2>Top paths${surface ? ` · ${escape(surface)}` : ""}</h2>
+        ${paths.length === 0
+          ? `<div class="empty">No page views in this window.</div>`
+          : `<table><thead><tr><th>Path</th><th style="text-align:right">Views</th></tr></thead><tbody>
+              ${paths.map((p) => `<tr>
+                <td><code style="font-size:.78rem">${escape(p.path)}</code></td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums">${p.count}</td>
+              </tr>`).join("")}
+            </tbody></table>`}
+      </div>
+
+      <div class="card">
+        <h2>Top clicks${surface ? ` · ${escape(surface)}` : ""}</h2>
+        <div class="muted" style="font-size:.74rem;margin-bottom:.5rem">
+          Add <code>data-track="label"</code> on a button or link to land here.
+        </div>
+        ${clicks.length === 0
+          ? `<div class="empty">No tracked clicks in this window.</div>`
+          : `<table><thead><tr><th>Label</th><th style="text-align:right">Clicks</th></tr></thead><tbody>
+              ${clicks.map((c) => `<tr>
+                <td><code style="font-size:.78rem">${escape(c.label)}</code></td>
+                <td style="text-align:right;font-variant-numeric:tabular-nums">${c.count}</td>
+              </tr>`).join("")}
+            </tbody></table>`}
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Top orgs by activity</h2>
+      ${orgs.length === 0
+        ? `<div class="empty">No org-attributed events in this window.</div>`
+        : `<table><thead><tr><th>Org</th><th>Plan</th><th style="text-align:right">Events</th></tr></thead><tbody>
+            ${orgs.map((row) => `<tr>
+              <td>${row.org
+                ? `<a href="/__super/orgs/${escape(row.orgId)}"><strong>${escape(row.org.displayName)}</strong></a> <span class="muted">${escape(row.org.slug)}</span>`
+                : `<span class="muted">${escape(row.orgId)}</span>`}</td>
+              <td>${escape(row.org?.plan || "—")}</td>
+              <td style="text-align:right;font-variant-numeric:tabular-nums">${row.count}</td>
+            </tr>`).join("")}
+          </tbody></table>`}
+    </div>
+
+    <div class="card">
+      <h2>Recent client errors</h2>
+      ${errors.length === 0
+        ? `<div class="empty">No client errors in this window. 🎉</div>`
+        : `<table><thead><tr><th>Message</th><th>Surface</th><th>Path</th><th>Where</th><th>When</th></tr></thead><tbody>
+            ${errors.map((e) => `<tr>
+              <td>
+                <strong>${escape(e.message)}</strong>
+                ${e.kind && e.kind !== "error" ? `<span class="tag tag-warn" style="margin-left:.4rem">${escape(e.kind)}</span>` : ""}
+              </td>
+              <td>${surfaceTag(e.surface)}</td>
+              <td><code style="font-size:.74rem">${escape(e.path)}</code></td>
+              <td class="muted" style="font-size:.74rem">${escape(e.source ? trimSource(e.source) : "")}${e.line ? ":" + e.line : ""}</td>
+              <td class="muted" style="font-size:.74rem">${escape(new Date(e.createdAt).toISOString().slice(0, 16).replace("T", " "))}</td>
+            </tr>`).join("")}
+          </tbody></table>`}
+    </div>
+
+    <div class="card">
+      <h2>Recent failed fetches</h2>
+      ${fails.length === 0
+        ? `<div class="empty">No non-2xx fetches in this window.</div>`
+        : `<table><thead><tr><th>Status</th><th>URL</th><th>Surface</th><th>From</th><th>When</th></tr></thead><tbody>
+            ${fails.map((f) => `<tr>
+              <td><span class="tag ${f.status >= 500 ? "tag-warn" : ""}">${f.status}</span></td>
+              <td><code style="font-size:.78rem">${escape(f.url)}</code></td>
+              <td>${surfaceTag(f.surface)}</td>
+              <td><code style="font-size:.74rem">${escape(f.path)}</code></td>
+              <td class="muted" style="font-size:.74rem">${escape(new Date(f.createdAt).toISOString().slice(0, 16).replace("T", " "))}</td>
+            </tr>`).join("")}
+          </tbody></table>`}
+    </div>
+  `;
+  res.type("html").send(shell(req, { title: "Analytics", body }));
+});
+
+function bucketDays(since, until, perDay) {
+  // Fill missing days with zero so the sparkline doesn't lie about
+  // gaps in coverage.
+  const sinceDay = new Date(Date.UTC(since.getUTCFullYear(), since.getUTCMonth(), since.getUTCDate()));
+  const untilDay = new Date(Date.UTC(until.getUTCFullYear(), until.getUTCMonth(), until.getUTCDate()));
+  const dayMs = 24 * 60 * 60 * 1000;
+  const byDay = Object.fromEntries(perDay.map((p) => [p.day, p.count]));
+  const out = [];
+  for (let t = sinceDay.getTime(); t <= untilDay.getTime(); t += dayMs) {
+    const d = new Date(t).toISOString().slice(0, 10);
+    out.push({ day: d, count: byDay[d] || 0 });
+  }
+  return out;
+}
+
+function trimSource(src) {
+  // Strip the protocol + host so the column doesn't dominate the
+  // table on long URLs; show only the path tail.
+  try {
+    const u = new URL(src);
+    return u.pathname + (u.search || "");
+  } catch {
+    return src.length > 60 ? "…" + src.slice(-60) : src;
+  }
+}
 
 superAdminRouter.get("/support", requireSuperAdmin, async (req, res) => {
   const status = String(req.query.status || "open");
