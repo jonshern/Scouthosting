@@ -72,8 +72,10 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
         setState({ status: "signed-out" });
         return;
       }
-      const activeId = profile.activeOrgId || profile.orgs[0].orgId;
-      const activeOrg = profile.orgs.find((o) => o.orgId === activeId) || profile.orgs[0];
+      // The `!profile.orgs.length` early-return above guarantees orgs[0]
+      // exists; the `!` tells TS what we already verified.
+      const activeId = profile.activeOrgId || profile.orgs[0]!.orgId;
+      const activeOrg = profile.orgs.find((o) => o.orgId === activeId) || profile.orgs[0]!;
       setState({ status: "signed-in", token, profile, activeOrg });
     })();
     return () => { cancelled = true; };
@@ -115,7 +117,8 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
       throw new ApiError(403, "not_a_member", "Account isn't a member of any units yet.");
     }
     const profile = await persistSignIn(storage, result, me);
-    const activeOrg = profile.orgs.find((o) => o.orgId === profile.activeOrgId) || profile.orgs[0];
+    // Empty-orgs case threw above; orgs[0] is guaranteed.
+    const activeOrg = profile.orgs.find((o) => o.orgId === profile.activeOrgId) || profile.orgs[0]!;
     setState({ status: "signed-in", token: result.token, profile, activeOrg });
   }, [storage]);
 

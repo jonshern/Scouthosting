@@ -14,6 +14,7 @@ import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
 import { palette } from './src/theme/tokens';
 import { RootNavigator } from './src/navigation/RootNavigator';
+import { linking } from './src/navigation/linking';
 import { AuthProvider, useAuth } from './src/state/AuthContext';
 import SignInScreen from './src/screens/SignInScreen';
 
@@ -21,7 +22,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <AuthProvider>
-        <NavigationContainer>
+        <NavigationContainer linking={linking}>
           <StatusBar style="dark" />
           <AuthGate />
         </NavigationContainer>

@@ -172,6 +172,8 @@ secondary spectrum.
 
 ## Open work
 
+Things that need real-world inputs we can't synthesize:
+
 - **Branded artwork** — replace the placeholder icon, adaptive-icon,
   splash, and favicon under `assets/` with real designs (re-run
   `scripts/gen-placeholder-icons.mjs` if you just want regen'd
@@ -179,16 +181,19 @@ secondary spectrum.
 - **Fonts** — drop Newsreader + Inter Tight TTFs into `assets/fonts/`
   and re-introduce a `useFonts({ ... })` block in `App.tsx`. System
   fonts render in the meantime.
-- **Photos uploads** — the album viewer is wired against
-  `/api/v1/orgs/:orgId/photos`; uploads from camera / picker still
-  TODO.
 - **Auth providers** — Google + Apple SSO ship today. WebAuthn passkey
   enrollment + Microsoft SSO are still TODO.
 - **Push notifications** — registration on launch works via
-  `expo-notifications`. Real-device verification and badge counts
-  are the remaining pieces.
-- **Deep links** — `compass://event/:id`, `compass://channel/:id`,
-  `compass://photo/:id`. Linking config not yet added.
+  `expo-notifications`. Real-device verification (APNs / FCM
+  certificates) and badge counts are the remaining pieces.
 - **Submission credentials** — fill in the `REPLACE_WITH_*` fields in
   `eas.json`'s `submit.production` block before running
   `eas submit`.
+- **Universal-link verification files** — host the
+  `apple-app-site-association` JSON at
+  `https://compass.app/.well-known/apple-app-site-association` and
+  `assetlinks.json` at
+  `https://compass.app/.well-known/assetlinks.json`. The app config
+  is ready (see `app.json` `ios.associatedDomains` and
+  `android.intentFilters`); the server-side files belong to the apex
+  rather than this repo.

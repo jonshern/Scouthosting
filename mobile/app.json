@@ -15,14 +15,29 @@
     },
     "ios": {
       "bundleIdentifier": "app.compass.parent",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "associatedDomains": [
+        "applinks:compass.app",
+        "applinks:*.compass.app"
+      ]
     },
     "android": {
       "package": "app.compass.parent",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0e3320"
-      }
+      },
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https", "host": "compass.app" },
+            { "scheme": "https", "host": "*.compass.app" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "bundler": "metro",

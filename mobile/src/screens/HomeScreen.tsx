@@ -50,7 +50,7 @@ function iconForActivity(icon: string): IconName {
     case 'check': return 'check';
     case 'cash':  return 'flag';
     case 'post':  return 'pin';
-    default:      return 'mail';
+    default:      return 'bell';
   }
 }
 
@@ -160,7 +160,7 @@ export function HomeScreen() {
           <Pressable onPress={() => navigation.navigate('EventDetail', { eventId: nextEvent.id })}>
             <EventCard
               variant="next"
-              month={MONTH_SHORT[new Date(nextEvent.startsAt).getMonth()]}
+              month={MONTH_SHORT[new Date(nextEvent.startsAt).getMonth()]!}
               day={String(new Date(nextEvent.startsAt).getDate()).padStart(2, '0')}
               title={nextEvent.title}
               subtitle={`${nextEvent.yes} of ${nextEvent.capacity || '—'} replied`}
