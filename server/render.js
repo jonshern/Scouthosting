@@ -278,8 +278,9 @@ function renderEvents(events) {
       </header>
       <ul class="events">${items}</ul>
       <p class="cta-row">
-        <a class="btn ghost" href="/events">All events →</a>
-        <a class="btn ghost" href="/calendar.ics">Subscribe to calendar (.ics)</a>
+        <a class="btn primary" href="/calendar">Open full calendar →</a>
+        <a class="btn ghost" href="/events">List view</a>
+        <a class="btn ghost" href="/calendar.ics">Subscribe (.ics)</a>
       </p>
     </div>
   </section>`;

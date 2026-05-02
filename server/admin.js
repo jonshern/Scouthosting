@@ -2247,6 +2247,15 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
       <p class="muted small" style="margin:.5rem 0 0">Share this URL in a welcome email or post it on your public site. Google Calendar / Apple Calendar / Outlook all accept it via "Subscribe to calendar from URL". Updates fan out automatically when the calendar refreshes (typically every few hours).</p>
     </div>
 
+    <div id="admin-fc" class="admin-fc-host" aria-busy="true">
+      <p class="muted small" style="text-align:center;padding:2rem">Loading calendar…</p>
+    </div>
+    <noscript>
+      <p class="muted small" style="text-align:center;padding:1rem;background:#fff;border:1px solid #eef0e7;border-radius:10px;margin-bottom:1rem">
+        Calendar control needs JavaScript. The full event list is below.
+      </p>
+    </noscript>
+
     <h2 style="margin-top:1.25rem">New event</h2>
     ${eventForm({ event: null, action: "/admin/events", submitLabel: "Create event" })}
 
@@ -2258,6 +2267,84 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
         ? `<h2 style="margin-top:2rem">Past (last 20)</h2><ul class="items">${past.map(renderRow).join("")}</ul>`
         : ""
     }
+
+    <script src="/vendor/fullcalendar/index.global.min.js" defer></script>
+    <script>
+      (function () {
+        function init() {
+          var host = document.getElementById("admin-fc");
+          if (!host) return;
+          if (typeof FullCalendar === "undefined") {
+            host.removeAttribute("aria-busy");
+            host.innerHTML = '<p class="muted small" style="text-align:center;padding:1rem">Calendar control failed to load — see the event lists below.</p>';
+            return;
+          }
+          host.removeAttribute("aria-busy");
+          host.innerHTML = "";
+          var cal = new FullCalendar.Calendar(host, {
+            initialView: "dayGridMonth",
+            headerToolbar: {
+              left: "prev,next today",
+              center: "title",
+              right: "dayGridMonth,timeGridWeek,listMonth,multiMonthYear",
+            },
+            buttonText: { today: "Today", month: "Month", week: "Week", list: "List", multiMonthYear: "Year" },
+            height: "auto",
+            firstDay: 0,
+            nowIndicator: true,
+            dayMaxEventRows: 3,
+            eventDisplay: "block",
+            eventTimeFormat: { hour: "numeric", minute: "2-digit", meridiem: "short" },
+            events: "/calendar.json",
+            // Click an event in the admin grid → land on the RSVPs page
+            // (where the leader can also reach Announce, Trip plan,
+            // Carpool, etc. via tabs).
+            eventClick: function (info) {
+              info.jsEvent.preventDefault();
+              window.location.href = "/admin/events/" + info.event.id + "/rsvps";
+            },
+            // Click an empty cell → pre-fill the New event form's date.
+            dateClick: function (info) {
+              var input = document.querySelector('input[name="startsAt"]');
+              if (input && input.type === "datetime-local") {
+                var d = info.date;
+                var pad = function (n) { return String(n).padStart(2, "0"); };
+                input.value = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T19:00";
+                input.scrollIntoView({ behavior: "smooth", block: "center" });
+                input.focus();
+              }
+            },
+          });
+          cal.render();
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", init);
+        } else {
+          init();
+        }
+      })();
+    </script>
+
+    <style>
+      .admin-fc-host{background:#fff;border:1px solid #eef0e7;border-radius:12px;padding:1.1rem;margin-bottom:1.5rem;box-shadow:0 1px 2px rgba(15,58,31,.04)}
+      .admin-fc-host.fc{font-family:inherit}
+      .fc .fc-toolbar-title{font-family:'Inter Tight',Inter,sans-serif;font-size:1.3rem;font-weight:600;letter-spacing:-0.01em;color:var(--ink-900,#0d130d)}
+      .fc .fc-button{background:#f7f4e8;border:1px solid #e2dab8;color:#3a4036;font-weight:600;text-transform:none;box-shadow:none;padding:.4rem .8rem;font-size:.85rem}
+      .fc .fc-button:hover{background:#efe9d2;border-color:#cdc093}
+      .fc .fc-button:focus{box-shadow:0 0 0 2px rgba(14,51,32,.18)}
+      .fc .fc-button-primary:not(:disabled).fc-button-active,
+      .fc .fc-button-primary:not(:disabled):active{background:#1d6b39;border-color:#1d6b39;color:#fff}
+      .fc .fc-col-header-cell-cushion{font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#5a6258;padding:.55rem 0}
+      .fc .fc-day-today{background:#fffbe6 !important}
+      .fc .fc-event{cursor:pointer;border-radius:5px;font-size:.78rem;font-weight:500}
+      .fc .fc-event:hover{filter:brightness(1.05)}
+      @media (max-width:720px){
+        .admin-fc-host{padding:.6rem}
+        .fc .fc-toolbar{gap:.4rem}
+        .fc .fc-toolbar-title{font-size:1.05rem}
+        .fc .fc-button{padding:.32rem .55rem;font-size:.78rem}
+      }
+    </style>
   `;
   res.type("html").send(layout(req, { title: "Calendar", body }));
 });
