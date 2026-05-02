@@ -45,6 +45,7 @@ import {
   renderSite,
   renderEventDetail,
   renderEventsList,
+  renderCalendarMonth,
   renderDirectory,
   renderPostsList,
   renderPostDetail,
@@ -67,6 +68,7 @@ import { googleOAuth, googleConfigured, fetchGoogleProfile, appleOAuth, appleCon
 import { generateState, generateCodeVerifier } from "arctic";
 import { icsFor, icsForOrg, expandOccurrences } from "../lib/calendar.js";
 import { verifyRsvpToken } from "../lib/rsvpToken.js";
+import { verifyTrackingToken } from "../lib/trackingToken.js";
 import { verifyUnsubToken } from "../lib/unsubToken.js";
 import { makeSignedToken, verifySignedToken } from "../lib/signedToken.js";
 import { send as sendMail } from "../lib/mail.js";
@@ -1625,6 +1627,133 @@ app.get("/events/:id.ics", async (req, res) => {
     .send(icsFor(ev, { orgSlug: req.org.slug }));
 });
 
+// JSON events feed for the FullCalendar control on /calendar. Accepts
+// FullCalendar's standard `?start=&end=` ISO query, expands recurring
+// events, and emits the event shape FullCalendar consumes natively.
+// `?cat=<slug>` narrows to a category. The endpoint returns a plain
+// array (no envelope) because FullCalendar consumes that directly when
+// the `events` option is a URL string.
+app.get("/calendar.json", async (req, res, next) => {
+  if (!req.org) return next();
+  const startQ = String(req.query.start || "");
+  const endQ = String(req.query.end || "");
+  const start = new Date(startQ);
+  const end = new Date(endQ);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start >= end) {
+    return res.status(400).json({ error: "bad_range" });
+  }
+
+  const candidates = await prisma.event.findMany({
+    where: {
+      orgId: req.org.id,
+      OR: [
+        { startsAt: { gte: start, lte: end } },
+        { rrule: { not: null } },
+      ],
+    },
+    orderBy: { startsAt: "asc" },
+  });
+
+  let expanded = (
+    await Promise.all(
+      candidates.map((e) =>
+        expandOccurrences(e, { from: start, to: end, max: 200 }),
+      ),
+    )
+  )
+    .flat()
+    .filter((e) => {
+      const d = new Date(e.startsAt);
+      return d >= start && d <= end;
+    });
+
+  const cat = req.query.cat ? String(req.query.cat) : "";
+  if (cat) {
+    const slugify = (s) => String(s || "").toLowerCase().replace(/[\s_]+/g, "-");
+    expanded = expanded.filter((e) => slugify(e.category) === slugify(cat));
+  }
+
+  // Per-category color so chips on the FullCalendar grid match the
+  // server-rendered chip palette. Falls through to the org's primary.
+  const { categoryMeta } = await import("../lib/eventCategories.js");
+  const palette = (color) => {
+    // Map our category-color tokens to a real hex via the org's
+    // primary/accent fallbacks. The FullCalendar consumer only needs a
+    // CSS color string.
+    const map = {
+      primary: req.org.primaryColor || "#0e3320",
+      accent: req.org.accentColor || "#c8e94a",
+      sky: "#3a93c5",
+      raspberry: "#c44066",
+      plum: "#7d4f8a",
+      butter: "#e6c44a",
+    };
+    return map[color] || req.org.primaryColor || "#0e3320";
+  };
+
+  const out = expanded.map((e) => {
+    const meta = e.category ? categoryMeta(e.category) : null;
+    const bg = meta ? palette(meta.color) : (req.org.primaryColor || "#0e3320");
+    return {
+      id: e.id,
+      title: e.title,
+      start: new Date(e.startsAt).toISOString(),
+      end: e.endsAt ? new Date(e.endsAt).toISOString() : null,
+      allDay: !!e.allDay,
+      url: `/events/${e.id}`,
+      backgroundColor: bg,
+      borderColor: bg,
+      textColor: meta && (meta.color === "accent" || meta.color === "butter") ? "#0e3320" : "#fff",
+      extendedProps: {
+        location: e.location || "",
+        category: meta?.label || e.category || "",
+      },
+    };
+  });
+
+  res.json(out);
+});
+
+// Public calendar page. Renders a FullCalendar control which fetches
+// its own events from /calendar.json — this handler just produces the
+// page chrome and a category-filter chip row. We pull enough events
+// (90 days forward) to know which categories to surface in chips.
+app.get("/calendar", async (req, res, next) => {
+  if (!req.org) return next();
+
+  const categoryFilter = req.query.cat ? String(req.query.cat) : "";
+  const now = new Date();
+  const horizonStart = new Date(now);
+  horizonStart.setHours(0, 0, 0, 0);
+  const horizonEnd = new Date(horizonStart);
+  horizonEnd.setDate(horizonEnd.getDate() + 90);
+
+  const candidates = await prisma.event.findMany({
+    where: {
+      orgId: req.org.id,
+      OR: [
+        { startsAt: { gte: horizonStart, lte: horizonEnd } },
+        { rrule: { not: null } },
+      ],
+    },
+    orderBy: { startsAt: "asc" },
+  });
+  const expanded = (
+    await Promise.all(
+      candidates.map((e) => expandOccurrences(e, { from: horizonStart, to: horizonEnd, max: 60 })),
+    )
+  ).flat();
+
+  res
+    .set("Content-Type", "text/html; charset=utf-8")
+    .send(
+      renderCalendarMonth(req.org, expanded, {
+        categoryFilter,
+        apexDomain: APEX_DOMAIN,
+      }),
+    );
+});
+
 // Public events list (full page).
 app.get("/events", async (req, res, next) => {
   if (!req.org) return next();
@@ -2603,6 +2732,89 @@ app.post("/events/:id/slots/:slotId/release", async (req, res, next) => {
   res.redirect(`/events/${req.params.id}?slot=released`);
 });
 
+// Email open tracking pixel. Returns a 1x1 transparent PNG and records
+// a "view" event in MailEvent. Errors silently fall through to the PNG
+// so a flaky tracker never breaks the user's mail rendering.
+const TRACKING_PIXEL = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkAAIAAAoAAv/lxKUAAAAASUVORK5CYII=",
+  "base64",
+);
+function sendTrackingPixel(res) {
+  res
+    .set("Content-Type", "image/png")
+    .set("Cache-Control", "no-store, max-age=0")
+    .set("Content-Length", TRACKING_PIXEL.length)
+    .end(TRACKING_PIXEL);
+}
+function hashIp(req) {
+  const ip =
+    (req.headers["x-forwarded-for"] || "").toString().split(",")[0].trim() ||
+    req.ip ||
+    "";
+  if (!ip) return null;
+  return crypto.createHash("sha256").update(ip).digest("hex").slice(0, 32);
+}
+
+app.get("/t/o/:token.png", async (req, res, next) => {
+  if (!req.org) return next();
+  const claims = verifyTrackingToken(req.params.token);
+  if (!claims || claims.kind !== "open") return sendTrackingPixel(res);
+  try {
+    const log = await prisma.mailLog.findUnique({
+      where: { id: claims.mailLogId },
+      select: { id: true, orgId: true },
+    });
+    if (log && log.orgId === req.org.id) {
+      await prisma.mailEvent.create({
+        data: {
+          orgId: log.orgId,
+          mailLogId: log.id,
+          recipient: claims.recipient,
+          kind: "open",
+          userAgent: (req.headers["user-agent"] || "").toString().slice(0, 500),
+          ipHash: hashIp(req),
+        },
+      });
+    }
+  } catch {
+    // never let a logging failure stop the pixel
+  }
+  sendTrackingPixel(res);
+});
+
+app.get("/t/c/:token", async (req, res, next) => {
+  if (!req.org) return next();
+  const target = (req.query.to || "").toString();
+  const claims = verifyTrackingToken(req.params.token, { url: target });
+  // On any failure send the user back to home rather than to an
+  // unverified destination — protects against open redirect.
+  if (!claims || claims.kind !== "click" || !/^https?:\/\//i.test(target)) {
+    return res.redirect("/");
+  }
+  try {
+    const log = await prisma.mailLog.findUnique({
+      where: { id: claims.mailLogId },
+      select: { id: true, orgId: true },
+    });
+    if (log && log.orgId === req.org.id) {
+      await prisma.mailEvent.create({
+        data: {
+          orgId: log.orgId,
+          mailLogId: log.id,
+          recipient: claims.recipient,
+          kind: "click",
+          url: target.slice(0, 2000),
+          userAgent: (req.headers["user-agent"] || "").toString().slice(0, 500),
+          ipHash: hashIp(req),
+        },
+      });
+    }
+  } catch {
+    // never let a logging failure block the redirect
+  }
+  res.redirect(target);
+});
+
 // Email-link RSVP. The token encodes (eventId, name, email) + response,
 // HMAC-signed with RSVP_SECRET. One click from the inbox records the
 // response — no login. Tokens are short-lived (default 60 days) and
@@ -2931,6 +3143,27 @@ app.get("*", async (req, res, next) => {
   // on demo.<APEX_DOMAIN>.
   const ext = path.extname(req.path);
   if (ext && ext !== ".html") {
+    // Vendored client libraries served straight from node_modules so we
+    // don't duplicate them into the repo. Only an allow-listed set of
+    // packages is reachable; the path-traversal regex bars any "../".
+    const VENDOR = {
+      "/vendor/fullcalendar/": path.join(ROOT, "node_modules", "fullcalendar"),
+    };
+    for (const [prefix, dir] of Object.entries(VENDOR)) {
+      if (req.path.startsWith(prefix)) {
+        const sub = req.path.slice(prefix.length);
+        if (!/^[a-zA-Z0-9._-]+(\.[a-zA-Z0-9_-]+)*$/.test(sub) || sub.includes("..")) {
+          return res.status(404).send("Not found");
+        }
+        const file = path.join(dir, sub);
+        if (fs.existsSync(file)) {
+          // Long-cache vendored libs since they're versioned by npm.
+          res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+          return res.sendFile(file);
+        }
+        return res.status(404).send("Not found");
+      }
+    }
     const file = path.join(ROOT, "demo", req.path);
     if (fs.existsSync(file)) return res.sendFile(file);
     return res.status(404).send("Not found");

@@ -62,21 +62,22 @@ describe('apiRequest', () => {
     const { fn, calls } = makeFetch(() => ({ body: { ok: true } }));
     await apiRequest(opts({ fetchImpl: fn }), '/channels');
     expect(calls).toHaveLength(1);
-    expect(calls[0].url).toContain('/api/v1/channels');
-    const headers = (calls[0].init.headers || {}) as Record<string, string>;
+    const call = calls[0]!;
+    expect(call.url).toContain('/api/v1/channels');
+    const headers = (call.init.headers || {}) as Record<string, string>;
     expect(headers.Authorization).toBe('Bearer compass_pat_test');
   });
 
   it('appends query parameters', async () => {
     const { fn, calls } = makeFetch(() => ({ body: {} }));
     await apiRequest(opts({ fetchImpl: fn }), '/channels', { query: { orgId: 'org1' } });
-    expect(calls[0].url).toMatch(/\?orgId=org1/);
+    expect(calls[0]!.url).toMatch(/\?orgId=org1/);
   });
 
   it('serializes a JSON body and sets Content-Type', async () => {
     const { fn, calls } = makeFetch(() => ({ body: {} }));
     await apiRequest(opts({ fetchImpl: fn }), '/x', { method: 'POST', body: { a: 1 } });
-    const init = calls[0].init;
+    const init = calls[0]!.init;
     expect(init.method).toBe('POST');
     expect(init.body).toBe(JSON.stringify({ a: 1 }));
     expect((init.headers as Record<string, string>)['Content-Type']).toBe('application/json');
@@ -115,7 +116,7 @@ describe('channels API wrappers', () => {
   it('listChannels passes orgId in the query', async () => {
     const { fn, calls } = makeFetch(() => ({ body: { channels: [] } as ChannelsListResponse }));
     await listChannels(opts({ fetchImpl: fn }), 'org1');
-    expect(calls[0].url).toContain('/channels?orgId=org1');
+    expect(calls[0]!.url).toContain('/channels?orgId=org1');
   });
 
   it('getChannel hits /channels/:id', async () => {
@@ -123,7 +124,7 @@ describe('channels API wrappers', () => {
       body: { channel: { id: 'c1' } as any, messages: [], hasMore: false } as ChannelDetailResponse,
     }));
     const r = await getChannel(opts({ fetchImpl: fn }), 'c1');
-    expect(calls[0].url).toContain('/channels/c1');
+    expect(calls[0]!.url).toContain('/channels/c1');
     expect(r.channel.id).toBe('c1');
   });
 
@@ -133,8 +134,8 @@ describe('channels API wrappers', () => {
       body: { message: { id: 'm1', body: 'hi', author: null, channelId: 'c1', createdAt: '', deleted: false, editedAt: null, pinned: false } },
     }));
     const r = await sendMessage(opts({ fetchImpl: fn }), 'c1', 'hi');
-    expect(calls[0].init.method).toBe('POST');
-    expect(calls[0].init.body).toBe(JSON.stringify({ body: 'hi' }));
+    expect(calls[0]!.init.method).toBe('POST');
+    expect(calls[0]!.init.body).toBe(JSON.stringify({ body: 'hi' }));
     expect(r.message.id).toBe('m1');
   });
 });

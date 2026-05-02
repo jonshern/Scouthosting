@@ -18,6 +18,25 @@ import { moveFromTemp, remove as removeFile } from "../lib/storage.js";
 import { googleConfigured, appleConfigured } from "../lib/oauth.js";
 import { sendBatch, mailDriver } from "../lib/mail.js";
 import { sendSmsBatch, smsDriver, normalisePhone } from "../lib/sms.js";
+import { trackEmail, trackSmsBody } from "../lib/trackedMessage.js";
+
+// Returns a stable id we can stamp into both the outbound tracking
+// tokens and the MailLog row created after the send. Format mirrors
+// cuid (string + hex) so dashboards that group by id-prefix keep
+// working.
+function newMailLogId() {
+  return "ml_" + crypto.randomBytes(12).toString("hex");
+}
+
+function trackingBaseUrl(req) {
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+  const portSuffix =
+    process.env.PORT && process.env.NODE_ENV !== "production"
+      ? `:${process.env.PORT}`
+      : "";
+  return `${protocol}://${req.org.slug}.${apex}${portSuffix}`;
+}
 import { MEAL_DIETARY_TAGS, sanitizeMealTags, mealConflicts } from "../lib/dietary.js";
 import { reconcilePositionTerm as reconcileTerm } from "../lib/positionTerms.js";
 import { makeUnsubToken } from "../lib/unsubToken.js";
@@ -60,9 +79,15 @@ import {
 } from "../lib/inviteToken.js";
 import {
   SECTIONS as HOMEPAGE_SECTIONS,
+  BLOCK_TYPES as HOMEPAGE_BLOCK_TYPES,
   resolvePlan as resolveHomepagePlan,
   normaliseSectionPatch as normaliseHomepageSectionPatch,
   readTestimonials as readHomepageTestimonials,
+  readCustomBlocks as readHomepageCustomBlocks,
+  normaliseCustomBlock as normaliseHomepageCustomBlock,
+  isCustomBlockKey as isHomepageBlockKey,
+  customBlockId as homepageBlockId,
+  customBlockKey as homepageBlockKey,
 } from "../lib/homepageSections.js";
 import { categoryMeta as eventCategoryMeta } from "../lib/eventCategories.js";
 
@@ -170,20 +195,42 @@ function resolvePatrolFromBody(body) {
 function sectionPlannerRows(page) {
   const order = resolveHomepagePlan(page);
   const knownSet = new Set(order);
+  const blocks = readHomepageCustomBlocks(page);
+  const blocksById = new Map(blocks.map((b) => [b.id, b]));
   // Include hidden sections at the bottom so the admin can re-show them.
-  const all = [...order, ...Object.keys(HOMEPAGE_SECTIONS).filter((k) => !knownSet.has(k))];
+  const hiddenBuiltins = Object.keys(HOMEPAGE_SECTIONS).filter((k) => !knownSet.has(k));
+  const hiddenBlocks = blocks
+    .map((b) => homepageBlockKey(b.id))
+    .filter((k) => !knownSet.has(k));
+  const all = [...order, ...hiddenBuiltins, ...hiddenBlocks];
   const vis = page?.sectionVisibility || {};
   return all
     .map((key, idx) => {
-      const meta = HOMEPAGE_SECTIONS[key];
+      let label;
+      let description;
+      if (isHomepageBlockKey(key)) {
+        const b = blocksById.get(homepageBlockId(key));
+        if (!b) return ""; // backing block was deleted; skip silently
+        const typeMeta = HOMEPAGE_BLOCK_TYPES[b.type];
+        const title =
+          (b.type === "image" ? b.caption : b.title) ||
+          `Untitled ${typeMeta?.label || "block"}`;
+        label = `${title} <span class="tag">Custom · ${escape(typeMeta?.label || b.type)}</span>`;
+        description = typeMeta?.description || "";
+      } else {
+        const meta = HOMEPAGE_SECTIONS[key];
+        if (!meta) return "";
+        label = escape(meta.label);
+        description = meta.description;
+      }
       const visible = vis[key] !== false;
       return `
       <li draggable="true" style="cursor:grab" data-key="${escape(key)}">
         <input type="hidden" name="order[]" value="${escape(key)}">
         <span style="font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--ink-muted);font-size:.75rem;width:1.4rem">${idx + 1}.</span>
         <div style="flex:1">
-          <strong>${escape(meta.label)}</strong>
-          <p>${escape(meta.description)}</p>
+          <strong>${label}</strong>
+          <p>${escape(description)}</p>
         </div>
         <label style="margin:0;display:flex;align-items:center;gap:.4rem;flex:0 0 auto">
           <input type="checkbox" name="visible[${escape(key)}]" value="1" ${visible ? "checked" : ""} style="width:auto">
@@ -192,6 +239,46 @@ function sectionPlannerRows(page) {
       </li>`;
     })
     .join("");
+}
+
+// Render the "Custom blocks" section of the editor — list of existing
+// blocks with edit/delete actions, plus an "Add a block" picker.
+function customBlockRows(page) {
+  const blocks = readHomepageCustomBlocks(page);
+  if (!blocks.length) {
+    return `<p class="muted small">No custom blocks yet. Add one below to drop a text snippet, photo, or call-to-action onto your homepage.</p>`;
+  }
+  return `<ul class="items" style="margin:0 0 .8rem">${blocks
+    .map((b) => {
+      const typeMeta = HOMEPAGE_BLOCK_TYPES[b.type];
+      const heading =
+        (b.type === "image" ? b.caption : b.title) ||
+        `Untitled ${typeMeta?.label || "block"}`;
+      const preview =
+        b.type === "text"
+          ? (b.body || "").slice(0, 120)
+          : b.type === "image"
+          ? b.filename
+            ? `Image: ${b.filename}`
+            : "No image uploaded yet"
+          : b.type === "cta"
+          ? `${b.buttonLabel || "Button"} → ${b.buttonLink || "(no link)"}`
+          : "";
+      return `
+        <li>
+          <div style="flex:1">
+            <h3 style="margin:0">${escape(heading)} <span class="tag">${escape(typeMeta?.label || b.type)}</span></h3>
+            <p class="muted small" style="margin:.2rem 0 0">${escape(preview)}</p>
+          </div>
+          <div class="row">
+            <a class="btn btn-ghost small" href="/admin/content/blocks/${escape(b.id)}/edit">Edit</a>
+            <form class="inline" method="post" action="/admin/content/blocks/${escape(b.id)}/delete" onsubmit="return confirm('Delete this block?')">
+              <button class="btn btn-danger small" type="submit">Delete</button>
+            </form>
+          </div>
+        </li>`;
+    })
+    .join("")}</ul>`;
 }
 
 function testimonialFormRows(page) {
@@ -251,6 +338,15 @@ function memberSubgroupField({ unitType, current, formId }) {
 const NAV_SECTIONS = [
   { key: "overview", label: "Overview", href: "/admin", pages: [] },
   {
+    key: "site",
+    label: "Site",
+    href: "/admin/content",
+    pages: [
+      { href: "/admin/content", label: "Homepage" },
+      { href: "/admin/pages", label: "Custom pages" },
+    ],
+  },
+  {
     key: "messages",
     label: "Messages",
     href: "/admin/email",
@@ -302,8 +398,6 @@ const NAV_SECTIONS = [
     pages: [
       { href: "/admin/forms", label: "Forms & documents" },
       { href: "/admin/surveys", label: "Surveys" },
-      { href: "/admin/content", label: "Page content" },
-      { href: "/admin/pages", label: "Custom pages" },
     ],
   },
   {
@@ -778,6 +872,7 @@ ${dashboardCss()}
     <p class="dash-summary">${dashboardSummaryLine(model)}</p>
   </div>
   <div class="dash-greeting-actions">
+    <a class="dash-btn-ghost" href="/admin/content">Edit homepage</a>
     <a class="dash-btn-ghost" href="/admin/email">Send a message</a>
     <a class="dash-btn-accent" href="/admin/events">+ New event</a>
   </div>
@@ -1044,8 +1139,8 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
   const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
   const v = (k, fallback = "") => escape(page?.[k] ?? fallback);
   const body = `
-    <h1>Page content</h1>
-    <p class="muted">Anything you save here replaces the default copy on the public site.</p>
+    <h1>Homepage</h1>
+    <p class="muted">Edit the copy and section order on your public site's front page. <a href="/" target="_blank" rel="noopener">View site ↗</a></p>
     <p class="muted small">${MARKDOWN_HINT}</p>
     <form class="card" method="post" action="/admin/content">
       <label>Hero headline
@@ -1081,6 +1176,19 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
         <a class="btn btn-ghost" href="/admin">Cancel</a>
         ${page ? `<a class="btn btn-ghost" style="margin-left:auto" href="/admin/content/reset" onclick="return confirm('Reset to defaults?')">Reset to defaults</a>` : ""}
       </div>
+    </form>
+
+    <h2 style="margin-top:1.75rem">Custom blocks</h2>
+    <p class="muted small">Drop in your own text, photos, or call-to-action cards. Each block appears in the section order below — drag it wherever you want it on the page.</p>
+    ${customBlockRows(page)}
+    <form class="card" method="post" action="/admin/content/blocks" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
+      <span class="muted small" style="margin-right:.4rem">Add a block:</span>
+      ${Object.entries(HOMEPAGE_BLOCK_TYPES)
+        .map(
+          ([key, meta]) => `
+        <button class="btn btn-ghost small" type="submit" name="type" value="${escape(key)}">+ ${escape(meta.label)}</button>`,
+        )
+        .join("")}
     </form>
 
     <h2 style="margin-top:1.75rem">Section order &amp; visibility</h2>
@@ -1254,9 +1362,11 @@ adminRouter.post("/content/sections", requireLeader, async (req, res) => {
   for (const key of order) {
     visibility[key] = visMap[key] === "1" || visMap[key] === true;
   }
+  const existing = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const knownBlockIds = readHomepageCustomBlocks(existing).map((b) => b.id);
   let patch;
   try {
-    patch = normaliseHomepageSectionPatch({ order, visibility });
+    patch = normaliseHomepageSectionPatch({ order, visibility }, { knownBlockIds });
   } catch (e) {
     return res.status(400).type("text/plain").send(e.message);
   }
@@ -1299,6 +1409,163 @@ adminRouter.post("/content/testimonials", requireLeader, async (req, res) => {
     summary: `Testimonials updated (${testimonials.length})`,
   });
   res.redirect("/admin/content?saved=testimonials");
+});
+
+// Custom homepage blocks — Squarespace-style "drop in a text/image/CTA"
+// path. POST creates a fresh draft block of the chosen type and
+// redirects to its edit page. The block lives in Page.customBlocks
+// (JSONB array); section ordering treats it as "block:<id>".
+adminRouter.post("/content/blocks", requireLeader, async (req, res) => {
+  const type = String(req.body?.type || "");
+  if (!HOMEPAGE_BLOCK_TYPES[type]) return res.redirect("/admin/content");
+
+  const id = `cb_${crypto.randomBytes(6).toString("hex")}`;
+  const fresh = normaliseHomepageCustomBlock({ id, type });
+
+  const existing = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const blocks = readHomepageCustomBlocks(existing);
+  blocks.push(fresh);
+
+  await prisma.page.upsert({
+    where: { orgId: req.org.id },
+    update: { customBlocks: blocks },
+    create: { orgId: req.org.id, customBlocks: blocks },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "create",
+    summary: `Added ${HOMEPAGE_BLOCK_TYPES[type].label} block`,
+  });
+  res.redirect(`/admin/content/blocks/${id}/edit`);
+});
+
+adminRouter.get("/content/blocks/:id/edit", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const block = readHomepageCustomBlocks(page).find((b) => b.id === req.params.id);
+  if (!block) return res.status(404).send("Block not found");
+  const typeMeta = HOMEPAGE_BLOCK_TYPES[block.type];
+
+  let fields;
+  if (block.type === "text") {
+    fields = `
+      <label>Heading
+        <input name="title" type="text" maxlength="120" value="${escape(block.title || "")}" placeholder="e.g. Our story">
+      </label>
+      <label>Body (Markdown supported)
+        <textarea name="body" rows="8" placeholder="Tell visitors something about your unit.">${escape(block.body || "")}</textarea>
+      </label>`;
+  } else if (block.type === "image") {
+    const preview = block.filename
+      ? `<div style="margin-bottom:.6rem"><img src="/uploads/${escape(block.filename)}" alt="" style="max-width:100%;max-height:240px;border-radius:8px;border:1px solid #eef0e7"></div>`
+      : `<p class="muted small" style="margin:0 0 .6rem">No image uploaded yet. Upload one below.</p>`;
+    fields = `
+      ${preview}
+      <p class="muted small">Upload a new image from the Photos section first, then paste the filename here. (We'll add a one-click picker in a future polish pass.)</p>
+      <label>Image filename
+        <input name="filename" type="text" maxlength="200" value="${escape(block.filename || "")}" placeholder="e.g. spring-camporee.jpg">
+      </label>
+      <label>Caption (optional)
+        <input name="caption" type="text" maxlength="200" value="${escape(block.caption || "")}" placeholder="What's in the photo?">
+      </label>
+      <label>Alt text (for screen readers)
+        <input name="alt" type="text" maxlength="200" value="${escape(block.alt || "")}" placeholder="Brief description">
+      </label>`;
+  } else if (block.type === "cta") {
+    fields = `
+      <label>Heading
+        <input name="title" type="text" maxlength="120" value="${escape(block.title || "")}" placeholder="e.g. Ready to join?">
+      </label>
+      <label>Body
+        <textarea name="body" rows="3" placeholder="A short blurb under the heading.">${escape(block.body || "")}</textarea>
+      </label>
+      <div class="row">
+        <label style="margin:0;flex:1">Button label<input name="buttonLabel" type="text" maxlength="60" value="${escape(block.buttonLabel || "")}" placeholder="Visit us"></label>
+        <label style="margin:0;flex:1">Button link<input name="buttonLink" type="text" maxlength="500" value="${escape(block.buttonLink || "")}" placeholder="/join or https://…"></label>
+      </div>`;
+  }
+
+  const body = `
+    <a class="back" href="/admin/content" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Homepage</a>
+    <h1>Edit ${escape(typeMeta.label)} block</h1>
+    <p class="muted">${escape(typeMeta.description)}</p>
+
+    <form class="card" method="post" action="/admin/content/blocks/${escape(block.id)}">
+      ${fields}
+      <div class="row" style="margin-top:.4rem">
+        <button class="btn btn-primary" type="submit">Save block</button>
+        <a class="btn btn-ghost" href="/admin/content">Cancel</a>
+        <form class="inline" method="post" action="/admin/content/blocks/${escape(block.id)}/delete" onsubmit="return confirm('Delete this block?')" style="margin-left:auto">
+          <button class="btn btn-danger" type="submit">Delete block</button>
+        </form>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout(req, { title: `Edit ${typeMeta.label} block`, body }));
+});
+
+adminRouter.post("/content/blocks/:id", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const blocks = readHomepageCustomBlocks(page);
+  const idx = blocks.findIndex((b) => b.id === req.params.id);
+  if (idx === -1) return res.status(404).send("Block not found");
+
+  let updated;
+  try {
+    updated = normaliseHomepageCustomBlock({ ...blocks[idx], ...req.body, id: blocks[idx].id, type: blocks[idx].type });
+  } catch (e) {
+    return res.status(400).type("text/plain").send(e.message);
+  }
+  blocks[idx] = updated;
+
+  await prisma.page.update({
+    where: { orgId: req.org.id },
+    data: { customBlocks: blocks },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "update",
+    summary: `Edited ${HOMEPAGE_BLOCK_TYPES[updated.type].label} block`,
+  });
+  res.redirect("/admin/content?saved=block");
+});
+
+adminRouter.post("/content/blocks/:id/delete", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const blocks = readHomepageCustomBlocks(page);
+  const target = blocks.find((b) => b.id === req.params.id);
+  const remaining = blocks.filter((b) => b.id !== req.params.id);
+
+  // Also drop the block's key from sectionOrder / sectionVisibility so
+  // the planner doesn't render a stale row.
+  const blockKey = homepageBlockKey(req.params.id);
+  const order = Array.isArray(page?.sectionOrder)
+    ? page.sectionOrder.filter((k) => k !== blockKey)
+    : null;
+  const vis = page?.sectionVisibility ? { ...page.sectionVisibility } : null;
+  if (vis) delete vis[blockKey];
+
+  await prisma.page.update({
+    where: { orgId: req.org.id },
+    data: {
+      customBlocks: remaining,
+      ...(order ? { sectionOrder: order } : {}),
+      ...(vis ? { sectionVisibility: vis } : {}),
+    },
+  });
+  if (target) {
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "Page",
+      action: "delete",
+      summary: `Removed ${HOMEPAGE_BLOCK_TYPES[target.type]?.label || "custom"} block`,
+    });
+  }
+  res.redirect("/admin/content");
 });
 
 adminRouter.get("/content/reset", requireLeader, async (req, res) => {
@@ -1950,6 +2217,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
       </div>
       <div class="row">
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rsvps">RSVPs</a>
+        <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/announce">Announce</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/slots">Sign-up sheet</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/plan">Trip plan</a>
         <a class="btn btn-ghost small" href="/admin/events/${escape(e.id)}/rides">Carpool</a>
@@ -1979,6 +2247,15 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
       <p class="muted small" style="margin:.5rem 0 0">Share this URL in a welcome email or post it on your public site. Google Calendar / Apple Calendar / Outlook all accept it via "Subscribe to calendar from URL". Updates fan out automatically when the calendar refreshes (typically every few hours).</p>
     </div>
 
+    <div id="admin-fc" class="admin-fc-host" aria-busy="true">
+      <p class="muted small" style="text-align:center;padding:2rem">Loading calendar…</p>
+    </div>
+    <noscript>
+      <p class="muted small" style="text-align:center;padding:1rem;background:#fff;border:1px solid #eef0e7;border-radius:10px;margin-bottom:1rem">
+        Calendar control needs JavaScript. The full event list is below.
+      </p>
+    </noscript>
+
     <h2 style="margin-top:1.25rem">New event</h2>
     ${eventForm({ event: null, action: "/admin/events", submitLabel: "Create event" })}
 
@@ -1990,6 +2267,84 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
         ? `<h2 style="margin-top:2rem">Past (last 20)</h2><ul class="items">${past.map(renderRow).join("")}</ul>`
         : ""
     }
+
+    <script src="/vendor/fullcalendar/index.global.min.js" defer></script>
+    <script>
+      (function () {
+        function init() {
+          var host = document.getElementById("admin-fc");
+          if (!host) return;
+          if (typeof FullCalendar === "undefined") {
+            host.removeAttribute("aria-busy");
+            host.innerHTML = '<p class="muted small" style="text-align:center;padding:1rem">Calendar control failed to load — see the event lists below.</p>';
+            return;
+          }
+          host.removeAttribute("aria-busy");
+          host.innerHTML = "";
+          var cal = new FullCalendar.Calendar(host, {
+            initialView: "dayGridMonth",
+            headerToolbar: {
+              left: "prev,next today",
+              center: "title",
+              right: "dayGridMonth,timeGridWeek,listMonth,multiMonthYear",
+            },
+            buttonText: { today: "Today", month: "Month", week: "Week", list: "List", multiMonthYear: "Year" },
+            height: "auto",
+            firstDay: 0,
+            nowIndicator: true,
+            dayMaxEventRows: 3,
+            eventDisplay: "block",
+            eventTimeFormat: { hour: "numeric", minute: "2-digit", meridiem: "short" },
+            events: "/calendar.json",
+            // Click an event in the admin grid → land on the RSVPs page
+            // (where the leader can also reach Announce, Trip plan,
+            // Carpool, etc. via tabs).
+            eventClick: function (info) {
+              info.jsEvent.preventDefault();
+              window.location.href = "/admin/events/" + info.event.id + "/rsvps";
+            },
+            // Click an empty cell → pre-fill the New event form's date.
+            dateClick: function (info) {
+              var input = document.querySelector('input[name="startsAt"]');
+              if (input && input.type === "datetime-local") {
+                var d = info.date;
+                var pad = function (n) { return String(n).padStart(2, "0"); };
+                input.value = d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + "T19:00";
+                input.scrollIntoView({ behavior: "smooth", block: "center" });
+                input.focus();
+              }
+            },
+          });
+          cal.render();
+        }
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", init);
+        } else {
+          init();
+        }
+      })();
+    </script>
+
+    <style>
+      .admin-fc-host{background:#fff;border:1px solid #eef0e7;border-radius:12px;padding:1.1rem;margin-bottom:1.5rem;box-shadow:0 1px 2px rgba(15,58,31,.04)}
+      .admin-fc-host.fc{font-family:inherit}
+      .fc .fc-toolbar-title{font-family:'Inter Tight',Inter,sans-serif;font-size:1.3rem;font-weight:600;letter-spacing:-0.01em;color:var(--ink-900,#0d130d)}
+      .fc .fc-button{background:#f7f4e8;border:1px solid #e2dab8;color:#3a4036;font-weight:600;text-transform:none;box-shadow:none;padding:.4rem .8rem;font-size:.85rem}
+      .fc .fc-button:hover{background:#efe9d2;border-color:#cdc093}
+      .fc .fc-button:focus{box-shadow:0 0 0 2px rgba(14,51,32,.18)}
+      .fc .fc-button-primary:not(:disabled).fc-button-active,
+      .fc .fc-button-primary:not(:disabled):active{background:#1d6b39;border-color:#1d6b39;color:#fff}
+      .fc .fc-col-header-cell-cushion{font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#5a6258;padding:.55rem 0}
+      .fc .fc-day-today{background:#fffbe6 !important}
+      .fc .fc-event{cursor:pointer;border-radius:5px;font-size:.78rem;font-weight:500}
+      .fc .fc-event:hover{filter:brightness(1.05)}
+      @media (max-width:720px){
+        .admin-fc-host{padding:.6rem}
+        .fc .fc-toolbar{gap:.4rem}
+        .fc .fc-toolbar-title{font-size:1.05rem}
+        .fc .fc-button{padding:.32rem .55rem;font-size:.78rem}
+      }
+    </style>
   `;
   res.type("html").send(layout(req, { title: "Calendar", body }));
 });
@@ -2128,10 +2483,8 @@ adminRouter.post("/events/:id/reminder", requireLeader, async (req, res) => {
   );
 
   const apex = process.env.APEX_DOMAIN || "compass.app";
-  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
-  const base = `${protocol}://${req.org.slug}.${apex}${
-    process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : ""
-  }`;
+  const base = trackingBaseUrl(req);
+  const mailLogId = newMailLogId();
 
   const when = ev.startsAt.toLocaleString("en-US", {
     weekday: "long",
@@ -2159,19 +2512,23 @@ Quick RSVP for ${ev.title} — ${when}${ev.location ? ` at ${ev.location}` : ""}
 Event details: ${eventUrl}
 
 — ${req.org.displayName}`;
-    return {
+    return trackEmail({
+      baseUrl: base,
+      mailLogId,
+      recipient: m.email,
       to: m.email,
       subject: `RSVP: ${ev.title}`,
       text,
       from: `${req.user.displayName.replace(/[<>"]/g, "")} (via ${req.org.displayName.replace(/[<>"]/g, "")}) <noreply@${req.org.slug}.${apex}>`,
       replyTo: req.user.email,
-    };
+    });
   });
 
   const result = await sendBatch(messages);
 
   await prisma.mailLog.create({
     data: {
+      id: mailLogId,
       orgId: req.org.id,
       authorId: req.user.id,
       subject: `RSVP: ${ev.title}`,
@@ -2194,6 +2551,270 @@ Event details: ${eventUrl}
         channel: "email",
       })),
     },
+  });
+
+  res.redirect(`/admin/events/${ev.id}/rsvps?reminder=${result.sent}`);
+});
+
+// Event-announcement composer. Differs from /admin/email in that the
+// body is *event-specific* — recipients get a templated email with the
+// event title/when/where/description, one-click RSVP buttons, and a
+// visible "Sent to:" footer of the audience names so families can
+// confirm they were on the list (modeled on the troopwebhost roster
+// blast). Reuses audienceFor + emailableMembers + sendBatch + mailLog.
+adminRouter.get("/events/:id/announce", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const [patrols, subgroups] = await Promise.all([
+    prisma.member.findMany({
+      where: { orgId: req.org.id, patrol: { not: null } },
+      distinct: ["patrol"],
+      select: { patrol: true },
+      orderBy: { patrol: "asc" },
+    }),
+    prisma.subgroup.findMany({ where: { orgId: req.org.id }, orderBy: { name: "asc" } }),
+  ]);
+  const patrolOptions = patrols
+    .map((p) => `<option value="${escape(p.patrol)}">${escape(p.patrol)}</option>`)
+    .join("");
+  const subgroupOptions = subgroups
+    .map(
+      (g) => `<option value="subgroup:${escape(g.id)}">${escape(g.name)} — ${escape(describeSubgroup(g))}</option>`,
+    )
+    .join("");
+
+  const when = ev.startsAt.toLocaleString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const body = `
+    <a class="back" href="/admin/events" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Calendar</a>
+    <h1>Announce event</h1>
+    <p class="muted" style="margin:.2rem 0 0">${escape(ev.title)}</p>
+    <p class="muted small" style="margin:.2rem 0 .8rem">${escape(when)}${ev.location ? ` · ${escape(ev.location)}` : ""} · Mail driver: <code>${escape(mailDriver)}</code>${
+      mailDriver === "console" ? " (logged to console, no real email)" : ""
+    }</p>
+
+    <form class="card" method="post" action="/admin/events/${escape(ev.id)}/announce">
+      <div class="row">
+        <label style="margin:0;flex:1">Audience
+          <select name="audience">
+            ${AUDIENCES.map(
+              (a) => `<option value="${escape(a.value)}">${escape(a.label)}</option>`
+            ).join("")}
+            ${
+              subgroups.length
+                ? `<optgroup label="Saved subgroups">${subgroupOptions}</optgroup>`
+                : ""
+            }
+          </select>
+        </label>
+        <label style="margin:0;flex:1">Patrol (if "Specific patrol")
+          <select name="patrol">
+            <option value="">—</option>
+            ${patrolOptions}
+          </select>
+        </label>
+      </div>
+      <p class="muted small" style="margin:.6rem 0 1rem">Build new audiences in <a href="/admin/subgroups">Subgroups</a>.</p>
+
+      <label>Subject
+        <input name="subject" type="text" maxlength="200" value="${escape(`Action needed: ${ev.title}`)}">
+        <span class="muted small" style="display:block;margin-top:.25rem">Defaults work fine. Edit if you want a different headline.</span>
+      </label>
+
+      <label>Extra message <span class="muted small" style="font-weight:400">(optional — appears above the event details)</span>
+        <textarea name="intro" rows="4" placeholder="Add context, reminders, what to bring, etc."></textarea>
+      </label>
+
+      <label style="display:flex;align-items:center;gap:.55rem;margin:.6rem 0 1rem;font-weight:400">
+        <input type="checkbox" name="includeRoster" value="1" checked style="width:auto;margin:0">
+        <span>Include the recipient list ("Sent to: …") at the bottom of the email</span>
+      </label>
+
+      <div class="row" style="margin-top:.2rem;gap:.5rem">
+        <button class="btn btn-primary" type="submit" name="action" value="send">Send announcement</button>
+        <button class="btn btn-ghost" type="submit" name="action" value="preview">Preview audience</button>
+        <a class="btn btn-ghost" href="/admin/events" style="margin-left:auto">Cancel</a>
+      </div>
+    </form>
+
+    <details class="card" style="margin-top:1rem;background:#fbf8ee">
+      <summary style="cursor:pointer;font-weight:600">What recipients will see</summary>
+      <p class="muted small" style="margin:.6rem 0 .4rem">Each recipient gets a personalized email with their own one-click RSVP buttons.</p>
+      <ul class="muted small" style="margin:.2rem 0 0;padding-left:1.2rem;line-height:1.6">
+        <li>Headline + event title, when, where, and any description</li>
+        <li>Yes / Maybe / Can't make it buttons (no login required)</li>
+        <li>Link to the full event page</li>
+        <li>Optional "Sent to:" roster of names</li>
+        <li>Unsubscribe link in the footer (List-Unsubscribe header set)</li>
+      </ul>
+    </details>
+  `;
+  res.type("html").send(layout(req, { title: `Announce · ${ev.title}`, body }));
+});
+
+adminRouter.post("/events/:id/announce", requireLeader, async (req, res) => {
+  const ev = await prisma.event.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!ev) return res.status(404).send("Not found");
+
+  const { audience, patrol, subject, intro, action, includeRoster } = req.body || {};
+  const orgId = req.org.id;
+
+  const all = await audienceFor(orgId, audience, patrol);
+  const recipients = emailableMembers(all);
+
+  let audienceLabel;
+  if (audience === "patrol") {
+    audienceLabel = `Patrol: ${patrol || "—"}`;
+  } else if (typeof audience === "string" && audience.startsWith("subgroup:")) {
+    const sg = await prisma.subgroup.findFirst({
+      where: { id: audience.slice("subgroup:".length), orgId },
+      select: { name: true },
+    });
+    audienceLabel = sg ? `Subgroup: ${sg.name}` : "Subgroup";
+  } else {
+    audienceLabel = AUDIENCES.find((a) => a.value === audience)?.label ?? "Everyone";
+  }
+
+  if (action === "preview") {
+    const list = all
+      .map(
+        (m) =>
+          `<li>${escape(m.firstName)} ${escape(m.lastName)}${m.patrol ? ` <span class="tag">${escape(m.patrol)}</span>` : ""} <span class="muted small">${escape(m.email || "(no email)")} · pref:${escape(m.commPreference)}</span></li>`
+      )
+      .join("");
+    const skipped = all.length - recipients.length;
+    const previewBody = `
+      <a class="back" href="/admin/events/${escape(ev.id)}/announce" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Back to compose</a>
+      <h1>Audience preview</h1>
+      <p class="muted">${escape(ev.title)} · ${escape(audienceLabel)}</p>
+      <p>${all.length} member${all.length === 1 ? "" : "s"} match. Email-eligible: <strong>${recipients.length}</strong> · Skipped (no email / unsubscribed / bounced): <strong>${skipped}</strong></p>
+      <ul class="items">${list || `<li class="empty">Nobody matches this audience.</li>`}</ul>
+    `;
+    return res.type("html").send(layout(req, { title: "Audience preview", body: previewBody }));
+  }
+
+  const cleanSubject = (subject || `Action needed: ${ev.title}`).trim().slice(0, 200);
+  const cleanIntro = (intro || "").trim();
+  const wantRoster = includeRoster === "1" || includeRoster === "on";
+
+  const mailLogId = newMailLogId();
+  const apex = process.env.APEX_DOMAIN || "compass.app";
+  const base = trackingBaseUrl(req);
+
+  const when = ev.startsAt.toLocaleString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  const rosterNames = wantRoster
+    ? recipients.map((m) => `${m.firstName} ${m.lastName}`).sort()
+    : [];
+
+  const messages = recipients.map((m) => {
+    const name = `${m.firstName} ${m.lastName}`;
+    const token = makeRsvpToken({ eventId: ev.id, name, email: m.email });
+    const yesUrl = `${base}/rsvp/${token}?response=yes`;
+    const maybeUrl = `${base}/rsvp/${token}?response=maybe`;
+    const noUrl = `${base}/rsvp/${token}?response=no`;
+    const eventUrl = `${base}/events/${ev.id}`;
+    const unsubToken = makeUnsubToken({ memberId: m.id, orgId });
+    const unsubUrl = `${base}/unsubscribe/${unsubToken}`;
+
+    const lines = [`Hi ${m.firstName},`, ""];
+    if (cleanIntro) {
+      lines.push(cleanIntro, "");
+    }
+    lines.push(
+      `${ev.title}`,
+      `When:  ${when}`,
+    );
+    if (ev.location) lines.push(`Where: ${ev.location}`);
+    if (ev.description) {
+      lines.push("", ev.description.trim());
+    }
+    lines.push(
+      "",
+      "RSVP in one click:",
+      `  Going:        ${yesUrl}`,
+      `  Maybe:        ${maybeUrl}`,
+      `  Can't make it: ${noUrl}`,
+      "",
+      `Event details: ${eventUrl}`,
+    );
+    if (rosterNames.length) {
+      lines.push(
+        "",
+        `Sent to: ${rosterNames.join(", ")}`,
+      );
+    }
+    lines.push(
+      "",
+      "—",
+      `${req.org.displayName}`,
+      `Unsubscribe: ${unsubUrl}`,
+    );
+
+    return trackEmail({
+      baseUrl: base,
+      mailLogId,
+      recipient: m.email,
+      to: m.email,
+      subject: cleanSubject,
+      text: lines.join("\n"),
+      from: `${req.user.displayName.replace(/[<>"]/g, "")} (via ${req.org.displayName.replace(/[<>"]/g, "")}) <noreply@${req.org.slug}.${apex}>`,
+      replyTo: req.user.email,
+      headers: {
+        "List-Unsubscribe": `<${unsubUrl}?one_click=1>`,
+        "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      },
+    });
+  });
+
+  const result = messages.length
+    ? await sendBatch(messages)
+    : { sent: 0, errors: [] };
+
+  await prisma.mailLog.create({
+    data: {
+      id: mailLogId,
+      orgId,
+      authorId: req.user.id,
+      subject: cleanSubject,
+      body: `Announcement for ${ev.title}${cleanIntro ? `\n\n${cleanIntro}` : ""}`,
+      channel: "email",
+      audienceLabel,
+      recipientCount: result.sent,
+      status: result.errors.length === 0 ? "sent" : result.sent > 0 ? "partial" : "failed",
+      errors: result.errors.length ? JSON.stringify(result.errors) : null,
+      recipients: recipients.map((m) => ({
+        name: `${m.firstName} ${m.lastName}`,
+        email: m.email,
+        channel: "email",
+      })),
+    },
+  });
+
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Event",
+    entityId: ev.id,
+    action: "announce",
+    summary: `Announced "${ev.title}" to ${audienceLabel} (${result.sent} sent)`,
   });
 
   res.redirect(`/admin/events/${ev.id}/rsvps?reminder=${result.sent}`);
@@ -5008,7 +5629,7 @@ adminRouter.get("/email", requireLeader, async (req, res) => {
           </select>
         </label>
       </div>
-      <p class="muted small" style="margin-top:-.4rem">Build new audiences in <a href="/admin/subgroups">Subgroups</a>.</p>
+      <p class="muted small" style="margin:.6rem 0 1rem">Build new audiences in <a href="/admin/subgroups">Subgroups</a>.</p>
       <label>Subject<input id="bcast-subject" name="subject" type="text" required maxlength="200">
         <span class="muted small" id="bcast-subject-count" style="display:block;margin-top:.2rem">0 / 200 characters</span>
       </label>
@@ -5119,6 +5740,11 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
   if (!subject?.trim() || !body?.trim()) return res.redirect("/admin/email");
 
   const cleanBody = body.trim();
+  // Pre-allocate the MailLog id so the tracking pixel + click tokens
+  // we stamp into the outgoing messages can reference the same row
+  // we'll insert after the send completes.
+  const mailLogId = newMailLogId();
+  const baseUrl = trackingBaseUrl(req);
   // "via" pattern: leader's display name in the visible From, our
   // verified domain in the addr-spec so DKIM/SPF still passes. Replies
   // route to the leader directly via Reply-To.
@@ -5136,19 +5762,27 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
       "List-Unsubscribe": `<${unsubUrl}?one_click=1>`,
       "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
     };
-    return {
+    return trackEmail({
+      baseUrl,
+      mailLogId,
+      recipient: m.email,
       to: m.email,
       subject: subject.trim(),
       text: cleanBody + footer,
       from: `${fromName} <${fromAddr}>`,
       replyTo: req.user.email,
       headers,
-    };
+    });
   });
 
   const smsMessages = smsRecipients.map((m) => ({
     to: m.phone,
-    body: `${req.user.displayName}: ${subject.trim()}\n${cleanBody.slice(0, 1000)}`,
+    body: trackSmsBody({
+      baseUrl,
+      mailLogId,
+      recipient: m.phone,
+      body: `${req.user.displayName}: ${subject.trim()}\n${cleanBody.slice(0, 1000)}`,
+    }),
   }));
 
   const [emailResult, smsResult] = await Promise.all([
@@ -5177,6 +5811,7 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
 
   await prisma.mailLog.create({
     data: {
+      id: mailLogId,
       orgId,
       authorId: req.user.id,
       subject: subject.trim(),
@@ -5218,31 +5853,161 @@ adminRouter.get("/email/sent", requireLeader, async (req, res) => {
     take: 50,
   });
 
+  // Roll up open / click counts in one query so we don't N+1 the list.
+  // groupBy returns one row per (mailLogId, kind); fold into a map.
+  const counts = log.length
+    ? await prisma.mailEvent.groupBy({
+        by: ["mailLogId", "kind"],
+        where: { mailLogId: { in: log.map((m) => m.id) } },
+        _count: { _all: true },
+      })
+    : [];
+  const byId = new Map();
+  for (const row of counts) {
+    if (!byId.has(row.mailLogId)) byId.set(row.mailLogId, { open: 0, click: 0 });
+    byId.get(row.mailLogId)[row.kind] = row._count._all;
+  }
+  // For unique-recipient counts (one parent opening 5 times = 1 viewer)
+  // we'd run a separate distinct query — skipped for the list view to
+  // keep the page fast; the detail page surfaces unique recipients.
+
   const items = log
-    .map(
-      (m) => `
+    .map((m) => {
+      const c = byId.get(m.id) || { open: 0, click: 0 };
+      const total = m.recipientCount || 0;
+      const openRate = total ? Math.round((c.open / total) * 100) : 0;
+      return `
     <li>
-      <div>
-        <h3>${escape(m.subject)}</h3>
+      <div style="flex:1">
+        <h3><a href="/admin/email/sent/${escape(m.id)}" style="color:inherit;text-decoration:none">${escape(m.subject)}</a></h3>
         <p>
           <span class="tag">${escape(m.audienceLabel)}</span>
           <span class="tag">${escape(m.channel)}</span>
           <span class="tag">${escape(m.status)}</span>
           <span class="muted small">${escape(m.sentAt.toLocaleString("en-US"))}</span>
-          <span class="muted small">· ${m.recipientCount} sent</span>
         </p>
       </div>
-    </li>`
-    )
+      <div class="row" style="gap:1.1rem;flex-wrap:nowrap;align-items:center">
+        <div style="text-align:right;min-width:5rem"><strong>${total}</strong><br><span class="muted small">sent</span></div>
+        <div style="text-align:right;min-width:5rem" title="Pixel opens. Inflated by Apple Mail Privacy Protection / Gmail image proxy.">
+          <strong>${c.open}</strong>${total ? ` <span class="muted small">(${openRate}%)</span>` : ""}<br>
+          <span class="muted small">views</span>
+        </div>
+        <div style="text-align:right;min-width:5rem" title="Click-throughs on tracked links — the most reliable signal.">
+          <strong>${c.click}</strong><br><span class="muted small">clicks</span>
+        </div>
+        <a class="btn btn-ghost small" href="/admin/email/sent/${escape(m.id)}">Details</a>
+      </div>
+    </li>`;
+    })
     .join("");
 
   const body = `
     <h1>Email history</h1>
-    <p class="muted">Last 50 broadcasts.</p>
+    <p class="muted">Last 50 broadcasts. <span class="muted small">Open rates from the tracking pixel are noisy — Apple Mail and Gmail pre-load images, so opens read high. Clicks are the reliable signal.</span></p>
     ${log.length ? `<ul class="items">${items}</ul>` : `<div class="empty">Nothing has been sent yet.</div>`}
     <p style="margin-top:1.25rem"><a class="btn btn-ghost" href="/admin/email">← Compose</a></p>
   `;
   res.type("html").send(layout(req, { title: "Email history", body }));
+});
+
+// Per-message detail: who got it, who opened (unique recipients),
+// who clicked, and which URLs got the most clicks.
+adminRouter.get("/email/sent/:id", requireLeader, async (req, res) => {
+  const log = await prisma.mailLog.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!log) return res.status(404).send("Not found");
+
+  const events = await prisma.mailEvent.findMany({
+    where: { mailLogId: log.id },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const opens = events.filter((e) => e.kind === "open");
+  const clicks = events.filter((e) => e.kind === "click");
+  const uniqueOpeners = new Set(opens.map((e) => e.recipient));
+  const uniqueClickers = new Set(clicks.map((e) => e.recipient));
+
+  // Per-URL click rollup
+  const urlMap = new Map();
+  for (const c of clicks) {
+    const key = c.url || "(unknown)";
+    urlMap.set(key, (urlMap.get(key) || 0) + 1);
+  }
+  const urlRows = [...urlMap.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(
+      ([url, count]) => `
+        <li>
+          <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <a href="${escape(url)}" target="_blank" rel="noopener" style="color:var(--ink-900)">${escape(url)}</a>
+          </span>
+          <span style="text-align:right;min-width:3rem"><strong>${count}</strong></span>
+        </li>`,
+    )
+    .join("");
+
+  // Per-recipient rollup (one row per recipient with their open + click count)
+  const recipients = Array.isArray(log.recipients) ? log.recipients : [];
+  const perRecipient = recipients
+    .map((r) => {
+      const key = (r.email || r.phone || "").toLowerCase();
+      const o = opens.filter((e) => e.recipient === key).length;
+      const cl = clicks.filter((e) => e.recipient === key).length;
+      return { name: r.name, address: r.email || r.phone || "", channel: r.channel, opens: o, clicks: cl };
+    })
+    .sort((a, b) => b.clicks - a.clicks || b.opens - a.opens);
+  const recipientRows = perRecipient
+    .map(
+      (r) => `
+        <li>
+          <div style="flex:1">
+            <strong>${escape(r.name)}</strong>
+            <span class="muted small"> · ${escape(r.address)}${r.channel ? ` · ${escape(r.channel)}` : ""}</span>
+          </div>
+          <div class="row" style="gap:1.1rem;flex-wrap:nowrap">
+            <div style="min-width:3.5rem;text-align:right" title="Pixel opens. Apple Mail / Gmail proxies inflate this."><strong>${r.opens}</strong> <span class="muted small">v</span></div>
+            <div style="min-width:3.5rem;text-align:right"><strong>${r.clicks}</strong> <span class="muted small">c</span></div>
+          </div>
+        </li>`,
+    )
+    .join("");
+
+  const body = `
+    <a class="back" href="/admin/email/sent" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Email history</a>
+    <h1>${escape(log.subject)}</h1>
+    <p class="muted">
+      <span class="tag">${escape(log.audienceLabel)}</span>
+      <span class="tag">${escape(log.channel)}</span>
+      <span class="tag">${escape(log.status)}</span>
+      <span class="muted small">· Sent ${escape(log.sentAt.toLocaleString("en-US"))}</span>
+    </p>
+
+    <div class="card" style="display:flex;gap:2rem;align-items:center;margin-top:1rem;flex-wrap:wrap">
+      <div><strong style="font-size:1.5rem">${log.recipientCount}</strong> <span class="muted">sent</span></div>
+      <div title="Unique recipients whose mail client loaded the pixel.">
+        <strong style="font-size:1.5rem">${uniqueOpeners.size}</strong>
+        <span class="muted">unique views</span>
+        <span class="muted small">(${opens.length} total)</span>
+      </div>
+      <div title="Unique recipients who clicked any tracked link.">
+        <strong style="font-size:1.5rem">${uniqueClickers.size}</strong>
+        <span class="muted">unique clickers</span>
+        <span class="muted small">(${clicks.length} clicks)</span>
+      </div>
+    </div>
+
+    <p class="muted small" style="margin:.6rem 0 1.25rem">View counts from the tracking pixel are noisy — Apple Mail Privacy Protection and Gmail image proxies pre-load the pixel whether or not the recipient really saw the email. <strong>Click counts are the reliable engagement signal.</strong></p>
+
+    <h2 style="margin-top:1.25rem">Top clicked links</h2>
+    ${urlRows ? `<ul class="items">${urlRows}</ul>` : `<div class="empty">No clicks yet.</div>`}
+
+    <h2 style="margin-top:1.5rem">Recipients</h2>
+    ${recipientRows ? `<ul class="items">${recipientRows}</ul>` : `<div class="empty">No recipient snapshot.</div>`}
+  `;
+  res.type("html").send(layout(req, { title: log.subject, body }));
 });
 
 /* ------------------------------------------------------------------ */
@@ -7717,11 +8482,17 @@ adminRouter.get("/newsletters/new", requireLeader, async (req, res) => {
     intro: composed.suggestedIntro,
     posts: composed.posts,
     events: composed.events,
+    pastEvents: composed.pastEvents,
     audience: "everyone",
     audiencePatrol: "",
     visibility: "members",
     selectedPostIds: composed.posts.map((p) => p.id),
-    selectedEventIds: composed.events.map((e) => e.id),
+    // Auto-check upcoming + past so the leader can deselect what they
+    // don't want; matches the "auto-suggest, leader curates" flow.
+    selectedEventIds: [
+      ...composed.events.map((e) => e.id),
+      ...composed.pastEvents.map((e) => e.id),
+    ],
     patrols,
     subgroups,
     formAction: "/admin/newsletters",
@@ -7761,7 +8532,9 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
   });
   if (!issue) return res.status(404).send("Not found");
 
-  const [posts, events, patrols, subgroups] = await Promise.all([
+  const now = new Date();
+  const recapSince = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const [posts, events, pastEvents, patrols, subgroups] = await Promise.all([
     prisma.post.findMany({
       where: { orgId: req.org.id },
       orderBy: { publishedAt: "desc" },
@@ -7776,9 +8549,14 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
       },
     }),
     prisma.event.findMany({
-      where: { orgId: req.org.id, startsAt: { gte: new Date() } },
+      where: { orgId: req.org.id, startsAt: { gte: now } },
       orderBy: { startsAt: "asc" },
       take: 30,
+    }),
+    prisma.event.findMany({
+      where: { orgId: req.org.id, startsAt: { gte: recapSince, lt: now } },
+      orderBy: { startsAt: "desc" },
+      take: 12,
     }),
     prisma.member.findMany({
       where: { orgId: req.org.id, patrol: { not: null } },
@@ -7800,6 +8578,7 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
     intro: issue.intro,
     posts,
     events,
+    pastEvents,
     audience: issue.audience,
     audiencePatrol: issue.audiencePatrol || "",
     visibility: issue.visibility,
@@ -7986,6 +8765,7 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
   const apex = process.env.APEX_DOMAIN || "compass.app";
   const orgHost = `${req.org.slug}.${apex}`;
   const baseUrl = `https://${orgHost}`;
+  const mailLogId = newMailLogId();
   const { html, text } = renderNewsletterHtml({
     org: req.org,
     newsletter: issue,
@@ -8008,7 +8788,10 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
       "</body>",
       `<p style="font-size:11px;color:#5a6258;text-align:center;margin-top:18px"><a href="${escape(unsubUrl)}" style="color:#5a6258">Unsubscribe</a></p></body>`,
     );
-    return {
+    return trackEmail({
+      baseUrl,
+      mailLogId,
+      recipient: m.email,
       to: m.email,
       subject: issue.title,
       text: personalText,
@@ -8016,7 +8799,7 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
       from: `${fromName} <${fromAddr}>`,
       replyTo: req.user.email,
       headers,
-    };
+    });
   });
 
   const result = messages.length
@@ -8028,6 +8811,7 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
   // even if the directory changes later.
   const mailLog = await prisma.mailLog.create({
     data: {
+      id: mailLogId,
       orgId: req.org.id,
       authorId: req.user.id,
       subject: issue.title,
@@ -8106,6 +8890,7 @@ function newsletterComposerHtml({
   intro,
   posts,
   events,
+  pastEvents = [],
   audience,
   audiencePatrol,
   visibility,
@@ -8147,20 +8932,20 @@ function newsletterComposerHtml({
         )
         .join("")
     : `<p class="muted small">No posts in the lookback window.</p>`;
-  const eventChecks = events.length
-    ? events
-        .map(
-          (e) => `
+  const renderEventCheckRow = (e) => `
           <label class="row" style="align-items:flex-start;gap:.6rem;padding:.4rem 0;border-top:1px solid #eef0e7">
             <input type="checkbox" name="includedEventIds" value="${escape(e.id)}"${selEvents.has(e.id) ? " checked" : ""}${readonly ? " disabled" : ""} style="margin-top:.25rem">
             <span style="flex:1">
               <strong>${escape(e.title)}</strong>
               <span class="muted small"> · ${escape(fmtDate(e.startsAt))}${e.location ? ` · ${escape(e.location)}` : ""}</span>
             </span>
-          </label>`,
-        )
-        .join("")
+          </label>`;
+  const eventChecks = events.length
+    ? events.map(renderEventCheckRow).join("")
     : `<p class="muted small">Nothing on the calendar yet.</p>`;
+  const pastEventChecks = pastEvents.length
+    ? pastEvents.map(renderEventCheckRow).join("")
+    : `<p class="muted small">No recent events to recap.</p>`;
 
   return `
     <a class="back" href="/admin/newsletters" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Newsletters</a>
@@ -8197,6 +8982,9 @@ function newsletterComposerHtml({
 
       <h3 style="margin-top:1.5rem">Recent posts to include</h3>
       ${postChecks}
+
+      <h3 style="margin-top:1.5rem">Recent events to recap <span class="muted small" style="font-weight:400">(things that already happened)</span></h3>
+      ${pastEventChecks}
 
       <h3 style="margin-top:1.5rem">Upcoming events to include</h3>
       ${eventChecks}

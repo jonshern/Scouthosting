@@ -1480,6 +1480,55 @@ apiRouter.post("/channels/:id/photos", resolveApiUser, photoUpload.single("photo
   res.status(201).json({ photo });
 });
 
+// POST /api/v1/orgs/:orgId/albums/:albumId/photos — upload a single
+// photo to an existing album from the mobile app. Mirrors the admin
+// route /admin/albums/:id/photos but returns JSON. Multipart field
+// name is "photo" (single file) to match the channel-photo upload.
+apiRouter.post(
+  "/orgs/:orgId/albums/:albumId/photos",
+  resolveApiUser,
+  photoUpload.single("photo"),
+  async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: "no_file" });
+
+    const membership = await membershipFor(req.apiUser.id, req.params.orgId);
+    if (!membership) return res.status(404).json({ error: "not_found" });
+
+    const album = await prisma.album.findFirst({
+      where: { id: req.params.albumId, orgId: req.params.orgId },
+      select: { id: true },
+    });
+    if (!album) return res.status(404).json({ error: "album_not_found" });
+
+    const lastOrder =
+      (await prisma.photo.findFirst({
+        where: { albumId: album.id },
+        orderBy: { sortOrder: "desc" },
+        select: { sortOrder: true },
+      }))?.sortOrder ?? 0;
+
+    const ext = (path.extname(req.file.originalname) || ".jpg").toLowerCase().slice(0, 8);
+    const filename = `${crypto.randomBytes(16).toString("hex")}${ext}`;
+    await moveFromTemp(req.params.orgId, filename, req.file.path);
+
+    const photo = await prisma.photo.create({
+      data: {
+        orgId: req.params.orgId,
+        albumId: album.id,
+        filename,
+        originalName: req.file.originalname?.slice(0, 200) || null,
+        mimeType: req.file.mimetype,
+        sizeBytes: req.file.size,
+        sortOrder: lastOrder + 1,
+        uploaderUserId: req.apiUser.id,
+      },
+      select: { id: true, filename: true, mimeType: true, sizeBytes: true },
+    });
+
+    res.status(201).json({ photo });
+  },
+);
+
 // JSON 404 fallthrough — catches /api/v1/* paths the router didn't handle.
 apiRouter.use((req, res) => {
   res.status(404).json({ error: "not_found" });

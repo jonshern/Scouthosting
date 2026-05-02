@@ -22,7 +22,7 @@ export async function registerPushToken(
   client: ClientOptions,
   opts: { permissionPrompt?: boolean } = {},
 ): Promise<RegisterResult> {
-  let Notifications: typeof import("expo-notifications") | null = null;
+  let Notifications: typeof import("expo-notifications");
   let Device: typeof import("expo-device") | null = null;
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -57,7 +57,7 @@ export async function registerPushToken(
     }
   }
 
-  let tokenObj;
+  let tokenObj: Awaited<ReturnType<typeof Notifications.getExpoPushTokenAsync>>;
   try {
     tokenObj = await Notifications.getExpoPushTokenAsync();
   } catch (err) {
@@ -90,7 +90,7 @@ export async function registerPushToken(
 
 /** Take this device out of rotation. Best-effort; ignores errors. */
 export async function unregisterPushToken(client: ClientOptions): Promise<void> {
-  let Notifications: typeof import("expo-notifications") | null = null;
+  let Notifications: typeof import("expo-notifications");
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     Notifications = require("expo-notifications");

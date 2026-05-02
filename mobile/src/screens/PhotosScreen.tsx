@@ -1,11 +1,14 @@
 // Photos screen — fetches /api/v1/orgs/:orgId/photos and renders the
 // org's albums as scrollable groups with up to 6 thumbnails each.
 // Tap a tile to open the full-size image; tap "+N" to deep-link to
-// the album on the public site (which has the full gallery).
+// the album on the public site (which has the full gallery). Each
+// album exposes an Upload button that opens the device picker and
+// posts the chosen image straight to the API.
 
 import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Linking,
   Pressable,
@@ -18,7 +21,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../state/AuthContext";
-import { fetchAlbums, type AlbumPreview } from "../api/photos";
+import { fetchAlbums, uploadPhotoToAlbum, type AlbumPreview } from "../api/photos";
 import { fontFamilies, palette, radius, spacing } from "../theme/tokens";
 
 function uploadsUrl(orgSlug: string, filename: string): string {
@@ -35,6 +38,7 @@ export default function PhotosScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingAlbumId, setUploadingAlbumId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!auth.session) return;
@@ -59,6 +63,56 @@ export default function PhotosScreen() {
     setRefreshing(true);
     load();
   }, [load]);
+
+  // Open the device picker for the chosen album, then POST the result
+  // to /api/v1/orgs/:orgId/albums/:albumId/photos. Refreshes the list
+  // on success so the new tile appears without requiring a pull-down.
+  const onUpload = useCallback(
+    async (albumId: string) => {
+      if (!auth.session) return;
+      // expo-image-picker is loaded lazily so the screen still renders
+      // when the package is missing in dev / web preview.
+      let ImagePicker: typeof import("expo-image-picker");
+      try {
+        ImagePicker = await import("expo-image-picker");
+      } catch {
+        Alert.alert("Picker unavailable", "Photo upload needs the native build.");
+        return;
+      }
+
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== "granted") {
+        Alert.alert("Permission needed", "Allow photo access to upload.");
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.85,
+        // Keep this conservative — the server caps file size and we don't
+        // want to fight the user's data plan on uploads.
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+      setUploadingAlbumId(albumId);
+      try {
+        await uploadPhotoToAlbum(
+          { orgSlug: auth.session.orgSlug, token: auth.session.token },
+          auth.session.orgId,
+          albumId,
+          { uri: asset.uri, mimeType: asset.mimeType, fileName: asset.fileName },
+        );
+        await load();
+      } catch (e) {
+        Alert.alert("Upload failed", e instanceof Error ? e.message : "Try again.");
+      } finally {
+        setUploadingAlbumId(null);
+      }
+    },
+    [auth.session, load],
+  );
 
   const orgSlug = auth.session?.orgSlug || "";
 
@@ -93,12 +147,27 @@ export default function PhotosScreen() {
         ) : (
           albums.map((a) => (
             <View key={a.id} style={{ marginBottom: spacing.xxl }}>
-              <Text style={styles.groupTitle}>{a.title}</Text>
-              <Text style={styles.groupSub}>
-                {a.totalPhotos} photo{a.totalPhotos === 1 ? "" : "s"}
-                {a.takenAt ? ` · ${new Date(a.takenAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
-                {a.visibility === "members" ? " · members only" : ""}
-              </Text>
+              <View style={styles.groupHeader}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.groupTitle}>{a.title}</Text>
+                  <Text style={styles.groupSub}>
+                    {a.totalPhotos} photo{a.totalPhotos === 1 ? "" : "s"}
+                    {a.takenAt ? ` · ${new Date(a.takenAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}
+                    {a.visibility === "members" ? " · members only" : ""}
+                  </Text>
+                </View>
+                <Pressable
+                  style={({ pressed }) => [styles.uploadBtn, pressed && { opacity: 0.85 }]}
+                  onPress={() => onUpload(a.id)}
+                  disabled={uploadingAlbumId === a.id}
+                >
+                  {uploadingAlbumId === a.id ? (
+                    <ActivityIndicator color={palette.primary} size="small" />
+                  ) : (
+                    <Text style={styles.uploadBtnText}>+ Upload</Text>
+                  )}
+                </Pressable>
+              </View>
               <View style={styles.grid}>
                 {a.preview.length === 0 ? (
                   <Text style={styles.muted}>No photos in this album yet.</Text>
@@ -187,18 +256,39 @@ const styles = StyleSheet.create({
     borderColor: palette.primary,
   },
   retryText: { fontFamily: fontFamilies.ui, color: palette.primary, fontWeight: "600" },
+  groupHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.sm,
+    marginBottom: 10,
+  },
   groupTitle: {
     fontFamily: fontFamilies.display,
     fontSize: 22,
     color: palette.ink,
     letterSpacing: -0.3,
   },
+  uploadBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+    borderColor: palette.primary,
+    minWidth: 92,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  uploadBtnText: {
+    fontFamily: fontFamilies.ui,
+    fontSize: 13,
+    fontWeight: "600",
+    color: palette.primary,
+  },
   groupSub: {
     fontFamily: fontFamilies.ui,
     fontSize: 11,
     color: palette.inkMuted,
     marginTop: 2,
-    marginBottom: 10,
   },
   grid: {
     flexDirection: "row",

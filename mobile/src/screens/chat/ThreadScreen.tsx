@@ -484,7 +484,7 @@ const styles = StyleSheet.create({
   },
 });
 
-const chatStyles = StyleSheet.create({
+const chatStylesBase = StyleSheet.create({
   reactionsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -645,9 +645,6 @@ const rsvpStyles = StyleSheet.create({
   rsvpCountMine: { color: palette.primary },
 });
 
-// Merge into the chatStyles export so renderRsvp's references resolve.
-Object.assign(chatStyles, rsvpStyles);
-
 const photoStyles = StyleSheet.create({
   photoBlock: {
     marginHorizontal: spacing.lg,
@@ -684,4 +681,8 @@ const photoStyles = StyleSheet.create({
   },
 });
 
-Object.assign(chatStyles, photoStyles);
+// chatStyles bundles the three categories so TS infers all keys
+// without Object.assign() (which silently loses the merged keys'
+// types). RN style props accept either registry IDs or plain
+// objects, so the spread works the same at runtime.
+const chatStyles = { ...chatStylesBase, ...rsvpStyles, ...photoStyles };

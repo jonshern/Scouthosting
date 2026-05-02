@@ -82,6 +82,95 @@ function renderHeroPhotos(photos) {
     </style>`;
 }
 
+// Render the leader-defined custom blocks (text, image, CTA) that
+// follow the gallery on the public homepage. Blocks render in the
+// order they appear in `page.sectionOrder` (block keys only); blocks
+// with `sectionVisibility[block:<id>] === false` are skipped.
+function renderCustomBlocks(page) {
+  if (!page) return "";
+  const blocks = Array.isArray(page.customBlocks) ? page.customBlocks : [];
+  if (!blocks.length) return "";
+  const vis = page.sectionVisibility || {};
+  const order = Array.isArray(page.sectionOrder) ? page.sectionOrder : [];
+  const blocksById = new Map(
+    blocks.filter((b) => b && typeof b.id === "string").map((b) => [b.id, b]),
+  );
+  // Order blocks by their position in sectionOrder (for blocks that
+  // are placed there); blocks not in sectionOrder fall to the end in
+  // customBlocks-array order.
+  const placed = order
+    .filter((k) => typeof k === "string" && k.startsWith("block:"))
+    .map((k) => k.slice("block:".length))
+    .map((id) => blocksById.get(id))
+    .filter(Boolean);
+  const placedIds = new Set(placed.map((b) => b.id));
+  const tail = blocks.filter((b) => b && b.id && !placedIds.has(b.id));
+  const ordered = [...placed, ...tail];
+
+  const html = ordered
+    .filter((b) => vis[`block:${b.id}`] !== false)
+    .map((b) => renderCustomBlock(b))
+    .filter(Boolean)
+    .join("\n");
+  if (!html) return "";
+  return `${html}
+    <style>
+      .cms-block{padding:3rem 0}
+      .cms-block .wrap{max-width:65ch}
+      .cms-block--image .wrap{max-width:980px}
+      .cms-block h2{font-family:'Newsreader',Georgia,serif;font-size:2rem;margin:0 0 1rem;color:var(--ink-900)}
+      .cms-block .cms-body{line-height:1.7;color:var(--ink-800)}
+      .cms-block--image figure{margin:0}
+      .cms-block--image img{display:block;width:100%;height:auto;border-radius:12px}
+      .cms-block--image figcaption{margin-top:.6rem;color:var(--ink-500);font-size:.9rem;text-align:center}
+      .cms-block--cta .wrap{background:var(--primary);color:#fff;border-radius:14px;padding:2rem 2.25rem;text-align:center;max-width:720px}
+      .cms-block--cta h2{color:#fff;font-family:'Inter Tight',Inter,sans-serif;font-size:1.6rem}
+      .cms-block--cta p{margin:0 0 1.25rem;color:rgba(255,255,255,.85)}
+      .cms-block--cta .btn{background:var(--accent);color:var(--ink);border:0;padding:.7rem 1.4rem;border-radius:8px;font-weight:600;text-decoration:none;display:inline-block}
+    </style>`;
+}
+
+function renderCustomBlock(b) {
+  if (!b || !b.type) return "";
+  if (b.type === "text") {
+    const heading = b.title ? `<h2>${escapeHtml(b.title)}</h2>` : "";
+    const body = b.body ? `<div class="cms-body">${textToHtml(b.body)}</div>` : "";
+    if (!heading && !body) return "";
+    return `
+    <section class="section cms-block cms-block--text">
+      <div class="wrap">${heading}${body}</div>
+    </section>`;
+  }
+  if (b.type === "image") {
+    if (!b.filename) return "";
+    const alt = escapeHtml(b.alt || b.caption || "");
+    const caption = b.caption ? `<figcaption>${escapeHtml(b.caption)}</figcaption>` : "";
+    return `
+    <section class="section cms-block cms-block--image">
+      <div class="wrap">
+        <figure>
+          <img src="/uploads/${escapeHtml(b.filename)}" alt="${alt}" loading="lazy">
+          ${caption}
+        </figure>
+      </div>
+    </section>`;
+  }
+  if (b.type === "cta") {
+    const heading = b.title ? `<h2>${escapeHtml(b.title)}</h2>` : "";
+    const body = b.body ? `<p>${escapeHtml(b.body)}</p>` : "";
+    const button =
+      b.buttonLabel && b.buttonLink
+        ? `<a class="btn" href="${escapeHtml(b.buttonLink)}">${escapeHtml(b.buttonLabel)}</a>`
+        : "";
+    if (!heading && !body && !button) return "";
+    return `
+    <section class="section cms-block cms-block--cta">
+      <div class="wrap">${heading}${body}${button}</div>
+    </section>`;
+  }
+  return "";
+}
+
 function renderGallery(albums) {
   if (!albums || albums.length === 0) {
     return `
@@ -189,8 +278,9 @@ function renderEvents(events) {
       </header>
       <ul class="events">${items}</ul>
       <p class="cta-row">
-        <a class="btn ghost" href="/events">All events →</a>
-        <a class="btn ghost" href="/calendar.ics">Subscribe to calendar (.ics)</a>
+        <a class="btn primary" href="/calendar">Open full calendar →</a>
+        <a class="btn ghost" href="/events">List view</a>
+        <a class="btn ghost" href="/calendar.ics">Subscribe (.ics)</a>
       </p>
     </div>
   </section>`;
@@ -265,7 +355,7 @@ ${headSeo}
     </a>
     <nav class="nav"><ul>
       <li><a href="/#about">About</a></li>
-      <li><a href="/events">Calendar</a></li>
+      <li><a href="/calendar">Calendar</a></li>
       <li><a href="/#gallery">Photos</a></li>
       <li><a href="/#contact">Contact</a></li>
     </ul></nav>
@@ -679,6 +769,170 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
   return pageShell(org, "Members", body);
 }
 
+// Public calendar — full-featured FullCalendar control with month,
+// week, day, list, and year views. The control fetches events from
+// /calendar.json and handles its own navigation. We still server-render
+// a category-filter chip row that reloads the page with ?cat=<slug>;
+// the chips show up regardless of JS state and let URL-shared calendars
+// stay scoped.
+//
+// `events` is the already-expanded list for the current visible window
+// — used here only to derive which category chips to surface. The
+// canonical events feed is the JSON endpoint.
+export function renderCalendarMonth(org, events, ctx = {}) {
+  const filter = ctx.categoryFilter ? String(ctx.categoryFilter) : "";
+  const slug = (s) => String(s || "").toLowerCase().replace(/[\s_]+/g, "-");
+
+  // Build the category-filter chip row from whatever's present in the
+  // visible window. Chip clicks reload the page with ?cat=<slug>; the
+  // FullCalendar feed URL also picks up the filter.
+  const presentCategories = Array.from(
+    new Map(events.filter((e) => e.category).map((e) => [e.category, categoryMeta(e.category)])).entries(),
+  );
+  const chipHref = (cat) => (cat ? `/calendar?cat=${encodeURIComponent(cat)}` : "/calendar");
+  const filterChips = presentCategories.length
+    ? `<div class="cal-filters">
+        <a class="event-chip${!filter ? " event-chip--on" : ""}" href="${chipHref("")}">All</a>
+        ${presentCategories
+          .map(([raw, meta]) => {
+            const s = slug(raw);
+            const on = s === slug(filter);
+            return `<a class="event-chip${on ? " event-chip--on" : ""}" href="${chipHref(s)}" style="--cc:${PALETTE_VAR(meta.color)}">${escapeHtml(meta.label)}</a>`;
+          })
+          .join("")}
+      </div>`
+    : "";
+
+  // The events feed URL — FullCalendar appends ?start=&end= itself.
+  const feedUrl = filter ? `/calendar.json?cat=${encodeURIComponent(filter)}` : "/calendar.json";
+
+  // The init script is JSON-encoded so safely embeds in HTML.
+  const fcConfig = JSON.stringify({
+    feedUrl,
+    primary: org.primaryColor || "#0e3320",
+    accent: org.accentColor || "#c8e94a",
+  });
+
+  const body = `
+  <section class="event-list">
+    <a class="back" href="/">← Home</a>
+    <h1>Calendar</h1>
+    <p class="muted">Click any event for details and to RSVP. Use the toolbar to switch between month, week, day, list, and year views.</p>
+
+    ${filterChips}
+
+    <div class="cal-actions-row">
+      <a class="btn ghost small" href="/events">Events list</a>
+      <a class="btn ghost small" href="/calendar.ics">Subscribe (.ics)</a>
+    </div>
+
+    <div id="fc" class="fc-host" aria-busy="true">
+      <p class="cal-empty fc-loading">Loading calendar…</p>
+    </div>
+
+    <noscript>
+      <div class="cal-empty" style="margin-top:1.25rem;padding:1rem;background:#fff;border:1px solid #eef0e7;border-radius:10px">
+        The calendar needs JavaScript. <a href="/events">See the events list →</a>
+      </div>
+    </noscript>
+  </section>
+
+  <script src="/vendor/fullcalendar/index.global.min.js" defer></script>
+  <script>
+    (function () {
+      var cfg = ${fcConfig};
+      function init() {
+        if (typeof FullCalendar === "undefined") {
+          // Library failed to load (offline / CSP / blocker).
+          var host = document.getElementById("fc");
+          if (host) {
+            host.removeAttribute("aria-busy");
+            host.innerHTML = '<p class="cal-empty">Calendar couldn\\'t load. <a href="/events">See the events list →</a></p>';
+          }
+          return;
+        }
+        var el = document.getElementById("fc");
+        if (!el) return;
+        el.removeAttribute("aria-busy");
+        el.innerHTML = "";
+        var cal = new FullCalendar.Calendar(el, {
+          initialView: "dayGridMonth",
+          headerToolbar: {
+            left: "prev,next today",
+            center: "title",
+            right: "dayGridMonth,timeGridWeek,timeGridDay,listMonth,multiMonthYear",
+          },
+          buttonText: {
+            today: "Today",
+            month: "Month",
+            week: "Week",
+            day: "Day",
+            list: "List",
+            multiMonthYear: "Year",
+          },
+          height: "auto",
+          firstDay: 0,
+          nowIndicator: true,
+          dayMaxEventRows: 3,
+          eventDisplay: "block",
+          eventTimeFormat: { hour: "numeric", minute: "2-digit", meridiem: "short" },
+          events: cfg.feedUrl,
+        });
+        cal.render();
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+
+  <style>
+    .cal-filters{display:flex;flex-wrap:wrap;gap:.4rem;margin:1rem 0}
+    .cal-actions-row{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem}
+    .cal-empty{padding:2rem 1rem;text-align:center;color:var(--ink-500);font-size:.95rem}
+
+    /* FullCalendar host — keep the control inside the page chrome and
+       restyle a few defaults to fit Scouthosting's typography. */
+    .fc-host{background:#fff;border:1px solid #eef0e7;border-radius:12px;padding:1.1rem;box-shadow:0 1px 2px rgba(15,58,31,.04)}
+    .fc-host.fc{font-family:inherit}
+    .fc-loading{opacity:.6;font-style:italic}
+    .fc .fc-toolbar-title{font-family:'Inter Tight',Inter,sans-serif;font-size:1.4rem;font-weight:600;letter-spacing:-0.01em;color:var(--ink-900)}
+    .fc .fc-button{background:#f7f4e8;border:1px solid #e2dab8;color:var(--ink-700);font-weight:600;text-transform:none;box-shadow:none;padding:.42rem .85rem;font-size:.88rem}
+    .fc .fc-button:hover{background:#efe9d2;border-color:#cdc093;color:var(--ink-900)}
+    .fc .fc-button:focus{box-shadow:0 0 0 2px rgba(14,51,32,.18)}
+    .fc .fc-button-primary:not(:disabled).fc-button-active,
+    .fc .fc-button-primary:not(:disabled):active{background:var(--primary);border-color:var(--primary);color:#fff}
+    .fc .fc-col-header-cell-cushion{font-family:'Inter Tight',Inter,sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-500);padding:.6rem 0}
+    .fc .fc-daygrid-day-number{font-family:'Inter Tight',Inter,sans-serif;color:var(--ink-700);font-weight:600;padding:.4rem .5rem}
+    .fc .fc-day-today{background:#fffbe6 !important}
+    .fc .fc-day-today .fc-daygrid-day-number{color:var(--primary)}
+    .fc .fc-event{border-radius:5px;font-size:.78rem;font-weight:500;cursor:pointer}
+    .fc .fc-event:hover{filter:brightness(1.05)}
+    .fc .fc-list-event:hover td{background:#fbf8ee}
+    .fc .fc-list-day-cushion{background:#fbf8ee;font-family:'Inter Tight',Inter,sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-700)}
+    .fc-direction-ltr .fc-list-event-time{color:var(--ink-500);font-variant-numeric:tabular-nums}
+
+    @media (max-width:720px){
+      .fc-host{padding:.6rem}
+      .fc .fc-toolbar{gap:.4rem}
+      .fc .fc-toolbar-title{font-size:1.1rem}
+      .fc .fc-button{padding:.35rem .55rem;font-size:.78rem}
+    }
+  </style>`;
+  const url = `https://${org.slug}.${ctx.apexDomain || "compass.app"}/calendar`;
+  const seo = {
+    meta: metaTags({
+      title: `Calendar — ${org.displayName}`,
+      description: `Calendar of meetings, campouts, service projects, and ceremonies for ${org.displayName}.`,
+      url,
+    }),
+    jsonLd: organizationJsonLd({ org, url: `https://${org.slug}.${ctx.apexDomain || "compass.app"}/` }),
+  };
+  return pageShell(org, "Calendar", body, seo);
+}
+
 export function renderEventsList(org, events, ctx = {}) {
   // Build a category-filter chip row from the categories actually
   // present in the visible events. URL-driven so it works without JS:
@@ -741,8 +995,9 @@ export function renderEventsList(org, events, ctx = {}) {
     <a class="back" href="/">← Home</a>
     <h1>Upcoming events</h1>
     <p class="muted">All scheduled events — subscribe once and keep them in your phone calendar.</p>
-    <p style="margin:1rem 0 0">
-      <a class="btn primary" href="/calendar.ics">Subscribe to calendar (.ics)</a>
+    <p style="margin:1rem 0 0;display:flex;gap:.4rem;flex-wrap:wrap">
+      <a class="btn primary" href="/calendar">Month view</a>
+      <a class="btn ghost" href="/calendar.ics">Subscribe (.ics)</a>
     </p>
     ${filterChips}
     ${
@@ -2474,6 +2729,7 @@ export function renderSite(org, extras = {}) {
     FEED: raw(renderFeed(posts)),
     EVENTS: raw(renderEvents(extras.events)),
     GALLERY: raw(renderGallery(albums)),
+    CUSTOM_BLOCKS: raw(renderCustomBlocks(page)),
     HERO_PHOTOS: raw(renderHeroPhotos(heroPhotos || [])),
     NAV_AUTH: raw(navAuth),
     NAV_CUSTOM: raw(navCustom),
