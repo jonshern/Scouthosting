@@ -768,368 +768,168 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
   return pageShell(org, "Members", body);
 }
 
-// Public calendar view. Three view modes:
-//   "month"   — single month grid (default)
-//   "quarter" — three-month grid spanning prev / current / next month
-//   "agenda"  — week-grouped list of upcoming events (90 days out)
+// Public calendar — full-featured FullCalendar control with month,
+// week, day, list, and year views. The control fetches events from
+// /calendar.json and handles its own navigation. We still server-render
+// a category-filter chip row that reloads the page with ?cat=<slug>;
+// the chips show up regardless of JS state and let URL-shared calendars
+// stay scoped.
 //
-// `events` is an already-expanded list of occurrences (recurring events
-// flattened to one entry per date) with startsAt as a Date and the
-// parent event's id/title/category preserved. `ctx.year` / `ctx.month`
-// are 1-based; defaults to today.
+// `events` is the already-expanded list for the current visible window
+// — used here only to derive which category chips to surface. The
+// canonical events feed is the JSON endpoint.
 export function renderCalendarMonth(org, events, ctx = {}) {
-  const now = new Date();
-  const year = Number.isInteger(ctx.year) ? ctx.year : now.getFullYear();
-  const month = Number.isInteger(ctx.month) ? ctx.month : now.getMonth() + 1; // 1-12
-  const view = ["month", "quarter", "agenda"].includes(ctx.view) ? ctx.view : "month";
   const filter = ctx.categoryFilter ? String(ctx.categoryFilter) : "";
   const slug = (s) => String(s || "").toLowerCase().replace(/[\s_]+/g, "-");
 
-  // Bucket events by local-date key (YYYY-MM-DD) within the visible grid.
-  const byDay = new Map();
-  for (const e of events) {
-    const d = new Date(e.startsAt);
-    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-    if (!byDay.has(key)) byDay.set(key, []);
-    byDay.get(key).push(e);
-  }
-  for (const list of byDay.values()) {
-    list.sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt));
-  }
-
-  const todayKey = (() => {
-    const t = new Date();
-    return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
-  })();
-
-  const prev = month === 1 ? { y: year - 1, m: 12 } : { y: year, m: month - 1 };
-  const next = month === 12 ? { y: year + 1, m: 1 } : { y: year, m: month + 1 };
-
-  const fmtTimeShort = (d) =>
-    new Date(d).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(":00", "");
-
-  const cellHtml = (cellDate, inMonth, { compact = false } = {}) => {
-    const key = `${cellDate.getFullYear()}-${String(cellDate.getMonth() + 1).padStart(2, "0")}-${String(cellDate.getDate()).padStart(2, "0")}`;
-    const list = byDay.get(key) || [];
-    const isToday = key === todayKey;
-    const cls = [
-      "cal-cell",
-      inMonth ? "" : "cal-cell--out",
-      isToday ? "cal-cell--today" : "",
-      compact ? "cal-cell--compact" : "",
-    ].filter(Boolean).join(" ");
-    // Compact (quarter) view: cap to 3 visible event chips, then "+N more".
-    const cap = compact ? 3 : 100;
-    const visibleEvents = list.slice(0, cap);
-    const overflow = list.length - visibleEvents.length;
-    const items = visibleEvents
-      .map((e) => {
-        const meta = e.category ? categoryMeta(e.category) : null;
-        const dot = meta
-          ? `<span class="cal-dot" style="background:${PALETTE_VAR(meta.color)}"></span>`
-          : `<span class="cal-dot"></span>`;
-        const time = !e.allDay ? `<span class="cal-event__time">${escapeHtml(fmtTimeShort(e.startsAt))}</span>` : "";
-        const titleAttr = `${e.title}${e.location ? ` · ${e.location}` : ""}${!e.allDay ? ` · ${fmtTimeShort(e.startsAt)}` : ""}`;
-        return `<a class="cal-event" href="/events/${escapeHtml(e.id)}" title="${escapeHtml(titleAttr)}">${dot}${time}<span class="cal-event__t">${escapeHtml(e.title)}</span></a>`;
-      })
-      .join("");
-    const moreLine = overflow > 0
-      ? `<a class="cal-more" href="/calendar?view=month&amp;y=${cellDate.getFullYear()}&amp;m=${cellDate.getMonth() + 1}#d-${escapeHtml(key)}">+${overflow} more</a>`
-      : "";
-    return `
-      <div class="${cls}">
-        <div class="cal-num"><time datetime="${escapeHtml(key)}">${cellDate.getDate()}</time></div>
-        <div class="cal-events">${items}${moreLine}</div>
-      </div>`;
-  };
-
-  // Render one month's worth of cells (used by both month and quarter views).
-  const monthGridHtml = (gridYear, gridMonth, { compact = false } = {}) => {
-    const first = new Date(gridYear, gridMonth - 1, 1);
-    const last = new Date(gridYear, gridMonth, 0);
-    const startDow = first.getDay();
-    const daysInMonth = last.getDate();
-    const cells = [];
-    for (let i = 0; i < startDow; i++) {
-      const d = new Date(gridYear, gridMonth - 1, 1 - (startDow - i));
-      cells.push(cellHtml(d, false, { compact }));
-    }
-    for (let day = 1; day <= daysInMonth; day++) {
-      cells.push(cellHtml(new Date(gridYear, gridMonth - 1, day), true, { compact }));
-    }
-    while (cells.length % 7 !== 0) {
-      const i = cells.length - (startDow + daysInMonth);
-      cells.push(cellHtml(new Date(gridYear, gridMonth, 1 + i), false, { compact }));
-    }
-    const monthLabel = first.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-    const dayHeads = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-      .map((d) => `<div class="cal-dayhead">${d}</div>`)
-      .join("");
-    const titleHref = compact
-      ? `<a href="/calendar?view=month&amp;y=${gridYear}&amp;m=${gridMonth}" class="cal-month-link">${escapeHtml(monthLabel)}</a>`
-      : escapeHtml(monthLabel);
-    return `
-      ${compact ? `<h3 class="cal-submonth">${titleHref}</h3>` : ""}
-      <div class="cal-grid${compact ? " cal-grid--compact" : ""}" role="grid" aria-label="${escapeHtml(monthLabel)}">
-        <div class="cal-dayheads" role="row">${dayHeads}</div>
-        <div class="cal-cells" role="rowgroup">${cells.join("")}</div>
-      </div>`;
-  };
-
-  // Build the main "what's on screen" content per view.
-  const monthLabel = new Date(year, month - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" });
-
-  let mainContent;
-  let pageTitle;
-  if (view === "quarter") {
-    // prev / current / next month, side by side on desktop, stacked on mobile.
-    const months = [
-      { y: prev.y, m: prev.m },
-      { y: year, m: month },
-      { y: next.y, m: next.m },
-    ];
-    const range = `${new Date(prev.y, prev.m - 1, 1).toLocaleDateString("en-US", { month: "long" })} – ${new Date(next.y, next.m - 1, 1).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`;
-    pageTitle = `Calendar · ${range}`;
-    mainContent = `
-      <h2 class="cal-month">${escapeHtml(range)}</h2>
-      <div class="cal-quarter">
-        ${months.map((m) => monthGridHtml(m.y, m.m, { compact: true })).join("")}
-      </div>`;
-  } else if (view === "agenda") {
-    // Group expanded events by week (Sun–Sat). Empty weeks skipped.
-    pageTitle = "Calendar · Upcoming";
-    const buckets = new Map();
-    for (const e of events) {
-      const d = new Date(e.startsAt);
-      const sunday = new Date(d);
-      sunday.setDate(sunday.getDate() - sunday.getDay());
-      sunday.setHours(0, 0, 0, 0);
-      const weekKey = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, "0")}-${String(sunday.getDate()).padStart(2, "0")}`;
-      if (!buckets.has(weekKey)) buckets.set(weekKey, { sunday, items: [] });
-      buckets.get(weekKey).items.push(e);
-    }
-    const sortedWeeks = [...buckets.values()].sort((a, b) => a.sunday - b.sunday);
-    const weekBlocks = sortedWeeks
-      .map(({ sunday, items }) => {
-        const saturday = new Date(sunday);
-        saturday.setDate(saturday.getDate() + 6);
-        const weekLabel =
-          sunday.getMonth() === saturday.getMonth()
-            ? `${sunday.toLocaleDateString("en-US", { month: "long" })} ${sunday.getDate()}–${saturday.getDate()}`
-            : `${sunday.toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${saturday.toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
-        const evRows = items
-          .sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt))
-          .map((e) => {
-            const d = new Date(e.startsAt);
-            const meta = e.category ? categoryMeta(e.category) : null;
-            const tag = meta
-              ? `<span class="event-cat-tag" style="background:${PALETTE_VAR(meta.color)};${meta.color === "accent" || meta.color === "butter" ? "color:var(--ink)" : ""}">${escapeHtml(meta.label)}</span>`
-              : "";
-            const dayLabel = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
-            const time = e.allDay ? "All day" : fmtTimeShort(e.startsAt);
-            return `
-            <li class="agenda-row">
-              <time class="agenda-when" datetime="${escapeHtml(d.toISOString())}">
-                <span class="agenda-day">${escapeHtml(dayLabel)}</span>
-                <span class="agenda-time">${escapeHtml(time)}</span>
-              </time>
-              <div class="agenda-body">
-                <h3><a href="/events/${escapeHtml(e.id)}" style="color:inherit;text-decoration:none">${escapeHtml(e.title)}</a> ${tag}</h3>
-                ${e.location ? `<p class="muted small" style="margin:.15rem 0 0">${escapeHtml(e.location)}</p>` : ""}
-              </div>
-            </li>`;
-          })
-          .join("");
-        return `
-        <section class="agenda-week">
-          <h2 class="agenda-week-h">${escapeHtml(weekLabel)}</h2>
-          <ul class="agenda-list">${evRows}</ul>
-        </section>`;
-      })
-      .join("");
-    mainContent = `
-      <h2 class="cal-month">Next 90 days</h2>
-      ${weekBlocks || `<p class="cal-empty">No upcoming events.</p>`}`;
-  } else {
-    pageTitle = `Calendar · ${monthLabel}`;
-    mainContent = `
-      <h2 class="cal-month">${escapeHtml(monthLabel)}</h2>
-      ${monthGridHtml(year, month)}`;
-  }
-
-  // Build the view + filter chip rows.
-  const qs = (overrides) => {
-    const params = new URLSearchParams();
-    const v = overrides.view !== undefined ? overrides.view : view;
-    if (v && v !== "month") params.set("view", v);
-    if (overrides.y !== undefined) params.set("y", overrides.y);
-    else if (view !== "agenda" && (year !== now.getFullYear() || month !== now.getMonth() + 1)) {
-      params.set("y", year);
-    }
-    if (overrides.m !== undefined) params.set("m", overrides.m);
-    else if (view !== "agenda" && (year !== now.getFullYear() || month !== now.getMonth() + 1)) {
-      params.set("m", month);
-    }
-    const cat = overrides.cat !== undefined ? overrides.cat : filter;
-    if (cat) params.set("cat", cat);
-    const s = params.toString();
-    return s ? `/calendar?${s}` : "/calendar";
-  };
-
+  // Build the category-filter chip row from whatever's present in the
+  // visible window. Chip clicks reload the page with ?cat=<slug>; the
+  // FullCalendar feed URL also picks up the filter.
   const presentCategories = Array.from(
     new Map(events.filter((e) => e.category).map((e) => [e.category, categoryMeta(e.category)])).entries(),
   );
+  const chipHref = (cat) => (cat ? `/calendar?cat=${encodeURIComponent(cat)}` : "/calendar");
   const filterChips = presentCategories.length
     ? `<div class="cal-filters">
-        <a class="event-chip${!filter ? " event-chip--on" : ""}" href="${qs({ cat: "" })}">All</a>
+        <a class="event-chip${!filter ? " event-chip--on" : ""}" href="${chipHref("")}">All</a>
         ${presentCategories
           .map(([raw, meta]) => {
             const s = slug(raw);
             const on = s === slug(filter);
-            return `<a class="event-chip${on ? " event-chip--on" : ""}" href="${qs({ cat: s })}" style="--cc:${PALETTE_VAR(meta.color)}">${escapeHtml(meta.label)}</a>`;
+            return `<a class="event-chip${on ? " event-chip--on" : ""}" href="${chipHref(s)}" style="--cc:${PALETTE_VAR(meta.color)}">${escapeHtml(meta.label)}</a>`;
           })
           .join("")}
       </div>`
     : "";
 
-  const viewBtn = (key, label) =>
-    `<a class="cal-view${view === key ? " cal-view--on" : ""}" href="${qs({ view: key })}">${escapeHtml(label)}</a>`;
+  // The events feed URL — FullCalendar appends ?start=&end= itself.
+  const feedUrl = filter ? `/calendar.json?cat=${encodeURIComponent(filter)}` : "/calendar.json";
 
-  // Prev / next links only matter for grid views; agenda has no nav.
-  const navLinks =
-    view === "agenda"
-      ? ""
-      : `
-      <div class="cal-nav">
-        <a class="btn ghost" href="${qs({ view, y: prev.y, m: prev.m })}" aria-label="Previous">←</a>
-        <a class="btn ghost" href="${qs({ view, y: undefined, m: undefined })}" aria-label="Jump to today">Today</a>
-        <a class="btn ghost" href="${qs({ view, y: next.y, m: next.m })}" aria-label="Next">→</a>
-      </div>`;
+  // The init script is JSON-encoded so safely embeds in HTML.
+  const fcConfig = JSON.stringify({
+    feedUrl,
+    primary: org.primaryColor || "#0e3320",
+    accent: org.accentColor || "#c8e94a",
+  });
 
   const body = `
   <section class="event-list">
     <a class="back" href="/">← Home</a>
     <h1>Calendar</h1>
-    <p class="muted">All troop events at a glance — click any event for details and to RSVP.</p>
-
-    <div class="cal-views" role="tablist" aria-label="Calendar view">
-      ${viewBtn("month", "Month")}
-      ${viewBtn("quarter", "3 months")}
-      ${viewBtn("agenda", "Agenda")}
-      <span class="cal-views-spacer"></span>
-      <a class="btn ghost small" href="/events">List</a>
-      <a class="btn ghost small" href="/calendar.ics">Subscribe (.ics)</a>
-    </div>
+    <p class="muted">Click any event for details and to RSVP. Use the toolbar to switch between month, week, day, list, and year views.</p>
 
     ${filterChips}
 
-    ${navLinks ? `<div class="cal-toolbar">${navLinks}<div class="cal-toolbar-spacer"></div></div>` : ""}
+    <div class="cal-actions-row">
+      <a class="btn ghost small" href="/events">Events list</a>
+      <a class="btn ghost small" href="/calendar.ics">Subscribe (.ics)</a>
+    </div>
 
-    ${mainContent}
+    <div id="fc" class="fc-host" aria-busy="true">
+      <p class="cal-empty fc-loading">Loading calendar…</p>
+    </div>
 
-    ${
-      events.length === 0 && view !== "agenda"
-        ? `<p class="cal-empty">Nothing scheduled in this window. <a href="/events">Browse all events →</a></p>`
-        : ""
-    }
+    <noscript>
+      <div class="cal-empty" style="margin-top:1.25rem;padding:1rem;background:#fff;border:1px solid #eef0e7;border-radius:10px">
+        The calendar needs JavaScript. <a href="/events">See the events list →</a>
+      </div>
+    </noscript>
   </section>
+
+  <script src="/vendor/fullcalendar/index.global.min.js" defer></script>
+  <script>
+    (function () {
+      var cfg = ${fcConfig};
+      function init() {
+        if (typeof FullCalendar === "undefined") {
+          // Library failed to load (offline / CSP / blocker).
+          var host = document.getElementById("fc");
+          if (host) {
+            host.removeAttribute("aria-busy");
+            host.innerHTML = '<p class="cal-empty">Calendar couldn\\'t load. <a href="/events">See the events list →</a></p>';
+          }
+          return;
+        }
+        var el = document.getElementById("fc");
+        if (!el) return;
+        el.removeAttribute("aria-busy");
+        el.innerHTML = "";
+        var cal = new FullCalendar.Calendar(el, {
+          initialView: "dayGridMonth",
+          headerToolbar: {
+            left: "prev,next today",
+            center: "title",
+            right: "dayGridMonth,timeGridWeek,timeGridDay,listMonth,multiMonthYear",
+          },
+          buttonText: {
+            today: "Today",
+            month: "Month",
+            week: "Week",
+            day: "Day",
+            list: "List",
+            multiMonthYear: "Year",
+          },
+          height: "auto",
+          firstDay: 0,
+          nowIndicator: true,
+          dayMaxEventRows: 3,
+          eventDisplay: "block",
+          eventTimeFormat: { hour: "numeric", minute: "2-digit", meridiem: "short" },
+          events: cfg.feedUrl,
+        });
+        cal.render();
+      }
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", init);
+      } else {
+        init();
+      }
+    })();
+  </script>
+
   <style>
-    /* View tabs (Month / 3 months / Agenda) + supporting actions. */
-    .cal-views{display:flex;align-items:center;gap:.4rem;margin:1.2rem 0 .6rem;flex-wrap:wrap}
-    .cal-view{padding:.5rem .9rem;border-radius:999px;font-size:.85rem;font-weight:600;color:var(--ink);background:var(--surface);border:1.5px solid var(--line);text-decoration:none}
-    .cal-view:hover{border-color:var(--ink)}
-    .cal-view--on{background:var(--primary);color:#fff;border-color:var(--primary)}
-    .cal-views-spacer{flex:1}
+    .cal-filters{display:flex;flex-wrap:wrap;gap:.4rem;margin:1rem 0}
+    .cal-actions-row{display:flex;gap:.4rem;flex-wrap:wrap;margin:0 0 1rem}
+    .cal-empty{padding:2rem 1rem;text-align:center;color:var(--ink-500);font-size:.95rem}
 
-    /* Category filter chips */
-    .cal-filters{display:flex;flex-wrap:wrap;gap:.4rem;margin:0 0 1rem}
-
-    /* Toolbar: prev / today / next on the left, content title centered. */
-    .cal-toolbar{display:grid;grid-template-columns:auto 1fr;align-items:center;gap:1rem;margin:0 0 1rem}
-    .cal-nav{display:flex;gap:.35rem;justify-self:start}
-    .cal-toolbar-spacer{display:none}
-    .cal-month{margin:0 0 .8rem;font-size:1.5rem;font-family:'Inter Tight',Inter,sans-serif;font-weight:600;letter-spacing:-0.01em}
-
-    /* Month grid */
-    .cal-grid{border:1px solid #eef0e7;border-radius:12px;background:#fff;overflow:hidden;box-shadow:0 1px 2px rgba(15,58,31,.04)}
-    .cal-dayheads,.cal-cells{display:grid;grid-template-columns:repeat(7,1fr)}
-    .cal-dayhead{padding:.6rem .5rem;font-size:.74rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-500);background:#fbf8ee;border-bottom:1px solid #eef0e7;text-align:center}
-    .cal-cell{min-height:118px;padding:.45rem .5rem;border-right:1px solid #eef0e7;border-bottom:1px solid #eef0e7;display:flex;flex-direction:column;gap:.3rem;background:#fff}
-    .cal-cell:nth-child(7n){border-right:0}
-    .cal-cells > .cal-cell:nth-last-child(-n+7){border-bottom:0}
-    .cal-cell--out{background:#fafaf6}
-    .cal-cell--out .cal-num{opacity:.45}
-    .cal-cell--out .cal-event{opacity:.7}
-    .cal-cell--today{background:#fffbe6}
-    .cal-num{font-size:.82rem;font-weight:600;color:var(--ink-700);text-align:right;line-height:1.4;height:1.5rem;display:flex;align-items:center;justify-content:flex-end}
-    .cal-num time{display:inline-flex;align-items:center;justify-content:center;min-width:1.4rem;height:1.4rem;padding:0 .35rem;border-radius:999px}
-    .cal-cell--today .cal-num time{background:var(--primary);color:#fff;font-weight:700}
-    .cal-events{display:flex;flex-direction:column;gap:.2rem;min-height:0;overflow:hidden}
-    .cal-event{display:flex;align-items:center;gap:.35rem;text-decoration:none;color:var(--ink-900);background:#f4f6ee;border:1px solid #eef0e7;border-radius:6px;padding:.22rem .45rem;font-size:.78rem;line-height:1.25;overflow:hidden;transition:background .12s,border-color .12s}
-    .cal-event:hover{background:#eaf0d6;border-color:#cdd9a8}
-    .cal-event:focus-visible{outline:2px solid var(--primary);outline-offset:1px}
-    .cal-event__time{font-size:.7rem;color:var(--ink-500);font-variant-numeric:tabular-nums;flex:0 0 auto}
-    .cal-event__t{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;flex:1}
-    .cal-dot{display:inline-block;width:.5rem;height:.5rem;border-radius:50%;background:var(--ink-500);flex:0 0 auto}
-    .cal-more{font-size:.72rem;color:var(--ink-500);text-decoration:none;padding:.05rem .35rem}
-    .cal-more:hover{color:var(--primary);text-decoration:underline}
-    .cal-empty{padding:2rem 1rem;text-align:center;color:var(--ink-500);font-size:.92rem}
-
-    /* Quarter (3-month) view */
-    .cal-quarter{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}
-    .cal-submonth{margin:0 0 .5rem;font-family:'Inter Tight',Inter,sans-serif;font-size:1.05rem;font-weight:600;letter-spacing:-0.01em}
-    .cal-submonth .cal-month-link{color:var(--ink-900);text-decoration:none}
-    .cal-submonth .cal-month-link:hover{color:var(--primary);text-decoration:underline}
-    .cal-grid--compact .cal-dayhead{padding:.35rem .2rem;font-size:.65rem;letter-spacing:.04em}
-    .cal-grid--compact .cal-cell{min-height:62px;padding:.2rem .25rem;gap:.15rem}
-    .cal-grid--compact .cal-num{font-size:.7rem;height:1.1rem}
-    .cal-grid--compact .cal-num time{min-width:1.1rem;height:1.1rem;padding:0 .25rem}
-    .cal-grid--compact .cal-event{padding:.05rem .3rem;font-size:.68rem;border-radius:4px;gap:.25rem}
-    .cal-grid--compact .cal-event__time{display:none}
-    .cal-grid--compact .cal-event__t{font-size:.68rem}
-    .cal-grid--compact .cal-dot{width:.4rem;height:.4rem}
-    .cal-grid--compact .cal-more{font-size:.62rem;padding:0 .2rem}
-
-    /* Agenda view */
-    .agenda-week{margin:0 0 1.5rem;border:1px solid #eef0e7;border-radius:12px;background:#fff;overflow:hidden}
-    .agenda-week-h{margin:0;padding:.7rem 1rem;background:#fbf8ee;border-bottom:1px solid #eef0e7;font-family:'Inter Tight',Inter,sans-serif;font-size:.85rem;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-700)}
-    .agenda-list{list-style:none;padding:0;margin:0}
-    .agenda-row{display:flex;gap:1.2rem;padding:.85rem 1rem;border-top:1px solid #eef0e7;align-items:flex-start}
-    .agenda-row:first-child{border-top:0}
-    .agenda-when{flex:0 0 8.5rem;display:flex;flex-direction:column;font-family:'Inter Tight',Inter,sans-serif}
-    .agenda-day{font-weight:600;color:var(--ink-900);font-size:.92rem}
-    .agenda-time{color:var(--ink-500);font-size:.84rem;font-variant-numeric:tabular-nums}
-    .agenda-body{flex:1;min-width:0}
-    .agenda-body h3{margin:0;font-size:1rem;font-family:'Inter Tight',Inter,sans-serif}
+    /* FullCalendar host — keep the control inside the page chrome and
+       restyle a few defaults to fit Scouthosting's typography. */
+    .fc-host{background:#fff;border:1px solid #eef0e7;border-radius:12px;padding:1.1rem;box-shadow:0 1px 2px rgba(15,58,31,.04)}
+    .fc-host.fc{font-family:inherit}
+    .fc-loading{opacity:.6;font-style:italic}
+    .fc .fc-toolbar-title{font-family:'Inter Tight',Inter,sans-serif;font-size:1.4rem;font-weight:600;letter-spacing:-0.01em;color:var(--ink-900)}
+    .fc .fc-button{background:#f7f4e8;border:1px solid #e2dab8;color:var(--ink-700);font-weight:600;text-transform:none;box-shadow:none;padding:.42rem .85rem;font-size:.88rem}
+    .fc .fc-button:hover{background:#efe9d2;border-color:#cdc093;color:var(--ink-900)}
+    .fc .fc-button:focus{box-shadow:0 0 0 2px rgba(14,51,32,.18)}
+    .fc .fc-button-primary:not(:disabled).fc-button-active,
+    .fc .fc-button-primary:not(:disabled):active{background:var(--primary);border-color:var(--primary);color:#fff}
+    .fc .fc-col-header-cell-cushion{font-family:'Inter Tight',Inter,sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-500);padding:.6rem 0}
+    .fc .fc-daygrid-day-number{font-family:'Inter Tight',Inter,sans-serif;color:var(--ink-700);font-weight:600;padding:.4rem .5rem}
+    .fc .fc-day-today{background:#fffbe6 !important}
+    .fc .fc-day-today .fc-daygrid-day-number{color:var(--primary)}
+    .fc .fc-event{border-radius:5px;font-size:.78rem;font-weight:500;cursor:pointer}
+    .fc .fc-event:hover{filter:brightness(1.05)}
+    .fc .fc-list-event:hover td{background:#fbf8ee}
+    .fc .fc-list-day-cushion{background:#fbf8ee;font-family:'Inter Tight',Inter,sans-serif;font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-700)}
+    .fc-direction-ltr .fc-list-event-time{color:var(--ink-500);font-variant-numeric:tabular-nums}
 
     @media (max-width:720px){
-      .cal-views{margin:.8rem 0 .5rem}
-      .cal-toolbar{grid-template-columns:1fr;gap:.5rem;margin:0 0 .8rem}
-      .cal-month{font-size:1.2rem}
-      .cal-cell{min-height:74px;padding:.28rem .32rem;gap:.2rem}
-      .cal-event{padding:.15rem .35rem}
-      .cal-event__time{display:none}
-      .cal-event__t{font-size:.7rem}
-      .cal-dayhead{font-size:.66rem;padding:.4rem .15rem;letter-spacing:.05em}
-      .cal-num{font-size:.78rem;height:1.3rem}
-      .cal-num time{min-width:1.2rem;height:1.2rem;padding:0 .3rem}
-      /* Quarter view stacks vertically on phones — three side-by-side
-         month grids would each be ~33% wide and unreadable. */
-      .cal-quarter{grid-template-columns:1fr;gap:1.2rem}
-      .agenda-row{flex-direction:column;gap:.3rem;padding:.7rem .85rem}
-      .agenda-when{flex:0 0 auto;flex-direction:row;gap:.5rem}
+      .fc-host{padding:.6rem}
+      .fc .fc-toolbar{gap:.4rem}
+      .fc .fc-toolbar-title{font-size:1.1rem}
+      .fc .fc-button{padding:.35rem .55rem;font-size:.78rem}
     }
   </style>`;
   const url = `https://${org.slug}.${ctx.apexDomain || "compass.app"}/calendar`;
   const seo = {
     meta: metaTags({
       title: `Calendar — ${org.displayName}`,
-      description: `${monthLabel} calendar of meetings, campouts, service projects, and ceremonies for ${org.displayName}.`,
+      description: `Calendar of meetings, campouts, service projects, and ceremonies for ${org.displayName}.`,
       url,
     }),
     jsonLd: organizationJsonLd({ org, url: `https://${org.slug}.${ctx.apexDomain || "compass.app"}/` }),
   };
-  return pageShell(org, pageTitle, body, seo);
+  return pageShell(org, "Calendar", body, seo);
 }
 
 export function renderEventsList(org, events, ctx = {}) {

@@ -1627,60 +1627,27 @@ app.get("/events/:id.ics", async (req, res) => {
     .send(icsFor(ev, { orgSlug: req.org.slug }));
 });
 
-// Public calendar. Three views, all served from the same route:
-//   ?view=month   (default) — single month grid
-//   ?view=quarter           — three-month grid (prev / current / next)
-//   ?view=agenda            — week-grouped list of upcoming events
-//
-// Year/month come from `?y=&m=` and default to today. `?cat=<slug>`
-// filters by event category. Recurring events get expanded so each
-// occurrence shows on its own day.
-app.get("/calendar", async (req, res, next) => {
+// JSON events feed for the FullCalendar control on /calendar. Accepts
+// FullCalendar's standard `?start=&end=` ISO query, expands recurring
+// events, and emits the event shape FullCalendar consumes natively.
+// `?cat=<slug>` narrows to a category. The endpoint returns a plain
+// array (no envelope) because FullCalendar consumes that directly when
+// the `events` option is a URL string.
+app.get("/calendar.json", async (req, res, next) => {
   if (!req.org) return next();
-
-  const now = new Date();
-  const view = ["month", "quarter", "agenda"].includes(String(req.query.view || ""))
-    ? String(req.query.view)
-    : "month";
-  const categoryFilter = req.query.cat ? String(req.query.cat) : "";
-
-  let year = parseInt(String(req.query.y || ""), 10);
-  let month = parseInt(String(req.query.m || ""), 10);
-  if (!Number.isInteger(year) || year < 1970 || year > 9999) year = now.getFullYear();
-  if (!Number.isInteger(month) || month < 1 || month > 12) month = now.getMonth() + 1;
-
-  // Window covers the visible grid for month/quarter views, or 90 days
-  // forward for the agenda view. We always pull recurring events too —
-  // expandOccurrences trims them down to the window.
-  let gridStart, gridEnd;
-  if (view === "quarter") {
-    const qStart = new Date(year, month - 2, 1); // prev month
-    const qEnd = new Date(year, month + 1, 0, 23, 59, 59, 999); // last day of next month
-    gridStart = new Date(qStart);
-    gridStart.setDate(gridStart.getDate() - gridStart.getDay()); // back to Sunday
-    gridEnd = new Date(qEnd);
-    gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay())); // forward to Saturday
-    gridEnd.setHours(23, 59, 59, 999);
-  } else if (view === "agenda") {
-    gridStart = new Date(now);
-    gridStart.setHours(0, 0, 0, 0);
-    gridEnd = new Date(gridStart);
-    gridEnd.setDate(gridEnd.getDate() + 90);
-  } else {
-    const monthStart = new Date(year, month - 1, 1);
-    const monthEnd = new Date(year, month, 0, 23, 59, 59, 999);
-    gridStart = new Date(monthStart);
-    gridStart.setDate(gridStart.getDate() - gridStart.getDay()); // back to Sunday
-    gridEnd = new Date(monthEnd);
-    gridEnd.setDate(gridEnd.getDate() + (6 - gridEnd.getDay())); // forward to Saturday
-    gridEnd.setHours(23, 59, 59, 999);
+  const startQ = String(req.query.start || "");
+  const endQ = String(req.query.end || "");
+  const start = new Date(startQ);
+  const end = new Date(endQ);
+  if (isNaN(start.getTime()) || isNaN(end.getTime()) || start >= end) {
+    return res.status(400).json({ error: "bad_range" });
   }
 
   const candidates = await prisma.event.findMany({
     where: {
       orgId: req.org.id,
       OR: [
-        { startsAt: { gte: gridStart, lte: gridEnd } },
+        { startsAt: { gte: start, lte: end } },
         { rrule: { not: null } },
       ],
     },
@@ -1690,28 +1657,97 @@ app.get("/calendar", async (req, res, next) => {
   let expanded = (
     await Promise.all(
       candidates.map((e) =>
-        expandOccurrences(e, { from: gridStart, to: gridEnd, max: 90 }),
+        expandOccurrences(e, { from: start, to: end, max: 200 }),
       ),
     )
   )
     .flat()
     .filter((e) => {
       const d = new Date(e.startsAt);
-      return d >= gridStart && d <= gridEnd;
+      return d >= start && d <= end;
     });
 
-  if (categoryFilter) {
-    const slug = (s) => String(s || "").toLowerCase().replace(/[\s_]+/g, "-");
-    expanded = expanded.filter((e) => slug(e.category) === slug(categoryFilter));
+  const cat = req.query.cat ? String(req.query.cat) : "";
+  if (cat) {
+    const slugify = (s) => String(s || "").toLowerCase().replace(/[\s_]+/g, "-");
+    expanded = expanded.filter((e) => slugify(e.category) === slugify(cat));
   }
+
+  // Per-category color so chips on the FullCalendar grid match the
+  // server-rendered chip palette. Falls through to the org's primary.
+  const { categoryMeta } = await import("../lib/eventCategories.js");
+  const palette = (color) => {
+    // Map our category-color tokens to a real hex via the org's
+    // primary/accent fallbacks. The FullCalendar consumer only needs a
+    // CSS color string.
+    const map = {
+      primary: req.org.primaryColor || "#0e3320",
+      accent: req.org.accentColor || "#c8e94a",
+      sky: "#3a93c5",
+      raspberry: "#c44066",
+      plum: "#7d4f8a",
+      butter: "#e6c44a",
+    };
+    return map[color] || req.org.primaryColor || "#0e3320";
+  };
+
+  const out = expanded.map((e) => {
+    const meta = e.category ? categoryMeta(e.category) : null;
+    const bg = meta ? palette(meta.color) : (req.org.primaryColor || "#0e3320");
+    return {
+      id: e.id,
+      title: e.title,
+      start: new Date(e.startsAt).toISOString(),
+      end: e.endsAt ? new Date(e.endsAt).toISOString() : null,
+      allDay: !!e.allDay,
+      url: `/events/${e.id}`,
+      backgroundColor: bg,
+      borderColor: bg,
+      textColor: meta && (meta.color === "accent" || meta.color === "butter") ? "#0e3320" : "#fff",
+      extendedProps: {
+        location: e.location || "",
+        category: meta?.label || e.category || "",
+      },
+    };
+  });
+
+  res.json(out);
+});
+
+// Public calendar page. Renders a FullCalendar control which fetches
+// its own events from /calendar.json — this handler just produces the
+// page chrome and a category-filter chip row. We pull enough events
+// (90 days forward) to know which categories to surface in chips.
+app.get("/calendar", async (req, res, next) => {
+  if (!req.org) return next();
+
+  const categoryFilter = req.query.cat ? String(req.query.cat) : "";
+  const now = new Date();
+  const horizonStart = new Date(now);
+  horizonStart.setHours(0, 0, 0, 0);
+  const horizonEnd = new Date(horizonStart);
+  horizonEnd.setDate(horizonEnd.getDate() + 90);
+
+  const candidates = await prisma.event.findMany({
+    where: {
+      orgId: req.org.id,
+      OR: [
+        { startsAt: { gte: horizonStart, lte: horizonEnd } },
+        { rrule: { not: null } },
+      ],
+    },
+    orderBy: { startsAt: "asc" },
+  });
+  const expanded = (
+    await Promise.all(
+      candidates.map((e) => expandOccurrences(e, { from: horizonStart, to: horizonEnd, max: 60 })),
+    )
+  ).flat();
 
   res
     .set("Content-Type", "text/html; charset=utf-8")
     .send(
       renderCalendarMonth(req.org, expanded, {
-        year,
-        month,
-        view,
         categoryFilter,
         apexDomain: APEX_DOMAIN,
       }),
@@ -3107,6 +3143,27 @@ app.get("*", async (req, res, next) => {
   // on demo.<APEX_DOMAIN>.
   const ext = path.extname(req.path);
   if (ext && ext !== ".html") {
+    // Vendored client libraries served straight from node_modules so we
+    // don't duplicate them into the repo. Only an allow-listed set of
+    // packages is reachable; the path-traversal regex bars any "../".
+    const VENDOR = {
+      "/vendor/fullcalendar/": path.join(ROOT, "node_modules", "fullcalendar"),
+    };
+    for (const [prefix, dir] of Object.entries(VENDOR)) {
+      if (req.path.startsWith(prefix)) {
+        const sub = req.path.slice(prefix.length);
+        if (!/^[a-zA-Z0-9._-]+(\.[a-zA-Z0-9_-]+)*$/.test(sub) || sub.includes("..")) {
+          return res.status(404).send("Not found");
+        }
+        const file = path.join(dir, sub);
+        if (fs.existsSync(file)) {
+          // Long-cache vendored libs since they're versioned by npm.
+          res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+          return res.sendFile(file);
+        }
+        return res.status(404).send("Not found");
+      }
+    }
     const file = path.join(ROOT, "demo", req.path);
     if (fs.existsSync(file)) return res.sendFile(file);
     return res.status(404).send("Not found");
