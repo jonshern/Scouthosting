@@ -237,12 +237,31 @@ async function seedEvents(orgId) {
       category: "Campout",
     },
   ];
+  // Natural key is (orgId, title) — NOT (orgId, title, startsAt). Each
+  // seed run computes a fresh startsAt from Date.now(); if startsAt is
+  // part of the lookup key we never match an existing row and every run
+  // plants another copy a few minutes later. See the dupes that hit
+  // staging when `make staging-seed` was run on consecutive days.
   for (const e of events) {
-    await findOrCreate(
-      "event",
-      { orgId, title: e.title, startsAt: e.startsAt },
-      { orgId, ...e }
-    );
+    const matches = await prisma.event.findMany({
+      where: { orgId, title: e.title },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+    if (matches.length === 0) {
+      await prisma.event.create({ data: { orgId, ...e } });
+    } else {
+      const [keep, ...extras] = matches;
+      await prisma.event.update({
+        where: { id: keep.id },
+        data: { ...e, orgId },
+      });
+      if (extras.length) {
+        await prisma.event.deleteMany({
+          where: { id: { in: extras.map((x) => x.id) } },
+        });
+      }
+    }
   }
   console.log(`✓ Events (${events.length}, including a weekly recurrence)`);
   return prisma.event.findMany({ where: { orgId } });
