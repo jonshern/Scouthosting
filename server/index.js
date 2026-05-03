@@ -448,21 +448,23 @@ app.get("/choose-org", async (req, res, next) => {
   res.type("html").send(`<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Choose your unit — Compass</title>
+<link rel="stylesheet" href="/tokens.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:'Inter Tight',system-ui,sans-serif;color:#0f172a;background:#f7f8fa;display:grid;place-items:center;min-height:100vh;padding:2rem}
-.shell{max-width:520px;width:100%;background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:2.25rem 2rem 2rem;box-shadow:0 12px 30px rgba(0,0,0,.05)}
-.eyebrow{font-size:11px;color:#64748b;letter-spacing:.14em;text-transform:uppercase;font-weight:600;margin-bottom:.5rem}
-h1{font-family:Newsreader,Georgia,serif;font-weight:400;font-size:32px;line-height:1.1;letter-spacing:-.02em;margin:0 0 .5rem}
-.lede{color:#334155;margin:0 0 1.5rem;font-size:15px}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font-ui);color:var(--ink);background:var(--bg);display:grid;place-items:center;min-height:100vh;padding:2rem;line-height:1.55}
+.shell{max-width:520px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:2.25rem 2rem 2rem;box-shadow:var(--shadow-card)}
+.eyebrow{font-size:11px;color:var(--ink-muted);letter-spacing:.14em;text-transform:uppercase;font-weight:600;margin-bottom:.5rem}
+h1{font-family:var(--font-display);font-weight:400;font-size:32px;line-height:1.1;letter-spacing:-.02em;margin:0 0 .5rem}
+.lede{color:var(--ink-soft);margin:0 0 1.5rem;font-size:15px}
 ul{list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:.6rem}
-.org{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border:1px solid #e2e8f0;border-radius:10px;text-decoration:none;color:inherit;transition:border-color .12s,background .12s}
-.org:hover{border-color:#0f172a;background:#fafaf7}
-.org__name{font-weight:600;font-size:16px;color:#0f172a}
-.org__meta{font-size:12.5px;color:#64748b}
-.fine{margin-top:1.25rem;font-size:13px;color:#64748b;text-align:center}
-.fine a{color:#0f172a;font-weight:500}
+.org{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border:1px solid var(--line);border-radius:10px;text-decoration:none;color:inherit;transition:border-color .12s,background .12s}
+.org:hover{border-color:var(--ink);background:var(--bg)}
+.org__name{font-weight:600;font-size:16px;color:var(--ink)}
+.org__meta{font-size:12.5px;color:var(--ink-muted)}
+.fine{margin-top:1.25rem;font-size:13px;color:var(--ink-muted);text-align:center}
+.fine a{color:var(--ink);font-weight:500}
 </style></head><body>
 <div class="shell">
 <div class="eyebrow">§ Choose your unit</div>
@@ -1225,11 +1227,15 @@ function rsvpAck(org, { ok, message, eventId }) {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${ok ? "Thanks!" : "RSVP error"} — ${escape(org.displayName)}</title>
-<link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/tokens.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
-body{display:grid;place-items:center;min-height:100vh;padding:2rem;background:#fbf8ee}
-.card{max-width:480px;background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:2rem;text-align:center;box-shadow:0 12px 30px rgba(0,0,0,.05)}
-.card h1{font-family:Fraunces,serif;font-size:1.6rem;margin-top:0;color:${ok ? escape(org.primaryColor || "#1d6b39") : "#7d2614"}}
+body{display:grid;place-items:center;min-height:100vh;padding:2rem;background:var(--bg);color:var(--ink);font-family:var(--font-ui);margin:0}
+.card{max-width:480px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:2rem;text-align:center;box-shadow:var(--shadow-card)}
+.card h1{font-family:var(--font-display);font-weight:400;font-size:1.6rem;margin-top:0;color:${ok ? "var(--success)" : "#7d2614"}}
+.card p{color:var(--ink-soft)}
+.card a{color:var(--accent);text-decoration:none}
+.card a:hover{text-decoration:underline}
 </style>
 </head><body>
 <div class="card">
@@ -1281,23 +1287,28 @@ function publicLoginPage(org, { error, next, googleConfigured: gc, mode = "login
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escape(isLogin ? "Sign in" : "Sign up")} — ${escape(org.displayName)}</title>
+<link rel="stylesheet" href="/tokens.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;color:#15181c;background:#fbf8ee;display:grid;place-items:center;min-height:100vh;padding:2rem}
-.card{max-width:420px;width:100%;background:#fff;border:1px solid #e6ebe2;border-radius:14px;padding:2rem;box-shadow:0 12px 30px rgba(0,0,0,.05)}
-h1{font-family:Fraunces,Georgia,serif;font-size:1.6rem;margin:0 0 .25rem}
-p.lede{color:#6b7280;margin:0 0 1.25rem;font-size:.95rem}
-label{display:block;margin:0 0 1rem;font-size:.9rem;font-weight:500}
-input{display:block;width:100%;margin-top:.3rem;padding:.65rem .75rem;border:1px solid #c8ccd4;border-radius:8px;font:inherit}
-.btn{display:block;width:100%;padding:.75rem;border-radius:9px;border:0;background:${escape(org.primaryColor || "#1d6b39")};color:#fff;font-weight:600;cursor:pointer;font-size:.95rem;margin-top:.5rem}
-.btn-google{display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;padding:.75rem;border-radius:9px;border:1px solid #c8ccd4;background:#fff;color:#15181c;text-decoration:none;font-weight:500;font-size:.95rem}
-.btn-google:hover{border-color:#15181c;background:#f7f8f3}
-.divider{display:flex;align-items:center;gap:.75rem;color:#6b7280;font-size:.78rem;text-transform:uppercase;letter-spacing:.08em;margin:1.1rem 0}
-.divider::before,.divider::after{content:"";flex:1;height:1px;background:#eef0e7}
-.flash-err{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:.65rem 1rem;border-radius:9px;margin-bottom:1rem;font-size:.92rem}
-small.help{display:block;color:#6b7280;margin-top:1rem;font-size:.85rem;text-align:center}
-small.help a{color:${escape(org.primaryColor || "#1d6b39")}}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font-ui);color:var(--ink);background:var(--bg);display:grid;place-items:center;min-height:100vh;padding:2rem;line-height:1.55}
+.card{max-width:440px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:2.25rem 2rem;box-shadow:var(--shadow-card)}
+h1{font-family:var(--font-display);font-weight:400;font-size:2rem;line-height:1.05;letter-spacing:-.025em;margin:0 0 .25rem}
+p.lede{color:var(--ink-soft);margin:0 0 1.6rem;font-size:.95rem}
+label{display:block;margin:0 0 1rem;font-size:.86rem;font-weight:600;color:var(--ink)}
+input{display:block;width:100%;margin-top:.3rem;padding:.65rem .8rem;border:1.5px solid var(--line);border-radius:var(--radius-button);font:inherit;background:var(--surface);color:var(--ink)}
+input:focus{outline:none;border-color:var(--ink)}
+.btn{display:block;width:100%;padding:.78rem;border-radius:var(--radius-button);border:1.5px solid var(--ink);background:var(--ink);color:var(--bg);font-family:var(--font-ui);font-weight:600;cursor:pointer;font-size:.95rem;margin-top:.5rem;transition:background 120ms ease-out,color 120ms ease-out}
+.btn:hover{background:var(--primary-hover);color:var(--accent)}
+.btn-google{display:flex;align-items:center;justify-content:center;gap:.6rem;width:100%;padding:.72rem;border-radius:var(--radius-button);border:1.5px solid var(--line);background:var(--surface);color:var(--ink);text-decoration:none;font-weight:500;font-size:.95rem}
+.btn-google:hover{border-color:var(--ink);background:var(--bg)}
+.divider{display:flex;align-items:center;gap:.75rem;color:var(--ink-muted);font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;font-weight:600;margin:1.2rem 0}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line)}
+.flash-err{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:.65rem 1rem;border-radius:var(--radius-button);margin-bottom:1rem;font-size:.92rem}
+small.help{display:block;color:var(--ink-muted);margin-top:1.1rem;font-size:.85rem;text-align:center}
+small.help a{color:var(--primary);font-weight:600;text-decoration:none}
+small.help a:hover{color:var(--primary-hover);text-decoration:underline}
 </style></head><body>
 <div class="card">
 <h1>${escape(org.displayName)}</h1>
@@ -1553,17 +1564,23 @@ function authPage(org, { title, message, fields = [], action, ok }) {
   return `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escape(title)} — ${escape(org.displayName)}</title>
+<link rel="stylesheet" href="/tokens.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;color:#15181c;background:#fbf8ee;display:grid;place-items:center;min-height:100vh;padding:2rem}
-.card{max-width:420px;width:100%;background:#fff;border:1px solid #e6ebe2;border-radius:14px;padding:2rem;box-shadow:0 12px 30px rgba(0,0,0,.05)}
-h1{font-family:Georgia,serif;font-size:1.5rem;margin:0 0 .35rem}
-p{color:#3a4049;font-size:.95rem;margin:0 0 1.25rem}
-label{display:block;margin:0 0 1rem;font-size:.9rem;font-weight:500}
-input{display:block;width:100%;margin-top:.3rem;padding:.65rem .75rem;border:1px solid #c8ccd4;border-radius:8px;font:inherit}
-.btn{display:block;width:100%;padding:.75rem;border-radius:9px;border:0;background:${escape(org.primaryColor || "#1d6b39")};color:#fff;font-weight:600;cursor:pointer;font-size:.95rem;margin-top:.5rem}
-.flash{background:#eaf6ec;border:1px solid #b9dec1;color:#15532b;padding:.65rem 1rem;border-radius:9px;margin-bottom:1rem;font-size:.92rem}
-.muted{color:#6b7280;font-size:.85rem;text-align:center;margin-top:1rem}
-.muted a{color:${escape(org.primaryColor || "#1d6b39")}}
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font-ui);color:var(--ink);background:var(--bg);display:grid;place-items:center;min-height:100vh;padding:2rem;line-height:1.55}
+.card{max-width:440px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:2.25rem 2rem;box-shadow:var(--shadow-card)}
+h1{font-family:var(--font-display);font-weight:400;font-size:2rem;line-height:1.05;letter-spacing:-.025em;margin:0 0 .25rem}
+p{color:var(--ink-soft);font-size:.95rem;margin:0 0 1.25rem}
+label{display:block;margin:0 0 1rem;font-size:.86rem;font-weight:600;color:var(--ink)}
+input{display:block;width:100%;margin-top:.3rem;padding:.65rem .8rem;border:1.5px solid var(--line);border-radius:var(--radius-button);font:inherit;background:var(--surface);color:var(--ink)}
+input:focus{outline:none;border-color:var(--ink)}
+.btn{display:block;width:100%;padding:.78rem;border-radius:var(--radius-button);border:1.5px solid var(--ink);background:var(--ink);color:var(--bg);font-family:var(--font-ui);font-weight:600;cursor:pointer;font-size:.95rem;margin-top:.5rem}
+.btn:hover{background:var(--primary-hover);color:var(--accent)}
+.flash{background:var(--accent-soft);border:1px solid var(--accent);color:var(--ink);padding:.65rem 1rem;border-radius:var(--radius-button);margin-bottom:1rem;font-size:.92rem}
+.muted{color:var(--ink-muted);font-size:.85rem;text-align:center;margin-top:1.1rem}
+.muted a{color:var(--primary);font-weight:600;text-decoration:none}
+.muted a:hover{color:var(--primary-hover);text-decoration:underline}
 </style></head><body>
 <div class="card">
 <h1>${escape(title)}</h1>
@@ -3368,15 +3385,16 @@ async function applyResubscribe(orgId, claims) {
 function unsubPage(org, { ok, member, token, message }) {
   const action = member?.emailUnsubscribed ? "resubscribe" : "unsubscribe";
   return `<!doctype html><html><head><meta charset="utf-8"><title>Email preferences · ${escapeForHtml(org.displayName)}</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:wght@600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/tokens.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
 <style>
-*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;color:#15181c;background:#fbf8ee;display:grid;place-items:center;min-height:100vh;padding:2rem}
-.card{background:#fff;border:1px solid #eef0e7;border-radius:14px;padding:1.75rem 2rem;max-width:520px;box-shadow:0 1px 2px rgba(15,58,31,.06),0 6px 18px rgba(15,58,31,.04)}
-h1{font-family:Fraunces,Georgia,serif;font-size:1.6rem;margin:0 0 .25rem}
-.muted{color:#5a6068}
-.btn{display:inline-block;padding:.55rem 1rem;border-radius:8px;border:1px solid transparent;font-size:.95rem;cursor:pointer;font-weight:500}
-.btn-primary{background:#1d6b39;color:#fff}
-.btn-ghost{background:transparent;color:#15181c;border-color:#d8dad0}
+*{box-sizing:border-box}body{margin:0;font-family:var(--font-ui);color:var(--ink);background:var(--bg);display:grid;place-items:center;min-height:100vh;padding:2rem;line-height:1.55}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:1.75rem 2rem;max-width:520px;box-shadow:var(--shadow-card)}
+h1{font-family:var(--font-display);font-weight:400;font-size:1.6rem;margin:0 0 .25rem}
+.muted{color:var(--ink-muted)}
+.btn{display:inline-block;padding:.55rem 1rem;border-radius:var(--radius-button);border:1px solid transparent;font-size:.95rem;cursor:pointer;font-weight:500}
+.btn-primary{background:var(--ink);color:var(--bg)}
+.btn-ghost{background:transparent;color:var(--ink);border-color:var(--line)}
 form{margin-top:1rem}
 </style></head><body><main class="card">
 <h1>Email preferences</h1>
@@ -3748,8 +3766,9 @@ app.use((req, res) => {
 function orgNotFoundPage(slug) {
   const apex = process.env.APEX_DOMAIN || "compass.app";
   return `<!doctype html><meta charset="utf-8"><title>Site not found</title>
-<style>body{font-family:system-ui;max-width:560px;margin:6rem auto;padding:0 1.5rem;color:#15181c}
-a{color:#1d6b39}</style>
+<link rel="stylesheet" href="https://${apex}/tokens.css">
+<style>body{font-family:var(--font-ui,system-ui);max-width:560px;margin:6rem auto;padding:0 1.5rem;color:var(--ink,#0f172a);background:var(--bg,#f7f8fa);line-height:1.55}
+a{color:var(--accent,#1d4ed8)}</style>
 <h1>No Compass site at <code>${escapeHtml(slug)}</code></h1>
 <p>This subdomain isn't registered. If this is your unit's site, it may not have
 been provisioned yet — or it may have been moved or deleted.</p>

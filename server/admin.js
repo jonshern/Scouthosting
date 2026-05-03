@@ -1339,7 +1339,7 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
       </div>
       <div class="theme-preview">
         <span class="theme-chip" style="background:${escape(req.org.primaryColor || "#1d6b39")}">Primary</span>
-        <span class="theme-chip" style="background:${escape(req.org.accentColor || "#caa54a")};color:#15181c">Accent</span>
+        <span class="theme-chip" style="background:${escape(req.org.accentColor || "#caa54a")};color:var(--ink)">Accent</span>
       </div>
       <div class="row">
         <button class="btn btn-primary" type="submit">Save theme</button>
@@ -1372,7 +1372,7 @@ adminRouter.get("/content", requireLeader, async (req, res) => {
       .theme-preview{display:flex;gap:.6rem;margin:.6rem 0}
       .theme-chip{display:inline-block;padding:.3rem .8rem;border-radius:6px;color:#fff;font-size:.85rem;font-weight:600}
       .logo-preview{margin-bottom:.75rem}
-      .logo-preview img{max-height:80px;max-width:240px;border:1px solid #eef0e7;border-radius:8px;background:#fff;padding:.5rem}
+      .logo-preview img{max-height:80px;max-width:240px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:.5rem}
     </style>
   `;
   res.type("html").send(layout(req, { title: "Page content", body }));
@@ -1520,7 +1520,7 @@ adminRouter.get("/content/blocks/:id/edit", requireLeader, async (req, res) => {
       </label>`;
   } else if (block.type === "image") {
     const preview = block.filename
-      ? `<div style="margin-bottom:.6rem"><img src="/uploads/${escape(block.filename)}" alt="" style="max-width:100%;max-height:240px;border-radius:8px;border:1px solid #eef0e7"></div>`
+      ? `<div style="margin-bottom:.6rem"><img src="/uploads/${escape(block.filename)}" alt="" style="max-width:100%;max-height:240px;border-radius:8px;border:1px solid var(--line)"></div>`
       : `<p class="muted small" style="margin:0 0 .6rem">No image uploaded yet. Upload one below.</p>`;
     fields = `
       ${preview}
@@ -1975,7 +1975,7 @@ adminRouter.get("/albums/:id", requireLeader, async (req, res) => {
     .map(
       (p) => `
     <figure style="margin:0;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden">
-      <img src="/uploads/${escape(p.filename)}" alt="${escape(p.caption ?? "")}" style="display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#eef0e7">
+      <img src="/uploads/${escape(p.filename)}" alt="${escape(p.caption ?? "")}" style="display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--line)">
       <figcaption style="padding:.55rem .7rem;font-size:.85rem;display:flex;justify-content:space-between;gap:.5rem;align-items:center">
         <span>${escape(p.caption || p.originalName || "")}</span>
         <form class="inline" method="post" action="/admin/photos/${escape(p.id)}/delete" onsubmit="return confirm('Delete this photo?')">
@@ -2313,7 +2313,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
       <p class="muted small" style="text-align:center;padding:2rem">Loading calendar…</p>
     </div>
     <noscript>
-      <p class="muted small" style="text-align:center;padding:1rem;background:#fff;border:1px solid #eef0e7;border-radius:10px;margin-bottom:1rem">
+      <p class="muted small" style="text-align:center;padding:1rem;background:#fff;border:1px solid var(--line);border-radius:10px;margin-bottom:1rem">
         Calendar control needs JavaScript. The full event list is below.
       </p>
     </noscript>
@@ -2388,7 +2388,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
     </script>
 
     <style>
-      .admin-fc-host{background:#fff;border:1px solid #eef0e7;border-radius:12px;padding:1.1rem;margin-bottom:1.5rem;box-shadow:0 1px 2px rgba(15,58,31,.04)}
+      .admin-fc-host{background:#fff;border:1px solid var(--line);border-radius:12px;padding:1.1rem;margin-bottom:1.5rem;box-shadow:0 1px 2px rgba(15,58,31,.04)}
       .admin-fc-host.fc{font-family:inherit}
       .fc .fc-toolbar-title{font-family:'Inter Tight',Inter,sans-serif;font-size:1.3rem;font-weight:600;letter-spacing:-0.01em;color:var(--ink-900,#0f172a)}
       .fc .fc-button{background:#f7f4e8;border:1px solid #e2dab8;color:#3a4036;font-weight:600;text-transform:none;box-shadow:none;padding:.4rem .8rem;font-size:.85rem}
@@ -2708,7 +2708,7 @@ adminRouter.get("/events/:id/announce", requireLeader, async (req, res) => {
       </div>
     </form>
 
-    <details class="card" style="margin-top:1rem;background:#fbf8ee">
+    <details class="card" style="margin-top:1rem;background:var(--line-soft)">
       <summary style="cursor:pointer;font-weight:600">What recipients will see</summary>
       <p class="muted small" style="margin:.6rem 0 .4rem">Each recipient gets a personalized email with their own one-click RSVP buttons.</p>
       <ul class="muted small" style="margin:.2rem 0 0;padding-left:1.2rem;line-height:1.6">
@@ -3490,7 +3490,7 @@ adminRouter.get("/events/:id/plan", requireLeader, async (req, res) => {
       .meal-tags{margin-top:.55rem}
       .meal-tags summary{cursor:pointer;display:inline-block}
       .chip-group{display:flex;flex-wrap:wrap;gap:.35rem .65rem;margin-top:.45rem;align-items:center}
-      .chip-check{display:inline-flex;align-items:center;gap:.3rem;background:#fbf8ee;border:1px solid #eef0e7;border-radius:999px;padding:.2rem .65rem;font-size:.85rem;cursor:pointer}
+      .chip-check{display:inline-flex;align-items:center;gap:.3rem;background:var(--line-soft);border:1px solid var(--line);border-radius:999px;padding:.2rem .65rem;font-size:.85rem;cursor:pointer}
       .chip-check input{accent-color:var(--brand,#1d6b39)}
     </style>
   `;
@@ -6379,7 +6379,7 @@ adminRouter.get("/posts/:id/edit", requireLeader, async (req, res) => {
     .map(
       (ph) => `
       <figure style="margin:0;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden">
-        <img src="/uploads/${escape(ph.filename)}" style="display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:#eef0e7">
+        <img src="/uploads/${escape(ph.filename)}" style="display:block;width:100%;aspect-ratio:4/3;object-fit:cover;background:var(--line)">
         <figcaption style="padding:.5rem .65rem;font-size:.85rem;display:flex;justify-content:space-between;gap:.5rem;align-items:center">
           <span class="muted small">${escape(ph.originalName ?? "")}</span>
           <form class="inline" method="post" action="/admin/posts/${escape(post.id)}/photos/${escape(ph.id)}/delete" onsubmit="return confirm('Remove this photo?')">
@@ -7213,7 +7213,7 @@ adminRouter.get("/treasurer", requireLeader, async (req, res) => {
     : "";
 
   const grandNet = totalIncome - totalExpenses;
-  const totalRow = `<tr style="border-top:2px solid #eef0e7">
+  const totalRow = `<tr style="border-top:2px solid var(--line)">
         <td><strong>Totals</strong></td>
         <td></td>
         <td></td>
@@ -7332,7 +7332,7 @@ adminRouter.get("/reimbursements", requireLeader, async (req, res) => {
   const filterTabs = ["", "pending", "approved", "paid", "denied"]
     .map(
       (s) =>
-        `<a class="btn btn-ghost small" href="/admin/reimbursements${s ? `?status=${s}` : ""}" style="${s === filter ? "background:#fbf8ee" : ""}">${s || "All"}${s && totalsBy[s] ? ` (${totalsBy[s].count})` : ""}</a>`,
+        `<a class="btn btn-ghost small" href="/admin/reimbursements${s ? `?status=${s}` : ""}" style="${s === filter ? "background:var(--line-soft)" : ""}">${s || "All"}${s && totalsBy[s] ? ` (${totalsBy[s].count})` : ""}</a>`,
     )
     .join(" ");
 
@@ -8675,7 +8675,7 @@ function renderNewsletterStatusTag(n) {
       : "";
     return `<span class="tag" style="background:#bcd0f4;border-color:#1d4ed8;color:#0f172a">sent · ${escape(when)}</span>`;
   }
-  return `<span class="tag" style="background:#fbf8ee;border-color:#eef0e7;color:#64748b">draft</span>`;
+  return `<span class="tag" style="background:var(--line-soft);border-color:var(--line);color:#64748b">draft</span>`;
 }
 
 adminRouter.get("/newsletters", requireLeader, async (req, res) => {
@@ -9172,7 +9172,7 @@ function newsletterComposerHtml({
     ? posts
         .map(
           (p) => `
-          <label class="row" style="align-items:flex-start;gap:.6rem;padding:.4rem 0;border-top:1px solid #eef0e7">
+          <label class="row" style="align-items:flex-start;gap:.6rem;padding:.4rem 0;border-top:1px solid var(--line)">
             <input type="checkbox" name="includedPostIds" value="${escape(p.id)}"${selPosts.has(p.id) ? " checked" : ""}${readonly ? " disabled" : ""} style="margin-top:.25rem">
             <span style="flex:1">
               <strong>${escape(p.title || "(untitled)")}</strong>
@@ -9183,7 +9183,7 @@ function newsletterComposerHtml({
         .join("")
     : `<p class="muted small">No posts in the lookback window.</p>`;
   const renderEventCheckRow = (e) => `
-          <label class="row" style="align-items:flex-start;gap:.6rem;padding:.4rem 0;border-top:1px solid #eef0e7">
+          <label class="row" style="align-items:flex-start;gap:.6rem;padding:.4rem 0;border-top:1px solid var(--line)">
             <input type="checkbox" name="includedEventIds" value="${escape(e.id)}"${selEvents.has(e.id) ? " checked" : ""}${readonly ? " disabled" : ""} style="margin-top:.25rem">
             <span style="flex:1">
               <strong>${escape(e.title)}</strong>
@@ -9886,7 +9886,7 @@ adminRouter.use((err, req, res, _next) => {
     const back = req.get("Referer") || "/admin/albums";
     return res.status(400).type("html").send(
       `<!doctype html><meta charset="utf-8"><title>Upload error</title>
-<style>body{font-family:system-ui;max-width:520px;margin:4rem auto;padding:0 1.25rem;color:#15181c}
+<style>body{font-family:system-ui;max-width:520px;margin:4rem auto;padding:0 1.25rem;color:var(--ink)}
 a{color:#1d6b39}</style>
 <h1>Upload error</h1>
 <p>${escape(err.message)}</p>
