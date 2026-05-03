@@ -844,6 +844,14 @@ function buildOrgUrl(req, slug, path) {
   const apex = hostname || (process.env.APEX_DOMAIN || "compass.app").toLowerCase();
   const protocol = req.protocol || (process.env.NODE_ENV === "production" ? "https" : "http");
   const port = portFromHost ? `:${portFromHost}` : "";
+  // If the current host *already* resolves to this org (because it
+  // matches Org.customDomain, or we're already on the org's subdomain),
+  // stay on the current host instead of rebuilding `<slug>.<apex>`.
+  // This is what makes single-host staging deploys work without
+  // wildcard DNS — the redirect stops at the apex.
+  if (req.org && req.org.slug === slug) {
+    return `${protocol}://${hostname}${port}${path}`;
+  }
   return `${protocol}://${slug}.${apex}${port}${path}`;
 }
 
