@@ -803,6 +803,13 @@ app.post("/api/auth/signup", signupLimiter, csrfProtect, async (req, res) => {
       data: ownedOrgs.map((o) => ({ userId: user.id, orgId: o.id, role: "admin" })),
       skipDuplicates: true,
     });
+    // Claim workspace ownership for any matching orgs that don't yet
+    // have an ownerId. The `ownerId: null` filter makes this idempotent
+    // for re-signup attempts and safe against ownership transfers.
+    await prisma.org.updateMany({
+      where: { id: { in: ownedOrgs.map((o) => o.id) }, ownerId: null },
+      data: { ownerId: user.id },
+    });
   }
 
   // Funnel marker — apex/JSON-API signup path. Mirrors the redirect-
@@ -1060,6 +1067,10 @@ app.get("/auth/google/callback", async (req, res) => {
           data: ownedOrgs.map((o) => ({ userId: user.id, orgId: o.id, role: "admin" })),
           skipDuplicates: true,
         });
+        await prisma.org.updateMany({
+          where: { id: { in: ownedOrgs.map((o) => o.id) }, ownerId: null },
+          data: { ownerId: user.id },
+        });
       }
     }
     await prisma.oAuthAccount.create({
@@ -1172,6 +1183,10 @@ app.post("/auth/apple/callback", async (req, res) => {
         await prisma.orgMembership.createMany({
           data: ownedOrgs.map((o) => ({ userId: user.id, orgId: o.id, role: "admin" })),
           skipDuplicates: true,
+        });
+        await prisma.org.updateMany({
+          where: { id: { in: ownedOrgs.map((o) => o.id) }, ownerId: null },
+          data: { ownerId: user.id },
         });
       }
     }
@@ -1484,6 +1499,10 @@ app.post("/signup", signupLimiter, csrfProtect, async (req, res, next) => {
     await prisma.orgMembership.createMany({
       data: ownedOrgs.map((o) => ({ userId: user.id, orgId: o.id, role: "admin" })),
       skipDuplicates: true,
+    });
+    await prisma.org.updateMany({
+      where: { id: { in: ownedOrgs.map((o) => o.id) }, ownerId: null },
+      data: { ownerId: user.id },
     });
   }
   await ensureMembership(user.id, req.org.id, ownedOrgs.some((o) => o.id === req.org.id) ? "admin" : "parent");

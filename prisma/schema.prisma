@@ -76,6 +76,15 @@ model Org {
   scoutmasterName     String
   scoutmasterEmail    String
   committeeChairEmail String?
+  // Workspace-style ownership. Single User who holds plan/billing/delete
+  // authority on this org — the Slack "primary owner" / GitHub "owner"
+  // analogue. Distinct from OrgMembership.role: an owner also holds an
+  // admin membership row, so existing requireLeader gates pass for them
+  // unchanged. requireOwner gates the narrow set of actions that should
+  // only fire for the founding scoutmaster: change plan, delete org,
+  // transfer ownership. Backfilled from scoutmasterEmail at migration
+  // time; nullable because the founder might be deleted before transfer.
+  ownerId             String?
   primaryColor        String   @default("#1d6b39")
   accentColor         String   @default("#caa54a")
   // Per-org logo. Filename in the same per-org storage area as Photos
@@ -151,8 +160,10 @@ model Org {
   feedbackRequests   FeedbackRequest[]
   newsletterSchedule NewsletterSchedule?
   newsletterRules    NewsletterRule[]
+  owner              User? @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([plan])
+  @@index([ownerId])
 }
 
 model User {
@@ -187,6 +198,7 @@ model User {
   feedbackRequests   FeedbackRequest[]
   feedbackVotes      FeedbackVote[]
   feedbackComments   FeedbackComment[]
+  ownedOrgs          Org[] @relation("OrgOwner")
 }
 
 // External identity provider linkage. One User can have multiple
