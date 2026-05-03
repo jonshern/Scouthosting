@@ -28,13 +28,15 @@ Symptom when you forget: site looks "wrong" — fonts default, palette tokens fa
 
 If you're adding a new top-level static asset, edit the COPY block. If a CI check ever lands that diffs root-level files vs the Dockerfile, that obsoletes this note.
 
-### 2. `NODE_ENV=production` blocks admin password login
+### 2. `NODE_ENV=production` blocks admin password login (with an opt-in bypass)
 
 `lib/auth.js#passwordLoginAllowedForRole` rejects email+password sign-in for any user who has an `admin` role or `isSuperAdmin=true`, when `NODE_ENV === "production"`. Admins must use Google or Apple SSO in prod. **This applies to staging too** (Fly's `fly.toml` sets `NODE_ENV=production`).
 
-The 4 original demo users (`super@`, `scoutmaster@`, `cubmaster@`, `troop-leader@`) are all admins → none of them can password-login on staging. The seed adds **`parent@example.invalid`** (password `compassdemo123`) as a non-admin specifically so apex password login is testable in production-shaped environments. Use it for staging mobile-auth testing.
+**Escape hatch for staging / QA**: setting `ALLOW_ADMIN_PASSWORD_LOGIN=1` bypasses the SSO requirement. Compass-staging on Fly already has this Fly-secret set, so the four admin demo accounts work there via password. **Never set this in real production** — it defeats the SSO requirement that's the whole point of the check.
 
-If you ever need to bypass this for debugging, set `NODE_ENV=development` on the running app temporarily — don't rip out the check.
+Demo accounts available (all password `compassdemo123`):
+- `parent@example.invalid` — non-admin in troop100 + pack100. Works everywhere (parents aren't gated).
+- `super@`, `scoutmaster@`, `cubmaster@`, `troop-leader@` — admins. Work locally; work on staging only because `ALLOW_ADMIN_PASSWORD_LOGIN=1` is set there.
 
 ### 3. Multi-tenancy = Host header, except for the API
 

@@ -14,13 +14,13 @@ them.
 
 | Email | Role | Local | Staging | Notes |
 |---|---|---|---|---|
-| `parent@example.invalid` | parent in **troop100 + pack100** | ✅ | ✅ | **The only account that works on staging.** Use for mobile testing. Multi-org. |
-| `super@compass.example` | super admin | ✅ | ❌ | Apex super-admin console. Staging blocks admin password login (NODE_ENV=production); needs Google/Apple SSO there. |
-| `scoutmaster@example.invalid` | admin in troop100 | ✅ | ❌ | Web admin for Sample Troop 100. Local-only for the same reason. |
-| `cubmaster@example.invalid` | admin in pack100 | ✅ | ❌ | Web admin for Sample Pack 100. Local-only. |
-| `troop-leader@example.invalid` | admin in gstroop100 | ✅ | ❌ | Web admin for Sample Girl Scout Troop 100. Local-only. |
+| `parent@example.invalid` | parent in **troop100 + pack100** | ✅ | ✅ | Best for mobile testing. Multi-org. |
+| `super@compass.example` | super admin | ✅ | ✅ | Apex super-admin console at `/__super`. |
+| `scoutmaster@example.invalid` | admin in troop100 | ✅ | ✅ | Web admin for Sample Troop 100. |
+| `cubmaster@example.invalid` | admin in pack100 | ✅ | ✅ | Web admin for Sample Pack 100. |
+| `troop-leader@example.invalid` | admin in gstroop100 | ✅ | ✅ | Web admin for Sample Girl Scout Troop 100. |
 
-> **Why admins are local-only on staging:** `lib/auth.js#passwordLoginAllowedForRole` rejects email+password sign-in for any user with `admin` or `isSuperAdmin` when `NODE_ENV === "production"`. Staging runs as `NODE_ENV=production` for prod parity. Admins must use Google/Apple SSO once those are configured.
+> **Admin password login on staging:** Production blocks email+password sign-in for admins (must use Google/Apple SSO) — see `lib/auth.js#passwordLoginAllowedForRole`. Staging sets `ALLOW_ADMIN_PASSWORD_LOGIN=1` as a Fly secret to opt out, so all 5 demo accounts work via password there. **Never set this in real production.**
 
 ---
 
