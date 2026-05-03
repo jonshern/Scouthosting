@@ -1475,6 +1475,35 @@ model Reaction {
 //   - closed     — won't-fix or duplicate
 //
 // We don't link to User by FK because logged-out members + apex
+// Provisioning template — a named set of seed data a super-admin can
+// edit and the "new org" form can clone from. Replaces the hardcoded
+// SUBGROUP_VOCAB / SUBGROUP_PRESETS in lib/orgRoles.js.
+//
+// Built-in templates ship with the seed (Cub Scout Pack, Girl Scout
+// Troop). They're editable but can't be deleted — the UI forces a
+// clone-to-customize path. Custom templates are leader-creatable
+// via /__super/templates.
+//
+// JSON shapes:
+//   vocab:           { singular, plural, heading }
+//   subgroupPresets: [{ key, label, grade }]
+//   positionList:    [position-name strings] (optional, future use)
+//   customPagesSeed: [{ slug, title, body, visibility }] (optional)
+model OrgTemplate {
+  id              String   @id @default(cuid())
+  name            String   @unique  // "Cub Scout Pack" / "Girl Scout Troop" / leader-named custom
+  unitType        UnitType
+  vocab           Json
+  subgroupPresets Json     @default("[]")
+  positionList    Json?
+  customPagesSeed Json?
+  isBuiltIn       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([unitType])
+}
+
 // signup-page visitors can also file tickets. We snapshot whatever
 // identity we have at write time.
 model SupportTicket {

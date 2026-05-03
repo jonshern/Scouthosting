@@ -123,6 +123,7 @@ label{display:block;font-size:.84rem;color:var(--ink-muted);margin-bottom:.65rem
     <a href="/__super/support" ${req.path.startsWith("/support") ? 'class="active"' : ""}>Support</a>
     <a href="/__super/refunds" ${req.path.startsWith("/refunds") ? 'class="active"' : ""}>Refunds</a>
     <a href="/__super/billing" ${req.path.startsWith("/billing") ? 'class="active"' : ""}>Billing</a>
+    <a href="/__super/templates" ${req.path.startsWith("/templates") ? 'class="active"' : ""}>Templates</a>
     <a href="/__super/errors" ${req.path.startsWith("/errors") ? 'class="active"' : ""}>Errors</a>
   </nav>
   <span class="who">${escape(u.email)}</span>
@@ -1064,4 +1065,232 @@ superAdminRouter.get("/errors/:fingerprint", requireSuperAdmin, async (req, res)
       </table>
     </div>`;
   res.type("html").send(shell(req, { title: head.errorName || "Error", body }));
+});
+
+/* ------------------------------------------------------------------ */
+/* Provisioning templates — editable seed sets for the new-org form    */
+/* ------------------------------------------------------------------ */
+//
+// Built-in templates (Cub Scout Pack, Girl Scout Troop, etc.) ship
+// in the migration so a fresh DB has them. They're editable but not
+// deletable — operators force a clone-to-customize path. Custom
+// templates are leader-creatable.
+//
+// PR-R1 ships the schema + CRUD UI. Provisioning still uses the
+// hardcoded SUBGROUP_VOCAB / SUBGROUP_PRESETS in lib/orgRoles.js as
+// the runtime fallback; PR-R2 will rewire provision.js to read from
+// OrgTemplate rows and add the picker on /__super/orgs/new.
+
+const UNIT_TYPES = ["Pack", "Troop", "Crew", "Ship", "Post", "GirlScoutTroop"];
+
+function escapeJsonForTextarea(value) {
+  return escape(JSON.stringify(value, null, 2));
+}
+
+function parseJsonField(raw, fallback) {
+  if (raw == null || raw === "") return fallback;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+superAdminRouter.get("/templates", requireSuperAdmin, async (req, res) => {
+  const templates = await prisma.orgTemplate.findMany({
+    orderBy: [{ isBuiltIn: "desc" }, { unitType: "asc" }, { name: "asc" }],
+  });
+
+  const rows = templates
+    .map((t) => {
+      const presetCount = Array.isArray(t.subgroupPresets) ? t.subgroupPresets.length : 0;
+      return `
+        <tr>
+          <td>
+            <a href="/__super/templates/${escape(t.id)}/edit"><strong>${escape(t.name)}</strong></a>
+            ${t.isBuiltIn ? `<span class="tag">built-in</span>` : ""}
+          </td>
+          <td>${escape(t.unitType)}</td>
+          <td>${presetCount} preset${presetCount === 1 ? "" : "s"}</td>
+          <td class="muted small">${escape(new Date(t.updatedAt).toLocaleDateString("en-US"))}</td>
+        </tr>`;
+    })
+    .join("");
+
+  const body = `
+    <h1>Provisioning templates</h1>
+    <p class="muted">Editable seed sets the "new org" form clones from. Built-in templates ship with the seed and can be edited but not deleted — clone one to customize without losing the canonical baseline.</p>
+    <p><a class="btn btn-accent" href="/__super/templates/new">+ New template</a></p>
+    <div class="card">
+      <table>
+        <thead><tr><th>Name</th><th>Unit type</th><th>Subgroup presets</th><th>Updated</th></tr></thead>
+        <tbody>${rows || `<tr><td colspan="4" class="muted">No templates yet — the migration seeds the built-ins on first deploy.</td></tr>`}</tbody>
+      </table>
+    </div>
+    <p class="muted small">Provisioning still falls back to the hardcoded built-ins in <code>lib/orgRoles.js</code> when no template is chosen — that wiring lands in the next PR.</p>`;
+  res.type("html").send(shell(req, { title: "Templates", body }));
+});
+
+superAdminRouter.get("/templates/new", requireSuperAdmin, async (req, res) => {
+  const body = `
+    <p><a href="/__super/templates" style="color:var(--ink-muted);text-decoration:none">← Templates</a></p>
+    <h1>New template</h1>
+    <form class="card" method="post" action="/__super/templates">
+      <label>Name<input name="name" type="text" required maxlength="120" placeholder="e.g. Cub Scout Pack — outdoor heavy"></label>
+      <label>Unit type
+        <select name="unitType" required>
+          ${UNIT_TYPES.map((u) => `<option value="${u}">${u}</option>`).join("")}
+        </select>
+      </label>
+      <label>Vocabulary <span class="muted small">(JSON)</span>
+        <textarea name="vocab" rows="4" required>${escape('{"singular":"patrol","plural":"patrols","heading":"Patrols"}')}</textarea>
+      </label>
+      <label>Subgroup presets <span class="muted small">(JSON array, can be empty)</span>
+        <textarea name="subgroupPresets" rows="6">${escape("[]")}</textarea>
+      </label>
+      <button class="btn btn-primary" type="submit">Create</button>
+    </form>`;
+  res.type("html").send(shell(req, { title: "New template", body }));
+});
+
+superAdminRouter.post("/templates", requireSuperAdmin, async (req, res) => {
+  const name = String(req.body?.name || "").trim().slice(0, 120);
+  const unitType = String(req.body?.unitType || "");
+  if (!name || !UNIT_TYPES.includes(unitType)) return res.redirect("/__super/templates/new");
+  const vocab = parseJsonField(req.body?.vocab, null);
+  if (!vocab || typeof vocab !== "object") return res.redirect("/__super/templates/new");
+  const subgroupPresets = parseJsonField(req.body?.subgroupPresets, []);
+  if (!Array.isArray(subgroupPresets)) return res.redirect("/__super/templates/new");
+
+  try {
+    const created = await prisma.orgTemplate.create({
+      data: { name, unitType, vocab, subgroupPresets, isBuiltIn: false },
+      select: { id: true },
+    });
+    await recordAudit({
+      org: null, user: req.superUser,
+      entityType: "OrgTemplate", entityId: created.id,
+      action: "super:template-create",
+      summary: `Created template "${name}" (${unitType})`,
+    });
+    res.redirect(`/__super/templates/${created.id}/edit`);
+  } catch (err) {
+    res.status(400).type("text/plain").send(`Couldn't create template: ${err.message}`);
+  }
+});
+
+superAdminRouter.get("/templates/:id/edit", requireSuperAdmin, async (req, res) => {
+  const t = await prisma.orgTemplate.findUnique({ where: { id: req.params.id } });
+  if (!t) return res.status(404).type("text/plain").send("Not found");
+  const body = `
+    <p><a href="/__super/templates" style="color:var(--ink-muted);text-decoration:none">← Templates</a></p>
+    <h1>${escape(t.name)} ${t.isBuiltIn ? `<span class="tag">built-in</span>` : ""}</h1>
+    <p class="muted">${escape(t.unitType)}${t.isBuiltIn ? " · built-ins are editable but not deletable" : ""}</p>
+
+    <form class="card" method="post" action="/__super/templates/${escape(t.id)}">
+      <label>Name<input name="name" type="text" required maxlength="120" value="${escape(t.name)}"></label>
+      <label>Unit type
+        <select name="unitType" required>
+          ${UNIT_TYPES.map((u) => `<option value="${u}" ${u === t.unitType ? "selected" : ""}>${u}</option>`).join("")}
+        </select>
+      </label>
+      <label>Vocabulary <span class="muted small">(JSON)</span>
+        <textarea name="vocab" rows="4" required style="font-family:var(--font-mono,monospace);font-size:.85rem">${escapeJsonForTextarea(t.vocab)}</textarea>
+      </label>
+      <label>Subgroup presets <span class="muted small">(JSON array)</span>
+        <textarea name="subgroupPresets" rows="10" style="font-family:var(--font-mono,monospace);font-size:.85rem">${escapeJsonForTextarea(t.subgroupPresets)}</textarea>
+      </label>
+      <label>Position list <span class="muted small">(JSON array, optional)</span>
+        <textarea name="positionList" rows="4" style="font-family:var(--font-mono,monospace);font-size:.85rem">${escapeJsonForTextarea(t.positionList ?? [])}</textarea>
+      </label>
+      <label>Custom-pages seed <span class="muted small">(JSON array, optional)</span>
+        <textarea name="customPagesSeed" rows="4" style="font-family:var(--font-mono,monospace);font-size:.85rem">${escapeJsonForTextarea(t.customPagesSeed ?? [])}</textarea>
+      </label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Save</button>
+        <a class="btn btn-ghost" href="/__super/templates/${escape(t.id)}/clone">Clone to customize</a>
+        ${t.isBuiltIn
+          ? `<span class="muted small" style="margin-left:auto">Built-in templates can't be deleted.</span>`
+          : `<form class="inline" method="post" action="/__super/templates/${escape(t.id)}/delete" style="margin-left:auto" onsubmit="return confirm('Delete this template?')"><button class="btn btn-danger" type="submit">Delete</button></form>`}
+      </div>
+    </form>`;
+  res.type("html").send(shell(req, { title: t.name, body }));
+});
+
+superAdminRouter.post("/templates/:id", requireSuperAdmin, async (req, res) => {
+  const t = await prisma.orgTemplate.findUnique({ where: { id: req.params.id } });
+  if (!t) return res.status(404).type("text/plain").send("Not found");
+  const name = String(req.body?.name || "").trim().slice(0, 120);
+  const unitType = String(req.body?.unitType || "");
+  if (!name || !UNIT_TYPES.includes(unitType)) return res.redirect(`/__super/templates/${t.id}/edit`);
+  const vocab = parseJsonField(req.body?.vocab, null);
+  const subgroupPresets = parseJsonField(req.body?.subgroupPresets, []);
+  const positionList = parseJsonField(req.body?.positionList, null);
+  const customPagesSeed = parseJsonField(req.body?.customPagesSeed, null);
+  if (!vocab || !Array.isArray(subgroupPresets)) return res.redirect(`/__super/templates/${t.id}/edit`);
+
+  await prisma.orgTemplate.update({
+    where: { id: t.id },
+    data: {
+      name,
+      unitType,
+      vocab,
+      subgroupPresets,
+      positionList: Array.isArray(positionList) && positionList.length ? positionList : null,
+      customPagesSeed: Array.isArray(customPagesSeed) && customPagesSeed.length ? customPagesSeed : null,
+    },
+  });
+  await recordAudit({
+    org: null, user: req.superUser,
+    entityType: "OrgTemplate", entityId: t.id,
+    action: "super:template-update",
+    summary: `Updated template "${name}"`,
+  });
+  res.redirect(`/__super/templates/${t.id}/edit`);
+});
+
+superAdminRouter.get("/templates/:id/clone", requireSuperAdmin, async (req, res) => {
+  const t = await prisma.orgTemplate.findUnique({ where: { id: req.params.id } });
+  if (!t) return res.status(404).type("text/plain").send("Not found");
+  // Fresh row, isBuiltIn=false. Name suffixed " (copy)" for disambig.
+  let name = `${t.name} (copy)`;
+  // Ensure unique by appending counter if needed.
+  for (let i = 2; i < 50; i++) {
+    const existing = await prisma.orgTemplate.findUnique({ where: { name } });
+    if (!existing) break;
+    name = `${t.name} (copy ${i})`;
+  }
+  const cloned = await prisma.orgTemplate.create({
+    data: {
+      name,
+      unitType: t.unitType,
+      vocab: t.vocab,
+      subgroupPresets: t.subgroupPresets,
+      positionList: t.positionList,
+      customPagesSeed: t.customPagesSeed,
+      isBuiltIn: false,
+    },
+    select: { id: true },
+  });
+  await recordAudit({
+    org: null, user: req.superUser,
+    entityType: "OrgTemplate", entityId: cloned.id,
+    action: "super:template-clone",
+    summary: `Cloned "${t.name}" → "${name}"`,
+  });
+  res.redirect(`/__super/templates/${cloned.id}/edit`);
+});
+
+superAdminRouter.post("/templates/:id/delete", requireSuperAdmin, async (req, res) => {
+  const t = await prisma.orgTemplate.findUnique({ where: { id: req.params.id } });
+  if (!t) return res.redirect("/__super/templates");
+  if (t.isBuiltIn) return res.status(400).type("text/plain").send("Built-in templates can't be deleted. Edit it instead, or clone-then-customize.");
+  await prisma.orgTemplate.delete({ where: { id: t.id } });
+  await recordAudit({
+    org: null, user: req.superUser,
+    entityType: "OrgTemplate", entityId: t.id,
+    action: "super:template-delete",
+    summary: `Deleted template "${t.name}"`,
+  });
+  res.redirect("/__super/templates");
 });
