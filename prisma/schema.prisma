@@ -1313,7 +1313,7 @@ model ApiToken {
 model Channel {
   id              String   @id @default(cuid())
   orgId           String
-  kind            String   // patrol | troop | parents | leaders | event | custom
+  kind            String   // patrol | troop | parents | leaders | event | custom | announcements
   name            String
   patrolName      String?  // for kind=patrol; matches Member.patrol
   eventId         String?  @unique  // for kind=event; one channel per event
