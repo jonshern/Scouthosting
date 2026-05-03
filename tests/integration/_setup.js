@@ -29,7 +29,6 @@ export async function resetDb() {
   await prisma.carRideRider.deleteMany({});
   await prisma.carRide.deleteMany({});
   await prisma.auditLog.deleteMany({});
-  await prisma.subgroup.deleteMany({});
   await prisma.training.deleteMany({});
   await prisma.positionTerm.deleteMany({});
   await prisma.surveyResponse.deleteMany({});

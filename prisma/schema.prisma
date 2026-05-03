@@ -144,7 +144,6 @@ model Org {
   cohAwards     CohAward[]
   positionTerms PositionTerm[]
   trainings     Training[]
-  subgroups     Subgroup[]
   auditLogs     AuditLog[]
   carRides      CarRide[]
   carRideRiders CarRideRider[]
@@ -1038,37 +1037,6 @@ model Training {
 
   @@index([orgId, memberId, completedAt])
   @@index([orgId, expiresAt])
-}
-
-// Dynamic subgroup — a saved audience query the broadcast tool can
-// target. v1 keeps the rule set narrow on purpose: AND across set
-// filters, OR within an array. Members match if they pass every
-// non-empty filter.
-//
-//   isYouth = true    → only youth
-//   isYouth = false   → only adults
-//   isYouth = null    → either (don't filter)
-//   patrols = []      → don't filter on patrol
-//   skills  = ["WFA"] → member.skills contains "WFA" (case-insensitive)
-//   trainings = ["Youth Protection Training"] → member has a non-expired
-//                       training row matching one of these course names
-model Subgroup {
-  id          String   @id @default(cuid())
-  orgId       String
-  name        String
-  description String?
-  isYouth     Boolean?
-  patrols     String[] @default([])
-  skills      String[] @default([])
-  interests   String[] @default([])
-  trainings   String[] @default([])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
-
-  @@unique([orgId, name])
-  @@index([orgId])
 }
 
 // Audit log — who edited what, when. v1 captures CMS / member writes;

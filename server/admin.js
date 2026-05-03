@@ -59,10 +59,10 @@ import {
   reactivateSubscription as stripeReactivate,
 } from "../lib/stripe.js";
 import {
-  matchSubgroup,
+  matchAutoAddRules,
   buildCurrentTrainingsMap,
-  describeSubgroup,
-} from "../lib/subgroups.js";
+  describeAutoAddRules,
+} from "../lib/channelAutoAdd.js";
 import { buildDashboardModel } from "../lib/dashboard.js";
 import {
   subgroupVocab,
@@ -394,7 +394,6 @@ const NAV_SECTIONS = [
       { href: "/admin/positions", label: "Position roster" },
       { href: "/admin/training", label: "Training" },
       { href: "/admin/invites", label: "Invites" },
-      { href: "/admin/subgroups", label: "Subgroups" },
       { href: "/admin/groups", label: "Groups" },
       { href: "/admin/reports", label: "Reports" },
     ],
@@ -2631,14 +2630,13 @@ adminRouter.get("/events/:id/announce", requireLeader, async (req, res) => {
   });
   if (!ev) return res.status(404).send("Not found");
 
-  const [patrols, subgroups, broadcastChannels] = await Promise.all([
+  const [patrols, broadcastChannels] = await Promise.all([
     prisma.member.findMany({
       where: { orgId: req.org.id, patrol: { not: null } },
       distinct: ["patrol"],
       select: { patrol: true },
       orderBy: { patrol: "asc" },
     }),
-    prisma.subgroup.findMany({ where: { orgId: req.org.id }, orderBy: { name: "asc" } }),
     prisma.channel.findMany({
       where: { orgId: req.org.id, kind: "broadcast", archivedAt: null },
       orderBy: { name: "asc" },
@@ -2647,18 +2645,9 @@ adminRouter.get("/events/:id/announce", requireLeader, async (req, res) => {
   const patrolOptions = patrols
     .map((p) => `<option value="${escape(p.patrol)}">${escape(p.patrol)}</option>`)
     .join("");
-  // Subgroup and Channel options go into the same <optgroup> family; the
-  // resolver treats both prefixes uniformly. Once PR-C4 retires
-  // /admin/subgroups, the subgroup options disappear and only channel:
-  // remains.
-  const subgroupOptions = subgroups
-    .map(
-      (g) => `<option value="subgroup:${escape(g.id)}">${escape(g.name)} — ${escape(describeSubgroup(g))}</option>`,
-    )
-    .join("");
   const channelOptions = broadcastChannels
     .map(
-      (c) => `<option value="channel:${escape(c.id)}">${escape(c.name)} — ${escape(describeSubgroup(c.autoAddRules || {}))}</option>`,
+      (c) => `<option value="channel:${escape(c.id)}">${escape(c.name)} — ${escape(describeAutoAddRules(c.autoAddRules || {}))}</option>`,
     )
     .join("");
 
@@ -2690,11 +2679,6 @@ adminRouter.get("/events/:id/announce", requireLeader, async (req, res) => {
                 ? `<optgroup label="Groups">${channelOptions}</optgroup>`
                 : ""
             }
-            ${
-              subgroups.length
-                ? `<optgroup label="Saved subgroups">${subgroupOptions}</optgroup>`
-                : ""
-            }
           </select>
         </label>
         <label style="margin:0;flex:1">Patrol (if "Specific patrol")
@@ -2704,7 +2688,7 @@ adminRouter.get("/events/:id/announce", requireLeader, async (req, res) => {
           </select>
         </label>
       </div>
-      <p class="muted small" style="margin:.6rem 0 1rem">Build new audiences in <a href="/admin/subgroups">Subgroups</a>.</p>
+      <p class="muted small" style="margin:.6rem 0 1rem">Build new audiences in <a href="/admin/groups">Groups</a>.</p>
 
       <label>Subject
         <input name="subject" type="text" maxlength="200" value="${escape(`Action needed: ${ev.title}`)}">
@@ -2757,12 +2741,12 @@ adminRouter.post("/events/:id/announce", requireLeader, async (req, res) => {
   let audienceLabel;
   if (audience === "patrol") {
     audienceLabel = `Patrol: ${patrol || "—"}`;
-  } else if (typeof audience === "string" && audience.startsWith("subgroup:")) {
-    const sg = await prisma.subgroup.findFirst({
-      where: { id: audience.slice("subgroup:".length), orgId },
+  } else if (typeof audience === "string" && audience.startsWith("channel:")) {
+    const ch = await prisma.channel.findFirst({
+      where: { id: audience.slice("channel:".length), orgId, kind: "broadcast" },
       select: { name: true },
     });
-    audienceLabel = sg ? `Subgroup: ${sg.name}` : "Subgroup";
+    audienceLabel = ch ? `Group: ${ch.name}` : "Group";
   } else {
     audienceLabel = AUDIENCES.find((a) => a.value === audience)?.label ?? "Everyone";
   }
@@ -4455,31 +4439,13 @@ adminRouter.get("/training", requireLeader, async (req, res) => {
 });
 
 /* ------------------------------------------------------------------ */
-/* Dynamic subgroups (saved audience queries)                          */
+/* Broadcast groups (Channel.kind="broadcast")                         */
 /* ------------------------------------------------------------------ */
-
-function subgroupFromBody(body) {
-  const splitTags = (s) =>
-    String(s || "")
-      .split(",")
-      .map((t) => t.trim())
-      .filter(Boolean);
-  const youth = body?.isYouth;
-  return {
-    name: (body?.name || "").trim().slice(0, 80),
-    description: (body?.description || "").trim() || null,
-    isYouth: youth === "youth" ? true : youth === "adults" ? false : null,
-    patrols: splitTags(body?.patrols),
-    skills: splitTags(body?.skills),
-    interests: splitTags(body?.interests),
-    trainings: splitTags(body?.trainings),
-  };
-}
 
 async function loadAudienceFromRules(orgId, rules) {
   // Same shape on Subgroup rows and Channel.autoAddRules JSON, so this
   // helper takes a duck-typed rules object and runs it through the
-  // existing matchSubgroup() filter.
+  // existing matchAutoAddRules() filter.
   const r = rules || {};
   const [members, validTrainings] = await Promise.all([
     prisma.member.findMany({
@@ -4494,11 +4460,7 @@ async function loadAudienceFromRules(orgId, rules) {
       : Promise.resolve([]),
   ]);
   const trainingMap = buildCurrentTrainingsMap(validTrainings);
-  return matchSubgroup(r, members, trainingMap);
-}
-
-async function loadSubgroupAudience(orgId, subgroup) {
-  return loadAudienceFromRules(orgId, subgroup);
+  return matchAutoAddRules(r, members, trainingMap);
 }
 
 async function loadChannelAudience(orgId, channelId) {
@@ -4510,16 +4472,11 @@ async function loadChannelAudience(orgId, channelId) {
   return loadAudienceFromRules(orgId, ch.autoAddRules || {});
 }
 
-// Read-only "Groups" view — Channel-based replacement for the Subgroups
-// page. Lists every Channel(kind="broadcast") with its purpose, the
-// rule summary that drives auto-add, and the resolved member count.
-//
-// Coexists with /admin/subgroups during the unification migration:
-//   * PR-C0 added Channel.purpose + Channel.autoAddRules
-//   * PR-C1 backfills broadcast Channels from existing Subgroups
-//   * This page (PR-C2) makes the new shape visible
-//   * PR-C3 will repoint broadcast targeting from Subgroup to Channel
-//   * PR-C4 will drop /admin/subgroups + the Subgroup model
+// "Groups" admin page — broadcast-kind Channels. Lists every group for
+// the org with its purpose, the rule summary that drives auto-add, and
+// the resolved member count, and provides CRUD for creating/editing
+// new ones. Membership is computed at send time from autoAddRules; no
+// ChannelMember rows are persisted for broadcast Channels.
 adminRouter.get("/groups", requireLeader, async (req, res) => {
   const [channels, members, trainings] = await Promise.all([
     prisma.channel.findMany({
@@ -4540,12 +4497,9 @@ adminRouter.get("/groups", requireLeader, async (req, res) => {
 
   const items = channels
     .map((c) => {
-      // autoAddRules JSON has the same shape as Subgroup matching: pass
-      // it straight through matchSubgroup. When PR-C4 retires
-      // lib/subgroups.js, this call site moves to lib/channelAutoAdd.js.
       const rules = c.autoAddRules || {};
-      const matched = matchSubgroup(rules, members, trainingMap);
-      const summary = describeSubgroup(rules);
+      const matched = matchAutoAddRules(rules, members, trainingMap);
+      const summary = describeAutoAddRules(rules);
       return `
       <li>
         <div style="flex:1">
@@ -4588,27 +4542,32 @@ adminRouter.get("/groups", requireLeader, async (req, res) => {
 
     <h2 style="margin-top:1.5rem">Saved groups</h2>
     ${channels.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No groups yet. Create one above and use it as an audience in <a href="/admin/email">Email broadcast</a>.</div>`}
-    <p class="muted small" style="margin-top:1rem">Migrating from <a href="/admin/subgroups">Subgroups</a>? Run <code>scripts/backfill-channels-from-subgroups.js</code> to copy them across. Both pages will coexist until the old one retires.</p>
+    <p class="muted small" style="margin-top:1rem">Send a broadcast to a group from <a href="/admin/email">Email broadcast</a> — pick the group from the audience dropdown.</p>
   `;
   res.type("html").send(layout(req, { title: "Groups", body }));
 });
 
-// Helper: turn a Subgroup-shaped form body into the parts a broadcast
-// Channel needs. `purpose` mirrors the old "description" field, and
-// `autoAddRules` collapses to null when the user picked no filters at
-// all (matches the "everyone" semantic). Reuses subgroupFromBody for
-// the rule extraction so the two surfaces stay consistent.
 function channelFieldsFromBody(body) {
-  const sg = subgroupFromBody(body);
+  const splitTags = (s) =>
+    String(s || "")
+      .split(",")
+      .map((t) => t.trim())
+      .filter(Boolean);
+  const youth = body?.isYouth;
+  const isYouth = youth === "youth" ? true : youth === "adults" ? false : null;
+  const patrols = splitTags(body?.patrols);
+  const skills = splitTags(body?.skills);
+  const interests = splitTags(body?.interests);
+  const trainings = splitTags(body?.trainings);
   const rules = {};
-  if (sg.isYouth != null) rules.isYouth = sg.isYouth;
-  if (sg.patrols.length) rules.patrols = sg.patrols;
-  if (sg.skills.length) rules.skills = sg.skills;
-  if (sg.interests.length) rules.interests = sg.interests;
-  if (sg.trainings.length) rules.trainings = sg.trainings;
+  if (isYouth != null) rules.isYouth = isYouth;
+  if (patrols.length) rules.patrols = patrols;
+  if (skills.length) rules.skills = skills;
+  if (interests.length) rules.interests = interests;
+  if (trainings.length) rules.trainings = trainings;
   return {
-    name: sg.name,
-    purpose: sg.description,
+    name: (body?.name || "").trim().slice(0, 80),
+    purpose: (body?.description || "").trim() || null,
     autoAddRules: Object.keys(rules).length ? rules : null,
   };
 }
@@ -4696,134 +4655,6 @@ adminRouter.post("/groups/:id/delete", requireLeader, async (req, res) => {
     summary: `Deleted broadcast group "${c.name}"`,
   });
   res.redirect("/admin/groups");
-});
-
-adminRouter.get("/subgroups", requireLeader, async (req, res) => {
-  const groups = await prisma.subgroup.findMany({
-    where: { orgId: req.org.id },
-    orderBy: { name: "asc" },
-  });
-
-  const items = groups
-    .map((g) => `
-      <li>
-        <div style="flex:1">
-          <h3 style="margin:0">${escape(g.name)}</h3>
-          <p class="muted small" style="margin:.1rem 0 0">${escape(describeSubgroup(g))}${
-            g.description ? ` · ${escape(g.description)}` : ""
-          }</p>
-        </div>
-        <div class="row">
-          <a class="btn btn-ghost small" href="/admin/subgroups/${escape(g.id)}/edit">Edit</a>
-          <form class="inline" method="post" action="/admin/subgroups/${escape(g.id)}/delete" onsubmit="return confirm('Delete this subgroup?')">
-            <button class="btn btn-danger small" type="submit">Delete</button>
-          </form>
-        </div>
-      </li>`)
-    .join("");
-
-  const body = `
-    <h1>Subgroups</h1>
-    <p class="muted">Saved audience queries you can target with broadcasts. Rules are AND across set fields, OR within a list.</p>
-
-    <form class="card" method="post" action="/admin/subgroups">
-      <h2 style="margin-top:0">New subgroup</h2>
-      <label>Name<input name="name" type="text" required maxlength="80" placeholder="e.g. Drivers, WFA-certified, Eagles patrol"></label>
-      <label>Description<textarea name="description" rows="2" maxlength="200"></textarea></label>
-      <label>Audience kind
-        <select name="isYouth">
-          <option value="">Both</option>
-          <option value="youth">Youth only</option>
-          <option value="adults">Adults only</option>
-        </select>
-      </label>
-      <label>Patrols (comma-separated; blank = any)<input name="patrols" type="text" maxlength="200"></label>
-      <label>Skills (any of)<input name="skills" type="text" maxlength="200" placeholder="WFA, mechanic"></label>
-      <label>Interests (any of)<input name="interests" type="text" maxlength="200"></label>
-      <label>Trainings — must currently hold (any of)<input name="trainings" type="text" maxlength="200" placeholder="Youth Protection Training, Wood Badge"></label>
-      <button class="btn btn-primary" type="submit">Create</button>
-    </form>
-
-    <h2 style="margin-top:1.5rem">Saved subgroups</h2>
-    ${groups.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No subgroups yet. Create one above and use it as an audience in <a href="/admin/email">Email broadcast</a>.</div>`}
-  `;
-  res.type("html").send(layout(req, { title: "Subgroups", body }));
-});
-
-adminRouter.post("/subgroups", requireLeader, async (req, res) => {
-  const data = subgroupFromBody(req.body);
-  if (!data.name) return res.redirect("/admin/subgroups");
-  try {
-    await prisma.subgroup.create({ data: { orgId: req.org.id, ...data } });
-  } catch (_) {
-    // Unique (orgId,name) collision → ignore.
-  }
-  res.redirect("/admin/subgroups");
-});
-
-adminRouter.get("/subgroups/:id/edit", requireLeader, async (req, res) => {
-  const g = await prisma.subgroup.findFirst({
-    where: { id: req.params.id, orgId: req.org.id },
-  });
-  if (!g) return res.status(404).send("Not found");
-  const matched = await loadSubgroupAudience(req.org.id, g);
-  const youthSel = (v) => (g.isYouth === v ? " selected" : "");
-  const v = (k) => escape(g[k] ?? "");
-  const list = matched
-    .map(
-      (m) => `<li><strong>${escape(m.firstName)} ${escape(m.lastName)}</strong>${
-        m.patrol ? ` <span class="tag">${escape(m.patrol)}</span>` : ""
-      } <span class="muted small">${escape(m.email || "(no email)")}</span></li>`,
-    )
-    .join("");
-  const body = `
-    <a class="back" href="/admin/subgroups" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Subgroups</a>
-    <h1>Edit subgroup</h1>
-    <form class="card" method="post" action="/admin/subgroups/${escape(g.id)}">
-      <label>Name<input name="name" type="text" required maxlength="80" value="${v("name")}"></label>
-      <label>Description<textarea name="description" rows="2" maxlength="200">${v("description")}</textarea></label>
-      <label>Audience kind
-        <select name="isYouth">
-          <option value=""${g.isYouth == null ? " selected" : ""}>Both</option>
-          <option value="youth"${youthSel(true)}>Youth only</option>
-          <option value="adults"${youthSel(false)}>Adults only</option>
-        </select>
-      </label>
-      <label>Patrols<input name="patrols" type="text" maxlength="200" value="${escape((g.patrols || []).join(", "))}"></label>
-      <label>Skills (any of)<input name="skills" type="text" maxlength="200" value="${escape((g.skills || []).join(", "))}"></label>
-      <label>Interests (any of)<input name="interests" type="text" maxlength="200" value="${escape((g.interests || []).join(", "))}"></label>
-      <label>Trainings — must currently hold (any of)<input name="trainings" type="text" maxlength="200" value="${escape((g.trainings || []).join(", "))}"></label>
-      <div class="row">
-        <button class="btn btn-primary" type="submit">Save</button>
-        <a class="btn btn-ghost" href="/admin/subgroups">Cancel</a>
-      </div>
-    </form>
-
-    <h2 style="margin-top:1.5rem">Audience preview <span class="muted" style="font-weight:400">(${matched.length})</span></h2>
-    ${matched.length ? `<ul class="items">${list}</ul>` : `<div class="empty">Nobody currently matches.</div>`}
-  `;
-  res.type("html").send(layout(req, { title: "Edit subgroup", body }));
-});
-
-adminRouter.post("/subgroups/:id", requireLeader, async (req, res) => {
-  const g = await prisma.subgroup.findFirst({
-    where: { id: req.params.id, orgId: req.org.id },
-    select: { id: true },
-  });
-  if (!g) return res.status(404).send("Not found");
-  const data = subgroupFromBody(req.body);
-  if (!data.name) return res.redirect(`/admin/subgroups/${g.id}/edit`);
-  try {
-    await prisma.subgroup.update({ where: { id: g.id }, data });
-  } catch (_) {
-    // Name collision → swallow.
-  }
-  res.redirect(`/admin/subgroups/${g.id}/edit`);
-});
-
-adminRouter.post("/subgroups/:id/delete", requireLeader, async (req, res) => {
-  await prisma.subgroup.deleteMany({ where: { id: req.params.id, orgId: req.org.id } });
-  res.redirect("/admin/subgroups");
 });
 
 /* ------------------------------------------------------------------ */
@@ -5027,7 +4858,6 @@ adminRouter.get("/export.json", requireLeader, async (req, res) => {
     equipment,
     trainings,
     positionTerms,
-    subgroups,
     mbcs,
     reimbursements,
     oaElections,
@@ -5064,7 +4894,6 @@ adminRouter.get("/export.json", requireLeader, async (req, res) => {
     prisma.equipment.findMany({ where }),
     prisma.training.findMany({ where }),
     prisma.positionTerm.findMany({ where }),
-    prisma.subgroup.findMany({ where }),
     prisma.meritBadgeCounselor.findMany({ where }),
     prisma.reimbursement.findMany({ where }),
     prisma.oaElection.findMany({ where }),
@@ -6027,20 +5856,13 @@ const AUDIENCES = [
 ];
 
 async function audienceFor(orgId, kind, patrol) {
-  // Saved subgroups carry a leading "subgroup:" prefix so they don't
-  // collide with the static AUDIENCES values. "channel:" is the new
-  // shape for broadcast-kind Channels (Slack-model unification, PR-C3+).
-  // Both prefixes resolve to the same matchSubgroup() filter under the
-  // hood — autoAddRules JSON has the same shape as a Subgroup row.
+  // Broadcast-kind Channels carry a leading "channel:" prefix so they
+  // don't collide with the static AUDIENCES values. Their autoAddRules
+  // JSON drives matchAutoAddRules at send time (membership is dynamic,
+  // not persisted as ChannelMember rows).
   if (typeof kind === "string" && kind.startsWith("channel:")) {
     const id = kind.slice("channel:".length);
     return loadChannelAudience(orgId, id);
-  }
-  if (typeof kind === "string" && kind.startsWith("subgroup:")) {
-    const id = kind.slice("subgroup:".length);
-    const sg = await prisma.subgroup.findFirst({ where: { id, orgId } });
-    if (!sg) return [];
-    return loadSubgroupAudience(orgId, sg);
   }
   const where = { orgId };
   if (kind === "adults") where.isYouth = false;
@@ -6062,14 +5884,13 @@ function emailableMembers(members) {
 }
 
 adminRouter.get("/email", requireLeader, async (req, res) => {
-  const [patrols, subgroups, broadcastChannels] = await Promise.all([
+  const [patrols, broadcastChannels] = await Promise.all([
     prisma.member.findMany({
       where: { orgId: req.org.id, patrol: { not: null } },
       distinct: ["patrol"],
       select: { patrol: true },
       orderBy: { patrol: "asc" },
     }),
-    prisma.subgroup.findMany({ where: { orgId: req.org.id }, orderBy: { name: "asc" } }),
     prisma.channel.findMany({
       where: { orgId: req.org.id, kind: "broadcast", archivedAt: null },
       orderBy: { name: "asc" },
@@ -6078,14 +5899,9 @@ adminRouter.get("/email", requireLeader, async (req, res) => {
   const patrolOptions = patrols
     .map((p) => `<option value="${escape(p.patrol)}">${escape(p.patrol)}</option>`)
     .join("");
-  const subgroupOptions = subgroups
-    .map(
-      (g) => `<option value="subgroup:${escape(g.id)}">${escape(g.name)} — ${escape(describeSubgroup(g))}</option>`,
-    )
-    .join("");
   const channelOptions = broadcastChannels
     .map(
-      (c) => `<option value="channel:${escape(c.id)}">${escape(c.name)} — ${escape(describeSubgroup(c.autoAddRules || {}))}</option>`,
+      (c) => `<option value="channel:${escape(c.id)}">${escape(c.name)} — ${escape(describeAutoAddRules(c.autoAddRules || {}))}</option>`,
     )
     .join("");
 
@@ -6110,11 +5926,6 @@ adminRouter.get("/email", requireLeader, async (req, res) => {
                 ? `<optgroup label="Groups">${channelOptions}</optgroup>`
                 : ""
             }
-            ${
-              subgroups.length
-                ? `<optgroup label="Saved subgroups">${subgroupOptions}</optgroup>`
-                : ""
-            }
           </select>
         </label>
         <label style="margin:0;flex:1">Patrol (if "Specific patrol")
@@ -6124,7 +5935,7 @@ adminRouter.get("/email", requireLeader, async (req, res) => {
           </select>
         </label>
       </div>
-      <p class="muted small" style="margin:.6rem 0 1rem">Build new audiences in <a href="/admin/subgroups">Subgroups</a>.</p>
+      <p class="muted small" style="margin:.6rem 0 1rem">Build new audiences in <a href="/admin/groups">Groups</a>.</p>
       <label>Subject<input id="bcast-subject" name="subject" type="text" required maxlength="200">
         <span class="muted small" id="bcast-subject-count" style="display:block;margin-top:.2rem">0 / 200 characters</span>
       </label>
@@ -6294,12 +6105,12 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
   let audienceLabel;
   if (audience === "patrol") {
     audienceLabel = `Patrol: ${patrol || "—"}`;
-  } else if (typeof audience === "string" && audience.startsWith("subgroup:")) {
-    const sg = await prisma.subgroup.findFirst({
-      where: { id: audience.slice("subgroup:".length), orgId },
+  } else if (typeof audience === "string" && audience.startsWith("channel:")) {
+    const ch = await prisma.channel.findFirst({
+      where: { id: audience.slice("channel:".length), orgId, kind: "broadcast" },
       select: { name: true },
     });
-    audienceLabel = sg ? `Subgroup: ${sg.name}` : "Subgroup";
+    audienceLabel = ch ? `Group: ${ch.name}` : "Group";
   } else {
     audienceLabel = AUDIENCES.find((a) => a.value === audience)?.label ?? "Everyone";
   }
@@ -8963,14 +8774,17 @@ adminRouter.get("/newsletters/new", requireLeader, async (req, res) => {
     orgId: req.org.id,
     prismaClient: prisma,
   });
-  const [patrols, subgroups] = await Promise.all([
+  const [patrols, broadcastChannels] = await Promise.all([
     prisma.member.findMany({
       where: { orgId: req.org.id, patrol: { not: null } },
       distinct: ["patrol"],
       select: { patrol: true },
       orderBy: { patrol: "asc" },
     }),
-    prisma.subgroup.findMany({ where: { orgId: req.org.id }, orderBy: { name: "asc" } }),
+    prisma.channel.findMany({
+      where: { orgId: req.org.id, kind: "broadcast", archivedAt: null },
+      orderBy: { name: "asc" },
+    }),
   ]);
   const composerBody = newsletterComposerHtml({
     title: composed.suggestedTitle,
@@ -8989,7 +8803,7 @@ adminRouter.get("/newsletters/new", requireLeader, async (req, res) => {
       ...composed.pastEvents.map((e) => e.id),
     ],
     patrols,
-    subgroups,
+    broadcastChannels,
     formAction: "/admin/newsletters",
     submitLabel: "Save draft",
     statusBlock: "",
@@ -9029,7 +8843,7 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
 
   const now = new Date();
   const recapSince = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const [posts, events, pastEvents, patrols, subgroups] = await Promise.all([
+  const [posts, events, pastEvents, patrols, broadcastChannels] = await Promise.all([
     prisma.post.findMany({
       where: { orgId: req.org.id },
       orderBy: { publishedAt: "desc" },
@@ -9059,7 +8873,10 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
       select: { patrol: true },
       orderBy: { patrol: "asc" },
     }),
-    prisma.subgroup.findMany({ where: { orgId: req.org.id }, orderBy: { name: "asc" } }),
+    prisma.channel.findMany({
+      where: { orgId: req.org.id, kind: "broadcast", archivedAt: null },
+      orderBy: { name: "asc" },
+    }),
   ]);
 
   const statusBlock = issue.status === "sent"
@@ -9080,7 +8897,7 @@ adminRouter.get("/newsletters/:id/edit", requireLeader, async (req, res) => {
     selectedPostIds: issue.includedPostIds,
     selectedEventIds: issue.includedEventIds,
     patrols,
-    subgroups,
+    broadcastChannels,
     formAction: `/admin/newsletters/${escape(issue.id)}`,
     submitLabel: issue.status === "sent" ? "Save edits (already sent)" : "Save draft",
     statusBlock,
@@ -9347,7 +9164,7 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
 
 function describeNewsletterAudience(n) {
   if (n.audience === "patrol") return `Patrol: ${n.audiencePatrol || "—"}`;
-  if (typeof n.audience === "string" && n.audience.startsWith("subgroup:")) return `Subgroup`;
+  if (typeof n.audience === "string" && n.audience.startsWith("channel:")) return `Group`;
   if (n.audience === "adults") return "Adults";
   if (n.audience === "youth") return "Youth";
   return "Everyone";
@@ -9392,7 +9209,7 @@ function newsletterComposerHtml({
   selectedPostIds,
   selectedEventIds,
   patrols,
-  subgroups,
+  broadcastChannels,
   formAction,
   submitLabel,
   statusBlock,
@@ -9404,12 +9221,12 @@ function newsletterComposerHtml({
   const selPosts = new Set(selectedPostIds);
   const selEvents = new Set(selectedEventIds);
   const audSel = (v) => (audience === v ? " selected" : "");
-  const subSel = (id) => (audience === `subgroup:${id}` ? " selected" : "");
+  const chSel = (id) => (audience === `channel:${id}` ? " selected" : "");
   const patrolOpts = patrols
     .map((p) => `<option value="${escape(p.patrol)}"${audiencePatrol === p.patrol ? " selected" : ""}>${escape(p.patrol)}</option>`)
     .join("");
-  const subgroupOpts = subgroups
-    .map((g) => `<option value="subgroup:${escape(g.id)}"${subSel(g.id)}>${escape(g.name)}</option>`)
+  const channelOpts = broadcastChannels
+    .map((c) => `<option value="channel:${escape(c.id)}"${chSel(c.id)}>${escape(c.name)}</option>`)
     .join("");
   const fmtDate = (d) =>
     new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
@@ -9458,7 +9275,7 @@ function newsletterComposerHtml({
             <option value="adults"${audSel("adults")}>Adults only</option>
             <option value="youth"${audSel("youth")}>Youth only</option>
             <option value="patrol"${audSel("patrol")}>Specific patrol</option>
-            ${subgroups.length ? `<optgroup label="Saved subgroups">${subgroupOpts}</optgroup>` : ""}
+            ${broadcastChannels.length ? `<optgroup label="Groups">${channelOpts}</optgroup>` : ""}
           </select>
         </label>
         <label style="margin:0;flex:1">Patrol (if "Specific patrol")
