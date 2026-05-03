@@ -391,6 +391,7 @@ const NAV_SECTIONS = [
     href: "/admin/members",
     pages: [
       { href: "/admin/members", label: "Members" },
+      { href: "/admin/leads", label: "Leads" },
       { href: "/admin/positions", label: "Position roster" },
       { href: "/admin/training", label: "Training" },
       { href: "/admin/invites", label: "Invites" },
@@ -2534,7 +2535,9 @@ adminRouter.post("/events/:id/reminder", requireLeader, async (req, res) => {
   if (!ev) return res.status(404).send("Not found");
 
   const audience = req.body?.audience || "everyone";
-  const where = { orgId: req.org.id, email: { not: null } };
+  // Restrict to active roster — leads receive their own outreach via
+  // /admin/leads, not the event-announcement composer.
+  const where = { orgId: req.org.id, email: { not: null }, status: "active" };
   if (audience === "adults") where.isYouth = false;
   else if (audience === "youth") where.isYouth = true;
   else if (audience === "patrol" && req.body?.patrol) where.patrol = req.body.patrol;
@@ -4079,8 +4082,12 @@ async function memberForm({ member, action, submitLabel, orgId, unitType }) {
 }
 
 adminRouter.get("/members", requireLeader, async (req, res) => {
+  // Default to the active roster — leads (status="prospect") live on
+  // /admin/leads; alumni hide unless explicitly requested. Pass
+  // ?status=all to see everyone.
+  const showAll = req.query?.status === "all";
   const members = await prisma.member.findMany({
-    where: { orgId: req.org.id },
+    where: { orgId: req.org.id, ...(showAll ? {} : { status: "active" }) },
     orderBy: [{ isYouth: "desc" }, { lastName: "asc" }, { firstName: "asc" }],
   });
   const youth = members.filter((m) => m.isYouth);
@@ -4135,6 +4142,189 @@ adminRouter.get("/members", requireLeader, async (req, res) => {
     ${members.length === 0 ? `<div class="empty" style="margin-top:1rem">No members yet. Add one above or import a CSV.</div>` : ""}
   `;
   res.type("html").send(layout(req, { title: "Members", body }));
+});
+
+/* ------------------------------------------------------------------ */
+/* Leads / CRM                                                         */
+/* ------------------------------------------------------------------ */
+//
+// Leads are Members with status="prospect" — interested families that
+// haven't completed council registration. /admin/leads is a focused
+// pipeline view: list every prospect, capture source + free-form note,
+// log contact touches, convert to "active" once they register.
+//
+// A lead is normally a parent (the family contact). The leader can
+// note the kid's name/grade in prospectNote at lead stage; once the
+// family registers, "Convert" flips status to active and the leader
+// finishes the directory entry from /admin/members the regular way.
+
+const LEAD_SOURCES = [
+  { value: "web-form",  label: "Web form" },
+  { value: "walk-up",   label: "Walk-up at school night" },
+  { value: "referral",  label: "Referral" },
+  { value: "other",     label: "Other" },
+];
+
+function leadSourceLabel(value) {
+  return LEAD_SOURCES.find((s) => s.value === value)?.label || "Other";
+}
+
+adminRouter.get("/leads", requireLeader, async (req, res) => {
+  const leads = await prisma.member.findMany({
+    where: { orgId: req.org.id, status: "prospect" },
+    orderBy: [{ lastContactedAt: "desc" }, { createdAt: "desc" }],
+  });
+
+  const fmtDate = (d) =>
+    d ? new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "—";
+
+  const items = leads
+    .map((m) => {
+      const csrf = req.csrfToken
+        ? `<input type="hidden" name="csrf" value="${escape(req.csrfToken)}">`
+        : "";
+      return `
+      <li>
+        <div style="flex:1">
+          <h3 style="margin:0">${escape(m.firstName)} ${escape(m.lastName)}</h3>
+          <p class="muted small" style="margin:.1rem 0 0">
+            ${escape(leadSourceLabel(m.prospectSource))}
+            · last contacted ${escape(fmtDate(m.lastContactedAt))}
+            ${m.email ? ` · <a href="mailto:${escape(m.email)}">${escape(m.email)}</a>` : ""}
+            ${m.phone ? ` · ${escape(m.phone)}` : ""}
+          </p>
+          ${m.prospectNote ? `<p class="muted small" style="margin:.3rem 0 0">${escape(m.prospectNote)}</p>` : ""}
+        </div>
+        <div class="row">
+          <form class="inline" method="post" action="/admin/leads/${escape(m.id)}/touch">${csrf}
+            <button class="btn btn-ghost small" type="submit">Mark contacted</button>
+          </form>
+          <form class="inline" method="post" action="/admin/leads/${escape(m.id)}/convert"
+                onsubmit="return confirm('Mark this lead as a registered active member?')">${csrf}
+            <button class="btn btn-primary small" type="submit">Convert to active</button>
+          </form>
+          <form class="inline" method="post" action="/admin/leads/${escape(m.id)}/delete"
+                onsubmit="return confirm('Delete this lead? This cannot be undone.')">${csrf}
+            <button class="btn btn-danger small" type="submit">Delete</button>
+          </form>
+        </div>
+      </li>`;
+    })
+    .join("");
+
+  const sourceOptions = LEAD_SOURCES
+    .map((s) => `<option value="${escape(s.value)}">${escape(s.label)}</option>`)
+    .join("");
+
+  const body = `
+    <h1>Leads</h1>
+    <p class="muted">Families interested in joining who haven't completed council registration. Track touches here; once they register, "Convert to active" moves them onto the regular roster.</p>
+
+    <form class="card" method="post" action="/admin/leads">
+      <h2 style="margin-top:0">New lead</h2>
+      <p class="muted small">Capture the family contact (typically a parent). Add the kid's name and grade in the note — you'll fill in the full directory entry when they convert.</p>
+      <div class="row">
+        <label style="flex:1">First name<input name="firstName" type="text" required maxlength="80"></label>
+        <label style="flex:1">Last name<input name="lastName" type="text" required maxlength="80"></label>
+      </div>
+      <div class="row">
+        <label style="flex:1">Email<input name="email" type="email" maxlength="200" placeholder="parent@example.com"></label>
+        <label style="flex:1">Phone<input name="phone" type="tel" maxlength="40" placeholder="555-0142"></label>
+      </div>
+      <label>Source<select name="prospectSource" required>${sourceOptions}</select></label>
+      <label>Notes <span class="muted small">(kid's name, grade, where you met, anything to follow up on)</span>
+        <textarea name="prospectNote" rows="3" maxlength="1000"></textarea>
+      </label>
+      <button class="btn btn-primary" type="submit">Add lead</button>
+    </form>
+
+    <h2 style="margin-top:1.5rem">Open leads <span class="muted" style="font-weight:400">(${leads.length})</span></h2>
+    ${leads.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No open leads. Add one above when a family expresses interest.</div>`}
+  `;
+  res.type("html").send(layout(req, { title: "Leads", body }));
+});
+
+adminRouter.post("/leads", requireLeader, async (req, res) => {
+  const firstName = String(req.body?.firstName || "").trim().slice(0, 80);
+  const lastName = String(req.body?.lastName || "").trim().slice(0, 80);
+  if (!firstName || !lastName) return res.redirect("/admin/leads");
+  const email = String(req.body?.email || "").trim().toLowerCase().slice(0, 200) || null;
+  const phone = String(req.body?.phone || "").trim().slice(0, 40) || null;
+  const sourceRaw = String(req.body?.prospectSource || "other");
+  const prospectSource = LEAD_SOURCES.some((s) => s.value === sourceRaw) ? sourceRaw : "other";
+  const prospectNote = String(req.body?.prospectNote || "").trim().slice(0, 1000) || null;
+  const created = await prisma.member.create({
+    data: {
+      orgId: req.org.id,
+      firstName, lastName, email, phone,
+      isYouth: false,                // a lead is the parent contact, not the kid
+      commPreference: email ? "email" : "none",
+      status: "prospect",
+      prospectSource, prospectNote,
+    },
+    select: { id: true },
+  });
+  await recordAudit({
+    org: req.org, user: req.user,
+    entityType: "Member", entityId: created.id, action: "lead-create",
+    summary: `Added lead ${firstName} ${lastName} (${leadSourceLabel(prospectSource)})`,
+  });
+  res.redirect("/admin/leads");
+});
+
+adminRouter.post("/leads/:id/touch", requireLeader, async (req, res) => {
+  const m = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id, status: "prospect" },
+    select: { id: true, firstName: true, lastName: true, firstContactedAt: true },
+  });
+  if (!m) return res.redirect("/admin/leads");
+  const now = new Date();
+  await prisma.member.update({
+    where: { id: m.id },
+    data: {
+      lastContactedAt: now,
+      ...(m.firstContactedAt ? {} : { firstContactedAt: now }),
+    },
+  });
+  await recordAudit({
+    org: req.org, user: req.user,
+    entityType: "Member", entityId: m.id, action: "lead-touch",
+    summary: `Logged contact with lead ${m.firstName} ${m.lastName}`,
+  });
+  res.redirect("/admin/leads");
+});
+
+adminRouter.post("/leads/:id/convert", requireLeader, async (req, res) => {
+  const m = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id, status: "prospect" },
+    select: { id: true, firstName: true, lastName: true },
+  });
+  if (!m) return res.redirect("/admin/leads");
+  await prisma.member.update({
+    where: { id: m.id },
+    data: { status: "active" },
+  });
+  await recordAudit({
+    org: req.org, user: req.user,
+    entityType: "Member", entityId: m.id, action: "lead-convert",
+    summary: `Converted lead ${m.firstName} ${m.lastName} to active member`,
+  });
+  res.redirect(`/admin/members`);
+});
+
+adminRouter.post("/leads/:id/delete", requireLeader, async (req, res) => {
+  const m = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id, status: "prospect" },
+    select: { id: true, firstName: true, lastName: true },
+  });
+  if (!m) return res.redirect("/admin/leads");
+  await prisma.member.delete({ where: { id: m.id } });
+  await recordAudit({
+    org: req.org, user: req.user,
+    entityType: "Member", entityId: m.id, action: "lead-delete",
+    summary: `Deleted lead ${m.firstName} ${m.lastName}`,
+  });
+  res.redirect("/admin/leads");
 });
 
 adminRouter.post("/members", requireLeader, async (req, res) => {
@@ -4443,13 +4633,14 @@ adminRouter.get("/training", requireLeader, async (req, res) => {
 /* ------------------------------------------------------------------ */
 
 async function loadAudienceFromRules(orgId, rules) {
-  // Same shape on Subgroup rows and Channel.autoAddRules JSON, so this
-  // helper takes a duck-typed rules object and runs it through the
-  // existing matchAutoAddRules() filter.
+  // Channel.autoAddRules is duck-typed against the matchAutoAddRules
+  // filter. Broadcast targeting always restricts to the active roster
+  // — prospects (leads) and alumni shouldn't receive general unit
+  // broadcasts; lead-specific outreach goes through /admin/leads.
   const r = rules || {};
   const [members, validTrainings] = await Promise.all([
     prisma.member.findMany({
-      where: { orgId },
+      where: { orgId, status: "active" },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
     r.trainings?.length
@@ -4484,7 +4675,9 @@ adminRouter.get("/groups", requireLeader, async (req, res) => {
       orderBy: { name: "asc" },
     }),
     prisma.member.findMany({
-      where: { orgId: req.org.id },
+      // Match audienceFor's roster scope so the count on the Groups
+      // page is the count that would actually receive a broadcast.
+      where: { orgId: req.org.id, status: "active" },
       select: { id: true, isYouth: true, patrol: true, skills: true, interests: true, parentIds: true },
     }),
     prisma.training.findMany({
@@ -5879,7 +6072,10 @@ async function audienceFor(orgId, kind, patrol) {
     const id = kind.slice("channel:".length);
     return loadChannelAudience(orgId, id);
   }
-  const where = { orgId };
+  // Static audiences ("everyone", "youth", "adults", "patrol") restrict
+  // to the active roster — leads on /admin/leads receive their own
+  // outreach, not general broadcasts.
+  const where = { orgId, status: "active" };
   if (kind === "adults") where.isYouth = false;
   else if (kind === "youth") where.isYouth = true;
   else if (kind === "patrol" && patrol) where.patrol = patrol;

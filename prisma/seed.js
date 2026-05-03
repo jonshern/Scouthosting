@@ -770,6 +770,70 @@ async function seedPackMembers(orgId) {
   }
   const parentCount = CUB_DEMO.reduce((n, c) => n + c.parents.length, 0);
   console.log(`✓ Pack members (${adults.length} adults + ${CUB_DEMO.length} cubs across 6 dens, ${parentCount} parent contacts)`);
+
+  // Sample leads — families interested in joining who haven't completed
+  // council registration. Mid-funnel, varying touch counts so the
+  // /admin/leads list isn't homogenous.
+  const now = new Date();
+  const daysAgo = (n) => new Date(now.getTime() - n * 86400000);
+  const LEAD_DEMO = [
+    {
+      firstName: "Riley",  lastName: "Hartwell",
+      email: "riley.hartwell@example.invalid", phone: "555-0140",
+      prospectSource: "web-form",
+      prospectNote: "Inquired via the contact form. Has a Lion-age son starting kindergarten in fall.",
+      firstContactedAt: daysAgo(12), lastContactedAt: daysAgo(5),
+    },
+    {
+      firstName: "Morgan", lastName: "Sinclair",
+      email: "morgan.sinclair@example.invalid",
+      prospectSource: "walk-up",
+      prospectNote: "Met at the school night last Tuesday. Two kids — Tiger-age and Wolf-age. Wants to compare with Pack 73.",
+      firstContactedAt: daysAgo(8), lastContactedAt: daysAgo(8),
+    },
+    {
+      firstName: "Avery",  lastName: "Khatri",
+      email: "avery.khatri@example.invalid", phone: "555-0141",
+      prospectSource: "referral",
+      prospectNote: "Referred by the Pemberton family. Bear-age son. Wants to know about camping commitment.",
+      firstContactedAt: daysAgo(20), lastContactedAt: daysAgo(2),
+    },
+    {
+      firstName: "Casey",  lastName: "Brennan",
+      email: "casey.brennan@example.invalid",
+      prospectSource: "web-form",
+      prospectNote: "Webelos transferring from Pack 215 (moving across town).",
+      firstContactedAt: daysAgo(3), lastContactedAt: daysAgo(3),
+    },
+    {
+      firstName: "Drew",   lastName: "Macomber",
+      phone: "555-0142",
+      prospectSource: "walk-up",
+      prospectNote: "Single dad, called from the school open-house flyer. Lion-age daughter.",
+      firstContactedAt: daysAgo(1), lastContactedAt: daysAgo(1),
+    },
+    {
+      firstName: "Sky",    lastName: "Vandermeer",
+      email: "sky.vandermeer@example.invalid",
+      prospectSource: "other",
+      prospectNote: "Met at the council recruitment event. AOL-age — joining for one year before crossing over.",
+      firstContactedAt: daysAgo(35), lastContactedAt: daysAgo(7),
+    },
+  ];
+  for (const lead of LEAD_DEMO) {
+    await findOrCreate(
+      "member",
+      { orgId, firstName: lead.firstName, lastName: lead.lastName },
+      {
+        orgId,
+        ...lead,
+        isYouth: false,
+        commPreference: lead.email ? "email" : "sms",
+        status: "prospect",
+      },
+    );
+  }
+  console.log(`✓ Pack leads (${LEAD_DEMO.length} prospects)`);
 }
 
 async function seedPackOrg() {
