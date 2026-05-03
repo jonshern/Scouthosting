@@ -19,6 +19,20 @@ export type ChannelDto = {
   // field on responses from older deployments — treat undefined as
   // false in clients.
   youAreChannelOwner?: boolean;
+  // DM presentation extras — only set when kind === "dm". Counterparty
+  // resolution is server-side so the client can render "Marcus
+  // Whitfield" instead of the synthetic "dm:cuid1:cuid2" name.
+  dmCounterpartyName?: string | null;
+  dmCounterpartyUserId?: string | null;
+  // Chat-list helpers — last message preview, unread state, last
+  // activity. Optional so older servers and the cached-list path
+  // don't break clients on first hit.
+  lastMessage?: {
+    body: string | null;
+    createdAt: string;
+    authorDisplayName: string | null;
+  } | null;
+  unread?: boolean;
   updatedAt: string;
 };
 
