@@ -13,7 +13,17 @@ import crypto from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { save as saveFile } from "../lib/storage.js";
 import { gradientPng } from "../lib/imageGen.js";
-import { buildSeedSubgroups } from "../lib/orgRoles.js";
+import { buildSeedBroadcastChannels } from "../lib/orgRoles.js";
+
+function rulesFromSeed(s) {
+  const r = {};
+  if (s.isYouth != null) r.isYouth = s.isYouth;
+  if (s.patrols?.length) r.patrols = s.patrols;
+  if (s.skills?.length) r.skills = s.skills;
+  if (s.interests?.length) r.interests = s.interests;
+  if (s.trainings?.length) r.trainings = s.trainings;
+  return r;
+}
 import { hashPassword } from "../lib/auth.js";
 
 const prisma = new PrismaClient();
@@ -636,12 +646,19 @@ const PACK_DENS = [
 ];
 
 async function seedPackSubgroups(orgId) {
-  const seeds = buildSeedSubgroups("Pack");
+  const seeds = buildSeedBroadcastChannels("Pack");
   for (const s of seeds) {
     await findOrCreate(
-      "subgroup",
-      { orgId, name: s.name },
-      { orgId, ...s },
+      "channel",
+      { orgId, kind: "broadcast", name: s.name },
+      {
+        orgId,
+        kind: "broadcast",
+        name: s.name,
+        purpose: s.description ?? null,
+        autoAddRules: rulesFromSeed(s),
+        postPolicy: "members",
+      },
     );
   }
   console.log(`✓ Pack dens (${seeds.length})`);
@@ -749,12 +766,19 @@ const GS_LEVELS = [
 ];
 
 async function seedGirlScoutSubgroups(orgId) {
-  const seeds = buildSeedSubgroups("GirlScoutTroop");
+  const seeds = buildSeedBroadcastChannels("GirlScoutTroop");
   for (const s of seeds) {
     await findOrCreate(
-      "subgroup",
-      { orgId, name: s.name },
-      { orgId, ...s },
+      "channel",
+      { orgId, kind: "broadcast", name: s.name },
+      {
+        orgId,
+        kind: "broadcast",
+        name: s.name,
+        purpose: s.description ?? null,
+        autoAddRules: rulesFromSeed(s),
+        postPolicy: "members",
+      },
     );
   }
   console.log(`✓ Girl Scout levels (${seeds.length})`);

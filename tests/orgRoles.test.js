@@ -15,7 +15,7 @@ import {
   subgroupVocab,
   subgroupPresets,
   positionOptions,
-  buildSeedSubgroups,
+  buildSeedBroadcastChannels,
 } from "../lib/orgRoles.js";
 
 describe("subgroupVocab", () => {
@@ -81,9 +81,9 @@ describe("UNIT_TYPES export", () => {
   });
 });
 
-describe("buildSeedSubgroups (pure DTO builder, no DB)", () => {
+describe("buildSeedBroadcastChannels (pure DTO builder, no DB)", () => {
   it("builds six den DTOs for a Pack with patrol filter set", () => {
-    const seeds = buildSeedSubgroups("Pack");
+    const seeds = buildSeedBroadcastChannels("Pack");
     expect(seeds).toHaveLength(6);
     const lion = seeds.find((s) => s.name === "Lion Den");
     expect(lion.patrols).toEqual(["Lion"]);
@@ -92,19 +92,19 @@ describe("buildSeedSubgroups (pure DTO builder, no DB)", () => {
   });
 
   it("builds six level DTOs for a Girl Scout Troop", () => {
-    const seeds = buildSeedSubgroups("GirlScoutTroop");
+    const seeds = buildSeedBroadcastChannels("GirlScoutTroop");
     expect(seeds.map((s) => s.name)).toContain("Daisy Level");
     expect(seeds.map((s) => s.name)).toContain("Ambassador Level");
   });
 
   it("returns [] for free-form unit types (Troop, Crew, Ship, Post)", () => {
     for (const ut of ["Troop", "Crew", "Ship", "Post"]) {
-      expect(buildSeedSubgroups(ut)).toEqual([]);
+      expect(buildSeedBroadcastChannels(ut)).toEqual([]);
     }
   });
 
   it("DTO has no orgId — caller is responsible for adding it", () => {
-    for (const s of buildSeedSubgroups("Pack")) {
+    for (const s of buildSeedBroadcastChannels("Pack")) {
       expect(s).not.toHaveProperty("orgId");
     }
   });

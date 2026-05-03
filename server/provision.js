@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import "dotenv/config";
 
 import { prisma } from "../lib/db.js";
-import { UNIT_TYPES, buildSeedSubgroups } from "../lib/orgRoles.js";
+import { UNIT_TYPES, buildSeedBroadcastChannels } from "../lib/orgRoles.js";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -85,13 +85,30 @@ export function formatDisplayName(unitType, unitNumber) {
   return `${prefix} ${unitNumber}`;
 }
 
-// Persist the canonical Subgroup rows for a freshly-provisioned org.
-// Idempotent (skipDuplicates) so re-running on an existing org is safe.
-async function persistSeedSubgroups(org) {
-  const seeds = buildSeedSubgroups(org.unitType);
+// Persist the canonical broadcast Channels for a freshly-provisioned
+// org (one per den / patrol the unit type ships with). The seed data
+// shape ({ name, description, isYouth, patrols }) maps directly onto
+// Channel fields: name → name, description → purpose, the rest →
+// autoAddRules. Membership is dynamic at send time, so no
+// ChannelMember rows are materialized.
+async function persistSeedBroadcastChannels(org) {
+  const seeds = buildSeedBroadcastChannels(org.unitType);
   if (!seeds.length) return;
-  await prisma.subgroup.createMany({
-    data: seeds.map((s) => ({ ...s, orgId: org.id })),
+  await prisma.channel.createMany({
+    data: seeds.map((s) => ({
+      orgId: org.id,
+      kind: "broadcast",
+      name: s.name,
+      purpose: s.description ?? null,
+      autoAddRules: {
+        ...(s.isYouth != null ? { isYouth: s.isYouth } : {}),
+        ...(s.patrols?.length ? { patrols: s.patrols } : {}),
+        ...(s.skills?.length ? { skills: s.skills } : {}),
+        ...(s.interests?.length ? { interests: s.interests } : {}),
+        ...(s.trainings?.length ? { trainings: s.trainings } : {}),
+      },
+      postPolicy: "members",
+    })),
     skipDuplicates: true,
   });
 }
@@ -149,7 +166,7 @@ export async function provisionOrg(input) {
     },
   });
 
-  await persistSeedSubgroups(org);
+  await persistSeedBroadcastChannels(org);
   return org;
 }
 
