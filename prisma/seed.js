@@ -17,6 +17,7 @@ import { buildSeedBroadcastChannels } from "../lib/orgRoles.js";
 
 function rulesFromSeed(s) {
   const r = {};
+  if (s.audience) r.audience = s.audience;
   if (s.isYouth != null) r.isYouth = s.isYouth;
   if (s.patrols?.length) r.patrols = s.patrols;
   if (s.skills?.length) r.skills = s.skills;
@@ -637,12 +638,57 @@ const PACK_DEMO = {
 };
 
 const PACK_DENS = [
-  { label: "Lion", grade: "K", count: 2 },
-  { label: "Tiger", grade: "1st", count: 3 },
-  { label: "Wolf", grade: "2nd", count: 3 },
-  { label: "Bear", grade: "3rd", count: 3 },
-  { label: "Webelos", grade: "4th", count: 2 },
-  { label: "Arrow of Light", grade: "5th", count: 2 },
+  { label: "Lion", grade: "K", count: 5 },
+  { label: "Tiger", grade: "1st", count: 5 },
+  { label: "Wolf", grade: "2nd", count: 5 },
+  { label: "Bear", grade: "3rd", count: 5 },
+  { label: "Webelos", grade: "4th", count: 5 },
+  { label: "Arrow of Light", grade: "5th", count: 5 },
+];
+
+// 30 fake Cub Scouts for the demo Pack — Greek/Roman mythology first
+// names + fanciful surnames so it reads as obviously fictional. Parent
+// first names are ordinary so the kid stands out as the named character.
+// Mix of one- and two-parent families to exercise the parents-of-youth
+// audience resolver. Surnames are unique per family; parents share the
+// kid's surname (the common case for early-grade rosters).
+const CUB_DEMO = [
+  // Lion Den — Kindergarten
+  { den: "Lion",            first: "Atlas",       last: "Pemberton",  parents: [["Sarah",   "Mom"], ["James",   "Dad"]] },
+  { den: "Lion",            first: "Athena",      last: "Ashworth",   parents: [["Olivia",  "Mom"]] },
+  { den: "Lion",            first: "Apollo",      last: "Whitcombe",  parents: [["Michael", "Dad"], ["Emma",    "Mom"]] },
+  { den: "Lion",            first: "Cassiopeia",  last: "Thorne",     parents: [["David",   "Dad"]] },
+  { den: "Lion",            first: "Theseus",     last: "Hollings",   parents: [["William", "Dad"], ["Sophia",  "Mom"]] },
+  // Tiger Den — 1st grade
+  { den: "Tiger",           first: "Persephone",  last: "Bramwell",   parents: [["Daniel",  "Dad"], ["Charlotte", "Mom"]] },
+  { den: "Tiger",           first: "Orion",       last: "Crowley",    parents: [["Matthew", "Dad"]] },
+  { den: "Tiger",           first: "Lyra",        last: "Featherstone", parents: [["Mia",     "Mom"], ["Ethan",   "Dad"]] },
+  { den: "Tiger",           first: "Hermes",      last: "Goodfellow", parents: [["Amelia",  "Mom"], ["Alexander", "Dad"]] },
+  { den: "Tiger",           first: "Iris",        last: "Hawthorne",  parents: [["Harper",  "Mom"]] },
+  // Wolf Den — 2nd grade
+  { den: "Wolf",            first: "Selene",      last: "Inglewood",  parents: [["David",   "Dad"], ["Evelyn",  "Mom"]] },
+  { den: "Wolf",            first: "Achilles",    last: "Jamison",    parents: [["Joseph",  "Dad"], ["Abigail", "Mom"]] },
+  { den: "Wolf",            first: "Andromeda",   last: "Knightley",  parents: [["Christopher", "Dad"]] },
+  { den: "Wolf",            first: "Perseus",     last: "Larkfield",  parents: [["Elizabeth", "Mom"], ["Anthony", "Dad"]] },
+  { den: "Wolf",            first: "Calliope",    last: "Mortimer",   parents: [["Avery",   "Mom"]] },
+  // Bear Den — 3rd grade
+  { den: "Bear",            first: "Helios",      last: "Northcott",  parents: [["Mark",    "Dad"], ["Ella",    "Mom"]] },
+  { den: "Bear",            first: "Daphne",      last: "Oakhurst",   parents: [["Andrew",  "Dad"], ["Madison", "Mom"]] },
+  { den: "Bear",            first: "Phoebe",      last: "Prescott",   parents: [["Ryan",    "Dad"]] },
+  { den: "Bear",            first: "Hector",      last: "Quincey",    parents: [["Lily",    "Mom"], ["Nathan",  "Dad"]] },
+  { den: "Bear",            first: "Cassia",      last: "Ravenscroft", parents: [["Grace",   "Mom"]] },
+  // Webelos Den — 4th grade
+  { den: "Webelos",         first: "Ajax",        last: "Sterling",   parents: [["Henry",   "Dad"], ["Chloe",   "Mom"]] },
+  { den: "Webelos",         first: "Echo",        last: "Trumbull",   parents: [["Lucas",   "Dad"]] },
+  { den: "Webelos",         first: "Leander",     last: "Underwood",  parents: [["Hannah",  "Mom"], ["Owen",    "Dad"]] },
+  { den: "Webelos",         first: "Thalia",      last: "Vance",      parents: [["Layla",   "Mom"]] },
+  { den: "Webelos",         first: "Diana",       last: "Whitlock",   parents: [["Caleb",   "Dad"], ["Audrey",  "Mom"]] },
+  // Arrow of Light Den — 5th grade
+  { den: "Arrow of Light",  first: "Aurora",      last: "Yardley",    parents: [["Jack",    "Dad"], ["Ivy",     "Mom"]] },
+  { den: "Arrow of Light",  first: "Phoenix",     last: "Bramble",    parents: [["Wyatt",   "Dad"]] },
+  { den: "Arrow of Light",  first: "Galatea",     last: "Crestwood",  parents: [["Stella",  "Mom"], ["Logan",   "Dad"]] },
+  { den: "Arrow of Light",  first: "Linus",       last: "Driftwood",  parents: [["Nora",    "Mom"]] },
+  { den: "Arrow of Light",  first: "Penelope",    last: "Eldridge",   parents: [["Levi",    "Dad"], ["Aria",    "Mom"]] },
 ];
 
 async function seedPackSubgroups(orgId) {
@@ -686,40 +732,44 @@ async function seedPackMembers(orgId) {
     await findOrCreate("member", { orgId, firstName: m.firstName, lastName: m.lastName }, { orgId, ...m });
   }
 
-  let cubIdx = 1;
-  for (const den of PACK_DENS) {
-    for (let i = 0; i < den.count; i++) {
-      const last = `${den.label} Cub ${i + 1}`;
-      const parentLast = `${den.label} Parent ${i + 1}`;
+  // Each row in CUB_DEMO becomes one youth Member + 1-2 parent Members.
+  // Cubs carry NO email/phone — Pack youth aren't directly contactable;
+  // their channel is their parents (linked via Member.parentIds).
+  const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  for (const cub of CUB_DEMO) {
+    const parentMembers = [];
+    for (const [parentFirst] of cub.parents) {
       const parent = await findOrCreate(
         "member",
-        { orgId, firstName: "Demo", lastName: parentLast },
+        { orgId, firstName: parentFirst, lastName: cub.last },
         {
           orgId,
-          firstName: "Demo",
-          lastName: parentLast,
-          email: `demo-${den.label.toLowerCase().replace(/\s+/g, "")}-parent-${i + 1}@example.invalid`,
+          firstName: parentFirst,
+          lastName: cub.last,
+          email: `${slug(parentFirst)}.${slug(cub.last)}@example.invalid`,
           isYouth: false,
           commPreference: "email",
         },
       );
-      await findOrCreate(
-        "member",
-        { orgId, firstName: "Demo", lastName: last },
-        {
-          orgId,
-          firstName: "Demo",
-          lastName: last,
-          isYouth: true,
-          patrol: den.label,
-          commPreference: "email",
-          parentIds: [parent.id],
-        },
-      );
-      cubIdx++;
+      parentMembers.push(parent);
     }
+    await findOrCreate(
+      "member",
+      { orgId, firstName: cub.first, lastName: cub.last },
+      {
+        orgId,
+        firstName: cub.first,
+        lastName: cub.last,
+        isYouth: true,
+        patrol: cub.den,
+        // Pack youth: no email, no phone. Contact flows through parents.
+        commPreference: "none",
+        parentIds: parentMembers.map((p) => p.id),
+      },
+    );
   }
-  console.log(`✓ Pack members (${adults.length} adults + ${cubIdx - 1} cubs across 6 dens)`);
+  const parentCount = CUB_DEMO.reduce((n, c) => n + c.parents.length, 0);
+  console.log(`✓ Pack members (${adults.length} adults + ${CUB_DEMO.length} cubs across 6 dens, ${parentCount} parent contacts)`);
 }
 
 async function seedPackOrg() {

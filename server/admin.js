@@ -4485,7 +4485,7 @@ adminRouter.get("/groups", requireLeader, async (req, res) => {
     }),
     prisma.member.findMany({
       where: { orgId: req.org.id },
-      select: { id: true, isYouth: true, patrol: true, skills: true, interests: true },
+      select: { id: true, isYouth: true, patrol: true, skills: true, interests: true, parentIds: true },
     }),
     prisma.training.findMany({
       where: { orgId: req.org.id },
@@ -4526,6 +4526,13 @@ adminRouter.get("/groups", requireLeader, async (req, res) => {
       <h2 style="margin-top:0">New group</h2>
       <label>Name<input name="name" type="text" required maxlength="80" placeholder="e.g. Drivers, WFA-certified, Eagles patrol"></label>
       <label>Purpose<textarea name="description" rows="2" maxlength="200" placeholder="Optional — what this group is for"></textarea></label>
+      <label>Send to
+        <select name="audience">
+          <option value="members">The matching members directly</option>
+          <option value="parents-of-youth">Parents of the matching youth</option>
+        </select>
+        <span class="muted small">"Parents of" is the right pick for Cub Scout dens — youth don't have email; their parents do.</span>
+      </label>
       <label>Audience kind
         <select name="isYouth">
           <option value="">Both</option>
@@ -4555,11 +4562,13 @@ function channelFieldsFromBody(body) {
       .filter(Boolean);
   const youth = body?.isYouth;
   const isYouth = youth === "youth" ? true : youth === "adults" ? false : null;
+  const audience = body?.audience === "parents-of-youth" ? "parents-of-youth" : null;
   const patrols = splitTags(body?.patrols);
   const skills = splitTags(body?.skills);
   const interests = splitTags(body?.interests);
   const trainings = splitTags(body?.trainings);
   const rules = {};
+  if (audience) rules.audience = audience;
   if (isYouth != null) rules.isYouth = isYouth;
   if (patrols.length) rules.patrols = patrols;
   if (skills.length) rules.skills = skills;
@@ -4605,6 +4614,12 @@ adminRouter.get("/groups/:id/edit", requireLeader, async (req, res) => {
     <form class="card" method="post" action="/admin/groups/${escape(c.id)}">
       <label>Name<input name="name" type="text" required maxlength="80" value="${escape(c.name)}"></label>
       <label>Purpose<textarea name="description" rows="2" maxlength="200">${escape(c.purpose || "")}</textarea></label>
+      <label>Send to
+        <select name="audience">
+          <option value="members"${rules.audience !== "parents-of-youth" ? " selected" : ""}>The matching members directly</option>
+          <option value="parents-of-youth"${rules.audience === "parents-of-youth" ? " selected" : ""}>Parents of the matching youth</option>
+        </select>
+      </label>
       <label>Audience kind
         <select name="isYouth">
           <option value=""${isYouthSel === "" ? " selected" : ""}>Both</option>
