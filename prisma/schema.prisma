@@ -303,6 +303,20 @@ model Member {
   // dedupe; display preserves first-seen casing.
   skills         String[] @default([])
   interests      String[] @default([])
+  // Lifecycle status — drives /admin/leads vs /admin/members visibility.
+  //   prospect — interested but not yet registered with the council
+  //              (a "lead" — appears on /admin/leads, hidden from
+  //              the default roster filter)
+  //   active   — registered roster member (default)
+  //   alumni   — past member, kept for history but excluded from
+  //              broadcasts and from the default member list
+  status            String    @default("active")
+  // Lead-tracking metadata. All null for status="active"/"alumni"; a
+  // lead admin populates them as the prospect moves through the funnel.
+  prospectSource    String?   // "web-form" | "walk-up" | "referral" | "other"
+  prospectNote      String?   // free-form: what grade is the kid? what unit are they coming from?
+  firstContactedAt  DateTime? // set on first /admin/leads "Mark contacted" or send
+  lastContactedAt   DateTime? // updated on every contact event
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -315,6 +329,7 @@ model Member {
 
   @@index([orgId])
   @@index([orgId, lastName])
+  @@index([orgId, status])
 }
 
 model Event {
