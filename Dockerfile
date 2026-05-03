@@ -50,7 +50,7 @@ COPY --chown=compass:compass \
   index.html signup.html login.html security.html \
   pitch.html plans.html positioning.html \
   styles.css security.css tokens.css \
-  script.js \
+  script.js sw.js \
   ./
 
 RUN chown -R compass:compass /app

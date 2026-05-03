@@ -1056,7 +1056,7 @@ async function pushChannelMessage(channel, message, author) {
       userId: { in: recipients.map((r) => r.userId) },
       retiredAt: null,
     },
-    select: { token: true },
+    select: { token: true, provider: true },
   });
   if (!devices.length) return;
   const { sendPushBatch } = await import("../lib/push.js");
@@ -1064,9 +1064,15 @@ async function pushChannelMessage(channel, message, author) {
   const result = await sendPushBatch(
     devices.map((d) => ({
       token: d.token,
+      provider: d.provider,
       title: `${author.displayName} · ${channel.name}`,
       body: preview,
-      data: { kind: "chat", channelId: channel.id, messageId: message.id },
+      data: {
+        kind: "chat",
+        channelId: channel.id,
+        messageId: message.id,
+        url: `/chat?channel=${encodeURIComponent(channel.id)}`,
+      },
     })),
   );
   if (result.retiredTokens.length) {
