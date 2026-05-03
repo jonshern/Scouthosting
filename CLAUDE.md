@@ -124,6 +124,22 @@ Migrations run automatically on container boot (`Dockerfile` CMD: `prisma migrat
 
 ---
 
+## Messaging delivery — pick the right channel for the job
+
+Compass has three delivery tiers for member communication. Pick by stakes:
+
+| Channel | Latency | Reliability | Use when |
+|---|---|---|---|
+| **Broadcast email** (`/admin/email`) | Seconds-to-minutes | Mail-server-grade. Bounces tracked, unsubscribe honored, MailLog audit trail. | Time-critical, all-recipient announcements: weather cancellations, schedule changes, trip reminders. |
+| **Direct message** (`/admin/members/:id/message`) | Real-time when push works; ≤30 min via the email-reminder cron when push fails | High via the layered fallback, but no single delivery is "guaranteed-instant" because mobile push is "best effort" by Apple/Google. | 1:1 follow-up, coordinating with a single family, conversational threads. |
+| **Channel post** (chat) | Real-time when recipients are online | Push at message-send, in-app on next open. No automatic email backstop yet (only DMs get the +30-min reminder). | Group conversation in a patrol/troop/parents channel where the audience is expected to check the app. |
+
+**iOS push is "best effort"** — silent (`content-available`) pushes are throttled aggressively, alert pushes can drop during APNs incidents, and Focus modes silently suppress alerts even when delivered. The DM 30-minute email reminder (`lib/dmReminderCron.js`) is the safety net for that. For genuinely time-critical announcements use broadcast email — its delivery doesn't depend on push at all.
+
+**Don't reach for chat or DM for emergencies.** A "Pack meeting cancelled tonight" message belongs in `/admin/email` to the parents-of-the-relevant-den broadcast group, not as a chat message.
+
+---
+
 ## Open follow-ups (per ROADMAP.md, with status as of last session)
 
 - **Mobile org-picker UI** — multi-org users currently default to `profile.orgs[0]` (`AuthContext.tsx:121`). Real picker is the next mobile UI cycle.
