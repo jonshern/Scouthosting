@@ -454,12 +454,12 @@ describe("reconcileChannelMembers", () => {
     expect(ids).toEqual(["u-admin", "u-leader"]);
   });
 
-  it("keeps manual moderator overrides when reconciling", async () => {
+  it("keeps manual owner overrides when reconciling", async () => {
     const prisma = fakePrisma({
       channels: [{ id: "ch", orgId: "org1", kind: "leaders" }],
       channelMembers: [
         // Leader who was manually re-added even though they're not currently in the org.
-        { channelId: "ch", userId: "u-removed-leader", role: "moderator", addedAutomatically: false },
+        { channelId: "ch", userId: "u-removed-leader", role: "owner", addedAutomatically: false },
       ],
       orgMemberships: [
         { userId: "u-leader", orgId: "org1", role: "leader", yptCurrentUntil: FUTURE },

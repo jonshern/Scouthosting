@@ -15,7 +15,10 @@ export type ChannelDto = {
   archivedAt: string | null;
   isLeaderOnly: boolean;
   canPost: boolean;
-  youAreModerator: boolean;
+  // Channel-level owner role on ChannelMember. Server may omit this
+  // field on responses from older deployments — treat undefined as
+  // false in clients.
+  youAreChannelOwner?: boolean;
   updatedAt: string;
 };
 
