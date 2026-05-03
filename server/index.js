@@ -75,6 +75,14 @@ import { verifyRsvpToken } from "../lib/rsvpToken.js";
 import { verifyTrackingToken } from "../lib/trackingToken.js";
 import { verifyUnsubToken } from "../lib/unsubToken.js";
 import { makeSignedToken, verifySignedToken } from "../lib/signedToken.js";
+import {
+  buildEnrollmentArtifacts,
+  verifyTotp,
+  mintBackupCodes,
+  verifyBackupCode,
+  mintPreMfaToken,
+  verifyPreMfaToken,
+} from "../lib/mfa.js";
 import { send as sendMail } from "../lib/mail.js";
 import { recordAudit } from "../lib/audit.js";
 
@@ -1548,6 +1556,15 @@ app.post("/login", loginLimiter, csrfProtect, async (req, res, next) => {
     log.warn("login.failed", { email: emailLc, userId: user.id, orgSlug: req.org.slug, reason: "wrong-password", ip: req.ip });
     return fail("Invalid credentials.");
   }
+  // 2FA gate: if the user has enrolled, do NOT issue a session yet —
+  // mint a short-lived pre-MFA token and redirect to /mfa where the
+  // second factor gets verified. Membership is ensured AFTER the
+  // second factor (we don't want a half-authenticated user touching
+  // the directory).
+  if (user.totpEnrolledAt) {
+    const token = mintPreMfaToken({ userId: user.id, secret: AUTH_SECRET });
+    return res.redirect(`/mfa?token=${encodeURIComponent(token)}&next=${encodeURIComponent(nextUrl)}`);
+  }
   await ensureMembership(user.id, req.org.id, "parent");
   const session = await lucia.createSession(user.id, {});
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
@@ -1859,6 +1876,141 @@ app.post("/reset/:token", csrfProtect, async (req, res, next) => {
   const session = await lucia.createSession(user.id, {});
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
   res.redirect("/");
+});
+
+/* ------------------------------------------------------------------ */
+/* /mfa — second-factor gate                                           */
+/* ------------------------------------------------------------------ */
+//
+// Lands here from POST /login or POST /admin/login when the user has
+// totpEnrolledAt set. The pre-MFA token in the URL is a 60s-TTL
+// signed claim that just says "this user passed the password check".
+// We verify the second factor here and only then issue a real Lucia
+// session. Both /login surfaces redirect through this single page so
+// there's one source of truth for the second-factor UX.
+
+function mfaPage({ token, next: nextUrl, error, mode = "totp" }) {
+  const escapeAttr = (s) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  const flip = mode === "backup" ? "totp" : "backup";
+  const flipLabel = mode === "backup" ? "Use a code from your app" : "Use a backup code instead";
+  const inputLabel = mode === "backup" ? "8-digit backup code" : "6-digit code from your authenticator";
+  const inputName = mode === "backup" ? "backupCode" : "code";
+  const inputPattern = mode === "backup" ? "[0-9-]{8,9}" : "\\d{6}";
+  const inputPlaceholder = mode === "backup" ? "1234-5678" : "123456";
+  const errBlock = error
+    ? `<div class="flash flash-err">${escapeAttr(error)}</div>`
+    : "";
+  return `<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Two-factor verification — Compass</title>
+<link rel="stylesheet" href="/tokens.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:var(--font-ui);color:var(--ink);background:var(--bg);display:grid;place-items:center;min-height:100vh;padding:2rem;line-height:1.55}
+.card{max-width:440px;width:100%;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:2.25rem 2rem;box-shadow:var(--shadow-card)}
+h1{font-family:var(--font-display);font-weight:400;font-size:1.6rem;line-height:1.05;letter-spacing:-.025em;margin:0 0 .25rem}
+p{color:var(--ink-soft);font-size:.95rem;margin:0 0 1.25rem}
+label{display:block;margin:0 0 1rem;font-size:.86rem;font-weight:600;color:var(--ink)}
+input{display:block;width:100%;margin-top:.3rem;padding:.65rem .8rem;border:1.5px solid var(--line);border-radius:var(--radius-button);font:inherit;background:var(--surface);color:var(--ink);font-variant-numeric:tabular-nums;letter-spacing:.1em}
+input:focus{outline:none;border-color:var(--ink)}
+.btn{display:block;width:100%;padding:.78rem;border-radius:var(--radius-button);border:1.5px solid var(--ink);background:var(--ink);color:var(--bg);font-family:var(--font-ui);font-weight:600;cursor:pointer;font-size:.95rem;margin-top:.5rem}
+.flash-err{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:.65rem 1rem;border-radius:var(--radius-button);margin-bottom:1rem;font-size:.92rem}
+small{display:block;color:var(--ink-muted);margin-top:1.1rem;font-size:.85rem;text-align:center}
+small a{color:var(--primary);font-weight:600;text-decoration:none}
+small a:hover{text-decoration:underline}
+</style></head><body>
+<div class="card">
+<h1>Two-factor verification</h1>
+<p>Open your authenticator app and enter the current code.</p>
+${errBlock}
+<form method="post" action="/mfa">
+  <input type="hidden" name="token" value="${escapeAttr(token)}">
+  <input type="hidden" name="next" value="${escapeAttr(nextUrl || "/")}">
+  <input type="hidden" name="mode" value="${escapeAttr(mode)}">
+  <label>${escapeAttr(inputLabel)}
+    <input name="${escapeAttr(inputName)}" type="text" inputmode="numeric" autocomplete="one-time-code" required pattern="${inputPattern}" placeholder="${escapeAttr(inputPlaceholder)}" autofocus>
+  </label>
+  <button class="btn" type="submit">Verify</button>
+</form>
+<small><a href="/mfa?token=${encodeURIComponent(token)}&next=${encodeURIComponent(nextUrl || "/")}&mode=${flip}">${escapeAttr(flipLabel)}</a></small>
+</div></body></html>`;
+}
+
+app.get("/mfa", (req, res) => {
+  const token = String(req.query.token || "");
+  const nextUrl = String(req.query.next || "/");
+  const mode = req.query.mode === "backup" ? "backup" : "totp";
+  if (!token) return res.redirect("/login");
+  // Validate just enough to fail fast on stale links — we re-verify
+  // on POST anyway.
+  const uid = verifyPreMfaToken(token, { secret: AUTH_SECRET });
+  if (!uid) return res.redirect("/login?next=" + encodeURIComponent(nextUrl));
+  res.type("html").send(mfaPage({ token, next: nextUrl, mode }));
+});
+
+app.post("/mfa", csrfProtect, async (req, res) => {
+  const token = String(req.body?.token || "");
+  const nextUrl = String(req.body?.next || "/");
+  const mode = req.body?.mode === "backup" ? "backup" : "totp";
+  const uid = verifyPreMfaToken(token, { secret: AUTH_SECRET });
+  if (!uid) {
+    return res.status(400).type("html").send(
+      mfaPage({ token: "", next: nextUrl, mode, error: "Your session expired. Sign in again." }),
+    );
+  }
+  const user = await prisma.user.findUnique({
+    where: { id: uid },
+    select: { id: true, totpSecret: true, totpEnrolledAt: true, totpLastUsedAt: true },
+  });
+  if (!user || !user.totpEnrolledAt) {
+    return res.status(400).type("html").send(
+      mfaPage({ token, next: nextUrl, mode, error: "MFA isn't set up for this account." }),
+    );
+  }
+
+  if (mode === "backup") {
+    const codeId = await verifyBackupCode({
+      userId: user.id,
+      code: req.body?.backupCode || "",
+      prismaClient: prisma,
+    });
+    if (!codeId) {
+      log.warn("mfa.backup.failed", { userId: user.id, ip: req.ip });
+      return res.status(400).type("html").send(
+        mfaPage({ token, next: nextUrl, mode: "backup", error: "That backup code didn't match." }),
+      );
+    }
+    await prisma.backupCode.update({ where: { id: codeId }, data: { usedAt: new Date() } });
+  } else {
+    const result = verifyTotp({
+      secret: user.totpSecret,
+      token: req.body?.code || "",
+      lastUsedAt: user.totpLastUsedAt,
+    });
+    if (!result.ok) {
+      log.warn("mfa.totp.failed", { userId: user.id, reason: result.reason, ip: req.ip });
+      const errCopy =
+        result.reason === "replay"
+          ? "That code was already used. Wait for the next one."
+          : "That code didn't match — try the current one.";
+      return res.status(400).type("html").send(
+        mfaPage({ token, next: nextUrl, mode: "totp", error: errCopy }),
+      );
+    }
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { totpLastUsedAt: result.periodStart },
+    });
+  }
+
+  // Second factor accepted — issue the real session.
+  const session = await lucia.createSession(user.id, {});
+  res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
+  res.redirect(nextUrl || "/");
 });
 
 // Magic-link login — email a one-tap sign-in URL.

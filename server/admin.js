@@ -14,6 +14,13 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { prisma } from "../lib/db.js";
 import { lucia, verifyPassword, roleInOrg } from "../lib/auth.js";
+import {
+  buildEnrollmentArtifacts,
+  verifyTotp,
+  mintBackupCodes,
+  mintPreMfaToken,
+} from "../lib/mfa.js";
+import { makeSignedToken, verifySignedToken } from "../lib/signedToken.js";
 import { moveFromTemp, remove as removeFile } from "../lib/storage.js";
 import { googleConfigured, appleConfigured } from "../lib/oauth.js";
 import { sendBatch, mailDriver } from "../lib/mail.js";
@@ -439,6 +446,7 @@ const NAV_SECTIONS = [
       { href: "/admin/audit", label: "Audit log" },
       { href: "/admin/analytics", label: "Analytics" },
       { href: "/admin/export", label: "Export" },
+      { href: "/admin/security", label: "Security" },
     ],
   },
 ];
@@ -902,6 +910,19 @@ adminRouter.post("/login", async (req, res) => {
       })
     );
   }
+  // 2FA gate: if the user has enrolled, redirect to the apex /mfa
+  // page with a short-lived pre-MFA token. The cookie domain
+  // (COOKIE_DOMAIN=.compass.app in prod) means the eventual session
+  // issued at /mfa POST is valid back here.
+  if (user.totpEnrolledAt) {
+    const apex = process.env.APEX_DOMAIN || "compass.app";
+    const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+    const port =
+      process.env.PORT && process.env.NODE_ENV !== "production" ? `:${process.env.PORT}` : "";
+    const nextUrl = `${protocol}://${req.org.slug}.${apex}${port}/admin`;
+    const token = mintPreMfaToken({ userId: user.id, secret: process.env.AUTH_SECRET || "dev-insecure-secret" });
+    return res.redirect(`${protocol}://${apex}${port}/mfa?token=${encodeURIComponent(token)}&next=${encodeURIComponent(nextUrl)}`);
+  }
   const session = await lucia.createSession(user.id, {});
   res.appendHeader("Set-Cookie", lucia.createSessionCookie(session.id).serialize());
   res.redirect("/admin");
@@ -911,6 +932,206 @@ adminRouter.post("/logout", async (req, res) => {
   if (req.session) await lucia.invalidateSession(req.session.id);
   res.appendHeader("Set-Cookie", lucia.createBlankSessionCookie().serialize());
   res.redirect("/admin/login");
+});
+
+/* ------------------------------------------------------------------ */
+/* /admin/security — 2FA enrollment + management                       */
+/* ------------------------------------------------------------------ */
+//
+// All cookie-authed admin pages; requireLeader gates the surface.
+// The pre-MFA token mechanism on POST /login already enforces the
+// second factor at sign-in time once enrolled — these routes are
+// just the enrollment + recovery UI.
+//
+// Enrollment is two-step:
+//   GET  /admin/security                    — overview, enroll/disable buttons
+//   GET  /admin/security/mfa/setup          — generates a fresh secret,
+//                                             shows QR + 6-digit verify form
+//   POST /admin/security/mfa/setup          — validates the first code,
+//                                             persists secret + 10 backup
+//                                             codes, redirects to recovery
+//                                             page
+//   GET  /admin/security/mfa/recovery       — shows the 10 backup codes
+//                                             ONCE (URL is single-use,
+//                                             driven by a server-stashed
+//                                             pending payload)
+//   POST /admin/security/mfa/disable        — clears secret + revokes
+//                                             backup codes; requires a
+//                                             current TOTP code
+//
+// To avoid storing the not-yet-confirmed secret on the User row (so a
+// half-finished enrollment can't accidentally lock anyone out), we
+// pass the candidate secret through the verify form via a signed
+// hidden field. Same trick for the backup codes between POST setup
+// and GET recovery — the codes ride in a signed token in the URL,
+// 60s TTL.
+const enrollPendingSecret = (userId, secret) =>
+  makeSignedToken({ kind: "mfa-enroll", uid: userId, sec: secret }, { secret: process.env.AUTH_SECRET || "dev-insecure-secret", ttlSeconds: 600 });
+const enrollPendingCodes = (userId, codes) =>
+  makeSignedToken({ kind: "mfa-codes", uid: userId, codes }, { secret: process.env.AUTH_SECRET || "dev-insecure-secret", ttlSeconds: 60 });
+
+adminRouter.get("/security", requireLeader, async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { totpEnrolledAt: true, _count: { select: { backupCodes: true } } },
+  });
+  const enrolled = !!user?.totpEnrolledAt;
+  const remaining = enrolled
+    ? await prisma.backupCode.count({ where: { userId: req.user.id, usedAt: null } })
+    : 0;
+  const csrf = req.csrfToken
+    ? `<input type="hidden" name="csrf" value="${escape(req.csrfToken)}">`
+    : "";
+  const body = `
+    <h1>Security</h1>
+    <p class="muted">Sign-in protections for <strong>${escape(req.user.email)}</strong>.</p>
+
+    <div class="card">
+      <h2 style="margin-top:0">Two-factor authentication ${enrolled ? `<span class="tag tag-ok">on</span>` : `<span class="tag">off</span>`}</h2>
+      ${enrolled
+        ? `<p class="muted">Enrolled ${escape(new Date(user.totpEnrolledAt).toLocaleDateString("en-US"))}. ${remaining} of 10 backup codes remaining.</p>
+           <form method="post" action="/admin/security/mfa/disable">${csrf}
+             <label>Current 6-digit code from your app
+               <input name="code" type="text" inputmode="numeric" required pattern="\\d{6}" placeholder="123456" autocomplete="one-time-code" style="max-width:160px;letter-spacing:.1em;font-variant-numeric:tabular-nums">
+             </label>
+             <button class="btn btn-danger" type="submit">Turn off 2FA</button>
+           </form>`
+        : `<p class="muted">Adds a second sign-in step using an authenticator app (Google Authenticator, Authy, 1Password, Apple Passwords).</p>
+           <p><a class="btn btn-primary" href="/admin/security/mfa/setup">Set up 2FA →</a></p>`}
+    </div>
+
+    <p class="muted small" style="margin-top:1rem">SSO accounts (Google / Apple) inherit the second factor from the identity provider — Compass doesn't need to layer its own on top.</p>
+  `;
+  res.type("html").send(layout(req, { title: "Security", body }));
+});
+
+adminRouter.get("/security/mfa/setup", requireLeader, async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { totpEnrolledAt: true, email: true },
+  });
+  if (user?.totpEnrolledAt) return res.redirect("/admin/security");
+  const { secret, qrDataUrl } = await buildEnrollmentArtifacts({ userEmail: user.email });
+  const pendingToken = enrollPendingSecret(req.user.id, secret);
+  const csrf = req.csrfToken
+    ? `<input type="hidden" name="csrf" value="${escape(req.csrfToken)}">`
+    : "";
+  const body = `
+    <p><a href="/admin/security" style="color:var(--ink-muted);text-decoration:none">← Security</a></p>
+    <h1>Set up two-factor</h1>
+    <ol class="muted" style="line-height:1.7">
+      <li>Open your authenticator app (Google Authenticator, Authy, 1Password, Apple Passwords).</li>
+      <li>Scan the QR code below — or type in the manual key if you can't scan.</li>
+      <li>Enter the 6-digit code your app shows to confirm.</li>
+    </ol>
+    <div class="card" style="text-align:center">
+      <img src="${escape(qrDataUrl)}" alt="2FA QR code" style="max-width:240px;height:auto;border:1px solid var(--line);border-radius:var(--radius-button);padding:.5rem;background:#fff">
+      <p class="muted small" style="margin-top:.75rem">Manual key (for apps that can't scan):<br>
+        <code style="font-size:.95rem;letter-spacing:.05em">${escape(secret.match(/.{1,4}/g).join(" "))}</code>
+      </p>
+    </div>
+    <form class="card" method="post" action="/admin/security/mfa/setup">
+      ${csrf}
+      <input type="hidden" name="pending" value="${escape(pendingToken)}">
+      <label>Code from your app
+        <input name="code" type="text" inputmode="numeric" required pattern="\\d{6}" placeholder="123456" autocomplete="one-time-code" autofocus style="max-width:200px;letter-spacing:.1em;font-variant-numeric:tabular-nums;font-size:1.2rem">
+      </label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Verify and enable</button>
+        <a class="btn btn-ghost" href="/admin/security">Cancel</a>
+      </div>
+    </form>`;
+  res.type("html").send(layout(req, { title: "Set up 2FA", body }));
+});
+
+adminRouter.post("/security/mfa/setup", requireLeader, async (req, res) => {
+  const claims = verifySignedToken(req.body?.pending || "", { secret: process.env.AUTH_SECRET || "dev-insecure-secret" });
+  if (!claims || claims.kind !== "mfa-enroll" || claims.uid !== req.user.id) {
+    return res.redirect("/admin/security/mfa/setup");
+  }
+  const result = verifyTotp({ secret: claims.sec, token: req.body?.code || "" });
+  if (!result.ok) {
+    return res.redirect("/admin/security/mfa/setup");
+  }
+  // Persist the secret and mark enrolled atomically with the backup
+  // codes so a partial enrollment can't lock anyone out.
+  const { codes, rows } = await mintBackupCodes({ userId: req.user.id });
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: req.user.id },
+      data: {
+        totpSecret: claims.sec,
+        totpEnrolledAt: new Date(),
+        totpLastUsedAt: result.periodStart,
+      },
+    }),
+    // Wipe any leftover codes from a previous enrollment first.
+    prisma.backupCode.deleteMany({ where: { userId: req.user.id } }),
+    prisma.backupCode.createMany({ data: rows }),
+  ]);
+  await recordAudit({
+    org: req.org, user: req.user,
+    entityType: "User", entityId: req.user.id,
+    action: "mfa-enroll",
+    summary: "Enrolled in 2FA",
+  });
+  // Hand the plaintext codes off to the recovery page via a 60s
+  // signed token so they're not in the URL on a refresh.
+  const codesToken = enrollPendingCodes(req.user.id, codes);
+  res.redirect(`/admin/security/mfa/recovery?codes=${encodeURIComponent(codesToken)}`);
+});
+
+adminRouter.get("/security/mfa/recovery", requireLeader, async (req, res) => {
+  const claims = verifySignedToken(String(req.query.codes || ""), { secret: process.env.AUTH_SECRET || "dev-insecure-secret" });
+  if (!claims || claims.kind !== "mfa-codes" || claims.uid !== req.user.id) {
+    return res.redirect("/admin/security");
+  }
+  const codes = Array.isArray(claims.codes) ? claims.codes : [];
+  const list = codes.map((c) => `<li><code>${escape(c)}</code></li>`).join("");
+  const body = `
+    <h1>Save these backup codes</h1>
+    <p class="muted">Use one of these instead of your authenticator app if you ever lose access. Each code works once. We won't show them again — print this page or save them in your password manager now.</p>
+
+    <div class="card" style="background:var(--surface-alt)">
+      <ol style="font-family:var(--font-mono,monospace);font-size:1.05rem;letter-spacing:.05em;line-height:2;list-style-position:inside;padding-left:0">
+        ${list}
+      </ol>
+    </div>
+    <div class="row" style="margin-top:1rem">
+      <button class="btn btn-ghost" type="button" onclick="window.print()">Print</button>
+      <a class="btn btn-primary" href="/admin/security">I've saved them</a>
+    </div>`;
+  res.type("html").send(layout(req, { title: "Backup codes", body }));
+});
+
+adminRouter.post("/security/mfa/disable", requireLeader, async (req, res) => {
+  const user = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { totpSecret: true, totpEnrolledAt: true, totpLastUsedAt: true },
+  });
+  if (!user?.totpEnrolledAt) return res.redirect("/admin/security");
+  const result = verifyTotp({
+    secret: user.totpSecret,
+    token: req.body?.code || "",
+    lastUsedAt: user.totpLastUsedAt,
+  });
+  if (!result.ok) {
+    return res.redirect("/admin/security");
+  }
+  await prisma.$transaction([
+    prisma.user.update({
+      where: { id: req.user.id },
+      data: { totpSecret: null, totpEnrolledAt: null, totpLastUsedAt: null },
+    }),
+    prisma.backupCode.deleteMany({ where: { userId: req.user.id } }),
+  ]);
+  await recordAudit({
+    org: req.org, user: req.user,
+    entityType: "User", entityId: req.user.id,
+    action: "mfa-disable",
+    summary: "Disabled 2FA",
+  });
+  res.redirect("/admin/security");
 });
 
 /* ------------------------------------------------------------------ */
