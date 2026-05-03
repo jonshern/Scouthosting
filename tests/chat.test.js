@@ -596,7 +596,15 @@ describe("archiveEndedEventChannels", () => {
 });
 
 describe("CHANNEL_KINDS export", () => {
-  it("includes the six kinds the schema documents", () => {
-    expect(CHANNEL_KINDS).toEqual(["patrol", "troop", "parents", "leaders", "event", "custom"]);
+  it("includes the seven kinds the schema documents", () => {
+    expect(CHANNEL_KINDS).toEqual([
+      "patrol",
+      "troop",
+      "parents",
+      "leaders",
+      "event",
+      "custom",
+      "dm",
+    ]);
   });
 });

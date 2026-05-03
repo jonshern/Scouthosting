@@ -17,7 +17,7 @@ import multer from "multer";
 import { prisma } from "../lib/db.js";
 import { moveFromTemp } from "../lib/storage.js";
 import { issueToken, verifyToken, revokeToken } from "../lib/apiToken.js";
-import { assertChannelTwoDeep } from "../lib/chat.js";
+import { assertChannelTwoDeep, findOrCreateDmChannel } from "../lib/chat.js";
 import { publishMessage, subscribe as subscribeRealtime } from "../lib/realtime.js";
 import { canPostToChannel } from "../lib/chatPermissions.js";
 import { logger } from "../lib/log.js";
@@ -98,6 +98,18 @@ function serializeChannel(c, { channelMember } = {}) {
 
 function serializeMessage(m, opts = {}) {
   const reactions = serializeReactions(m.reactions, opts.viewerUserId);
+  // Read receipts: every channel member with lastReadAt >= this
+  // message's createdAt has seen it. The author is implicitly counted
+  // as having seen their own message — we drop them from seenBy so
+  // the UI doesn't render "Seen by you and Alice" awkwardly. Clients
+  // get the user-id list and resolve display names from the channel
+  // member roster they already have.
+  let seenBy;
+  if (Array.isArray(opts.channelMembers)) {
+    seenBy = opts.channelMembers
+      .filter((cm) => cm.userId !== m.authorId && cm.lastReadAt && cm.lastReadAt >= m.createdAt)
+      .map((cm) => cm.userId);
+  }
   return {
     id: m.id,
     channelId: m.channelId,
@@ -111,6 +123,7 @@ function serializeMessage(m, opts = {}) {
       : null,
     attachment: m.deletedAt ? null : serializeAttachment(m.attachmentJson, opts.viewerUserId),
     reactions,
+    ...(seenBy ? { seenBy } : {}),
   };
 }
 
