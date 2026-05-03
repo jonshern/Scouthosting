@@ -181,6 +181,15 @@ model User {
   // have unread DMs older than 24h AND their last digest was 7+
   // days ago (or never).
   lastDmDigestSentAt DateTime?
+  // TOTP-based 2FA. totpSecret is a base32-encoded shared secret
+  // generated at enrollment; null means MFA is not set up. Stored
+  // plaintext (acceptable v1; future PR adds env-var-keyed AEAD).
+  // totpEnrolledAt fires on the first successful verify and is the
+  // canonical "MFA active" check. totpLastUsedAt is set on every
+  // successful TOTP verify and used to reject same-window replay.
+  totpSecret         String?
+  totpEnrolledAt     DateTime?
+  totpLastUsedAt     DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -204,6 +213,22 @@ model User {
   feedbackVotes      FeedbackVote[]
   feedbackComments   FeedbackComment[]
   ownedOrgs          Org[] @relation("OrgOwner")
+  backupCodes        BackupCode[]
+}
+
+// One-time-use 2FA backup codes. Generated at enrollment (10 per user),
+// shown to the user once on a "save these somewhere safe" screen, and
+// consumed on use. Codes are argon2id-hashed at rest with the same
+// params as passwords (lib/auth.js). usedAt non-null = consumed.
+model BackupCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // External identity provider linkage. One User can have multiple
