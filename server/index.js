@@ -3168,6 +3168,117 @@ app.post("/me/delete", csrfProtect, async (req, res, next) => {
   }));
 });
 
+/* ------------------------------------------------------------------ */
+/* Member-to-member direct messages (cookie-authed)                    */
+/* ------------------------------------------------------------------ */
+//
+// Counterpart to /admin/members/:id/message — any signed-in member of
+// the org can compose a DM to another member of the same org. The
+// admin path skips the role check; this one requires the recipient to
+// have a User account (otherwise there's nowhere for the message to
+// land — leads/non-account folks get email-only via the admin path).
+//
+// Posting goes through findOrCreateDmChannel + Message.create just
+// like the admin path; recipient gets push + 30-min email reminder
+// + weekly digest backstop from PR-F/H.
+
+app.get("/messages/:memberId", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect(`/login?next=/messages/${encodeURIComponent(req.params.memberId)}`);
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (!role) return res.status(403).type("text/plain").send("Members-only.");
+
+  const target = await prisma.member.findFirst({
+    where: { id: req.params.memberId, orgId: req.org.id, isYouth: false },
+    select: { id: true, firstName: true, lastName: true, email: true },
+  });
+  if (!target?.email) return res.status(404).type("text/plain").send("No such member.");
+
+  const targetUser = await prisma.user.findUnique({
+    where: { email: target.email.toLowerCase() },
+    select: { id: true },
+  });
+  if (!targetUser) {
+    return res
+      .status(404)
+      .type("text/plain")
+      .send("This member doesn't have a Compass account yet — ask a leader to invite them.");
+  }
+  if (targetUser.id === req.user.id) {
+    return res.status(400).type("text/plain").send("Can't message yourself.");
+  }
+
+  const escape = (s) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  const csrf = req.csrfToken
+    ? `<input type="hidden" name="csrf" value="${escape(req.csrfToken)}">`
+    : "";
+  res.type("html").send(`<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Message ${escape(target.firstName)} — ${escape(req.org.displayName)}</title>
+<link rel="stylesheet" href="/tokens.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:var(--font-ui);background:var(--bg);color:var(--ink);min-height:100vh;line-height:1.55}
+main{max-width:560px;margin:0 auto;padding:2rem 1rem}
+h1{font-family:var(--font-display);font-weight:400;letter-spacing:-.02em;margin-bottom:.25rem}
+.muted{color:var(--ink-muted);font-size:.92rem}
+.org-back{color:var(--ink-muted);text-decoration:none;font-size:.86rem}
+.compose{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-card);padding:1.5rem;margin-top:1.5rem}
+textarea{display:block;width:100%;min-height:140px;margin-top:.4rem;padding:.6rem .8rem;border:1.5px solid var(--line);border-radius:var(--radius-button);font:inherit;background:var(--surface);color:var(--ink);resize:vertical}
+textarea:focus{outline:2px solid var(--ink);outline-offset:1px;border-color:var(--ink)}
+.btn-primary{background:var(--ink);color:var(--bg);border:1.5px solid var(--ink);padding:.65rem 1.1rem;border-radius:var(--radius-button);font-weight:600;cursor:pointer}
+.btn-ghost{color:var(--ink-muted);text-decoration:none;margin-left:.75rem}
+</style></head><body>
+<main>
+<a class="org-back" href="/members">← Member directory</a>
+<h1>Message ${escape(target.firstName)} ${escape(target.lastName)}</h1>
+<p class="muted">They'll get a notification in Compass right away. If they don't read it within 30 minutes, we'll email them too.</p>
+<form class="compose" method="post" action="/messages/${escape(target.id)}">
+  ${csrf}
+  <label>Message<textarea name="body" required maxlength="4000" placeholder="Hi ${escape(target.firstName)} —"></textarea></label>
+  <div style="margin-top:.75rem">
+    <button class="btn-primary" type="submit">Send</button>
+    <a class="btn-ghost" href="/members">Cancel</a>
+  </div>
+</form>
+</main></body></html>`);
+});
+
+app.post("/messages/:memberId", csrfProtect, async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.status(401).type("text/plain").send("Sign in first.");
+  const role = await roleInOrg(req.user.id, req.org.id);
+  if (!role) return res.status(403).type("text/plain").send("Members-only.");
+  const target = await prisma.member.findFirst({
+    where: { id: req.params.memberId, orgId: req.org.id, isYouth: false },
+    select: { id: true, email: true },
+  });
+  if (!target?.email) return res.status(404).type("text/plain").send("No such member.");
+  const targetUser = await prisma.user.findUnique({
+    where: { email: target.email.toLowerCase() },
+    select: { id: true },
+  });
+  if (!targetUser || targetUser.id === req.user.id) {
+    return res.status(400).type("text/plain").send("Can't deliver to that member.");
+  }
+  const body = String(req.body?.body || "").trim();
+  if (!body) return res.redirect(`/messages/${target.id}`);
+  if (body.length > 4000) return res.status(413).type("text/plain").send("Message too long.");
+
+  const { findOrCreateDmChannel } = await import("../lib/chat.js");
+  const channel = await findOrCreateDmChannel(req.org.id, req.user.id, targetUser.id, {
+    prismaClient: prisma,
+  });
+  await prisma.message.create({
+    data: { channelId: channel.id, authorId: req.user.id, body },
+  });
+  // Hand the user back to /chat with the conversation focused.
+  res.redirect(`/chat?channel=${encodeURIComponent(channel.id)}`);
+});
+
 // Members-only directory. A signed-in user with any membership in this
 // org sees the roster; everyone else gets a sign-in prompt.
 app.get("/members", async (req, res, next) => {
@@ -3189,9 +3300,31 @@ app.get("/members", async (req, res, next) => {
     where: { orgId: req.org.id },
     orderBy: [{ isYouth: "desc" }, { lastName: "asc" }, { firstName: "asc" }],
   });
+
+  // "Messagable" set = adult members whose email matches a User
+  // account and who are themselves a member of this org. The
+  // directory's "Message in Compass" button appears only for these
+  // — DM channels need a User on both ends. Self-message is also
+  // hidden.
+  const memberEmails = members
+    .filter((m) => !m.isYouth && m.email && m.status !== "alumni")
+    .map((m) => m.email.toLowerCase());
+  const messagableIds = new Set();
+  if (memberEmails.length) {
+    const users = await prisma.user.findMany({
+      where: { email: { in: memberEmails }, NOT: { id: req.user.id } },
+      select: { id: true, email: true, memberships: { where: { orgId: req.org.id }, select: { id: true } } },
+    });
+    const usersByEmail = new Map(users.map((u) => [u.email, u]));
+    for (const m of members) {
+      if (m.isYouth || !m.email) continue;
+      const u = usersByEmail.get(m.email.toLowerCase());
+      if (u && u.memberships.length) messagableIds.add(m.id);
+    }
+  }
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderDirectory(req.org, members, { role }));
+    .send(renderDirectory(req.org, members, { role, messagableIds }));
 });
 
 // Parent web chat fallback. Browser client talks to /api/v1 over the
