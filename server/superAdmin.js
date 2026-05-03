@@ -122,6 +122,7 @@ label{display:block;font-size:.84rem;color:var(--ink-muted);margin-bottom:.65rem
     <a href="/__super/support" ${req.path.startsWith("/support") ? 'class="active"' : ""}>Support</a>
     <a href="/__super/refunds" ${req.path.startsWith("/refunds") ? 'class="active"' : ""}>Refunds</a>
     <a href="/__super/billing" ${req.path.startsWith("/billing") ? 'class="active"' : ""}>Billing</a>
+    <a href="/__super/errors" ${req.path.startsWith("/errors") ? 'class="active"' : ""}>Errors</a>
   </nav>
   <span class="who">${escape(u.email)}</span>
 </header>
@@ -920,4 +921,122 @@ superAdminRouter.get("/billing", requireSuperAdmin, async (req, res) => {
     </div>
     <p class="muted small">Council-tier MRR is custom-priced and excluded from this list-price total.</p>`;
   res.type("html").send(shell(req, { title: "Billing", body }));
+});
+
+/* ------------------------------------------------------------------ */
+/* Errors — in-app viewer over the ErrorLog table                      */
+/* ------------------------------------------------------------------ */
+//
+// Grouped view by `fingerprint` (sha1 of error name + first stack
+// frame). Each group shows count, first-seen, last-seen. Click into
+// a group to see individual occurrences with full stack + request
+// context. Defaults to last-7-days; pass ?range=24h or ?range=30d to
+// widen / narrow.
+
+const ERROR_RANGES = {
+  "24h": { ms: 24 * 60 * 60 * 1000, label: "Last 24 hours" },
+  "7d":  { ms: 7  * 24 * 60 * 60 * 1000, label: "Last 7 days" },
+  "30d": { ms: 30 * 24 * 60 * 60 * 1000, label: "Last 30 days" },
+};
+
+function fmtAgo(d) {
+  const diff = Date.now() - new Date(d).getTime();
+  if (diff < 60_000) return "just now";
+  if (diff < 3600_000) return Math.floor(diff / 60_000) + "m ago";
+  if (diff < 86400_000) return Math.floor(diff / 3600_000) + "h ago";
+  return Math.floor(diff / 86400_000) + "d ago";
+}
+
+superAdminRouter.get("/errors", requireSuperAdmin, async (req, res) => {
+  const rangeKey = ERROR_RANGES[req.query.range] ? req.query.range : "7d";
+  const range = ERROR_RANGES[rangeKey];
+  const since = new Date(Date.now() - range.ms);
+
+  const grouped = await prisma.errorLog.groupBy({
+    by: ["fingerprint", "errorName", "message"],
+    where: { createdAt: { gte: since } },
+    _count: { _all: true },
+    _max: { createdAt: true },
+    _min: { createdAt: true },
+    orderBy: [{ _max: { createdAt: "desc" } }],
+    take: 200,
+  });
+
+  const rangeTabs = Object.entries(ERROR_RANGES)
+    .map(([k, v]) =>
+      k === rangeKey
+        ? `<strong>${escape(v.label)}</strong>`
+        : `<a href="/__super/errors?range=${k}">${escape(v.label)}</a>`,
+    )
+    .join(" · ");
+
+  const rows = grouped.length
+    ? grouped
+        .map((g) => `
+          <tr>
+            <td>
+              <a href="/__super/errors/${escape(g.fingerprint)}"><strong>${escape(g.errorName || "Error")}</strong></a>
+              <div class="muted small">${escape((g.message || "").slice(0, 200))}</div>
+            </td>
+            <td>${g._count._all}</td>
+            <td title="${escape(new Date(g._min.createdAt).toISOString())}">${escape(fmtAgo(g._min.createdAt))}</td>
+            <td title="${escape(new Date(g._max.createdAt).toISOString())}">${escape(fmtAgo(g._max.createdAt))}</td>
+          </tr>`)
+        .join("")
+    : `<tr><td colspan="4" class="muted">No errors in the selected window. Either everything's fine or the cron retention is misbehaving.</td></tr>`;
+
+  const body = `
+    <h1>Errors</h1>
+    <p class="muted">${rangeTabs}</p>
+    <div class="card">
+      <table>
+        <thead><tr><th style="width:60%">Error</th><th>Count</th><th>First seen</th><th>Last seen</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <p class="muted small">Persisted by lib/errorTracker.js. Same events also flow to stdout in Cloud Error Reporting shape — wire OTEL_EXPORTER_OTLP_ENDPOINT or deploy to Cloud Run for an external aggregator.</p>`;
+  res.type("html").send(shell(req, { title: "Errors", body }));
+});
+
+superAdminRouter.get("/errors/:fingerprint", requireSuperAdmin, async (req, res) => {
+  const { fingerprint } = req.params;
+  const occurrences = await prisma.errorLog.findMany({
+    where: { fingerprint },
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    include: {
+      org:  { select: { slug: true, displayName: true } },
+      user: { select: { email: true, displayName: true } },
+    },
+  });
+  if (!occurrences.length) {
+    return res.status(404).type("html").send(shell(req, { title: "Error", body: "<h1>Not found</h1><p>No occurrences with that fingerprint.</p>" }));
+  }
+  const head = occurrences[0];
+  const occurrenceRows = occurrences.map((o) => `
+    <tr>
+      <td>${escape(fmtAgo(o.createdAt))}</td>
+      <td>${o.method ? `<code>${escape(o.method)} ${escape(o.path || "")}</code>` : "—"}</td>
+      <td>${o.org ? `<a href="/__super/orgs/${escape(o.orgId)}">${escape(o.org.displayName)}</a>` : "—"}</td>
+      <td>${o.user ? escape(o.user.displayName || o.user.email) : "—"}</td>
+      <td><code>${escape(o.requestId || "—")}</code></td>
+      <td><code>${escape(o.release || "—")}</code></td>
+    </tr>`).join("");
+  const body = `
+    <p><a href="/__super/errors">← All errors</a></p>
+    <h1>${escape(head.errorName || "Error")}</h1>
+    <p class="muted">${escape(head.message)}</p>
+    <p class="muted small">${occurrences.length} recent occurrence${occurrences.length === 1 ? "" : "s"} · fingerprint <code>${escape(fingerprint.slice(0, 12))}…</code></p>
+    <div class="card">
+      <h2>Stack (most recent)</h2>
+      <pre style="overflow-x:auto;font-size:.85rem;line-height:1.5;background:var(--surface-alt);padding:1rem;border-radius:8px">${escape(head.stack || "(no stack)")}</pre>
+    </div>
+    <div class="card">
+      <h2>Recent occurrences</h2>
+      <table>
+        <thead><tr><th>When</th><th>Request</th><th>Org</th><th>User</th><th>Request ID</th><th>Release</th></tr></thead>
+        <tbody>${occurrenceRows}</tbody>
+      </table>
+    </div>`;
+  res.type("html").send(shell(req, { title: head.errorName || "Error", body }));
 });

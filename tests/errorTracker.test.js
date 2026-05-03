@@ -4,7 +4,7 @@
 // (errors still log, but Error Reporting won't group them).
 
 import { describe, it, expect } from "vitest";
-import { formatErrorEvent } from "../lib/errorTracker.js";
+import { formatErrorEvent, fingerprintError } from "../lib/errorTracker.js";
 
 function fakeReq(overrides = {}) {
   return {
@@ -127,5 +127,40 @@ describe("formatErrorEvent", () => {
       if (prev != null) process.env.GIT_SHA = prev;
       else delete process.env.GIT_SHA;
     }
+  });
+});
+
+describe("fingerprintError", () => {
+  // The same exception thrown from the same line should produce the
+  // same fingerprint — that's how /__super/errors groups occurrences.
+  function thrower() {
+    throw new Error("boom");
+  }
+
+  it("is stable across throws from the same site", () => {
+    let a, b;
+    try { thrower(); } catch (e) { a = fingerprintError(e); }
+    try { thrower(); } catch (e) { b = fingerprintError(e); }
+    expect(a).toBe(b);
+  });
+
+  it("differs when the error class differs", () => {
+    expect(fingerprintError(new Error("x"))).not.toBe(fingerprintError(new TypeError("x")));
+  });
+
+  it("returns a 40-char sha1 hex", () => {
+    expect(fingerprintError(new Error("hi"))).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it("handles non-Error throws by coercing to Error", () => {
+    expect(typeof fingerprintError("string thrown")).toBe("string");
+    expect(fingerprintError("string thrown")).toMatch(/^[0-9a-f]{40}$/);
+  });
+
+  it("falls back to message when no stack frame is parseable", () => {
+    const err = new Error("no frames");
+    err.stack = "Error: no frames"; // single line, no "at " frames
+    const fp = fingerprintError(err);
+    expect(fp).toMatch(/^[0-9a-f]{40}$/);
   });
 });
