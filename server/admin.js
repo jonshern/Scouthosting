@@ -395,6 +395,7 @@ const NAV_SECTIONS = [
       { href: "/admin/training", label: "Training" },
       { href: "/admin/invites", label: "Invites" },
       { href: "/admin/subgroups", label: "Subgroups" },
+      { href: "/admin/groups", label: "Groups" },
       { href: "/admin/reports", label: "Reports" },
     ],
   },
@@ -4473,6 +4474,64 @@ async function loadSubgroupAudience(orgId, subgroup) {
   const trainingMap = buildCurrentTrainingsMap(validTrainings);
   return matchSubgroup(subgroup, members, trainingMap);
 }
+
+// Read-only "Groups" view — Channel-based replacement for the Subgroups
+// page. Lists every Channel(kind="broadcast") with its purpose, the
+// rule summary that drives auto-add, and the resolved member count.
+//
+// Coexists with /admin/subgroups during the unification migration:
+//   * PR-C0 added Channel.purpose + Channel.autoAddRules
+//   * PR-C1 backfills broadcast Channels from existing Subgroups
+//   * This page (PR-C2) makes the new shape visible
+//   * PR-C3 will repoint broadcast targeting from Subgroup to Channel
+//   * PR-C4 will drop /admin/subgroups + the Subgroup model
+adminRouter.get("/groups", requireLeader, async (req, res) => {
+  const [channels, members, trainings] = await Promise.all([
+    prisma.channel.findMany({
+      where: { orgId: req.org.id, kind: "broadcast", archivedAt: null },
+      orderBy: { name: "asc" },
+    }),
+    prisma.member.findMany({
+      where: { orgId: req.org.id },
+      select: { id: true, isYouth: true, patrol: true, skills: true, interests: true },
+    }),
+    prisma.training.findMany({
+      where: { orgId: req.org.id },
+      select: { memberId: true, courseName: true, expiresAt: true },
+    }),
+  ]);
+
+  const trainingMap = buildCurrentTrainingsMap(trainings);
+
+  const items = channels
+    .map((c) => {
+      // autoAddRules JSON has the same shape as Subgroup matching: pass
+      // it straight through matchSubgroup. When PR-C4 retires
+      // lib/subgroups.js, this call site moves to lib/channelAutoAdd.js.
+      const rules = c.autoAddRules || {};
+      const matched = matchSubgroup(rules, members, trainingMap);
+      const summary = describeSubgroup(rules);
+      return `
+      <li>
+        <div style="flex:1">
+          <h3 style="margin:0">${escape(c.name)}</h3>
+          <p class="muted small" style="margin:.1rem 0 0">${escape(summary)} · <strong>${matched.length}</strong> member${matched.length === 1 ? "" : "s"}${
+            c.purpose ? ` · ${escape(c.purpose)}` : ""
+          }</p>
+        </div>
+      </li>`;
+    })
+    .join("");
+
+  const body = `
+    <h1>Groups</h1>
+    <p class="muted">Channel-based audiences. Membership is computed from the rules — youth/adults filter, patrols, skills, interests, current trainings — and re-resolved every time a broadcast goes out.</p>
+    <p class="muted small">Coming from <a href="/admin/subgroups">Subgroups</a>? These are the same thing in a new shape. Both pages currently coexist; the old Subgroups page will go away once broadcast targeting cuts over.</p>
+
+    ${channels.length ? `<ul class="items" style="margin-top:1.5rem">${items}</ul>` : `<div class="empty" style="margin-top:1.5rem">No groups yet. Existing Subgroups can be migrated by running <code>scripts/backfill-channels-from-subgroups.js</code>.</div>`}
+  `;
+  res.type("html").send(layout(req, { title: "Groups", body }));
+});
 
 adminRouter.get("/subgroups", requireLeader, async (req, res) => {
   const groups = await prisma.subgroup.findMany({
