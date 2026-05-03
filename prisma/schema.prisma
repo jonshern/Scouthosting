@@ -1300,12 +1300,16 @@ model ApiToken {
 // Group-chat channel. Always belongs to an org. The kind drives both the
 // auto-creation rules and the YPT two-deep enforcement:
 //
-//   patrol  — youth + ≥2 YPT-current adults; one per Member.patrol
-//   troop   — every member of the org
-//   parents — parents + leaders (no youth)
-//   leaders — registered leaders only (no youth, no parents)
-//   event   — auto-archives 24h after the event ends
-//   custom  — leader-created ad-hoc thread
+//   patrol    — youth + ≥2 YPT-current adults; one per Member.patrol
+//   troop     — every member of the org
+//   parents   — parents + leaders (no youth)
+//   leaders   — registered leaders only (no youth, no parents)
+//   event     — auto-archives 24h after the event ends
+//   custom    — leader-created ad-hoc thread
+//   broadcast — Subgroup-replacement: members are computed from
+//               autoAddRules and the channel acts as a targeted
+//               distribution list rather than a chat thread (PR-C0
+//               foundation; cutover from Subgroup happens in PR-C1).
 //
 // `isSuspended` flips to true the moment the YPT guard sees fewer than
 // two current adults in a youth-containing channel. Suspended channels
@@ -1313,10 +1317,23 @@ model ApiToken {
 model Channel {
   id              String   @id @default(cuid())
   orgId           String
-  kind            String   // patrol | troop | parents | leaders | event | custom
+  kind            String   // patrol | troop | parents | leaders | event | custom | broadcast
   name            String
+  // Optional human-readable description, shown in admin and on member-
+  // facing channel pages. Replaces Subgroup.description for broadcast
+  // channels and is generally useful elsewhere too.
+  purpose         String?
   patrolName      String?  // for kind=patrol; matches Member.patrol
   eventId         String?  @unique  // for kind=event; one channel per event
+  // Rule-based membership for kind=broadcast (and any future kind that
+  // wants dynamic membership). Shape:
+  //   { patrols?: string[], skills?: string[],
+  //     interests?: string[], trainings?: string[] }
+  // The reconciler intersects all non-empty arrays — a channel with
+  // patrols=["Wolves"] AND skills=["first-aid"] only auto-adds Wolves
+  // who hold first-aid, not the union. null means "no rules; manual
+  // membership only", which matches every existing Channel.
+  autoAddRules    Json?
   // Who's allowed to post a message to this channel:
   //   "everyone" — any org member can post (broadcast-style)
   //   "members"  — only ChannelMember rows can post (default)
