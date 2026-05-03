@@ -261,6 +261,30 @@ superAdminRouter.get("/orgs", requireSuperAdmin, async (req, res) => {
 });
 
 superAdminRouter.get("/orgs/new", requireSuperAdmin, async (req, res) => {
+  // Templates dropdown: every OrgTemplate, grouped by unitType. The
+  // operator picks one explicitly so a Pack template doesn't
+  // accidentally get applied to a Troop. "Default for unit type"
+  // (empty value) keeps the existing hardcoded seed path — useful
+  // when no template fits or when testing the fallback.
+  const templates = await prisma.orgTemplate.findMany({
+    orderBy: [{ unitType: "asc" }, { isBuiltIn: "desc" }, { name: "asc" }],
+  });
+  const groupedByUnitType = templates.reduce((acc, t) => {
+    (acc[t.unitType] = acc[t.unitType] || []).push(t);
+    return acc;
+  }, {});
+  const templateOptions = Object.entries(groupedByUnitType)
+    .map(
+      ([ut, list]) =>
+        `<optgroup label="${escape(ut)}">${list
+          .map(
+            (t) =>
+              `<option value="${escape(t.id)}">${escape(t.name)}${t.isBuiltIn ? " · built-in" : ""}</option>`,
+          )
+          .join("")}</optgroup>`,
+    )
+    .join("");
+
   const body = `
     <h1>Provision a new org</h1>
     <form method="post" action="/__super/orgs/new" class="card">
@@ -277,6 +301,13 @@ superAdminRouter.get("/orgs/new", requireSuperAdmin, async (req, res) => {
         </label>
         <label style="flex:1">Unit number<input name="unitNumber" required></label>
       </div>
+      <label>Template
+        <select name="templateId">
+          <option value="">— Default for unit type (built-in) —</option>
+          ${templateOptions}
+        </select>
+        <span class="muted small">Drives the seeded broadcast groups (dens / levels). Edit templates at <a href="/__super/templates">/__super/templates</a>. Leave on "Default" to use the built-in matching the chosen unit type.</span>
+      </label>
       <label>Charter org<input name="charterOrg" required></label>
       <div class="row">
         <label style="flex:1">City<input name="city" required></label>

@@ -85,14 +85,55 @@ export function formatDisplayName(unitType, unitNumber) {
   return `${prefix} ${unitNumber}`;
 }
 
+// Translate an OrgTemplate.subgroupPresets array into the seed shape
+// buildSeedBroadcastChannels emits. Mirrors the
+// "parents-of-youth"-shaped build in lib/orgRoles.js so the
+// template path produces the same broadcast Channels as the
+// hardcoded path. Pack/Girl Scout vocab follows the template, BSA
+// patrol-style templates produce empty broadcast lists.
+function seedsFromTemplate(template) {
+  const vocab = template.vocab || {};
+  const singularCap = vocab.singular
+    ? vocab.singular[0].toUpperCase() + vocab.singular.slice(1)
+    : "Group";
+  const presets = Array.isArray(template.subgroupPresets) ? template.subgroupPresets : [];
+  // Pack + Girl Scout templates (Cub/youth audiences) get the
+  // parents-of-youth audience baked in; other templates are passive
+  // labels until the operator edits the template.
+  const youthAudience = ["Pack", "GirlScoutTroop"].includes(template.unitType);
+  return presets.map((p) => ({
+    name: `${p.label} ${singularCap}`,
+    description: youthAudience
+      ? `Parents of ${p.label}${p.grade ? ` (${p.grade})` : ""} ${vocab.singular || "group"} youth`
+      : `${p.label}${p.grade ? ` (${p.grade})` : ""} ${vocab.singular || "group"}`,
+    isYouth: youthAudience ? true : null,
+    patrols: [p.label],
+    audience: youthAudience ? "parents-of-youth" : undefined,
+  }));
+}
+
 // Persist the canonical broadcast Channels for a freshly-provisioned
-// org (one per den / patrol the unit type ships with). The seed data
-// shape ({ name, description, isYouth, patrols }) maps directly onto
-// Channel fields: name → name, description → purpose, the rest →
-// autoAddRules. Membership is dynamic at send time, so no
-// ChannelMember rows are materialized.
-async function persistSeedBroadcastChannels(org) {
-  const seeds = buildSeedBroadcastChannels(org.unitType);
+// org (one per den / patrol the unit type ships with). When a
+// templateId is supplied, the seed reads from the OrgTemplate row
+// (operator-editable via /__super/templates). Otherwise falls back
+// to the hardcoded buildSeedBroadcastChannels(unitType) so existing
+// call sites and tests keep working.
+//
+// The seed shape ({ name, description, isYouth, patrols, audience })
+// maps directly onto Channel fields: name → name, description →
+// purpose, the rest → autoAddRules. Membership is dynamic at send
+// time, so no ChannelMember rows are materialized.
+async function persistSeedBroadcastChannels(org, { templateId } = {}) {
+  let seeds;
+  if (templateId) {
+    const tmpl = await prisma.orgTemplate.findUnique({ where: { id: templateId } });
+    if (tmpl) {
+      seeds = seedsFromTemplate(tmpl);
+    }
+  }
+  if (!seeds) {
+    seeds = buildSeedBroadcastChannels(org.unitType);
+  }
   if (!seeds.length) return;
   await prisma.channel.createMany({
     data: seeds.map((s) => ({
@@ -167,7 +208,7 @@ export async function provisionOrg(input) {
     },
   });
 
-  await persistSeedBroadcastChannels(org);
+  await persistSeedBroadcastChannels(org, { templateId: input.templateId || null });
   return org;
 }
 
