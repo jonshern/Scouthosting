@@ -670,7 +670,7 @@ export function renderForms(org, forms, { user, role } = {}) {
   return pageShell(org, "Forms & documents", body);
 }
 
-export function renderDirectory(org, members, { needsSignIn, notAMember, role } = {}) {
+export function renderDirectory(org, members, { needsSignIn, notAMember, role, messagableIds } = {}) {
   if (needsSignIn) {
     const body = `
       <section class="event-list">
@@ -728,6 +728,11 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role } 
       <div>
         ${m.email ? `<a href="mailto:${escapeHtml(m.email)}">${escapeHtml(m.email)}</a><br>` : ""}
         ${m.phone ? `<span class="muted small">${escapeHtml(m.phone)}</span>` : ""}
+        ${
+          messagableIds && messagableIds.has(m.id)
+            ? `<br><a class="btn small" href="/messages/${escapeHtml(m.id)}" style="margin-top:.4rem;display:inline-block">Message in Compass</a>`
+            : ""
+        }
       </div>
     </li>`;
   const renderRow = renderMember;
