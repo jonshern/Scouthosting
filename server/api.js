@@ -15,13 +15,9 @@ import crypto from "node:crypto";
 import { Router } from "express";
 import multer from "multer";
 import { prisma } from "../lib/db.js";
-import { lucia } from "../lib/auth.js";
 import { moveFromTemp } from "../lib/storage.js";
 import { issueToken, verifyToken, revokeToken } from "../lib/apiToken.js";
-import {
-  assertChannelTwoDeep,
-  checkChannelTwoDeep,
-} from "../lib/chat.js";
+import { assertChannelTwoDeep } from "../lib/chat.js";
 import { publishMessage, subscribe as subscribeRealtime } from "../lib/realtime.js";
 import { canPostToChannel } from "../lib/chatPermissions.js";
 import { logger } from "../lib/log.js";
@@ -78,7 +74,7 @@ async function membershipFor(userId, orgId) {
   });
 }
 
-function serializeChannel(c, { membership, channelMember } = {}) {
+function serializeChannel(c, { channelMember } = {}) {
   return {
     id: c.id,
     orgId: c.orgId,
@@ -91,12 +87,10 @@ function serializeChannel(c, { membership, channelMember } = {}) {
     archivedAt: c.archivedAt,
     isLeaderOnly: c.kind === "leaders",
     canPost: !c.isSuspended && !c.archivedAt,
-    youAreModerator: membership?.role === "leader" || membership?.role === "admin",
-    // Channel-level "owner" role on ChannelMember. Distinct from
-    // youAreModerator (which is org-level admin/leader). Owner lets a
-    // user post in a channel whose postPolicy is "leaders" — e.g. a
-    // den leader posting in their den's announcements channel — and
-    // is the eventual hook for channel-management UI.
+    // Channel-level "owner" role on ChannelMember. Lets a user post
+    // in a channel whose postPolicy is "leaders" — e.g. a den leader
+    // posting in their den's announcements channel — and is the
+    // eventual hook for channel-management UI.
     youAreChannelOwner: channelMember?.role === "owner",
     updatedAt: c.updatedAt,
   };
@@ -720,7 +714,7 @@ apiRouter.get("/channels", resolveApiUser, async (req, res) => {
 
   res.json({
     channels: channels.map((c) =>
-      serializeChannel(c, { membership, channelMember: c.members?.[0] }),
+      serializeChannel(c, { channelMember: c.members?.[0] }),
     ),
   });
 });
@@ -767,7 +761,7 @@ apiRouter.get("/channels/:id", resolveApiUser, async (req, res) => {
   const serialized = messages.reverse().map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id }));
   await enrichAttachments(serialized, channel.orgId, req.apiUser.id);
   res.json({
-    channel: serializeChannel(channel, { membership, channelMember }),
+    channel: serializeChannel(channel, { channelMember }),
     messages: serialized,
     hasMore: messages.length === MESSAGE_PAGE,
   });

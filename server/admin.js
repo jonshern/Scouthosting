@@ -48,7 +48,6 @@ import {
   unsuspendChannel,
   provisionStandingChannels,
   archiveEndedEventChannels,
-  CHANNEL_KINDS,
 } from "../lib/chat.js";
 import { tallyCredits, formatCsvRow } from "../lib/credits.js";
 import { recordAudit } from "../lib/audit.js";
@@ -70,7 +69,7 @@ import {
   subgroupPresets,
   positionOptions,
 } from "../lib/orgRoles.js";
-import { SCOPES, scopesForPosition, requireScope } from "../lib/permissions.js";
+import { SCOPES, requireScope } from "../lib/permissions.js";
 import {
   rollup as rollupAnalytics,
   summarize,
