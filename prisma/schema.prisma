@@ -1090,6 +1090,46 @@ model AuditLog {
   @@index([action, createdAt])
 }
 
+// Error tracking — what `lib/errorTracker.js` writes when a request
+// throws. Each row is a single occurrence; rollup by `fingerprint`
+// (a hash of the error's name + first stack frame) so /__super/errors
+// can show "this exception, seen 47 times across the last 24h".
+//
+// orgId / userId are nullable: process-level fatal handlers (uncaught
+// exceptions, unhandled rejections) and apex requests don't have a
+// resolved org. Foreign keys SetNull on delete so deleting an org
+// doesn't cascade-clobber its error history.
+//
+// Persisted alongside the existing stdout JSON — the in-app viewer
+// at /__super/errors gives operator-grade visibility without a
+// third-party SaaS. External backends (GCP Cloud Error Reporting,
+// Grafana Cloud, Honeycomb) still ingest the stdout stream.
+model ErrorLog {
+  id          String   @id @default(cuid())
+  fingerprint String   // sha1(name + first stack frame), 40 hex chars
+  message     String
+  stack       String?
+  errorName   String?  // "TypeError", "PrismaClientKnownRequestError", ...
+  // Request context
+  method      String?
+  path        String?
+  orgId       String?
+  userId      String?
+  requestId   String?
+  ip          String?
+  // Release tracking
+  release     String?
+  environment String?
+  createdAt   DateTime @default(now())
+
+  org  Org?  @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([fingerprint, createdAt])
+  @@index([createdAt])
+  @@index([orgId, createdAt])
+}
+
 // Driver / carpool plan. Distinct from SignupSlot's generic
 // "Drivers / carpool" template — that captures *who can drive*. CarRide
 // captures *the actual ride*: vehicle, seats, departure plan, and the
