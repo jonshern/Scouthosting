@@ -761,6 +761,14 @@ apiRouter.get("/channels/:id", resolveApiUser, async (req, res) => {
     }
   }
 
+  // Pull the full member roster for this channel — needed for the
+  // seenBy receipts on each message. This is bounded by the channel's
+  // ChannelMember rows, which is small (DM = 2, patrol = a den).
+  const channelMembers = await prisma.channelMember.findMany({
+    where: { channelId: channel.id },
+    select: { userId: true, lastReadAt: true },
+  });
+
   const messages = await prisma.message.findMany({
     where: { channelId: channel.id },
     orderBy: { createdAt: "desc" },
@@ -771,12 +779,99 @@ apiRouter.get("/channels/:id", resolveApiUser, async (req, res) => {
     },
   });
 
-  const serialized = messages.reverse().map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id }));
+  // Bump the caller's lastReadAt — opening a channel marks it read.
+  // Done after the message fetch so the response reflects the pre-bump
+  // state for "seen by other people" but their own lastReadAt is up
+  // to date for the next request.
+  if (channelMember) {
+    await prisma.channelMember.update({
+      where: { id: channelMember.id },
+      data: { lastReadAt: new Date() },
+    });
+  }
+
+  const serialized = messages
+    .reverse()
+    .map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id, channelMembers }));
   await enrichAttachments(serialized, channel.orgId, req.apiUser.id);
   res.json({
     channel: serializeChannel(channel, { channelMember }),
     messages: serialized,
     hasMore: messages.length === MESSAGE_PAGE,
+  });
+});
+
+// POST /api/v1/channels/:id/read — explicit mark-read. Used by clients
+// that want to bump lastReadAt without a full channel-detail fetch
+// (e.g. push-notification tap → mark read).
+apiRouter.post("/channels/:id/read", resolveApiUser, async (req, res) => {
+  const channel = await prisma.channel.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, orgId: true },
+  });
+  if (!channel) return res.status(404).json({ error: "not_found" });
+  const membership = await membershipFor(req.apiUser.id, channel.orgId);
+  if (!membership) return res.status(404).json({ error: "not_found" });
+  const cm = await prisma.channelMember.findFirst({
+    where: { channelId: channel.id, userId: req.apiUser.id },
+    select: { id: true },
+  });
+  if (!cm) return res.status(404).json({ error: "not_a_member" });
+  await prisma.channelMember.update({
+    where: { id: cm.id },
+    data: { lastReadAt: new Date() },
+  });
+  res.json({ ok: true });
+});
+
+// POST /api/v1/dm/:targetUserId — send a DM. Finds or creates the DM
+// channel between the caller and the target, then inserts a Message.
+// Both parties must be members of the same org.
+apiRouter.post("/dm/:targetUserId", resolveApiUser, async (req, res) => {
+  const targetUserId = req.params.targetUserId;
+  if (targetUserId === req.apiUser.id) {
+    return res.status(400).json({ error: "cannot_dm_self" });
+  }
+  const body = String(req.body?.body || "").trim();
+  if (!body) return res.status(400).json({ error: "body_required" });
+  if (body.length > 4000) return res.status(413).json({ error: "body_too_long" });
+
+  // Find a shared org. Prefer the caller's currently-selected org if
+  // they sent ?orgId; otherwise pick the first org both belong to.
+  const requestedOrgId = String(req.query?.orgId || req.body?.orgId || "") || null;
+  const callerMemberships = await prisma.orgMembership.findMany({
+    where: { userId: req.apiUser.id, ...(requestedOrgId ? { orgId: requestedOrgId } : {}) },
+    select: { orgId: true },
+  });
+  if (!callerMemberships.length) return res.status(403).json({ error: "no_org" });
+  const callerOrgIds = new Set(callerMemberships.map((m) => m.orgId));
+  const targetMembership = await prisma.orgMembership.findFirst({
+    where: { userId: targetUserId, orgId: { in: [...callerOrgIds] } },
+    select: { orgId: true },
+  });
+  if (!targetMembership) return res.status(404).json({ error: "target_not_in_org" });
+
+  const channel = await findOrCreateDmChannel(
+    targetMembership.orgId,
+    req.apiUser.id,
+    targetUserId,
+    { prismaClient: prisma },
+  );
+
+  const message = await prisma.message.create({
+    data: { channelId: channel.id, authorId: req.apiUser.id, body },
+    include: {
+      author: { select: { id: true, displayName: true } },
+      reactions: { select: { emoji: true, userId: true } },
+    },
+  });
+
+  // Realtime fan-out so the recipient's open clients see it instantly.
+  publishMessage(channel.id, message);
+
+  res.status(201).json({
+    channel: { id: channel.id, kind: channel.kind, name: channel.name, orgId: channel.orgId },
+    message: serializeMessage(message, { viewerUserId: req.apiUser.id }),
   });
 });
 
