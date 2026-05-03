@@ -76,6 +76,7 @@ import { verifyTrackingToken } from "../lib/trackingToken.js";
 import { verifyUnsubToken } from "../lib/unsubToken.js";
 import { makeSignedToken, verifySignedToken } from "../lib/signedToken.js";
 import { send as sendMail } from "../lib/mail.js";
+import { recordAudit } from "../lib/audit.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -2643,9 +2644,226 @@ input:focus,select:focus{outline:2px solid #0f172a;outline-offset:1px}
 <p class="muted">Signed in as ${escapeAttr(user.displayName || user.email)}${role && role !== "parent" ? ` · <strong>${escapeAttr(role)}</strong>` : ""}.</p>
 ${flash}
 ${linked}
+<section style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.5rem;margin-top:1.5rem">
+  <h2 style="margin-top:0">Your data</h2>
+  <p style="color:#64748b;font-size:.92rem">Download a JSON copy of the data linked to your account, or delete the account entirely.</p>
+  <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-top:1rem">
+    <a href="/me/export.json" style="background:#fff;color:#0f172a;border:1.5px solid #0f172a;padding:.6rem 1.1rem;border-radius:8px;font-weight:600;text-decoration:none;font-size:.92rem">Download my data</a>
+    <a href="/me/delete" style="background:#fff;color:#7d2614;border:1.5px solid #f0bcb1;padding:.6rem 1.1rem;border-radius:8px;font-weight:600;text-decoration:none;font-size:.92rem">Delete my account</a>
+  </div>
+</section>
 <p class="muted" style="margin-top:1.5rem">For everything else (medical info, family link-ups, position changes), ask your unit leader.</p>
 </main></body></html>`;
 }
+
+// Personal data export. JSON dump of every row keyed to req.user across
+// every org they belong to — counterpart to the org-level export at
+// /admin/export.json. Excludes credentials (passwordHash, oauth tokens,
+// API tokens, push device tokens, sessions) since those are secrets,
+// not data the user needs back.
+app.get("/me/export.json", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect("/login?next=/me");
+  const userId = req.user.id;
+
+  const [
+    user, memberships, members,
+    posts, announcements, comments, newsletters, photos,
+    rsvps, slotAssignments,
+    postReactions, reactions, channelMemberships, messages,
+    feedbackRequests, feedbackVotes, feedbackComments,
+    auditLogs,
+  ] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true, email: true, displayName: true,
+        emailVerified: true, createdAt: true, updatedAt: true,
+      },
+    }),
+    prisma.orgMembership.findMany({ where: { userId } }),
+    prisma.member.findMany({ where: { email: req.user.email.toLowerCase() } }),
+    prisma.post.findMany({ where: { authorId: userId } }),
+    prisma.announcement.findMany({ where: { authorId: userId } }),
+    prisma.comment.findMany({ where: { authorId: userId } }),
+    prisma.newsletter.findMany({ where: { authorId: userId } }),
+    prisma.photo.findMany({ where: { uploaderUserId: userId } }),
+    prisma.rsvp.findMany({ where: { userId } }),
+    prisma.slotAssignment.findMany({ where: { userId } }),
+    prisma.postReaction.findMany({ where: { userId } }),
+    prisma.reaction.findMany({ where: { userId } }),
+    prisma.channelMember.findMany({ where: { userId } }),
+    prisma.message.findMany({ where: { authorId: userId } }),
+    prisma.feedbackRequest.findMany({ where: { userId } }),
+    prisma.feedbackVote.findMany({ where: { userId } }),
+    prisma.feedbackComment.findMany({ where: { userId } }),
+    prisma.auditLog.findMany({ where: { userId } }),
+  ]);
+
+  await recordAudit({
+    org: req.org, user: req.user,
+    entityType: "User", entityId: userId,
+    action: "self-export",
+    summary: "Downloaded personal data export",
+  });
+
+  const dump = {
+    schema: "compass-personal/v1",
+    exportedAt: new Date().toISOString(),
+    user, memberships, members,
+    posts, announcements, comments, newsletters, photos,
+    rsvps, slotAssignments,
+    postReactions, reactions, channelMemberships, messages,
+    feedbackRequests, feedbackVotes, feedbackComments,
+    auditLogs,
+  };
+
+  const filename = `compass-my-data-${new Date().toISOString().slice(0, 10)}.json`;
+  res
+    .type("application/json")
+    .set("Content-Disposition", `attachment; filename="${filename}"`)
+    .send(JSON.stringify(dump, null, 2));
+});
+
+// Returns the orgs where the user is the *only* admin. Deletion is
+// blocked while any of these exist — otherwise the org becomes orphaned
+// with no one able to manage settings, billing, or membership.
+async function soleAdminOrgs(userId) {
+  const memberships = await prisma.orgMembership.findMany({
+    where: { userId, role: "admin" },
+    select: { orgId: true, org: { select: { displayName: true, slug: true } } },
+  });
+  const blockers = [];
+  for (const m of memberships) {
+    const others = await prisma.orgMembership.count({
+      where: { orgId: m.orgId, role: "admin", userId: { not: userId } },
+    });
+    if (others === 0) blockers.push(m.org);
+  }
+  return blockers;
+}
+
+function renderDeletePage(org, user, csrfToken, { blockers = [], error = null } = {}) {
+  const escapeAttr = (s) =>
+    String(s ?? "").replace(/[&<>"']/g, (c) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+    }[c]));
+  const blockerHtml = blockers.length
+    ? `<div style="background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:1rem 1.2rem;border-radius:8px;margin:1rem 0">
+        <strong>You can't delete this account yet.</strong>
+        <p style="margin:.4rem 0 0">You're the only admin on:</p>
+        <ul style="margin:.4rem 0 0 1.2rem">${blockers.map((o) => `<li>${escapeAttr(o.displayName)}</li>`).join("")}</ul>
+        <p style="margin:.6rem 0 0">Add another admin (or transfer ownership) before deleting your account.</p>
+      </div>`
+    : "";
+  const errHtml = error
+    ? `<div style="background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614;padding:.65rem 1rem;border-radius:8px;margin:1rem 0">${escapeAttr(error)}</div>`
+    : "";
+  const formHtml = blockers.length
+    ? ""
+    : `<form method="post" action="/me/delete" style="margin-top:1rem">
+        ${csrfToken ? `<input type="hidden" name="csrf" value="${escapeAttr(csrfToken)}">` : ""}
+        <label style="display:block;margin-bottom:1rem">Type <code>delete</code> to confirm
+          <input name="confirm" type="text" autocomplete="off" required style="display:block;width:100%;margin-top:.3rem;padding:.6rem .8rem;border:1.5px solid #e2e8f0;border-radius:8px">
+        </label>
+        <button type="submit" style="background:#7d2614;color:#fff;border:1.5px solid #7d2614;padding:.65rem 1.1rem;border-radius:8px;font-weight:600;cursor:pointer">Delete my account</button>
+        <a href="/me" style="margin-left:.75rem;color:#64748b;text-decoration:none">Cancel</a>
+      </form>`;
+  return `<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Delete account — ${escapeAttr(org.displayName)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700&family=Newsreader:ital,wght@0,400;0,500;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+body{margin:0;font-family:"Inter Tight",sans-serif;background:#f7f8fa;color:#0f172a;min-height:100vh}
+main{max-width:560px;margin:0 auto;padding:2rem 1rem}
+h1{font-family:"Newsreader",serif;font-weight:400;letter-spacing:-.02em;margin-bottom:.25rem}
+.muted{color:#64748b;font-size:.92rem}
+input:focus{outline:2px solid #0f172a;outline-offset:1px}
+code{background:#eef1f5;padding:0 .25rem;border-radius:3px}
+</style></head><body>
+<main>
+<a href="/me" style="color:#64748b;text-decoration:none;font-size:.86rem">← Back to settings</a>
+<h1>Delete account</h1>
+<p class="muted">Signed in as ${escapeAttr(user.displayName || user.email)}.</p>
+<section style="background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:1.5rem;margin-top:1.5rem">
+  <p><strong>What gets deleted:</strong> your login, your active sessions, your reactions and RSVPs, your linked sign-in providers, your push devices.</p>
+  <p><strong>What stays:</strong> posts and comments you wrote (attributed to a former member), photos you uploaded, and your directory entry on each unit's roster — a leader can remove the directory entry separately if you want.</p>
+  <p class="muted">This action can't be undone.</p>
+  ${errHtml}
+  ${blockerHtml}
+  ${formHtml}
+</section>
+</main></body></html>`;
+}
+
+app.get("/me/delete", async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect("/login?next=/me");
+  const blockers = await soleAdminOrgs(req.user.id);
+  res.type("html").send(renderDeletePage(req.org, req.user, req.csrfToken, { blockers }));
+});
+
+app.post("/me/delete", csrfProtect, async (req, res, next) => {
+  if (!req.org) return next();
+  if (!req.user) return res.redirect("/login?next=/me");
+
+  // Super-admins can lock the platform out of itself if they self-
+  // delete via this UI; force them through the super-admin console.
+  const u = await prisma.user.findUnique({
+    where: { id: req.user.id },
+    select: { isSuperAdmin: true },
+  });
+  if (u?.isSuperAdmin) {
+    return res.status(400).type("html").send(
+      renderDeletePage(req.org, req.user, req.csrfToken, {
+        error: "Super-admin accounts must be deleted from the super-admin console.",
+      })
+    );
+  }
+
+  const confirm = String(req.body?.confirm || "").trim().toLowerCase();
+  if (confirm !== "delete") {
+    return res.status(400).type("html").send(
+      renderDeletePage(req.org, req.user, req.csrfToken, {
+        error: 'Type "delete" exactly to confirm.',
+      })
+    );
+  }
+
+  const blockers = await soleAdminOrgs(req.user.id);
+  if (blockers.length) {
+    return res.status(400).type("html").send(
+      renderDeletePage(req.org, req.user, req.csrfToken, { blockers })
+    );
+  }
+
+  // Capture for the audit row before the User row vanishes.
+  const userInfo = { id: req.user.id, email: req.user.email, displayName: req.user.displayName };
+
+  // Cascade rules in the schema clean up sessions, memberships,
+  // oauthAccounts, apiTokens, pushDevices, postReactions, reactions,
+  // channelMemberships, feedbackVotes. Authored content (posts,
+  // comments, photos, etc.) is set-null so the content survives but
+  // the byline becomes anonymous.
+  await prisma.user.delete({ where: { id: userInfo.id } });
+
+  await recordAudit({
+    org: req.org,
+    user: null,
+    entityType: "User",
+    entityId: userInfo.id,
+    action: "self-delete",
+    summary: `Account deleted by user (${userInfo.email})`,
+  });
+
+  res.appendHeader("Set-Cookie", lucia.createBlankSessionCookie().serialize());
+  res.type("html").send(authPage(req.org, {
+    title: "Account deleted",
+    message: "Your account has been deleted. Posts and comments you wrote stay on the unit's site, attributed to a former member.",
+    ok: "Done.",
+  }));
+});
 
 // Members-only directory. A signed-in user with any membership in this
 // org sees the roster; everyone else gets a sign-in prompt.
