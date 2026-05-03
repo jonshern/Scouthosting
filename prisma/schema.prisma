@@ -175,6 +175,12 @@ model User {
   // console at /__super on the apex. Set manually in the DB or via the
   // CLI; never granted from any HTTP form.
   isSuperAdmin Boolean  @default(false)
+  // Last time the weekly DM digest was sent to this user. Set by the
+  // dmDigestCron sweep; null means never digested. Drives the 7-day
+  // cadence: a user is eligible for a fresh digest only when they
+  // have unread DMs older than 24h AND their last digest was 7+
+  // days ago (or never).
+  lastDmDigestSentAt DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

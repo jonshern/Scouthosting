@@ -3800,6 +3800,7 @@ export { app };
 import { fileURLToPath as _fu } from "node:url";
 import { startCronLoop } from "../lib/newsletterCron.js";
 import { startDmReminderLoop } from "../lib/dmReminderCron.js";
+import { startDmDigestLoop } from "../lib/dmDigestCron.js";
 const _isMain = process.argv[1] && path.resolve(process.argv[1]) === _fu(import.meta.url);
 if (_isMain) {
   const PORT = process.env.PORT || 3000;
@@ -3816,6 +3817,9 @@ if (_isMain) {
     // gate. Sends at most one email per Message, 30 minutes after the
     // recipient hasn't read it.
     startDmReminderLoop({ prismaClient: prisma, sendMail });
+    // Weekly DM digest — long-tail catch-up for users with unread
+    // messages older than 24h. 7 days between digests per user.
+    startDmDigestLoop({ prismaClient: prisma, sendMail });
   });
 }
 
