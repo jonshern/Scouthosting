@@ -1494,6 +1494,17 @@ model SupportTicket {
   resolvedAt     DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
+  // Bug-report attachment captured by the in-page support widget when
+  // the user picks the "bug" category. The widget runs html2canvas
+  // against the current viewport, uploads the PNG to /uploads via the
+  // standard storage driver, and records the filename + the page that
+  // was screenshotted here. operator views the image inline on
+  // /__super/support/:id alongside the body.
+  screenshotFilename String?
+  screenshotMimeType String?
+  viewportPath       String?  // pathname the user was on when they hit "report bug"
+  viewportWidth      Int?
+  viewportHeight     Int?
 
   org Org? @relation(fields: [orgId], references: [id], onDelete: SetNull)
 

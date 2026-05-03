@@ -23,6 +23,7 @@ import {
   mergeUpdate,
 } from "../lib/featureFlags.js";
 import { recordAudit } from "../lib/audit.js";
+import * as storage from "../lib/storage.js";
 import {
   summarize,
   topPaths,
@@ -745,12 +746,22 @@ superAdminRouter.get("/support/:id", requireSuperAdmin, async (req, res) => {
     include: { org: { select: { id: true, slug: true, displayName: true } } },
   });
   if (!ticket) return res.status(404).type("text/plain").send("Not found");
+  const screenshotBlock = ticket.screenshotFilename
+    ? `<div class="card">
+        <h2 style="margin-top:0">Screenshot</h2>
+        ${ticket.viewportPath ? `<p class="muted small">Captured on <code>${escape(ticket.viewportPath)}</code>${ticket.viewportWidth ? ` · ${ticket.viewportWidth}×${ticket.viewportHeight}` : ""}</p>` : ""}
+        <a href="/__super/support/${escape(ticket.id)}/screenshot" target="_blank" rel="noopener">
+          <img src="/__super/support/${escape(ticket.id)}/screenshot" alt="Bug report screenshot" style="max-width:100%;border:1px solid var(--line);border-radius:8px">
+        </a>
+      </div>`
+    : "";
   const body = `
     <a href="/__super/support" style="color:var(--ink-muted);text-decoration:none">← Support</a>
     <h1>${escape(ticket.subject)}</h1>
     <p class="muted">From <strong>${escape(ticket.fromEmail)}</strong>${ticket.fromName ? ` (${escape(ticket.fromName)})` : ""} · ${escape(ticket.category)} · ${escape(ticket.priority)} · status <span class="tag">${escape(ticket.status)}</span></p>
     ${ticket.org ? `<p class="muted">Org: <a href="/__super/orgs/${escape(ticket.org.id)}">${escape(ticket.org.displayName)}</a></p>` : ""}
     <div class="card" style="white-space:pre-wrap;font-family:var(--font-ui);font-size:.92rem">${escape(ticket.body)}</div>
+    ${screenshotBlock}
     <form method="post" action="/__super/support/${escape(ticket.id)}/status" class="card">
       <div class="row">
         <label style="flex:1">Status
@@ -768,6 +779,20 @@ superAdminRouter.get("/support/:id", requireSuperAdmin, async (req, res) => {
       <button class="btn btn-accent" type="submit">Update ticket</button>
     </form>`;
   res.type("html").send(shell(req, { title: ticket.subject, body }));
+});
+
+// Streams the bug-report screenshot for a SupportTicket. Files are
+// stored under the ticket's org (or "_apex" for apex/marketing
+// reports) via the existing storage driver. Super-admin only.
+superAdminRouter.get("/support/:id/screenshot", requireSuperAdmin, async (req, res) => {
+  const ticket = await prisma.supportTicket.findUnique({
+    where: { id: req.params.id },
+    select: { orgId: true, screenshotFilename: true, screenshotMimeType: true },
+  });
+  if (!ticket?.screenshotFilename) return res.status(404).type("text/plain").send("No screenshot");
+  res.set("Content-Type", ticket.screenshotMimeType || "image/png");
+  res.set("Cache-Control", "private, max-age=300");
+  storage.readStream(ticket.orgId || "_apex", ticket.screenshotFilename).pipe(res);
 });
 
 superAdminRouter.post("/support/:id/status", requireSuperAdmin, async (req, res) => {
