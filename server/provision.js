@@ -101,6 +101,7 @@ async function persistSeedBroadcastChannels(org) {
       name: s.name,
       purpose: s.description ?? null,
       autoAddRules: {
+        ...(s.audience ? { audience: s.audience } : {}),
         ...(s.isYouth != null ? { isYouth: s.isYouth } : {}),
         ...(s.patrols?.length ? { patrols: s.patrols } : {}),
         ...(s.skills?.length ? { skills: s.skills } : {}),

@@ -114,6 +114,76 @@ describe("buildCurrentTrainingsMap", () => {
   });
 });
 
+describe('matchAutoAddRules — audience: "parents-of-youth"', () => {
+  // Cub Scout shape: youth Members have no email; their parents (also
+  // Members in the directory) carry the contact info and are linked
+  // back via youth.parentIds.
+  function packMembers() {
+    return [
+      // Lion cubs (no contact info)
+      m("lion-1", { isYouth: true, patrol: "Lion", parentIds: ["mom-1", "dad-1"] }),
+      m("lion-2", { isYouth: true, patrol: "Lion", parentIds: ["mom-2"] }),
+      // Tiger cub
+      m("tiger-1", { isYouth: true, patrol: "Tiger", parentIds: ["dad-3"] }),
+      // Adult parents
+      m("mom-1", { isYouth: false }),
+      m("dad-1", { isYouth: false }),
+      m("mom-2", { isYouth: false }),
+      m("dad-3", { isYouth: false }),
+      // Cubmaster — adult, no kid in the pack
+      m("cubmaster", { isYouth: false }),
+    ];
+  }
+
+  it("Lion Den broadcast resolves to the parents of Lion cubs, not the cubs", () => {
+    const matched = matchAutoAddRules(
+      { audience: "parents-of-youth", isYouth: true, patrols: ["Lion"] },
+      packMembers(),
+    );
+    expect(matched.map((x) => x.id).sort()).toEqual(["dad-1", "mom-1", "mom-2"]);
+  });
+
+  it("Tiger Den broadcast resolves to the single Tiger parent", () => {
+    const matched = matchAutoAddRules(
+      { audience: "parents-of-youth", isYouth: true, patrols: ["Tiger"] },
+      packMembers(),
+    );
+    expect(matched.map((x) => x.id)).toEqual(["dad-3"]);
+  });
+
+  it("dedupes parents who have multiple cubs in the same den", () => {
+    // Two siblings sharing both parents → broadcast should reach each
+    // parent once, not twice.
+    const members = [
+      m("a", { isYouth: true, patrol: "Wolf", parentIds: ["p1", "p2"] }),
+      m("b", { isYouth: true, patrol: "Wolf", parentIds: ["p1", "p2"] }),
+      m("p1", { isYouth: false }),
+      m("p2", { isYouth: false }),
+    ];
+    const matched = matchAutoAddRules(
+      { audience: "parents-of-youth", isYouth: true, patrols: ["Wolf"] },
+      members,
+    );
+    expect(matched.map((x) => x.id).sort()).toEqual(["p1", "p2"]);
+  });
+
+  it("returns empty when no youth match the rules (no parents to walk to)", () => {
+    const matched = matchAutoAddRules(
+      { audience: "parents-of-youth", isYouth: true, patrols: ["Bear"] },
+      packMembers(),
+    );
+    expect(matched).toEqual([]);
+  });
+
+  it('default "members" audience returns matched members directly (backward compat)', () => {
+    const members = packMembers();
+    // Without audience set, isYouth=true + patrol filter still returns
+    // the youth themselves (legacy behavior).
+    const matched = matchAutoAddRules({ isYouth: true, patrols: ["Lion"] }, members);
+    expect(matched.map((x) => x.id).sort()).toEqual(["lion-1", "lion-2"]);
+  });
+});
+
 describe("describeAutoAddRules", () => {
   it("returns 'everyone' when no filters are set", () => {
     expect(describeAutoAddRules({})).toBe("everyone");
@@ -136,5 +206,15 @@ describe("describeAutoAddRules", () => {
         skills: ["WFA"],
       }),
     ).toBe("youth · patrol: Wolves / Tigers · skill: WFA");
+  });
+
+  it('wraps with "parents of (...)" when audience is "parents-of-youth"', () => {
+    expect(
+      describeAutoAddRules({
+        audience: "parents-of-youth",
+        isYouth: true,
+        patrols: ["Lion"],
+      }),
+    ).toBe("parents of (youth · patrol: Lion)");
   });
 });
