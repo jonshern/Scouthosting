@@ -77,6 +77,16 @@ Node's built-in `fetch` (undici) treats `Host` as a forbidden header and silentl
 
 `make staging-seed` doesn't currently auto-wake; if it errors, curl `/healthz` and retry.
 
+### Error tracking is backend-agnostic
+
+`lib/errorTracker.js` emits structured JSON to stdout when a request throws. Every line carries a Cloud Error Reporting `@type` field, so:
+
+- **GCP Cloud Run + Cloud Logging** auto-extracts errors into Cloud Error Reporting at zero config — just deploy.
+- **Grafana Cloud / Honeycomb / Datadog** ingest via the existing OTel exporter (`lib/otel.js`). Set `OTEL_EXPORTER_OTLP_ENDPOINT` (and headers if needed) and errors flow there alongside traces.
+- **Local dev** prints pretty lines to stderr; same payload shape, no backend required.
+
+PII is scrubbed at the source: `Authorization` / `Cookie` / `Set-Cookie` / `X-API-Key` headers, the entire body on auth routes (`/login`, `/forgot`, `/signup`, `/reset`, `/auth/*`, `/admin/login`), and `password` / `csrf` / `token` keys in any body. Errors carry `release` (`GIT_SHA` env var, set by the Dockerfile/CI) so each deploy is identifiable. Process-level `uncaughtException` + `unhandledRejection` handlers are installed at boot — they log and exit so the supervisor restarts a corrupted process.
+
 ### 9. Photos / uploads on Fly are ephemeral
 
 The Fly app runs without a persistent volume. `/app/var/uploads/*` survives until the next restart, then it's gone. Photo metadata in Postgres outlives the bytes — leading to 404s on `/uploads/<filename>` for anything older than the last redeploy. For staging this is fine (re-seed); for production we need either a Fly volume or object storage (Tigris / S3 / GCS).

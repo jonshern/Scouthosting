@@ -4116,6 +4116,17 @@ app.use((req, res) => {
   res.status(404).send("Not found");
 });
 
+/* ------------------ Error handler (last) -------------------------- */
+//
+// Catches anything thrown by upstream middleware/routes. Backend-
+// agnostic — emits structured JSON via lib/log.js with a Cloud Error
+// Reporting-compatible @type field. Configure your aggregator of
+// choice (GCP Cloud Logging, Grafana Cloud, Honeycomb, …) to ingest
+// stdout; errors auto-group with stack + request context.
+import { expressErrorHandler, installFatalHandlers } from "../lib/errorTracker.js";
+app.use(expressErrorHandler({ service: "compass" }));
+installFatalHandlers({ service: "compass" });
+
 function orgNotFoundPage(slug) {
   const apex = process.env.APEX_DOMAIN || "compass.app";
   return `<!doctype html><meta charset="utf-8"><title>Site not found</title>
