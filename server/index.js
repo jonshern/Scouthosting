@@ -628,13 +628,46 @@ textarea{min-height:8rem;font-family:var(--font-ui)}
 </main></body></html>`);
 });
 
-app.post("/help", async (req, res) => {
+// Multer for the screenshot attachment on bug-category support
+// tickets. Single PNG, ≤4 MB (a full-viewport screenshot at 2x DPR
+// runs ~1-2 MB; 4 MB leaves headroom). Other categories don't ship
+// a file; multer's any() tolerates that.
+const supportUpload = multer({
+  dest: process.env.UPLOAD_TMP || "/tmp/compass-uploads",
+  limits: { fileSize: 4 * 1024 * 1024, files: 1 },
+});
+
+app.post("/help", supportUpload.single("screenshot"), async (req, res) => {
   const email = String(req.body?.email || "").trim().toLowerCase();
   const subject = String(req.body?.subject || "").trim();
   const body = String(req.body?.body || "").trim();
   if (!email || !subject || !body) {
     return res.status(400).type("text/plain").send("email, subject, and message are required");
   }
+  // Persist the screenshot if one came through. Saved to org-scoped
+  // storage when we have an org; apex tickets share the marketing
+  // bucket. Best-effort — a storage failure shouldn't block the
+  // ticket itself; we just drop the screenshot.
+  let screenshotFilename = null;
+  let screenshotMimeType = null;
+  if (req.file && req.body?.category === "bug") {
+    try {
+      const fs = await import("node:fs/promises");
+      const buf = await fs.readFile(req.file.path);
+      const ext = req.file.mimetype === "image/png" ? "png" : req.file.mimetype === "image/jpeg" ? "jpg" : null;
+      if (ext) {
+        screenshotFilename = `support-${Date.now()}-${crypto.randomBytes(6).toString("hex")}.${ext}`;
+        await storage.save(req.org?.id || "_apex", screenshotFilename, buf);
+        screenshotMimeType = req.file.mimetype;
+      }
+      await fs.unlink(req.file.path).catch(() => {});
+    } catch (err) {
+      log.warn("support screenshot persist failed", { err: err && err.message });
+    }
+  }
+  const viewportPath = String(req.body?._path || "").slice(0, 500) || null;
+  const viewportWidth = Number(req.body?.viewportWidth) || null;
+  const viewportHeight = Number(req.body?.viewportHeight) || null;
   const ticket = await prisma.supportTicket.create({
     data: {
       orgId: req.org?.id || null,
@@ -645,6 +678,11 @@ app.post("/help", async (req, res) => {
       subject: subject.slice(0, 200),
       body: body.slice(0, 5000),
       priority: req.body?.category === "abuse" ? "urgent" : "normal",
+      screenshotFilename,
+      screenshotMimeType,
+      viewportPath,
+      viewportWidth: Number.isFinite(viewportWidth) ? viewportWidth : null,
+      viewportHeight: Number.isFinite(viewportHeight) ? viewportHeight : null,
     },
   });
   log.info("support ticket filed", { id: ticket.id, orgSlug: req.org?.slug, category: ticket.category });
