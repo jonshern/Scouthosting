@@ -36,7 +36,15 @@ If you're adding a new top-level static asset, edit the COPY block. If a CI chec
 
 Demo accounts available (all password `compassdemo123`):
 - `parent@example.invalid` — non-admin in troop100 + pack100. Works everywhere (parents aren't gated).
-- `super@`, `scoutmaster@`, `cubmaster@`, `troop-leader@` — admins. Work locally; work on staging only because `ALLOW_ADMIN_PASSWORD_LOGIN=1` is set there.
+- `super@`, `scoutmaster@`, `cubmaster@` (Marcus Whitfield), `troop-leader@` — admins. Work locally; work on staging only because `ALLOW_ADMIN_PASSWORD_LOGIN=1` is set there.
+
+The demo **Pack 100** has a fully populated roster you can sign in as for end-to-end testing of the parent-of-youth flow:
+- `pack-committee@example.invalid` — Committee Chair (Elena Rodriguez), `role=leader`
+- `pack-treasurer@example.invalid` — Treasurer (Priya Patel), `role=leader`
+- `den-leader-lion@example.invalid` through `den-leader-arrowoflight@example.invalid` — six Den Leaders, each with `Member.patrol` set to their den so the parents-of-youth audience picks them up
+- 49 parent logins, format `<firstname>.<surname>@example.invalid` (e.g. `sarah.pemberton@example.invalid` is Atlas Pemberton's mom in the Lion Den). All are `role=parent`. See `prisma/seed.js#CUB_DEMO` for the full list of cubs and their parents.
+
+All Pack accounts use the same `compassdemo123` password. **None of these `@example.invalid` addresses route real email** — for newsletter / broadcast end-to-end testing, you'll want a separate seed pass with real test inboxes.
 
 ### 3. Multi-tenancy = Host header, except for the API
 

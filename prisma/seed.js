@@ -628,7 +628,7 @@ const PACK_DEMO = {
   meetingDay: "Wednesdays",
   meetingTime: "6:30 PM",
   meetingLocation: "Example Charter Organization, Anytown USA",
-  scoutmasterName: "Demo Cubmaster",
+  scoutmasterName: "Marcus Whitfield",
   scoutmasterEmail: "cubmaster@example.invalid",
   committeeChairEmail: "pack-committee@example.invalid",
   primaryColor: "#0f172a",
@@ -710,35 +710,107 @@ async function seedPackSubgroups(orgId) {
   console.log(`✓ Pack dens (${seeds.length})`);
 }
 
+// Adult leadership for the demo Pack. Realistic-ish names so the
+// roster reads as a real unit. role drives OrgMembership; isAdmin
+// drives whether they get role="admin" + Org.ownerId for the
+// Cubmaster.
+const PACK_LEADERSHIP = [
+  {
+    firstName: "Marcus", lastName: "Whitfield",
+    email: "cubmaster@example.invalid", phone: "555-0200",
+    position: "Cubmaster", role: "admin", isOwner: true,
+  },
+  {
+    firstName: "Elena",  lastName: "Rodriguez",
+    email: "pack-committee@example.invalid", phone: "555-0201",
+    position: "Committee Chair", role: "leader",
+  },
+  {
+    firstName: "Priya",  lastName: "Patel",
+    email: "pack-treasurer@example.invalid",
+    position: "Treasurer", role: "leader",
+  },
+];
+
+// One Den Leader per den. patrol = den label so the parents-of-youth
+// audience picks them up + den channels auto-include them.
+const PACK_DEN_LEADERS = [
+  { firstName: "Theodore", lastName: "Ashby",     den: "Lion" },
+  { firstName: "Naomi",    lastName: "Brennan",   den: "Tiger" },
+  { firstName: "Reese",    lastName: "Caldwell",  den: "Wolf" },
+  { firstName: "Idris",    lastName: "Donnelly",  den: "Bear" },
+  { firstName: "Joanna",   lastName: "Eberhardt", den: "Webelos" },
+  { firstName: "Solomon",  lastName: "Fairchild", den: "Arrow of Light" },
+];
+
 async function seedPackMembers(orgId) {
-  const adults = [
-    { firstName: "Demo", lastName: "Cubmaster", email: "demo-cubmaster@example.invalid", phone: "555-0200", position: "Cubmaster", isYouth: false, commPreference: "both", smsOptIn: true },
-    { firstName: "Demo", lastName: "Pack Committee Chair", email: "demo-pack-cc@example.invalid", position: "Committee Chair", isYouth: false, commPreference: "email" },
-    { firstName: "Demo", lastName: "Pack Treasurer", email: "demo-pack-treasurer@example.invalid", position: "Treasurer", isYouth: false, commPreference: "email" },
-  ];
-  for (const den of PACK_DENS) {
-    adults.push({
-      firstName: "Demo",
-      lastName: `${den.label} Den Leader`,
-      email: `demo-${den.label.toLowerCase().replace(/\s+/g, "")}-leader@example.invalid`,
-      position: "Den Leader",
-      patrol: den.label,
-      isYouth: false,
-      commPreference: "both",
-      smsOptIn: true,
+  const passwordHash = await hashPassword(DEMO_PASSWORD);
+
+  // Helper: upsert a Member + matching User + OrgMembership in one
+  // shot. Used for every adult so the demo Pack ships with working
+  // logins for every leader and parent. Idempotent — re-runs upsert
+  // both rows and align the OrgMembership role.
+  async function upsertAdultWithLogin({ firstName, lastName, email, phone, position, patrol, role, isOwner, commPreference = "email", smsOptIn = false }) {
+    const lower = email.toLowerCase();
+    const member = await findOrCreate(
+      "member",
+      { orgId, firstName, lastName },
+      {
+        orgId, firstName, lastName, email: lower, phone: phone || null,
+        position: position || null, patrol: patrol || null,
+        isYouth: false, commPreference, smsOptIn,
+      },
+    );
+    const user = await prisma.user.upsert({
+      where: { email: lower },
+      update: { displayName: `${firstName} ${lastName}`, passwordHash, emailVerified: true },
+      create: { email: lower, displayName: `${firstName} ${lastName}`, passwordHash, emailVerified: true },
     });
-  }
-  for (const m of adults) {
-    await findOrCreate("member", { orgId, firstName: m.firstName, lastName: m.lastName }, { orgId, ...m });
+    await prisma.orgMembership.upsert({
+      where: { userId_orgId: { userId: user.id, orgId } },
+      update: { role },
+      create: { userId: user.id, orgId, role },
+    });
+    if (isOwner) {
+      // Cubmaster owns the Pack — Org.ownerId from PR-A's workspace
+      // model. Set unconditionally on each seed run so the demo always
+      // reflects the latest Cubmaster.
+      await prisma.org.update({
+        where: { id: orgId },
+        data: { ownerId: user.id },
+      });
+    }
+    return { member, user };
   }
 
-  // Each row in CUB_DEMO becomes one youth Member + 1-2 parent Members.
+  let adultCount = 0;
+  for (const a of PACK_LEADERSHIP) {
+    await upsertAdultWithLogin({ ...a, commPreference: "both", smsOptIn: !!a.phone });
+    adultCount++;
+  }
+  for (const dl of PACK_DEN_LEADERS) {
+    await upsertAdultWithLogin({
+      firstName: dl.firstName, lastName: dl.lastName,
+      email: `den-leader-${dl.den.toLowerCase().replace(/\s+/g, "")}@example.invalid`,
+      position: "Den Leader",
+      patrol: dl.den,
+      role: "leader",
+      commPreference: "both", smsOptIn: false,
+    });
+    adultCount++;
+  }
+
+  // Each row in CUB_DEMO becomes one youth Member + 1-2 parent
+  // Members. Parents also get User + OrgMembership(parent) so they
+  // can sign in to the demo and exercise the parent-facing flows.
   // Cubs carry NO email/phone — Pack youth aren't directly contactable;
   // their channel is their parents (linked via Member.parentIds).
   const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "");
+  let parentLogins = 0;
   for (const cub of CUB_DEMO) {
     const parentMembers = [];
     for (const [parentFirst] of cub.parents) {
+      const parentEmail = `${slug(parentFirst)}.${slug(cub.last)}@example.invalid`;
       const parent = await findOrCreate(
         "member",
         { orgId, firstName: parentFirst, lastName: cub.last },
@@ -746,12 +818,34 @@ async function seedPackMembers(orgId) {
           orgId,
           firstName: parentFirst,
           lastName: cub.last,
-          email: `${slug(parentFirst)}.${slug(cub.last)}@example.invalid`,
+          email: parentEmail,
           isYouth: false,
           commPreference: "email",
         },
       );
+      // Login for the parent so they can sign in and see their kid's
+      // den, exercise DM with the Den Leader, etc.
+      const user = await prisma.user.upsert({
+        where: { email: parentEmail },
+        update: {
+          displayName: `${parentFirst} ${cub.last}`,
+          passwordHash,
+          emailVerified: true,
+        },
+        create: {
+          email: parentEmail,
+          displayName: `${parentFirst} ${cub.last}`,
+          passwordHash,
+          emailVerified: true,
+        },
+      });
+      await prisma.orgMembership.upsert({
+        where: { userId_orgId: { userId: user.id, orgId } },
+        update: { role: "parent" },
+        create: { userId: user.id, orgId, role: "parent" },
+      });
       parentMembers.push(parent);
+      parentLogins++;
     }
     await findOrCreate(
       "member",
@@ -768,8 +862,9 @@ async function seedPackMembers(orgId) {
       },
     );
   }
-  const parentCount = CUB_DEMO.reduce((n, c) => n + c.parents.length, 0);
-  console.log(`✓ Pack members (${adults.length} adults + ${CUB_DEMO.length} cubs across 6 dens, ${parentCount} parent contacts)`);
+  console.log(
+    `✓ Pack members (${adultCount} adult logins + ${CUB_DEMO.length} cubs across 6 dens, ${parentLogins} parent logins) — all use password "${DEMO_PASSWORD}"`,
+  );
 
   // Sample leads — families interested in joining who haven't completed
   // council registration. Mid-funnel, varying touch counts so the
