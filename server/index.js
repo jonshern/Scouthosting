@@ -3799,6 +3799,7 @@ export { app };
 
 import { fileURLToPath as _fu } from "node:url";
 import { startCronLoop } from "../lib/newsletterCron.js";
+import { startDmReminderLoop } from "../lib/dmReminderCron.js";
 const _isMain = process.argv[1] && path.resolve(process.argv[1]) === _fu(import.meta.url);
 if (_isMain) {
   const PORT = process.env.PORT || 3000;
@@ -3811,6 +3812,10 @@ if (_isMain) {
     // Newsletter scheduler + reminder rules. No-op when CRON_DISABLED=1
     // (set on N-1 pods in a multi-pod deployment so only one fires).
     startCronLoop({ prismaClient: prisma });
+    // DM "you have a message" email-reminder sweep — same CRON_DISABLED
+    // gate. Sends at most one email per Message, 30 minutes after the
+    // recipient hasn't read it.
+    startDmReminderLoop({ prismaClient: prisma, sendMail });
   });
 }
 

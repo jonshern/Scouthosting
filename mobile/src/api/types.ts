@@ -22,6 +22,8 @@ export type ChannelDto = {
   updatedAt: string;
 };
 
+export type ChannelKindWithDm = ChannelKind | "dm";
+
 export type MessageAuthorDto = {
   id: string;
   displayName: string;

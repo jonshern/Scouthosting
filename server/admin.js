@@ -4113,6 +4113,7 @@ adminRouter.get("/members", requireLeader, async (req, res) => {
             ? `<a class="btn btn-ghost small" href="https://scoutbook.scouting.org/mobile/dashboard/Default.asp" target="_blank" rel="noopener" title="Open Scoutbook (sign in there to see ${escape(m.firstName)})">Scoutbook ↗</a>`
             : `<a class="btn btn-ghost small" href="https://scoutbook.scouting.org/" target="_blank" rel="noopener" title="Scoutbook is the official advancement system">Scoutbook ↗</a>`
         }
+        ${m.email ? `<a class="btn btn-ghost small" href="/admin/members/${escape(m.id)}/message">Message</a>` : ""}
         <a class="btn btn-ghost small" href="/admin/members/${escape(m.id)}/edit">Edit</a>
         <form class="inline" method="post" action="/admin/members/${escape(m.id)}/delete" onsubmit="return confirm('Remove this member from the directory?')">
           <button class="btn btn-danger small" type="submit">Remove</button>
@@ -4196,6 +4197,7 @@ adminRouter.get("/leads", requireLeader, async (req, res) => {
           ${m.prospectNote ? `<p class="muted small" style="margin:.3rem 0 0">${escape(m.prospectNote)}</p>` : ""}
         </div>
         <div class="row">
+          ${m.email ? `<a class="btn btn-ghost small" href="/admin/members/${escape(m.id)}/message">Message</a>` : ""}
           <form class="inline" method="post" action="/admin/leads/${escape(m.id)}/touch">${csrf}
             <button class="btn btn-ghost small" type="submit">Mark contacted</button>
           </form>
@@ -4389,6 +4391,121 @@ adminRouter.post("/members/import", requireLeader, csvUpload.single("file"), asy
     await prisma.member.createMany({ data });
   }
   res.redirect("/admin/members");
+});
+
+// Message compose for a single Member. The recipient model is:
+//   - if the Member's email maps to a User account → create/find the
+//     DM Channel and post a Message there. The recipient sees it
+//     in-app immediately; the cron will email them after 30 min if
+//     they don't read it.
+//   - if no User account (typical for a fresh lead) → email-only.
+//     We log to MailLog for the audit trail and bump
+//     Member.lastContactedAt for the leads workflow.
+//
+// Either path bumps Member.lastContactedAt + audits the action so a
+// leader has a single touch log per Member regardless of channel.
+adminRouter.get("/members/:id/message", requireLeader, async (req, res) => {
+  const member = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, firstName: true, lastName: true, email: true, status: true },
+  });
+  if (!member) return res.status(404).type("text/plain").send("Not found");
+  if (!member.email) {
+    return res
+      .status(400)
+      .type("text/plain")
+      .send("This member has no email on file — add one before sending a message.");
+  }
+  const csrf = req.csrfToken
+    ? `<input type="hidden" name="csrf" value="${escape(req.csrfToken)}">`
+    : "";
+  const backHref = member.status === "prospect" ? "/admin/leads" : "/admin/members";
+  const body = `
+    <a class="back" href="${escape(backHref)}" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Back</a>
+    <h1>Message ${escape(member.firstName)} ${escape(member.lastName)}</h1>
+    <p class="muted">Sending to <strong>${escape(member.email)}</strong>. They'll see it in Compass right away if they have an account; otherwise we email them directly. Either way the touch is logged on this member.</p>
+    <form class="card" method="post" action="/admin/members/${escape(member.id)}/message">
+      ${csrf}
+      <label>Message
+        <textarea name="body" rows="6" required maxlength="4000" placeholder="Hi ${escape(member.firstName)} — …"></textarea>
+      </label>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Send</button>
+        <a class="btn btn-ghost" href="${escape(backHref)}">Cancel</a>
+      </div>
+    </form>
+  `;
+  res.type("html").send(layout(req, { title: `Message ${member.firstName}`, body }));
+});
+
+adminRouter.post("/members/:id/message", requireLeader, async (req, res) => {
+  const member = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, firstName: true, lastName: true, email: true, status: true },
+  });
+  if (!member) return res.status(404).type("text/plain").send("Not found");
+  if (!member.email) return res.redirect("/admin/members");
+  const messageBody = String(req.body?.body || "").trim();
+  if (!messageBody) return res.redirect(`/admin/members/${member.id}/message`);
+  if (messageBody.length > 4000) return res.redirect(`/admin/members/${member.id}/message`);
+
+  // Match by email to find the recipient User. Member.email is stored
+  // as the user typed it; User.email is normalised lower-case at
+  // signup. Compare lower for the lookup.
+  const recipient = await prisma.user.findUnique({
+    where: { email: member.email.toLowerCase() },
+    select: { id: true },
+  });
+
+  let outcome;
+  if (recipient) {
+    // Real User → DM channel + Message. The cron handles the email
+    // nudge later if they don't read it.
+    const channel = await findOrCreateDmChannel(
+      req.org.id,
+      req.user.id,
+      recipient.id,
+      { prismaClient: prisma },
+    );
+    await prisma.message.create({
+      data: { channelId: channel.id, authorId: req.user.id, body: messageBody },
+    });
+    outcome = "dm";
+  } else {
+    // No User account → fall back to a one-shot email. Cron doesn't
+    // get involved; we send it immediately.
+    try {
+      await sendMail({
+        to: member.email,
+        subject: `Message from ${req.org.displayName}`,
+        text: `${messageBody}\n\n— Sent from ${req.org.displayName}`,
+      });
+      outcome = "email";
+    } catch (err) {
+      log.warn("admin direct-message email failed", { err: err && err.message, memberId: member.id });
+      outcome = "error";
+    }
+  }
+
+  if (outcome !== "error") {
+    const now = new Date();
+    await prisma.member.update({
+      where: { id: member.id },
+      data: {
+        lastContactedAt: now,
+        ...(member.status === "prospect" ? { firstContactedAt: undefined } : {}),
+      },
+    });
+    await recordAudit({
+      org: req.org, user: req.user,
+      entityType: "Member", entityId: member.id,
+      action: outcome === "dm" ? "dm-sent" : "direct-email-sent",
+      summary: `Sent message to ${member.firstName} ${member.lastName}`,
+    });
+  }
+
+  const backHref = member.status === "prospect" ? "/admin/leads" : "/admin/members";
+  res.redirect(backHref);
 });
 
 adminRouter.get("/members/:id/edit", requireLeader, async (req, res) => {
