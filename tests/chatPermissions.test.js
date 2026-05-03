@@ -103,6 +103,70 @@ describe("canPostToChannel — leaders policy (announcements)", () => {
     expect(canPostToChannel(ch, orgAdmin).ok).toBe(true);
     expect(canPostToChannel(ch, adultLeader).ok).toBe(true);
   });
+
+  it("a parent who is the channel owner passes (den leader posting in their den's announcements)", () => {
+    const denLeader = {
+      role: "parent",
+      channelMembership: { id: "cm-owner", role: "owner" },
+      member: { patrol: "Wolves" },
+    };
+    expect(canPostToChannel(ch, denLeader).ok).toBe(true);
+  });
+
+  it("a regular channel member (role=member) is still blocked from announce channels", () => {
+    const memberRoleParent = {
+      role: "parent",
+      channelMembership: { id: "cm1", role: "member" },
+      member: null,
+    };
+    expect(canPostToChannel(ch, memberRoleParent)).toEqual({
+      ok: false,
+      reason: "leaders-only",
+    });
+  });
+});
+
+describe("canPostToChannel — unit-leader scope short-circuit", () => {
+  // A parent who happens to hold the Cubmaster / Scoutmaster position
+  // posts everywhere even though their OrgMembership.role is "parent".
+  // This is the bridge between coarse role and position-based scopes.
+  const cubmaster = {
+    role: "parent",
+    scopes: new Set(["unit-leader"]),
+    channelMembership: null,
+    member: null,
+  };
+
+  it("posts in members-only channels even without ChannelMember", () => {
+    expect(canPostToChannel({ ...ACTIVE, postPolicy: "members" }, cubmaster).ok).toBe(true);
+  });
+
+  it("posts in announce channels regardless of ChannelMember.role", () => {
+    expect(canPostToChannel({ ...ACTIVE, postPolicy: "leaders" }, cubmaster).ok).toBe(true);
+  });
+
+  it("posts in section channels regardless of patrol", () => {
+    const ch = { ...ACTIVE, postPolicy: "section", patrolName: "Wolves" };
+    expect(canPostToChannel(ch, cubmaster).ok).toBe(true);
+  });
+});
+
+describe("canPostToChannel — channel-owner posting boost is scoped to leaders policy", () => {
+  // A channel owner's elevated permission only matters where regular
+  // members can't post. In a normal "members" channel, owner gives no
+  // boost — anyone in the channel can already post.
+  it("owner role doesn't bypass not-in-channel on a members policy", () => {
+    // Hypothetical: a user with channelMembership.role === "owner" but
+    // channelMembership === null is impossible (owner implies a row),
+    // so this case doesn't need a test. Verify the inverse: a
+    // channel member with role=owner posts the same as role=member
+    // in a regular channel (no surprise boost).
+    const ch = { ...ACTIVE, postPolicy: "members" };
+    const ownerMember = { role: "parent", channelMembership: { id: "cm", role: "owner" }, member: null };
+    const plainMember = { role: "parent", channelMembership: { id: "cm", role: "member" }, member: null };
+    expect(canPostToChannel(ch, ownerMember).ok).toBe(true);
+    expect(canPostToChannel(ch, plainMember).ok).toBe(true);
+  });
 });
 
 describe("normalisePostPolicy", () => {

@@ -1342,13 +1342,17 @@ model Channel {
 
 // User-to-channel join row. Auto-managed by the channel reconciler for
 // patrol / troop / parents / leaders / event channels — addedAutomatically
-// is true for those. Manual moderator additions / removals carry false so
+// is true for those. Manual owner promotions / demotions carry false so
 // the reconciler doesn't undo a leader's deliberate override.
 model ChannelMember {
   id                 String   @id @default(cuid())
   channelId          String
   userId             String
-  role               String   @default("member") // member | moderator
+  // Slack-style channel role. "owner" lets the user post into a channel
+  // set to the announce-only "leaders" policy and (eventually) manage
+  // the channel's settings. Pre-20260503010000 the value was "moderator";
+  // the migration in that timestamp folder rewrites every existing row.
+  role               String   @default("member") // member | owner
   joinedAt           DateTime @default(now())
   mutedUntil         DateTime?
   addedAutomatically Boolean  @default(true)

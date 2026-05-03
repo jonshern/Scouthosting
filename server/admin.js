@@ -9437,7 +9437,7 @@ adminRouter.get("/channels/:id", requireLeader, async (req, res) => {
             <strong>${escape(cm.user.displayName)}</strong>
             <span class="tag">${escape(role)}</span>
             ${yptBadge}
-            ${cm.role === "moderator" ? `<span class="tag">moderator</span>` : ""}
+            ${cm.role === "owner" ? `<span class="tag">owner</span>` : ""}
             ${!cm.addedAutomatically ? `<span class="tag">manual</span>` : ""}
             <div class="muted small">${escape(cm.user.email)}</div>
           </div>

@@ -78,7 +78,7 @@ async function membershipFor(userId, orgId) {
   });
 }
 
-function serializeChannel(c, { membership } = {}) {
+function serializeChannel(c, { membership, channelMember } = {}) {
   return {
     id: c.id,
     orgId: c.orgId,
@@ -92,6 +92,12 @@ function serializeChannel(c, { membership } = {}) {
     isLeaderOnly: c.kind === "leaders",
     canPost: !c.isSuspended && !c.archivedAt,
     youAreModerator: membership?.role === "leader" || membership?.role === "admin",
+    // Channel-level "owner" role on ChannelMember. Distinct from
+    // youAreModerator (which is org-level admin/leader). Owner lets a
+    // user post in a channel whose postPolicy is "leaders" — e.g. a
+    // den leader posting in their den's announcements channel — and
+    // is the eventual hook for channel-management UI.
+    youAreChannelOwner: channelMember?.role === "owner",
     updatedAt: c.updatedAt,
   };
 }
@@ -699,11 +705,23 @@ apiRouter.get("/channels", resolveApiUser, async (req, res) => {
         ...(membership.role === "leader" || membership.role === "admin" ? [{ orgId }] : []),
       ],
     },
+    // Pull the calling user's own ChannelMember row alongside each
+    // channel so serializeChannel can surface youAreChannelOwner
+    // without an N+1.
+    include: {
+      members: {
+        where: { userId: req.apiUser.id },
+        select: { role: true },
+        take: 1,
+      },
+    },
     orderBy: [{ kind: "asc" }, { name: "asc" }],
   });
 
   res.json({
-    channels: channels.map((c) => serializeChannel(c, { membership })),
+    channels: channels.map((c) =>
+      serializeChannel(c, { membership, channelMember: c.members?.[0] }),
+    ),
   });
 });
 
@@ -717,16 +735,21 @@ apiRouter.get("/channels/:id", resolveApiUser, async (req, res) => {
   const membership = await membershipFor(req.apiUser.id, channel.orgId);
   if (!membership) return res.status(404).json({ error: "not_found" });
 
+  // Fetch the caller's own ChannelMember row up front — used for the
+  // visibility gate below and for surfacing youAreChannelOwner on the
+  // serialized channel.
+  const channelMember = await prisma.channelMember.findFirst({
+    where: { channelId: channel.id, userId: req.apiUser.id },
+    select: { id: true, role: true },
+  });
+
   // Leader-only channels gate by role; everything else just needs
   // ChannelMember OR (kind=troop and you're an org member).
   if (channel.kind === "leaders" && membership.role !== "leader" && membership.role !== "admin") {
     return res.status(404).json({ error: "not_found" });
   }
   if (channel.kind !== "troop" && channel.kind !== "leaders") {
-    const member = await prisma.channelMember.findFirst({
-      where: { channelId: channel.id, userId: req.apiUser.id },
-    });
-    if (!member && membership.role !== "leader" && membership.role !== "admin") {
+    if (!channelMember && membership.role !== "leader" && membership.role !== "admin") {
       return res.status(404).json({ error: "not_found" });
     }
   }
@@ -744,7 +767,7 @@ apiRouter.get("/channels/:id", resolveApiUser, async (req, res) => {
   const serialized = messages.reverse().map((m) => serializeMessage(m, { viewerUserId: req.apiUser.id }));
   await enrichAttachments(serialized, channel.orgId, req.apiUser.id);
   res.json({
-    channel: serializeChannel(channel, { membership }),
+    channel: serializeChannel(channel, { membership, channelMember }),
     messages: serialized,
     hasMore: messages.length === MESSAGE_PAGE,
   });
