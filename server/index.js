@@ -944,6 +944,85 @@ app.get("/api/auth/providers", (_req, res) => {
   res.json({ ok: true, providers: { google: googleConfigured } });
 });
 
+/* ------------------------------------------------------------------ */
+/* Browser web push (W3C Push API)                                     */
+/* ------------------------------------------------------------------ */
+//
+// Cookie-authed counterparts to /api/v1/push/register so a logged-in
+// browser user can subscribe to push without an API token. The mobile
+// app keeps using the bearer-token endpoint; web subscriptions live
+// here. Both write into the same PushDevice table; sendPushBatch
+// fans out by provider on dispatch.
+
+app.get("/push/vapid-key", (_req, res) => {
+  const key = vapidPublicKey();
+  if (!key) return res.status(503).json({ error: "vapid_unconfigured" });
+  res.json({ publicKey: key });
+});
+
+app.post("/push/web-subscribe", csrfProtect, async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "auth_required" });
+  const sub = req.body?.subscription;
+  if (!sub || !sub.endpoint || !sub.keys?.p256dh || !sub.keys?.auth) {
+    return res.status(400).json({ error: "invalid_subscription" });
+  }
+  // Token is the JSON-stringified subscription. PushDevice.token is
+  // unique, so re-subscribing from the same browser/endpoint upserts.
+  const token = JSON.stringify({
+    endpoint: sub.endpoint,
+    keys: { p256dh: sub.keys.p256dh, auth: sub.keys.auth },
+  });
+  const deviceLabel = req.body?.deviceLabel
+    ? String(req.body.deviceLabel).slice(0, 80)
+    : "Browser";
+  const device = await prisma.pushDevice.upsert({
+    where: { token },
+    update: {
+      userId: req.user.id,
+      provider: "webpush",
+      platform: "web",
+      deviceLabel,
+      retiredAt: null,
+      retiredReason: null,
+    },
+    create: {
+      userId: req.user.id,
+      token,
+      provider: "webpush",
+      platform: "web",
+      deviceLabel,
+    },
+  });
+  res.status(201).json({ id: device.id });
+});
+
+app.post("/push/web-unsubscribe", csrfProtect, async (req, res) => {
+  if (!req.user) return res.status(401).json({ error: "auth_required" });
+  const endpoint = String(req.body?.endpoint || "");
+  if (!endpoint) return res.status(400).json({ error: "endpoint_required" });
+  // Find the matching subscription by parsing each row's token. With
+  // small per-user device counts this is cheap; scaling beyond that
+  // would warrant a separate `endpoint` column.
+  const devices = await prisma.pushDevice.findMany({
+    where: { userId: req.user.id, provider: "webpush", retiredAt: null },
+    select: { id: true, token: true },
+  });
+  const match = devices.find((d) => {
+    try {
+      return JSON.parse(d.token).endpoint === endpoint;
+    } catch {
+      return false;
+    }
+  });
+  if (match) {
+    await prisma.pushDevice.update({
+      where: { id: match.id },
+      data: { retiredAt: new Date(), retiredReason: "user-unsubscribed" },
+    });
+  }
+  res.json({ ok: true });
+});
+
 // Static HTML pages can't be touched by csrfHtmlInjector, so JS fetches
 // the current CSRF token here before POSTing to /api/auth/login (and
 // any other CSRF-protected JSON endpoint they need to talk to).
@@ -2717,6 +2796,14 @@ h2{margin-top:0}
 ${flash}
 ${linked}
 <section class="data-card">
+  <h2>Browser notifications</h2>
+  <p>Get a notification on this computer when someone DMs you in Compass. Independent from the mobile app — handy for leaders who work from a laptop. Granting permission adds this browser to your notification list; you can unsubscribe any time.</p>
+  <div class="data-actions">
+    <button id="cmp-push-toggle" class="btn-secondary" type="button" disabled>Loading…</button>
+  </div>
+  <p id="cmp-push-status" class="muted" style="margin-top:.5rem;font-size:.86rem"></p>
+</section>
+<section class="data-card">
   <h2>Your data</h2>
   <p>Download a JSON copy of the data linked to your account, or delete the account entirely.</p>
   <div class="data-actions">
@@ -2725,6 +2812,131 @@ ${linked}
   </div>
 </section>
 <p class="muted" style="margin-top:1.5rem">For everything else (medical info, family link-ups, position changes), ask your unit leader.</p>
+
+<script>
+(function() {
+  // Browser-push registration UI — minimal vanilla JS, no framework.
+  // Three states the button reflects:
+  //   1. Browser doesn't support Notifications / Push → disabled with reason
+  //   2. Permission "denied" → disabled with explanation (user must change in browser settings)
+  //   3. Otherwise → toggles between "Enable" and "Disable" based on the
+  //      current subscription state.
+  var toggle = document.getElementById("cmp-push-toggle");
+  var status = document.getElementById("cmp-push-status");
+  var csrf = ${csrfToken ? `"${escapeAttr(csrfToken)}"` : `""`};
+
+  function setStatus(text, btnLabel, disabled) {
+    status.textContent = text || "";
+    if (btnLabel != null) toggle.textContent = btnLabel;
+    toggle.disabled = !!disabled;
+  }
+
+  if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+    setStatus("This browser doesn't support browser notifications.", "Not supported", true);
+    return;
+  }
+
+  // VAPID public key as bytes for the subscribe call.
+  function urlBase64ToUint8Array(b64) {
+    var padding = "=".repeat((4 - b64.length % 4) % 4);
+    var b = (b64 + padding).replace(/-/g, "+").replace(/_/g, "/");
+    var raw = window.atob(b);
+    var arr = new Uint8Array(raw.length);
+    for (var i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  }
+
+  async function fetchVapidKey() {
+    var res = await fetch("/push/vapid-key", { credentials: "same-origin" });
+    if (!res.ok) throw new Error("vapid-unavailable");
+    var body = await res.json();
+    return body.publicKey;
+  }
+
+  async function refresh() {
+    if (Notification.permission === "denied") {
+      setStatus("Notifications are blocked in your browser. Open the site permissions and re-enable to receive DMs here.", "Blocked", true);
+      return;
+    }
+    var reg = await navigator.serviceWorker.getRegistration("/");
+    if (!reg) {
+      setStatus("Browser notifications aren't enabled on this device.", "Enable notifications", false);
+      toggle.dataset.action = "enable";
+      return;
+    }
+    var sub = await reg.pushManager.getSubscription();
+    if (sub) {
+      setStatus("Notifications are enabled on this browser.", "Disable notifications", false);
+      toggle.dataset.action = "disable";
+    } else {
+      setStatus("Browser notifications aren't enabled on this device.", "Enable notifications", false);
+      toggle.dataset.action = "enable";
+    }
+  }
+
+  async function enable() {
+    setStatus("Asking for permission…", "Working…", true);
+    if (Notification.permission !== "granted") {
+      var perm = await Notification.requestPermission();
+      if (perm !== "granted") {
+        setStatus("Permission declined. You can change this in your browser site settings.", "Enable notifications", false);
+        toggle.dataset.action = "enable";
+        return;
+      }
+    }
+    try {
+      var reg = await navigator.serviceWorker.register("/sw.js");
+      await navigator.serviceWorker.ready;
+      var key = await fetchVapidKey();
+      var sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(key),
+      });
+      var res = await fetch("/push/web-subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+        credentials: "same-origin",
+        body: JSON.stringify({ subscription: sub.toJSON(), deviceLabel: navigator.userAgent.slice(0, 80) }),
+      });
+      if (!res.ok) throw new Error("server-rejected-" + res.status);
+      setStatus("Notifications are enabled on this browser.", "Disable notifications", false);
+      toggle.dataset.action = "disable";
+    } catch (err) {
+      setStatus("Couldn't enable notifications: " + (err && err.message || "unknown error"), "Enable notifications", false);
+      toggle.dataset.action = "enable";
+    }
+  }
+
+  async function disable() {
+    setStatus("Working…", "Working…", true);
+    try {
+      var reg = await navigator.serviceWorker.getRegistration("/");
+      var sub = reg && (await reg.pushManager.getSubscription());
+      if (sub) {
+        await fetch("/push/web-unsubscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf },
+          credentials: "same-origin",
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+        await sub.unsubscribe();
+      }
+      setStatus("Notifications are off on this browser.", "Enable notifications", false);
+      toggle.dataset.action = "enable";
+    } catch (err) {
+      setStatus("Couldn't disable: " + (err && err.message || "unknown error"), "Disable notifications", false);
+      toggle.dataset.action = "disable";
+    }
+  }
+
+  toggle.addEventListener("click", function() {
+    if (toggle.dataset.action === "enable") enable();
+    else if (toggle.dataset.action === "disable") disable();
+  });
+
+  refresh();
+})();
+</script>
 </main></body></html>`;
 }
 
@@ -3801,6 +4013,7 @@ import { fileURLToPath as _fu } from "node:url";
 import { startCronLoop } from "../lib/newsletterCron.js";
 import { startDmReminderLoop } from "../lib/dmReminderCron.js";
 import { startDmDigestLoop } from "../lib/dmDigestCron.js";
+import { vapidPublicKey } from "../lib/push.js";
 const _isMain = process.argv[1] && path.resolve(process.argv[1]) === _fu(import.meta.url);
 if (_isMain) {
   const PORT = process.env.PORT || 3000;
