@@ -369,6 +369,7 @@ const NAV_SECTIONS = [
     pages: [
       { href: "/admin/email", label: "Email broadcast" },
       { href: "/admin/email/sent", label: "Sent history" },
+      { href: "/admin/dm/sent", label: "My DMs" },
       { href: "/admin/newsletters", label: "Newsletters" },
       { href: "/admin/channels", label: "Channels" },
       { href: "/admin/posts", label: "Activity feed" },
@@ -4506,6 +4507,119 @@ adminRouter.post("/members/:id/message", requireLeader, async (req, res) => {
 
   const backHref = member.status === "prospect" ? "/admin/leads" : "/admin/members";
   res.redirect(backHref);
+});
+
+// "My DMs" admin view — DM messages the current admin sent, grouped
+// by read status. The over-24h-unread bucket is the call-to-action:
+// time to nudge by phone or SMS for hard-to-reach folks.
+adminRouter.get("/dm/sent", requireLeader, async (req, res) => {
+  const meId = req.user.id;
+  // DM channels in this org that the admin is a member of (and so
+  // could have authored messages in). The "name LIKE 'dm:%'" guard
+  // keeps the result focused on direct-message channels even though
+  // membership alone implies it via kind="dm".
+  const myDmChannels = await prisma.channel.findMany({
+    where: {
+      orgId: req.org.id,
+      kind: "dm",
+      members: { some: { userId: meId } },
+    },
+    select: {
+      id: true,
+      members: {
+        where: { userId: { not: meId } },
+        select: {
+          userId: true,
+          lastReadAt: true,
+          user: { select: { id: true, displayName: true, email: true } },
+        },
+        take: 1,
+      },
+    },
+  });
+
+  if (!myDmChannels.length) {
+    const body = `
+      <h1>My DMs</h1>
+      <p class="muted">DM messages you've sent will appear here, grouped by whether the recipient has read them. Send your first DM from <a href="/admin/members">Members</a> or <a href="/admin/leads">Leads</a>.</p>
+      <div class="empty">You haven't sent any DMs yet.</div>
+    `;
+    return res.type("html").send(layout(req, { title: "My DMs", body }));
+  }
+
+  const channelById = new Map(myDmChannels.map((c) => [c.id, c]));
+  const messages = await prisma.message.findMany({
+    where: {
+      channelId: { in: myDmChannels.map((c) => c.id) },
+      authorId: meId,
+      deletedAt: null,
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+    select: { id: true, channelId: true, body: true, createdAt: true, emailReminderSentAt: true },
+  });
+
+  const now = Date.now();
+  const DAY = 24 * 60 * 60 * 1000;
+  const unreadOver24h = [];
+  const unreadFresh = [];
+  const read = [];
+  for (const m of messages) {
+    const ch = channelById.get(m.channelId);
+    const recipient = ch?.members?.[0];
+    if (!recipient) continue;
+    const seen = recipient.lastReadAt && recipient.lastReadAt >= m.createdAt;
+    const ageMs = now - new Date(m.createdAt).getTime();
+    const row = { msg: m, recipient: recipient.user, seen, ageMs };
+    if (seen) read.push(row);
+    else if (ageMs >= DAY) unreadOver24h.push(row);
+    else unreadFresh.push(row);
+  }
+
+  const fmtAgo = (ms) => {
+    const mins = Math.round(ms / 60000);
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.round(ms / 3_600_000);
+    if (hours < 48) return `${hours}h ago`;
+    const days = Math.round(ms / 86_400_000);
+    return `${days}d ago`;
+  };
+
+  const renderRow = (r) => {
+    const snippet = (r.msg.body || "").slice(0, 140);
+    const reminderTag = r.msg.emailReminderSentAt
+      ? ` <span class="tag" title="Email reminder fired ${escape(new Date(r.msg.emailReminderSentAt).toLocaleString())}">email reminder sent</span>`
+      : "";
+    return `
+      <li>
+        <div style="flex:1">
+          <h3 style="margin:0">${escape(r.recipient.displayName || r.recipient.email || "(unknown)")}${reminderTag}</h3>
+          <p class="muted small" style="margin:.1rem 0 0">${escape(fmtAgo(r.ageMs))}${r.recipient.email ? ` · ${escape(r.recipient.email)}` : ""}</p>
+          <p style="margin:.4rem 0 0">${escape(snippet)}${r.msg.body.length > 140 ? "…" : ""}</p>
+        </div>
+      </li>`;
+  };
+
+  const section = (title, rows, emptyText, hint) => `
+    <h2 style="margin-top:1.5rem">${escape(title)} <span class="muted" style="font-weight:400">(${rows.length})</span></h2>
+    ${hint ? `<p class="muted small">${hint}</p>` : ""}
+    ${rows.length ? `<ul class="items">${rows.map(renderRow).join("")}</ul>` : `<div class="empty">${escape(emptyText)}</div>`}
+  `;
+
+  const body = `
+    <h1>My DMs</h1>
+    <p class="muted">DM messages you've sent, grouped by whether the recipient has read them. The over-24h bucket is the call-to-action — those folks may need a phone call or SMS instead.</p>
+    ${section("Sent over 24h ago, still unread", unreadOver24h,
+      "Nothing in the cold-tail bucket. Nice — your DMs are landing.",
+      "These are good candidates to follow up by phone or SMS for hard-to-reach members.")}
+    ${section("Recently sent, not read yet", unreadFresh,
+      "No fresh DMs awaiting a read.",
+      "Push delivery works asynchronously; the email-reminder cron will nudge after 30 minutes.")}
+    ${section("Read", read,
+      "No DMs yet. Send one from the Members or Leads page.",
+      null)}
+  `;
+  res.type("html").send(layout(req, { title: "My DMs", body }));
 });
 
 adminRouter.get("/members/:id/edit", requireLeader, async (req, res) => {
