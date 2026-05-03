@@ -1801,11 +1801,33 @@ const CHAT_STYLES = `
   }
   .chat-sidebar { border-right: 1px solid #eef1f5; background: #faf3e3; }
   .chat-channels { list-style: none; margin: 0; padding: .4rem; display: grid; gap: .15rem; }
-  .chat-channels li { padding: .5rem .65rem; border-radius: 6px; cursor: pointer; font-size: 14px; }
-  .chat-channels li:hover { background: #f1ead5; }
+  .chat-channels li[data-channel-id] { padding: .5rem .65rem; border-radius: 6px; cursor: pointer; font-size: 14px; }
+  .chat-channels li[data-channel-id]:hover { background: #f1ead5; }
   .chat-channels li.is-active { background: #0f172a; color: #fff; }
-  .chat-channels li.is-active .chat-meta { color: rgba(255,255,255,.7); }
-  .chat-channels .chat-meta { display: block; font-size: 11px; color: #64748b; }
+  .chat-channels li.is-active .chat-meta,
+  .chat-channels li.is-active .chat-preview,
+  .chat-channels li.is-active .chat-ts { color: rgba(255,255,255,.7); }
+  .chat-channels .chat-meta { display: block; font-size: 11px; color: #64748b; margin-top: .15rem; }
+  .chat-channels .chat-channel-row { display: flex; align-items: baseline; gap: .4rem; }
+  .chat-channels .chat-channel-row strong { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-channels .chat-ts { font-size: 11px; color: #64748b; flex-shrink: 0; }
+  .chat-channels .chat-preview {
+    font-size: 12px; color: #64748b; margin-top: .15rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .chat-channels li.is-unread strong,
+  .chat-channels li.is-unread .chat-preview { color: #0f172a; font-weight: 600; }
+  .chat-channels li.is-unread.is-active strong,
+  .chat-channels li.is-unread.is-active .chat-preview { color: #fff; }
+  .chat-channels .chat-unread-dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: #1d4ed8; margin-right: .35rem; vertical-align: middle;
+  }
+  .chat-channels .chat-section-label {
+    font-size: 11px; color: #64748b; text-transform: uppercase;
+    letter-spacing: .08em; padding: .75rem .65rem .25rem; cursor: default;
+  }
+  .chat-channels .chat-section-label:first-child { padding-top: .25rem; }
   .chat-main { display: flex; flex-direction: column; min-height: 480px; }
   .chat-header { padding: .75rem 1rem; border-bottom: 1px solid #eef1f5; }
   .chat-header h2 { margin: 0; font-family: Newsreader, Georgia, serif; font-weight: 500; font-size: 22px; }
@@ -1896,7 +1918,44 @@ const KIND_LABEL = {
   leaders: 'Leaders',
   event: 'Event',
   custom: 'Custom',
+  dm: 'Direct',
 };
+
+function relTime(iso) {
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = now - d;
+  if (diff < 60_000) return 'now';
+  if (diff < 3600_000) return Math.floor(diff / 60_000) + 'm';
+  if (d.toDateString() === now.toDateString()) {
+    return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  if (diff < 7 * 86400_000) return d.toLocaleDateString('en-US', { weekday: 'short' });
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function renderChannelLi(c, isActive) {
+  const status = c.isSuspended ? ' (paused)' : c.archivedAt ? ' (archived)' : '';
+  const isDm = c.kind === 'dm';
+  const title = isDm
+    ? (c.dmCounterpartyName || 'Direct message')
+    : c.name;
+  const meta = isDm ? '' : (KIND_LABEL[c.kind] || c.kind);
+  const last = c.lastMessage;
+  const preview = last
+    ? (last.authorDisplayName ? last.authorDisplayName + ': ' : '') + (last.body || '').slice(0, 80)
+    : (isDm ? 'Start a conversation' : 'No messages yet');
+  const ts = last ? relTime(last.createdAt) : '';
+  const unread = c.unread ? '<span class="chat-unread-dot" aria-label="unread"></span>' : '';
+  return '<li data-channel-id="' + escapeHtml(c.id) + '" class="' + (isActive ? 'is-active' : '') + (c.unread ? ' is-unread' : '') + '">' +
+    '<div class="chat-channel-row">' +
+      '<strong>' + unread + escapeHtml(title) + '</strong>' + escapeHtml(status) +
+      (ts ? '<span class="chat-ts">' + escapeHtml(ts) + '</span>' : '') +
+    '</div>' +
+    '<div class="chat-preview">' + escapeHtml(preview) + '</div>' +
+    (meta ? '<span class="chat-meta">' + escapeHtml(meta) + '</span>' : '') +
+  '</li>';
+}
 
 function escapeHtml(s) {
   return String(s ?? '').replace(/[&<>"']/g, (c) => ({
@@ -1922,18 +1981,36 @@ async function loadChannels() {
     return;
   }
   const data = await r.json();
-  channelsEl.innerHTML = data.channels.map((c) => {
-    const status = c.isSuspended ? ' (paused)' : c.archivedAt ? ' (archived)' : '';
-    return '<li data-channel-id="' + escapeHtml(c.id) + '" class="' + (c.id === activeChannelId ? 'is-active' : '') + '">' +
-      '<strong>' + escapeHtml(c.name) + '</strong>' + escapeHtml(status) +
-      '<span class="chat-meta">' + escapeHtml(KIND_LABEL[c.kind] || c.kind) + '</span>' +
-    '</li>';
-  }).join('');
+  // Sort each section by last activity (most recent first), DMs above
+  // group channels. DMs and group channels render with the same row
+  // markup; only the title and meta differ.
+  const sortByActivity = (a, b) => {
+    const ta = a.lastMessage?.createdAt || a.updatedAt || 0;
+    const tb = b.lastMessage?.createdAt || b.updatedAt || 0;
+    return new Date(tb) - new Date(ta);
+  };
+  const dms = data.channels.filter((c) => c.kind === 'dm').sort(sortByActivity);
+  const groups = data.channels.filter((c) => c.kind !== 'dm').sort(sortByActivity);
+
+  const sectionHtml = (label, list) =>
+    list.length
+      ? '<li class="chat-section-label">' + escapeHtml(label) + '</li>' +
+        list.map((c) => renderChannelLi(c, c.id === activeChannelId)).join('')
+      : '';
+  channelsEl.innerHTML = sectionHtml('Direct Messages', dms) + sectionHtml('Channels', groups);
+
   for (const li of channelsEl.querySelectorAll('li[data-channel-id]')) {
     li.addEventListener('click', () => selectChannel(li.dataset.channelId, data.channels.find((x) => x.id === li.dataset.channelId)));
   }
-  if (!activeChannelId && data.channels.length) {
-    selectChannel(data.channels[0].id, data.channels[0]);
+  // Honor a ?channel=<id> query param so the redirect from /messages/:memberId
+  // (PR-L) lands the user inside the just-sent DM thread.
+  const params = new URLSearchParams(location.search);
+  const requested = params.get('channel');
+  if (requested && data.channels.some((c) => c.id === requested)) {
+    selectChannel(requested, data.channels.find((c) => c.id === requested));
+  } else if (!activeChannelId && data.channels.length) {
+    const first = dms[0] || groups[0];
+    selectChannel(first.id, first);
   }
 }
 

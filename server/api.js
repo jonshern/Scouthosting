@@ -713,22 +713,71 @@ apiRouter.get("/channels", resolveApiUser, async (req, res) => {
       ],
     },
     // Pull the calling user's own ChannelMember row alongside each
-    // channel so serializeChannel can surface youAreChannelOwner
-    // without an N+1.
+    // channel so serializeChannel can surface youAreChannelOwner +
+    // unread state without an N+1. For DM channels we also include
+    // *all* members so the serializer can resolve the other party's
+    // display name (DM Channel.name is a synthetic "dm:userA-userB"
+    // string — useless to render in a list).
     include: {
       members: {
-        where: { userId: req.apiUser.id },
-        select: { role: true },
-        take: 1,
+        select: { userId: true, role: true, lastReadAt: true, user: { select: { id: true, displayName: true } } },
       },
     },
     orderBy: [{ kind: "asc" }, { name: "asc" }],
   });
 
+  // For each channel, the "last activity" timestamp drives chat-list
+  // sorting (recent first) and the unread badge derivation. We pull
+  // the most recent Message timestamp per channel in one query.
+  const channelIds = channels.map((c) => c.id);
+  const lastMessages = channelIds.length
+    ? await prisma.message.findMany({
+        where: { channelId: { in: channelIds }, deletedAt: null },
+        orderBy: { createdAt: "desc" },
+        distinct: ["channelId"],
+        select: {
+          channelId: true,
+          body: true,
+          createdAt: true,
+          author: { select: { id: true, displayName: true } },
+        },
+      })
+    : [];
+  const lastByChannel = new Map(lastMessages.map((m) => [m.channelId, m]));
+
   res.json({
-    channels: channels.map((c) =>
-      serializeChannel(c, { channelMember: c.members?.[0] }),
-    ),
+    channels: channels.map((c) => {
+      const myMember = c.members.find((m) => m.userId === req.apiUser.id);
+      const last = lastByChannel.get(c.id) || null;
+      const unread =
+        last && (!myMember?.lastReadAt || last.createdAt > myMember.lastReadAt) && last.author?.id !== req.apiUser.id;
+      // For DMs: the "other party" is the only member that isn't
+      // the caller. Synthesize a friendly display name from their
+      // User.displayName so the chat list reads "Marcus Whitfield"
+      // instead of "dm:cuid1:cuid2".
+      let dmCounterpartyName = null;
+      let dmCounterpartyUserId = null;
+      if (c.kind === "dm") {
+        const other = c.members.find((m) => m.userId !== req.apiUser.id);
+        if (other) {
+          dmCounterpartyName = other.user?.displayName || null;
+          dmCounterpartyUserId = other.userId;
+        }
+      }
+      return {
+        ...serializeChannel(c, { channelMember: myMember }),
+        dmCounterpartyName,
+        dmCounterpartyUserId,
+        lastMessage: last
+          ? {
+              body: last.body?.slice(0, 200) ?? null,
+              createdAt: last.createdAt,
+              authorDisplayName: last.author?.displayName || null,
+            }
+          : null,
+        unread: !!unread,
+      };
+    }),
   });
 });
 
