@@ -375,7 +375,7 @@ function renderSlotsBlock({ event, slots, user, flash }) {
 }
 
 import { metaTags, eventJsonLd, organizationJsonLd } from "../lib/seo.js";
-import { categoryMeta } from "../lib/eventCategories.js";
+import { categoryMeta, resolveCategoryStyle } from "../lib/eventCategories.js";
 
 const PALETTE_VAR = (key) => `var(--${key})`;
 
@@ -421,9 +421,8 @@ export function renderEventDetail(org, e, ctx = {}) {
     ${
       e.category
         ? (() => {
-            const meta = categoryMeta(e.category);
-            const ink = meta.color === "accent" || meta.color === "butter";
-            return `<p style="margin-top:-.4rem"><span class="event-cat-tag" style="background:${PALETTE_VAR(meta.color)};${ink ? "color:var(--ink)" : "color:#fff"};display:inline-block;padding:.18rem .65rem;border-radius:999px;font-size:.7rem;font-weight:700;letter-spacing:.04em">${escapeHtml(meta.label)}</span></p>`;
+            const meta = resolveCategoryStyle(e.category, ctx.categoryMap || null);
+            return `<p style="margin-top:-.4rem"><span class="event-cat-tag" style="background:${meta.bg};color:${meta.fg};display:inline-block;padding:.18rem .65rem;border-radius:999px;font-size:.7rem;font-weight:700;letter-spacing:.04em">${escapeHtml(meta.label)}</span></p>`;
           })()
         : ""
     }
@@ -706,12 +705,13 @@ export function renderDirectory(org, members, { needsSignIn, notAMember, role, m
 export function renderCalendarMonth(org, events, ctx = {}) {
   const filter = ctx.categoryFilter ? String(ctx.categoryFilter) : "";
   const slug = (s) => String(s || "").toLowerCase().replace(/[\s_]+/g, "-");
+  const cmap = ctx.categoryMap || null;
 
   // Build the category-filter chip row from whatever's present in the
   // visible window. Chip clicks reload the page with ?cat=<slug>; the
   // FullCalendar feed URL also picks up the filter.
   const presentCategories = Array.from(
-    new Map(events.filter((e) => e.category).map((e) => [e.category, categoryMeta(e.category)])).entries(),
+    new Map(events.filter((e) => e.category).map((e) => [e.category, resolveCategoryStyle(e.category, cmap)])).entries(),
   );
   const chipHref = (cat) => (cat ? `/calendar?cat=${encodeURIComponent(cat)}` : "/calendar");
   const filterChips = presentCategories.length
@@ -721,7 +721,7 @@ export function renderCalendarMonth(org, events, ctx = {}) {
           .map(([raw, meta]) => {
             const s = slug(raw);
             const on = s === slug(filter);
-            return `<a class="event-chip${on ? " event-chip--on" : ""}" href="${chipHref(s)}" style="--cc:${PALETTE_VAR(meta.color)}">${escapeHtml(meta.label)}</a>`;
+            return `<a class="event-chip${on ? " event-chip--on" : ""}" href="${chipHref(s)}" style="--cc:${meta.bg}">${escapeHtml(meta.label)}</a>`;
           })
           .join("")}
       </div>`
@@ -865,11 +865,12 @@ export function renderEventsList(org, events, ctx = {}) {
   const visible = filter
     ? events.filter((e) => (e.category || "").toLowerCase().replace(/[\s_]+/g, "-") === filter.toLowerCase().replace(/[\s_]+/g, "-"))
     : events;
+  const eventListCmap = ctx.categoryMap || null;
   const presentCategories = Array.from(
     new Map(
       events
         .filter((e) => e.category)
-        .map((e) => [e.category, categoryMeta(e.category)]),
+        .map((e) => [e.category, resolveCategoryStyle(e.category, eventListCmap)]),
     ).entries(),
   );
   const filterChips = presentCategories.length
@@ -879,7 +880,7 @@ export function renderEventsList(org, events, ctx = {}) {
           .map(([raw, meta]) => {
             const slug = String(raw).toLowerCase().replace(/[\s_]+/g, "-");
             const on = slug === filter.toLowerCase().replace(/[\s_]+/g, "-");
-            return `<a class="event-chip${on ? " event-chip--on" : ""}" href="/events?category=${encodeURIComponent(slug)}" style="--cc:${PALETTE_VAR(meta.color)}">${escapeHtml(meta.label)}</a>`;
+            return `<a class="event-chip${on ? " event-chip--on" : ""}" href="/events?category=${encodeURIComponent(slug)}" style="--cc:${meta.bg}">${escapeHtml(meta.label)}</a>`;
           })
           .join("")}
       </div>
@@ -896,9 +897,9 @@ export function renderEventsList(org, events, ctx = {}) {
     ? visible
         .map((e) => {
           const d = new Date(e.startsAt);
-          const meta = e.category ? categoryMeta(e.category) : null;
+          const meta = e.category ? resolveCategoryStyle(e.category, eventListCmap) : null;
           const tag = meta
-            ? `<span class="event-cat-tag" style="background:${PALETTE_VAR(meta.color)};${meta.color === "accent" || meta.color === "butter" ? "color:var(--ink)" : ""}">${escapeHtml(meta.label)}</span>`
+            ? `<span class="event-cat-tag" style="background:${meta.bg};color:${meta.fg}">${escapeHtml(meta.label)}</span>`
             : "";
           return `
     <li>

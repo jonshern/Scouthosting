@@ -408,6 +408,47 @@ strip-down landed in session 2026-05-04). Each is a follow-up PR.
 
 ## P3 — under the hood, no user-visible symptom yet
 
+### Messaging delivery should move into pg-boss queues
+The user's stated priority (session 2026-05-04) is **reliable
+messaging**, not real-time chat. Today most outbound delivery happens
+inline at request time:
+
+- Email broadcasts — `lib/mail.js#sendBatch` called from the
+  `/admin/email` POST handler. A 200-recipient broadcast blocks the
+  request thread for the duration of the SMTP fan-out; if the user
+  navigates away or the request times out, partial delivery is
+  possible (MailLog records status="partial" but no auto-retry).
+- SMS broadcasts — same shape via `lib/sms.js`.
+- Push fan-out — `lib/push.js` direct APNS/FCM. No retry on
+  per-device failure.
+- Newsletter rendering + send — direct.
+
+The right fix is **not** RabbitMQ — it's leaning harder on pg-boss
+(already running). Concrete TODO list:
+
+1. Add an `email.broadcast.send-one` pg-boss job. The /admin/email
+   POST enqueues one job per recipient; the worker handles retry,
+   bounce recording, and updates MailLog. User sees "queued" instead
+   of "delivering…" — the page returns instantly.
+2. Same shape for SMS (`sms.send-one`) and push (`push.send-one`).
+3. Newsletter send composes once, enqueues per-recipient.
+4. Per-recipient idempotency keys so retries don't double-deliver.
+
+Why not RabbitMQ:
+- pg-boss is already deployed; RabbitMQ adds another stateful
+  service to run, monitor, back up.
+- Postgres-only is the deliberate operational ceiling for Compass
+  on Fly. Adding a broker doubles the failure modes.
+- pg-boss handles retry, scheduled jobs, dead-letter — sufficient
+  for messaging needs at scout-troop scale.
+
+### Per-org category colors not yet threaded through mobile clients
+Web (admin + public) now consults the per-org EventCategory table —
+mobile API responses do too (`categoryColor` + `categoryInk` fields)
+but the iOS / Android apps still use hardcoded palette keys. Next
+mobile cycle: switch the EventListView + EventDetailView render to
+prefer `event.categoryColor` over the local lookup.
+
 ### `pg-boss is not a constructor` on boot
 - Logged at `fly logs -a compass-staging`:
   `{"level":"warn","ns":"http","msg":"jobs runtime failed to start; falling back to in-process","err":"PgBoss is not a constructor"}`

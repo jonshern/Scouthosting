@@ -2225,25 +2225,19 @@ app.get("/calendar.json", async (req, res, next) => {
 
   // Per-category color so chips on the FullCalendar grid match the
   // server-rendered chip palette. Falls through to the org's primary.
-  const { categoryMeta } = await import("../lib/eventCategories.js");
-  const palette = (color) => {
-    // Map our category-color tokens to a real hex via the org's
-    // primary/accent fallbacks. The FullCalendar consumer only needs a
-    // CSS color string.
-    const map = {
-      primary: req.org.primaryColor || "#0f172a",
-      accent: req.org.accentColor || "#1d4ed8",
-      sky: "#3a93c5",
-      raspberry: "#c44066",
-      plum: "#7d4f8a",
-      butter: "#e6c44a",
-    };
-    return map[color] || req.org.primaryColor || "#0f172a";
-  };
+  const { resolveCategoryStyle, loadOrgCategories } = await import("../lib/eventCategories.js");
+  const categoryMap = await loadOrgCategories({ orgId: req.org.id, prisma });
+  // Pre-derive a hex fallback for the org's primary so unmatched
+  // categories still get a real CSS color (FullCalendar can't read
+  // var(--primary)).
+  const fallbackBg = req.org.primaryColor || "#0f172a";
 
   const out = expanded.map((e) => {
-    const meta = e.category ? categoryMeta(e.category) : null;
-    const bg = meta ? palette(meta.color) : (req.org.primaryColor || "#0f172a");
+    const style = e.category ? resolveCategoryStyle(e.category, categoryMap) : null;
+    // FullCalendar wants concrete hex/rgba — convert var(--key) backs
+    // to the org's primary fallback. Custom-map results are already hex.
+    const bg = style && !style.bg.startsWith("var(") ? style.bg : fallbackBg;
+    const fg = style && !style.fg.startsWith("var(") ? style.fg : "#fff";
     return {
       id: e.id,
       title: e.title,
@@ -2253,10 +2247,10 @@ app.get("/calendar.json", async (req, res, next) => {
       url: `/events/${e.id}`,
       backgroundColor: bg,
       borderColor: bg,
-      textColor: meta && (meta.color === "accent" || meta.color === "butter") ? "#0f172a" : "#fff",
+      textColor: fg,
       extendedProps: {
         location: e.location || "",
-        category: meta?.label || e.category || "",
+        category: style?.label || e.category || "",
       },
     };
   });
@@ -2294,11 +2288,14 @@ app.get("/calendar", async (req, res, next) => {
     )
   ).flat();
 
+  const { loadOrgCategories: loadCmap1 } = await import("../lib/eventCategories.js");
+  const categoryMap = await loadCmap1({ orgId: req.org.id, prisma });
   res
     .set("Content-Type", "text/html; charset=utf-8")
     .send(
       renderCalendarMonth(req.org, expanded, {
         categoryFilter,
+        categoryMap,
         apexDomain: APEX_DOMAIN,
       }),
     );
@@ -2323,12 +2320,15 @@ app.get("/events", async (req, res, next) => {
   const expanded = (
     await Promise.all(events.map((e) => expandOccurrences(e, { from: new Date(), to: horizon, max: 12 })))
   ).flat().sort((a, b) => new Date(a.startsAt) - new Date(b.startsAt)).slice(0, 50);
+  const { loadOrgCategories: loadCmap2 } = await import("../lib/eventCategories.js");
+  const categoryMap = await loadCmap2({ orgId: req.org.id, prisma });
   res
     .set("Content-Type", "text/html; charset=utf-8")
     .send(
       renderEventsList(req.org, expanded, {
         apexDomain: APEX_DOMAIN,
         categoryFilter: req.query?.category ? String(req.query.category) : "",
+        categoryMap,
       }),
     );
 });
@@ -3619,9 +3619,11 @@ app.get("/events/:id", async (req, res, next) => {
       ctx.slotFlash = { type: "err", message: "We need your name and email." };
       break;
   }
+  const { loadOrgCategories: loadCmap3 } = await import("../lib/eventCategories.js");
+  const categoryMap = await loadCmap3({ orgId: req.org.id, prisma });
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderEventDetail(req.org, ev, { ...ctx, apexDomain: APEX_DOMAIN }));
+    .send(renderEventDetail(req.org, ev, { ...ctx, apexDomain: APEX_DOMAIN, categoryMap }));
 });
 
 async function loadEventContext(ev, user) {

@@ -387,8 +387,9 @@ apiRouter.get("/events/:id", resolveApiUser, async (req, res) => {
   ]);
   const counts = { yes: 0, no: 0, maybe: 0 };
   for (const r of rsvpCounts) counts[r.response] = r._count._all;
-  const { categoryMeta } = await import("../lib/eventCategories.js");
-  const meta = event.category ? categoryMeta(event.category) : null;
+  const { resolveCategoryStyle, loadOrgCategories } = await import("../lib/eventCategories.js");
+  const categoryMap = await loadOrgCategories({ orgId: event.orgId, prisma });
+  const style = event.category ? resolveCategoryStyle(event.category, categoryMap) : null;
   res.json({
     event: {
       id: event.id,
@@ -402,8 +403,13 @@ apiRouter.get("/events/:id", resolveApiUser, async (req, res) => {
       cost: event.cost,
       capacity: event.capacity,
       category: event.category,
-      categoryLabel: meta?.label || null,
-      color: meta?.color || "primary",
+      categoryLabel: style?.label || null,
+      // Mobile clients render the tag with this color — already CSS-
+      // ready (hex when org has customised, var(...) string when on
+      // the lib defaults; mobile should treat var(--primary) as an
+      // opaque sentinel and fall back to its own theme primary).
+      categoryColor: style?.bg || null,
+      categoryInk: style?.fg || null,
       rsvps: counts,
       myRsvp: mine || null,
     },
@@ -1435,10 +1441,14 @@ apiRouter.get("/orgs/:orgId/events", resolveApiUser, async (req, res) => {
   const yesMap = new Map(yesByEvent.map((r) => [r.eventId, r._count._all]));
   const mineMap = new Map(mineByEvent.map((r) => [r.eventId, r.response]));
 
-  const { categoryMeta } = await import("../lib/eventCategories.js");
+  const { resolveCategoryStyle, loadOrgCategories } = await import("../lib/eventCategories.js");
+  const orgIdForMap = events[0]?.orgId || null;
+  const categoryMap = orgIdForMap
+    ? await loadOrgCategories({ orgId: orgIdForMap, prisma })
+    : {};
   res.json({
     events: events.map((e) => {
-      const meta = e.category ? categoryMeta(e.category) : null;
+      const style = e.category ? resolveCategoryStyle(e.category, categoryMap) : null;
       return {
         id: e.id,
         title: e.title,
@@ -1446,8 +1456,9 @@ apiRouter.get("/orgs/:orgId/events", resolveApiUser, async (req, res) => {
         endsAt: e.endsAt,
         location: e.location,
         category: e.category,
-        categoryLabel: meta?.label || null,
-        color: meta?.color || "primary",
+        categoryLabel: style?.label || null,
+        categoryColor: style?.bg || null,
+        categoryInk: style?.fg || null,
         capacity: e.capacity,
         costCents: e.cost ? e.cost * 100 : null,
         rsvpYesCount: yesMap.get(e.id) || 0,
