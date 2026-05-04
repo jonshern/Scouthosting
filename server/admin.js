@@ -555,6 +555,63 @@ ${bannerHtml}
 ${flashHtml}
 ${body}
 </main>
+<script>
+  // Admin-wide multipart-form CSRF shim. csrfProtect runs before
+  // multer parses the body, so it can't read the hidden 'csrf' field
+  // out of a multipart submission and rejects with "CSRF token
+  // missing." Fix: intercept multipart form submits, send via fetch
+  // with the token in the X-CSRF-Token header (which csrfProtect
+  // already accepts as an alternative). Native form submit is left
+  // alone for everything else so urlencoded forms keep their normal
+  // POST-redirect-GET flow.
+  (function () {
+    document.addEventListener("submit", async (ev) => {
+      const f = ev.target;
+      if (!(f instanceof HTMLFormElement)) return;
+      if ((f.enctype || "").toLowerCase() !== "multipart/form-data") return;
+      const csrfInput = f.querySelector('input[name="csrf"]');
+      if (!csrfInput) return; // nothing to attach; let it fail loud
+      ev.preventDefault();
+      const submitBtn = f.querySelector('button[type="submit"], input[type="submit"]');
+      const oldText = submitBtn ? submitBtn.textContent || submitBtn.value : null;
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        if ("textContent" in submitBtn) submitBtn.textContent = "Uploading…";
+      }
+      try {
+        const data = new FormData(f);
+        // Server already gets the token via header; drop the form field
+        // to keep the body small and unambiguous.
+        data.delete("csrf");
+        const r = await fetch(f.action, {
+          method: (f.method || "POST").toUpperCase(),
+          body: data,
+          headers: { "X-CSRF-Token": csrfInput.value },
+          credentials: "same-origin",
+        });
+        if (r.redirected) {
+          window.location.href = r.url;
+        } else if (r.ok) {
+          // No redirect — refresh the page so the user sees the new state.
+          window.location.reload();
+        } else {
+          const text = await r.text().catch(() => "");
+          alert("Upload failed (HTTP " + r.status + ")" + (text ? ": " + text : ""));
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            if ("textContent" in submitBtn) submitBtn.textContent = oldText || "Upload";
+          }
+        }
+      } catch (err) {
+        alert("Upload failed: " + (err && err.message ? err.message : err));
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          if ("textContent" in submitBtn) submitBtn.textContent = oldText || "Upload";
+        }
+      }
+    }, true /* capture so this runs before any per-form handler */);
+  })();
+</script>
 </body></html>`;
 }
 

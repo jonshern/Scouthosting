@@ -13,28 +13,19 @@ off here with the commit SHA.
 
 ## P1 — broken or actively confusing
 
-### Album photo upload returns "CSRF token missing"
-- Repro: as admin, go to `/admin/albums/<id>/photos`, choose a file,
-  click Upload → response body is `CSRF token missing.` (HTTP 403).
-- Root cause: ordering of middleware. `app.use("/admin", csrfProtect)`
-  in `server/index.js:1361` runs before `multer` parses the multipart
-  body. `csrfProtect` (`lib/csrf.js:54`) reads `req.body.csrf`, but
-  `req.body` is still `undefined` for multipart requests at that
-  point — multer is only mounted per-route inside `adminRouter` (e.g.
-  `upload.array("files", 20)` at `server/admin.js:2331`). The form
-  *does* contain the hidden token (auto-injected by `csrfHtmlInjector`)
-  — the server just can't see it yet.
-- Affects every multipart admin POST (file upload everywhere — album
-  photos, post photo, form/document upload, reimbursement receipts,
-  org logo, support-ticket screenshot, roster CSV import, anything
-  using multer).
-- Fix options:
-  - **Best**: set `X-CSRF-Token` header from JS on file-upload forms
-    (csrfProtect already accepts the header path). Keeps server
-    middleware order clean.
-  - **OK**: convert csrfProtect to also accept the token from a
-    cookie-side query param OR pre-parse multipart to peek at `csrf`
-    field before checking. Both are uglier.
+### ~~Album photo upload returns "CSRF token missing"~~
+- ~~Repro: as admin, go to `/admin/albums/<id>/photos`, choose a file,
+  click Upload → response body is `CSRF token missing.` (HTTP 403).~~
+- **Fixed (session 2026-05-03)**: added an admin-wide capture-phase
+  submit listener in the `layout()` shell (`server/admin.js`) that
+  intercepts any `enctype=multipart/form-data` form, sends it via
+  `fetch()` with `X-CSRF-Token` set from the hidden `csrf` input,
+  and follows the response's redirect. csrfProtect already accepted
+  the header path (`lib/csrf.js:58`), so no server change needed.
+  Native form submit is left alone for urlencoded forms.
+- Bonus: every existing multipart admin form (album photos, post
+  photos, form/document uploads, reimbursement receipts, org logo,
+  roster CSV import) is covered without per-form changes.
 
 ### Preview destroys unsaved form state
 - Reported by Jon, session 2026-05-03. Specific page TBD — Jon's
