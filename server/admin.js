@@ -277,7 +277,6 @@ const NAV_SECTIONS = [
       { href: "/admin/channels", label: "Channels" },
       { href: "/admin/posts", label: "Activity feed" },
       { href: "/admin/announcements", label: "Announcements" },
-      { href: "/admin/ypt", label: "YPT status" },
     ],
   },
   {
@@ -299,6 +298,7 @@ const NAV_SECTIONS = [
       { href: "/admin/leads", label: "Leads" },
       { href: "/admin/positions", label: "Position roster" },
       { href: "/admin/training", label: "Training" },
+      { href: "/admin/ypt", label: "YPT status" },
       { href: "/admin/invites", label: "Invites" },
       { href: "/admin/groups", label: "Groups" },
       { href: "/admin/reports", label: "Reports" },
