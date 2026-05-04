@@ -4107,7 +4107,7 @@ async function memberForm({ member, action, submitLabel, orgId, unitType }) {
         <label style="margin:0;flex:1">Phone<input name="phone" type="tel" maxlength="40" value="${v("phone")}"></label>
       </div>
       ${
-        member.bouncedAt
+        member?.bouncedAt
           ? `<p style="background:#fbe8e3;border:1px solid #f0bcb1;border-radius:8px;padding:.55rem .75rem;color:#7d2614;font-size:.92rem">
                <strong>Email is bouncing</strong> · ${escape(member.bounceReason || "no reason given")} ·
                last seen ${escape(new Date(member.bouncedAt).toLocaleString("en-US"))}.
