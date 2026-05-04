@@ -7561,16 +7561,16 @@ adminRouter.get("/pages", requireLeader, async (req, res) => {
         <textarea name="body" rows="8" required></textarea>
       </label>
       <p class="muted small" style="margin-top:-.4rem">${MARKDOWN_HINT}</p>
-      <div class="row">
+      <div class="row" style="align-items:flex-end;gap:1.25rem;margin-bottom:1rem">
         <label style="margin:0;flex:1">Visibility
           <select name="visibility">
             <option value="public" selected>Public</option>
             <option value="members">Members only</option>
           </select>
         </label>
-        <label style="margin:0"><input name="showInNav" type="checkbox" value="1" checked style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Show in main nav</label>
+        <label style="margin:0;padding-bottom:.55rem"><input name="showInNav" type="checkbox" value="1" checked style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Show in main nav</label>
       </div>
-      <button class="btn btn-primary" type="submit">Create</button>
+      <button class="btn btn-primary" type="submit" style="margin-top:.5rem">Create</button>
     </form>
 
     <h2 style="margin-top:1.25rem">Pages</h2>
