@@ -102,6 +102,11 @@ import {
   INVITE_ROLE_LABELS,
 } from "../lib/inviteToken.js";
 import {
+  TEMPLATE_LIST as SITE_TEMPLATE_LIST,
+  getTemplate as getSiteTemplate,
+  applyTemplate as applySiteTemplate,
+} from "../lib/templates/index.js";
+import {
   SECTIONS as HOMEPAGE_SECTIONS,
   BLOCK_TYPES as HOMEPAGE_BLOCK_TYPES,
   isLiveBlockType as isHomepageLiveBlockType,
@@ -369,6 +374,7 @@ const NAV_SECTIONS = [
     pages: [
       { href: "/admin/content", label: "Homepage" },
       { href: "/admin/pages", label: "Custom pages" },
+      { href: "/admin/site/template", label: "Templates" },
     ],
   },
   {
@@ -1461,6 +1467,57 @@ function dashboardCss() {
 }
 </style>`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Site templates                                                      */
+/* ------------------------------------------------------------------ */
+
+// Gallery of starter templates an admin can apply to overwrite the
+// homepage block tree + create the template's starter custom pages.
+// Mounted at /admin/site/template; not yet linked from the main nav
+// (will be once the unified site editor lands).
+adminRouter.get("/site/template", requireLeader, async (req, res) => {
+  const tiles = SITE_TEMPLATE_LIST.map(
+    (t) => `
+      <article class="card" style="display:flex;flex-direction:column;gap:.65rem">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:1rem">
+          <h2 style="margin:0">${escape(t.label)}</h2>
+          <code style="color:var(--ink-muted);font-size:.78rem">${escape(t.key)}</code>
+        </div>
+        <p class="muted" style="margin:0">${escape(t.tagline)}</p>
+        ${t.bestFor?.length ? `<p class="muted small" style="margin:0">Best for: ${t.bestFor.map(escape).join(", ")}</p>` : ""}
+        <form method="post" action="/admin/site/template" onsubmit="return confirm('Apply &quot;${escape(t.label)}&quot;? This rewrites your homepage layout and creates starter pages. Your existing post / event / photo content is unchanged.')" style="margin-top:.4rem">
+          <input type="hidden" name="key" value="${escape(t.key)}">
+          <button class="btn btn-primary" type="submit">Apply this template</button>
+        </form>
+      </article>`,
+  ).join("");
+
+  const body = `
+    <h1>Site templates</h1>
+    <p class="muted">Pick a starter layout. Applying overwrites your homepage blocks and creates a few starter pages — your members, events, photos, and posts are untouched.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:1rem;margin-top:1rem">
+      ${tiles}
+    </div>
+    <p class="muted small" style="margin-top:1.25rem">More templates coming. Want a specific style? <a href="/admin/feedback">Tell us</a>.</p>
+  `;
+  res.type("html").send(layout(req, { title: "Site templates", body }));
+});
+
+adminRouter.post("/site/template", requireLeader, async (req, res) => {
+  const key = String(req.body?.key || "");
+  const tpl = getSiteTemplate(key);
+  if (!tpl) return res.status(400).type("text/plain").send(`Unknown template: ${key}`);
+  const result = await applySiteTemplate({ template: tpl, org: req.org, prisma });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "update",
+    summary: `Applied "${tpl.label}" template (${result.customPages.length} starter pages)`,
+  });
+  res.redirect("/admin/content?template=applied");
+});
 
 /* ------------------------------------------------------------------ */
 /* Page content                                                        */

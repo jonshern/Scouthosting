@@ -17,6 +17,7 @@ import "dotenv/config";
 
 import { prisma } from "../lib/db.js";
 import { UNIT_TYPES, buildSeedBroadcastChannels } from "../lib/orgRoles.js";
+import { getTemplate as getSiteTemplate, applyTemplate as applySiteTemplate } from "../lib/templates/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 
@@ -209,6 +210,24 @@ export async function provisionOrg(input) {
   });
 
   await persistSeedBroadcastChannels(org, { templateId: input.templateId || null });
+
+  // Apply the default site template so a freshly-provisioned org lands
+  // on a populated, properly-rendering homepage instead of a blank
+  // canvas. Caller can override via input.siteTemplate ("classic-troop"
+  // is currently the only one). Falls back to no template if the key
+  // doesn't match — the legacy empty Page is still a valid render path.
+  try {
+    const tplKey = input.siteTemplate || "classic-troop";
+    const tpl = getSiteTemplate(tplKey);
+    if (tpl) {
+      await applySiteTemplate({ template: tpl, org, prisma });
+    }
+  } catch (err) {
+    // Don't fail provisioning over a template hiccup — the unit can
+    // still apply one later from /admin/site/template. Log so we know.
+    console.warn(`provisionOrg: template apply failed for ${org.slug}: ${err?.message || err}`);
+  }
+
   return org;
 }
 

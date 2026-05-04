@@ -14,6 +14,7 @@ import { PrismaClient } from "@prisma/client";
 import { save as saveFile } from "../lib/storage.js";
 import { gradientPng } from "../lib/imageGen.js";
 import { buildSeedBroadcastChannels } from "../lib/orgRoles.js";
+import { applyTemplate, getTemplate } from "../lib/templates/index.js";
 
 function rulesFromSeed(s) {
   const r = {};
@@ -1141,6 +1142,16 @@ async function main() {
   await seedAnnouncements(org.id);
   await seedPosts(org.id);
   await seedForms(org.id);
+
+  // Apply the Classic Troop template last so its block-tree homepage
+  // and starter custom pages overwrite the legacy long-form seedPage
+  // output. New units start here too — keeps demo + first-run UX in
+  // sync. Re-running the seed is idempotent.
+  const classicTpl = getTemplate("classic-troop");
+  const tplResult = await applyTemplate({ template: classicTpl, org, prisma });
+  console.log(
+    `✓ Applied "${classicTpl.label}" template (${tplResult.customPages.length} starter pages)`,
+  );
 
   const pack = await seedPackOrg();
   const gs = await seedGirlScoutOrg();
