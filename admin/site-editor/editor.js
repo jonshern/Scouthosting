@@ -154,6 +154,51 @@
           </section>`;
       },
     },
+    calendar: {
+      label: "Calendar grid",
+      hint: "Month grid of events",
+      category: "Live",
+      defaults: { config: { monthsAhead: 1, layout: "grid" } },
+      renderInEditor(b) {
+        const cfg = b.config || {};
+        const monthsAhead = String(cfg.monthsAhead ?? 1);
+        return `
+          <section class="ed-block ed-block--live ed-block--calendar" data-block-type="calendar" data-block-id="${esc(b.id)}" data-config='${escAttr(JSON.stringify(cfg))}'>
+            <div class="ed-live-header">
+              <span class="ed-live-tag">Live</span>
+              <h2>Calendar</h2>
+              <span class="ed-live-meta">Month grid + listing</span>
+            </div>
+            <p class="ed-block__hint" style="margin-top:0">Months ahead: <select data-config-key="monthsAhead" style="font-family:inherit;padding:.15rem .3rem">
+              <option value="0"${monthsAhead === "0" ? " selected" : ""}>Just current month</option>
+              <option value="1"${monthsAhead === "1" ? " selected" : ""}>Current + 1</option>
+              <option value="2"${monthsAhead === "2" ? " selected" : ""}>Current + 2</option>
+              <option value="3"${monthsAhead === "3" ? " selected" : ""}>Current + 3</option>
+            </select></p>
+            <p class="ed-live-note">Auto-updates from your calendar.</p>
+          </section>`;
+      },
+    },
+    survey: {
+      label: "Survey form",
+      hint: "Embed a fillable survey",
+      category: "Live",
+      defaults: { config: { surveySlug: "" } },
+      renderInEditor(b) {
+        const cfg = b.config || {};
+        const slug = cfg.surveySlug || "";
+        return `
+          <section class="ed-block ed-block--live ed-block--survey" data-block-type="survey" data-block-id="${esc(b.id)}" data-config='${escAttr(JSON.stringify(cfg))}'>
+            <div class="ed-live-header">
+              <span class="ed-live-tag">Live</span>
+              <h2>Survey form</h2>
+              <span class="ed-live-meta">Embed by slug</span>
+            </div>
+            <p class="ed-block__hint" style="margin-top:0">Survey slug: <input type="text" data-config-key="surveySlug" value="${esc(slug)}" placeholder="welcome-packet" style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.85rem;width:60%"></p>
+            <p class="ed-live-note">Find slugs in <a href="/admin/surveys" target="_blank" rel="noopener">/admin/surveys</a>. Members-only surveys ask visitors to sign in on submit.</p>
+          </section>`;
+      },
+    },
   };
 
   // ---------------------------------------------------------------
@@ -314,6 +359,24 @@
       if (cfg) {
         try { block.config = JSON.parse(cfg); } catch (e) { /* keep block, drop bad config */ }
       }
+
+      // Live-block per-key config inputs: any [data-config-key="X"]
+      // descendant contributes its value to block.config.X. Used by
+      // blocks that need an in-canvas picker (e.g. survey slug,
+      // calendar months) instead of relying on the JSON-only
+      // data-config blob.
+      el.querySelectorAll("[data-config-key]").forEach((node) => {
+        const key = node.getAttribute("data-config-key");
+        if (!key) return;
+        block.config = block.config || {};
+        if (node.tagName === "INPUT" || node.tagName === "TEXTAREA" || node.tagName === "SELECT") {
+          const v = (node.value || "").trim();
+          if (v !== "") block.config[key] = v;
+        } else {
+          const v = (node.innerText || node.textContent || "").trim();
+          if (v !== "") block.config[key] = v;
+        }
+      });
 
       blocks.push(block);
     });
