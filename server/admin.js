@@ -116,7 +116,13 @@ import {
   readCustomBlocks as readHomepageCustomBlocks,
   normaliseCustomBlock as normaliseHomepageCustomBlock,
 } from "../lib/homepageSections.js";
-import { categoryMeta as eventCategoryMeta } from "../lib/eventCategories.js";
+import {
+  categoryMeta as eventCategoryMeta,
+  resolveCategoryStyle as eventCategoryStyle,
+  loadOrgCategories as loadOrgEventCategories,
+  ensureDefaultEventCategories,
+  slugifyCategory,
+} from "../lib/eventCategories.js";
 
 const MARKDOWN_HINT =
   'Markdown supported: <code>**bold**</code>, <code>*italic*</code>, <code># Heading</code>, <code>- list</code>, <code>[link](https://…)</code>.';
@@ -261,8 +267,7 @@ const NAV_SECTIONS = [
     label: "Site",
     href: "/admin/site",
     pages: [
-      { href: "/admin/site", label: "Editor" },
-      { href: "/admin/pages", label: "Custom pages" },
+      { href: "/admin/pages", label: "Pages" },
       { href: "/admin/site/template", label: "Templates" },
     ],
   },
@@ -288,6 +293,7 @@ const NAV_SECTIONS = [
     href: "/admin/events",
     pages: [
       { href: "/admin/events", label: "Events" },
+      { href: "/admin/categories", label: "Categories" },
       { href: "/admin/credits", label: "Credits" },
     ],
   },
@@ -2426,18 +2432,6 @@ adminRouter.post("/photos/:id/delete", requireLeader, async (req, res) => {
 /* Events                                                              */
 /* ------------------------------------------------------------------ */
 
-const EVENT_CATEGORIES = [
-  "Meeting",
-  "PLC",
-  "Committee",
-  "Campout",
-  "Service",
-  "Court of Honor",
-  "Trip",
-  "Training",
-  "Other",
-];
-
 function dtLocal(d) {
   if (!d) return "";
   const x = new Date(d);
@@ -2451,15 +2445,27 @@ function parseDtLocal(s) {
   return s ? new Date(s) : null;
 }
 
-function eventForm({ event, action, submitLabel }) {
+function eventForm({ event, action, submitLabel, categories = [] }) {
   const v = (k) => escape(event?.[k] ?? "");
   const addr = escape(event?.locationAddress ?? "");
   const startVal = escape(dtLocal(event?.startsAt));
   const endVal = escape(dtLocal(event?.endsAt));
-  const cats = EVENT_CATEGORIES.map(
-    (c) =>
-      `<option value="${escape(c)}"${event?.category === c ? " selected" : ""}>${escape(c)}</option>`
-  ).join("");
+  // Categories come from the per-org EventCategory table (managed at
+  // /admin/categories). Stored as the slug; rendered with the leader's
+  // chosen label in the dropdown so it reads naturally.
+  const currentSlug = event?.category || "";
+  const cats = categories
+    .map(
+      (c) =>
+        `<option value="${escape(c.slug)}"${currentSlug === c.slug ? " selected" : ""}>${escape(c.label)}</option>`,
+    )
+    .join("");
+  // If the event has a category that doesn't match any current row
+  // (e.g. category was deleted post-create), keep showing it as a
+  // selected fallback option so saving doesn't silently drop it.
+  const orphanOption = currentSlug && !categories.some((c) => c.slug === currentSlug)
+    ? `<option value="${escape(currentSlug)}" selected>${escape(currentSlug)} (deleted)</option>`
+    : "";
   return `
     <form class="card" method="post" action="${escape(action)}">
       <label>Title<input name="title" type="text" required maxlength="120" value="${v("title")}"></label>
@@ -2478,7 +2484,9 @@ function eventForm({ event, action, submitLabel }) {
           <select name="category">
             <option value="">—</option>
             ${cats}
+            ${orphanOption}
           </select>
+          <p class="muted small" style="margin:.2rem 0 0">Manage at <a href="/admin/categories">/admin/categories</a>.</p>
         </label>
         <label style="margin:0;flex:1">Cost ($)<input name="cost" type="number" min="0" max="9999" value="${v("cost")}"></label>
         <label style="margin:0;flex:1">Capacity<input name="capacity" type="number" min="0" max="9999" value="${v("capacity")}"></label>
@@ -2567,21 +2575,183 @@ function eventDataFromBody(body) {
   };
 }
 
-adminRouter.get("/events", requireLeader, async (req, res) => {
-  const upcoming = await prisma.event.findMany({
-    where: { orgId: req.org.id, startsAt: { gte: new Date() } },
-    orderBy: { startsAt: "asc" },
-  });
-  const past = await prisma.event.findMany({
-    where: { orgId: req.org.id, startsAt: { lt: new Date() } },
-    orderBy: { startsAt: "desc" },
-    take: 20,
+/* ------------------------------------------------------------------ */
+/* Event categories — per-org admin-managed taxonomy                    */
+/* ------------------------------------------------------------------ */
+
+// GitHub-tag style: { slug, label, color (hex) }. The leader sets
+// labels + colors; events store the slug as a free-form string.
+// Deleting a category orphans the slug on existing events (renders
+// with the generic "Event" fallback) but doesn't break anything.
+adminRouter.get("/categories", requireLeader, async (req, res) => {
+  await ensureDefaultEventCategories({ orgId: req.org.id, prisma });
+  const cats = await prisma.eventCategory.findMany({
+    where: { orgId: req.org.id },
+    orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
   });
 
+  const rows = cats
+    .map(
+      (c) => `
+    <li>
+      <span class="cat-pill" style="background:${escape(c.color)};color:${escape(pickInk(c.color))}">${escape(c.label)}</span>
+      <code class="muted small" style="margin-left:.6rem">${escape(c.slug)}</code>
+      <form class="inline" method="post" action="/admin/categories/${escape(c.id)}" style="display:flex;gap:.4rem;align-items:center;flex:1;margin-left:1rem">
+        <input type="text" name="label" value="${escape(c.label)}" maxlength="40" style="flex:1;padding:.35rem .5rem;border:1px solid var(--line);border-radius:6px">
+        <input type="color" name="color" value="${escape(c.color)}" style="width:42px;height:32px;padding:0;border:1px solid var(--line);border-radius:6px;cursor:pointer">
+        <button class="btn btn-ghost small" type="submit">Save</button>
+      </form>
+      <form class="inline" method="post" action="/admin/categories/${escape(c.id)}/delete" onsubmit="return confirm('Delete this category? Existing events with this category will keep the slug but render with the generic Event tag.')">
+        <button class="btn btn-danger small" type="submit">Delete</button>
+      </form>
+    </li>`,
+    )
+    .join("");
+
+  const body = `
+    <h1>Event categories</h1>
+    <p class="muted">Pickable in the Event form's Category field. Custom labels + colors apply across the calendar everywhere admins see it. The slug is the stable identifier — change the label without breaking existing events.</p>
+
+    <form class="card" method="post" action="/admin/categories" style="margin-top:1rem">
+      <h2 style="margin-top:0">New category</h2>
+      <div class="row" style="align-items:flex-end;gap:1rem">
+        <label style="margin:0;flex:2">Label
+          <input name="label" type="text" required maxlength="40" placeholder="e.g. Pancake Breakfast">
+        </label>
+        <label style="margin:0;flex:1">URL slug (optional)
+          <input name="slug" type="text" maxlength="40" pattern="[a-z0-9-]+" placeholder="pancake-breakfast">
+        </label>
+        <label style="margin:0">Color
+          <input name="color" type="color" value="#1d6b39" style="width:48px;height:38px;padding:0;border:1px solid var(--line);border-radius:6px;cursor:pointer">
+        </label>
+        <button class="btn btn-primary" type="submit">Add</button>
+      </div>
+    </form>
+
+    <h2 style="margin-top:1.25rem">Categories</h2>
+    ${cats.length ? `<ul class="items cat-list">${rows}</ul>` : `<div class="empty">None — add your first above.</div>`}
+
+    <style>
+      .cat-list li { display: flex; align-items: center; gap: .4rem; flex-wrap: wrap; padding: .55rem .75rem; }
+      .cat-pill { display: inline-block; padding: .2rem .65rem; border-radius: 999px; font-size: .78rem; font-weight: 600; letter-spacing: .02em; }
+    </style>
+  `;
+  res.type("html").send(layout(req, { title: "Event categories", body }));
+});
+
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+
+adminRouter.post("/categories", requireLeader, async (req, res) => {
+  const label = (req.body?.label || "").toString().trim();
+  if (!label) return res.redirect("/admin/categories");
+  const color = HEX_RE.test(req.body?.color || "") ? req.body.color.toLowerCase() : "#1d6b39";
+  const requestedSlug = (req.body?.slug || "").toString().trim();
+  let slug = slugifyCategory(requestedSlug || label);
+  if (!slug) return res.redirect("/admin/categories");
+  // De-dup: append -2, -3, ... if the slug already exists for this org.
+  let n = 1;
+  let candidate = slug;
+  while (await prisma.eventCategory.findUnique({ where: { orgId_slug: { orgId: req.org.id, slug: candidate } } })) {
+    n++;
+    candidate = `${slug}-${n}`;
+  }
+  const created = await prisma.eventCategory.create({
+    data: { orgId: req.org.id, slug: candidate, label, color, sortOrder: 999 },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "EventCategory",
+    entityId: created.id,
+    action: "create",
+    summary: `Added event category "${label}" (${candidate}, ${color})`,
+  });
+  res.redirect("/admin/categories");
+});
+
+adminRouter.post("/categories/:id", requireLeader, async (req, res) => {
+  const c = await prisma.eventCategory.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!c) return res.redirect("/admin/categories");
+  const label = (req.body?.label || "").toString().trim() || c.label;
+  const color = HEX_RE.test(req.body?.color || "") ? req.body.color.toLowerCase() : c.color;
+  await prisma.eventCategory.update({
+    where: { id: c.id },
+    data: { label, color },
+  });
+  const changes = [];
+  if (label !== c.label) changes.push(`label → "${label}"`);
+  if (color !== c.color) changes.push(`color → ${color}`);
+  if (changes.length) {
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "EventCategory",
+      entityId: c.id,
+      action: "update",
+      summary: `Updated category "${label}" (${changes.join(", ")})`,
+    });
+  }
+  res.redirect("/admin/categories");
+});
+
+adminRouter.post("/categories/:id/delete", requireLeader, async (req, res) => {
+  const target = await prisma.eventCategory.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, label: true, slug: true },
+  });
+  await prisma.eventCategory.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (target) {
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "EventCategory",
+      entityId: target.id,
+      action: "delete",
+      summary: `Deleted event category "${target.label}" (${target.slug})`,
+    });
+  }
+  res.redirect("/admin/categories");
+});
+
+function pickInk(hex) {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex || "");
+  if (!m) return "#fff";
+  const v = parseInt(m[1], 16);
+  const r = (v >> 16) & 0xff, g = (v >> 8) & 0xff, b = v & 0xff;
+  const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return lum > 0.62 ? "#0f172a" : "#fff";
+}
+
+adminRouter.get("/events", requireLeader, async (req, res) => {
+  // Lazy-seed defaults so an admin's first visit lands on the
+  // hardcoded 12 instead of an empty dropdown.
+  await ensureDefaultEventCategories({ orgId: req.org.id, prisma });
+  const [upcoming, past, orgCatsRaw] = await Promise.all([
+    prisma.event.findMany({
+      where: { orgId: req.org.id, startsAt: { gte: new Date() } },
+      orderBy: { startsAt: "asc" },
+    }),
+    prisma.event.findMany({
+      where: { orgId: req.org.id, startsAt: { lt: new Date() } },
+      orderBy: { startsAt: "desc" },
+      take: 20,
+    }),
+    prisma.eventCategory.findMany({
+      where: { orgId: req.org.id },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    }),
+  ]);
+  const orgCategories = orgCatsRaw.map((c) => ({ slug: c.slug, label: c.label, color: c.color }));
+  const customMap = Object.fromEntries(orgCategories.map((c) => [c.slug, { label: c.label, color: c.color }]));
+
   const renderRow = (e) => {
-    const meta = e.category ? eventCategoryMeta(e.category) : null;
+    const meta = e.category ? eventCategoryStyle(e.category, customMap) : null;
     const tag = meta
-      ? `<span class="tag" style="background:var(--${meta.color});${meta.color === "accent" || meta.color === "butter" ? "color:var(--ink)" : "color:#fff"};border-color:var(--${meta.color})">${escape(meta.label)}</span>`
+      ? `<span class="tag" style="background:${meta.bg};color:${meta.fg};border-color:${meta.bg}">${escape(meta.label)}</span>`
       : "";
     return `
     <li>
@@ -2631,7 +2801,7 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
     </noscript>
 
     <h2 style="margin-top:1.25rem">New event</h2>
-    ${eventForm({ event: null, action: "/admin/events", submitLabel: "Create event" })}
+    ${eventForm({ event: null, action: "/admin/events", submitLabel: "Create event", categories: orgCategories })}
 
     <h2 style="margin-top:1.5rem">Upcoming</h2>
     ${upcoming.length ? `<ul class="items">${upcoming.map(renderRow).join("")}</ul>` : `<div class="empty">Nothing on the calendar yet.</div>`}
@@ -2740,13 +2910,19 @@ adminRouter.post("/events", requireLeader, async (req, res) => {
 });
 
 adminRouter.get("/events/:id/edit", requireLeader, async (req, res) => {
-  const ev = await prisma.event.findFirst({
-    where: { id: req.params.id, orgId: req.org.id },
-  });
+  await ensureDefaultEventCategories({ orgId: req.org.id, prisma });
+  const [ev, orgCatsRaw] = await Promise.all([
+    prisma.event.findFirst({ where: { id: req.params.id, orgId: req.org.id } }),
+    prisma.eventCategory.findMany({
+      where: { orgId: req.org.id },
+      orderBy: [{ sortOrder: "asc" }, { label: "asc" }],
+    }),
+  ]);
   if (!ev) return res.status(404).send("Not found");
+  const orgCategories = orgCatsRaw.map((c) => ({ slug: c.slug, label: c.label, color: c.color }));
   const body = `
     <h1>Edit event</h1>
-    ${eventForm({ event: ev, action: `/admin/events/${escape(ev.id)}`, submitLabel: "Save" })}
+    ${eventForm({ event: ev, action: `/admin/events/${escape(ev.id)}`, submitLabel: "Save", categories: orgCategories })}
   `;
   res.type("html").send(layout(req, { title: "Edit event", body }));
 });
@@ -7684,13 +7860,47 @@ const RESERVED_PATH_SLUGS = new Set([
 ]);
 
 adminRouter.get("/pages", requireLeader, async (req, res) => {
-  const pages = await prisma.customPage.findMany({
-    where: { orgId: req.org.id },
-    orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
-  });
-  const items = pages
-    .map(
-      (p) => `
+  const [homePage, pages] = await Promise.all([
+    prisma.page.findUnique({
+      where: { orgId: req.org.id },
+      select: { customBlocks: true, draftBlocks: true },
+    }),
+    prisma.customPage.findMany({
+      where: { orgId: req.org.id },
+      orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
+      select: { id: true, slug: true, title: true, visibility: true, showInNav: true, blocks: true, draftBlocks: true },
+    }),
+  ]);
+
+  // The home page sits at the top of the same list — first-among-equals
+  // rather than a special-case "Editor" tab. Edit jumps to /admin/site
+  // (homepage canvas + Hero/Theme/Logo right rail); Delete is omitted
+  // because the home page can't be removed.
+  const homeHasDraft = homePage?.draftBlocks != null;
+  const homeStatusTag = homeHasDraft
+    ? `<span class="tag" style="background:#fef3c7;color:#92400e">unpublished changes</span>`
+    : `<span class="tag">published</span>`;
+  const homeRow = `
+    <li>
+      <div style="flex:1">
+        <h3>Home <span class="muted small" style="font-weight:400;font-size:.78rem;margin-left:.4rem">your unit's front page</span></h3>
+        <p class="muted small">
+          <a href="/" target="_blank" rel="noopener">/</a>
+          ${homeStatusTag}
+        </p>
+      </div>
+      <div class="row">
+        <a class="btn btn-ghost small" href="/admin/site">Edit</a>
+      </div>
+    </li>`;
+
+  const customRows = pages
+    .map((p) => {
+      const hasDraft = p.draftBlocks != null;
+      const statusTag = hasDraft
+        ? `<span class="tag" style="background:#fef3c7;color:#92400e">unpublished changes</span>`
+        : "";
+      return `
     <li>
       <div style="flex:1">
         <h3>${escape(p.title)}</h3>
@@ -7698,6 +7908,7 @@ adminRouter.get("/pages", requireLeader, async (req, res) => {
           <a href="/p/${escape(p.slug)}" target="_blank" rel="noopener">/p/${escape(p.slug)}</a>
           <span class="tag">${escape(p.visibility)}</span>
           ${p.showInNav ? `<span class="tag">in nav</span>` : ""}
+          ${statusTag}
         </p>
       </div>
       <div class="row">
@@ -7706,13 +7917,14 @@ adminRouter.get("/pages", requireLeader, async (req, res) => {
           <button class="btn btn-danger small" type="submit">Delete</button>
         </form>
       </div>
-    </li>`
-    )
+    </li>`;
+    })
     .join("");
+  const items = `${homeRow}${customRows}`;
 
   const body = `
-    <h1>Custom pages</h1>
-    <p class="muted">Add extra pages beyond the home page — History, Eagle list, FAQ, anything. They live at <code>/p/&lt;slug&gt;</code>. Title now, then drop blocks onto the canvas.</p>
+    <h1>Pages</h1>
+    <p class="muted">Your unit's home page sits at the top; everything below it is an extra page at <code>/p/&lt;slug&gt;</code>. Title a new one, then drop blocks onto the canvas.</p>
 
     <form class="card" method="post" action="/admin/pages">
       <h2 style="margin-top:0">New page</h2>
@@ -7733,7 +7945,7 @@ adminRouter.get("/pages", requireLeader, async (req, res) => {
     </form>
 
     <h2 style="margin-top:1.25rem">Pages</h2>
-    ${pages.length ? `<ul class="items">${items}</ul>` : `<div class="empty">No custom pages yet.</div>`}
+    <ul class="items">${items}</ul>
   `;
   res.type("html").send(layout(req, { title: "Custom pages", body }));
 });
@@ -7765,6 +7977,14 @@ adminRouter.post("/pages", requireLeader, async (req, res) => {
       visibility: req.body?.visibility === "members" ? "members" : "public",
       showInNav: req.body?.showInNav === "1",
     },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "CustomPage",
+    entityId: created.id,
+    action: "create",
+    summary: `Created page "${title}"`,
   });
   // Drop the admin straight into the canvas editor — that's where the
   // page actually gets written. Body stays empty until they save the
@@ -7888,6 +8108,14 @@ adminRouter.post("/pages/:id/canvas", requireLeader, express.json({ limit: "256k
   await prisma.customPage.update({
     where: { id: p.id },
     data: { draftBlocks: cleaned },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "CustomPage",
+    entityId: p.id,
+    action: "update",
+    summary: `Saved page draft (${cleaned.length} blocks)`,
   });
   res.json({ ok: true, blocks: cleaned.length, draft: true });
 });
@@ -8059,13 +8287,43 @@ adminRouter.post("/pages/:id/settings", requireLeader, express.json({ limit: "8k
     where: { id: p.id },
     data: { title, slug, visibility, showInNav },
   });
+  // Spell out what changed in the audit summary so the log is useful.
+  const changes = [];
+  if (title !== p.title) changes.push(`title → "${title}"`);
+  if (slug !== p.slug) changes.push(`slug → ${slug}`);
+  if (visibility !== p.visibility) changes.push(`visibility → ${visibility}`);
+  if (showInNav !== p.showInNav) changes.push(`in-nav → ${showInNav}`);
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "CustomPage",
+    entityId: p.id,
+    action: "update",
+    summary: changes.length
+      ? `Updated page "${title}" settings (${changes.join(", ")})`
+      : `Saved page "${title}" settings (no changes)`,
+  });
   res.json({ ok: true, slug });
 });
 
 adminRouter.post("/pages/:id/delete", requireLeader, async (req, res) => {
+  const target = await prisma.customPage.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, title: true, slug: true },
+  });
   await prisma.customPage.deleteMany({
     where: { id: req.params.id, orgId: req.org.id },
   });
+  if (target) {
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "CustomPage",
+      entityId: target.id,
+      action: "delete",
+      summary: `Deleted page "${target.title}" (/p/${target.slug})`,
+    });
+  }
   res.redirect("/admin/pages");
 });
 
