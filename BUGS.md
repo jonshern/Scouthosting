@@ -449,15 +449,20 @@ but the iOS / Android apps still use hardcoded palette keys. Next
 mobile cycle: switch the EventListView + EventDetailView render to
 prefer `event.categoryColor` over the local lookup.
 
-### `pg-boss is not a constructor` on boot
-- Logged at `fly logs -a compass-staging`:
-  `{"level":"warn","ns":"http","msg":"jobs runtime failed to start; falling back to in-process","err":"PgBoss is not a constructor"}`
-- Falls back to in-process so user-facing flows work. But the queue
+### ~~`pg-boss is not a constructor` on boot~~
+- ~~Logged at `fly logs -a compass-staging`:
+  `{"level":"warn","ns":"http","msg":"jobs runtime failed to start; falling back to in-process","err":"PgBoss is not a constructor"}`~~
+- ~~Falls back to in-process so user-facing flows work. But the queue
   isn't running — anything that *relies* on background processing
   (retries, scheduled email send, future DM-reminder cron once it
-  gets enqueued) silently runs in the request thread or not at all.
-- Likely cause: `lib/jobs.js` import shape vs. the `pg-boss` package's
-  default-vs-named export. Worth a 10-minute look.
+  gets enqueued) silently runs in the request thread or not at all.~~
+- **Fixed (session 2026-05-04)**: `lib/jobs.js#startJobsRuntime` was
+  reading `(await import("pg-boss")).default`. Worked on pg-boss v9
+  (CJS, `module.exports = PgBoss`); v12 ships pure ESM with a named
+  `PgBoss` class export and no default. Switched to
+  `mod.PgBoss || mod.default` (still falls back for older versions).
+  Added a `typeof !== "function"` guard so a future shape change
+  fails loud instead of silently dropping back to in-process.
 
 ### e2e static-asset test only checks HTTP 200, not content
 - `scripts/e2e-demo.test.mjs:81` walks every root `*.html / *.css / *.js`
