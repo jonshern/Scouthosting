@@ -10750,13 +10750,9 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
     });
   });
 
-  const result = messages.length
-    ? await sendBatch(messages)
-    : { sent: 0, errors: [] };
-
-  // Record a MailLog row so the newsletter shows up in /admin/email/sent
-  // alongside one-off broadcasts. Recipient snapshot keeps history honest
-  // even if the directory changes later.
+  // Record a MailLog row in queued state — same shape as broadcast
+  // email so the newsletter shows up in /admin/email/sent alongside
+  // one-off blasts and tracks per-recipient delivery via pg-boss.
   const mailLog = await prisma.mailLog.create({
     data: {
       id: mailLogId,
@@ -10766,9 +10762,8 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
       body: issue.intro,
       channel: "email",
       audienceLabel: describeNewsletterAudience(issue),
-      recipientCount: result.sent,
-      status: result.errors.length ? (result.sent ? "partial" : "failed") : "sent",
-      errors: result.errors.length ? JSON.stringify(result.errors) : null,
+      recipientCount: messages.length,
+      status: messages.length ? "queued" : "sent",
       recipients: emailRecipients.map((m) => ({
         name: `${m.firstName} ${m.lastName}`,
         email: m.email,
@@ -10777,6 +10772,21 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
     },
   });
 
+  // Compose-once → enqueue per-recipient. Each job carries the same
+  // pre-rendered html/text (cheap to JSON-serialise, handler doesn't
+  // re-render); only the per-recipient unsubscribe header + footer
+  // were already personalised above.
+  for (const message of messages) {
+    await enqueueJob(
+      "email.broadcast.send-one",
+      { mailLogId, message },
+      { retryLimit: 2 },
+    );
+  }
+
+  // Newsletter row flips to "sent" immediately (the issue is "done"
+  // from the editor's perspective even though delivery is async);
+  // the MailLog row tracks per-recipient progress.
   await prisma.newsletter.update({
     where: { id: issue.id },
     data: {
@@ -10792,7 +10802,7 @@ adminRouter.post("/newsletters/:id/send", requireLeader, async (req, res) => {
     entityType: "Newsletter",
     entityId: issue.id,
     action: "send",
-    summary: `${issue.title} → ${result.sent} recipient${result.sent === 1 ? "" : "s"}`,
+    summary: `${issue.title} → ${messages.length} queued for delivery`,
   });
 
   res.redirect(`/admin/newsletters/${issue.id}/edit`);
