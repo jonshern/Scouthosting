@@ -133,6 +133,20 @@ Migrations run automatically on container boot (`Dockerfile` CMD: `prisma migrat
 
 ---
 
+## Background jobs (`lib/jobs.js`)
+
+pg-boss-backed queue, Postgres only — no Redis. `enqueueJob(name, data, opts)` from anywhere; `registerHandler(name, fn)` at module init. Three modes:
+
+- **queued** (prod boot calls `startJobsRuntime()` → pg-boss running): jobs persist to `pgboss.*` tables; the worker pod runs handlers; retries with exponential backoff per `retryLimit`.
+- **in-process** (no `DATABASE_URL`, `JOBS_DISABLED=1`, or `NODE_ENV=test`): `enqueueJob` runs the handler synchronously in the calling request. Same observable behaviour, no isolation, no retry.
+- **discarded** (no handler registered for that name): logs a warning, drops. By design — a stray enqueue shouldn't fail an admin action.
+
+`JOBS_DISABLED=1` is the pod-level kill switch (mirror of `CRON_DISABLED=1`). On a multi-pod deploy set it on N-1 pods so only one runs the worker side; every pod can still enqueue.
+
+Built-in handler today: `email.send` (wraps `lib/mail.js#send`). Future handlers go beside it in `lib/jobs.js` — keep the registrations at module top-level so they're picked up by both runtime modes.
+
+---
+
 ## Things to never do without explicit permission
 
 - Don't push to `main` if the working tree has uncommitted code from a parallel agent (this repo has had two Claude Code sessions running simultaneously — check `git status` and ask before stashing or committing other work).

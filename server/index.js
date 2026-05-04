@@ -4347,11 +4347,12 @@ import { fileURLToPath as _fu } from "node:url";
 import { startCronLoop } from "../lib/newsletterCron.js";
 import { startDmReminderLoop } from "../lib/dmReminderCron.js";
 import { startDmDigestLoop } from "../lib/dmDigestCron.js";
+import { startJobsRuntime } from "../lib/jobs.js";
 import { vapidPublicKey } from "../lib/push.js";
 const _isMain = process.argv[1] && path.resolve(process.argv[1]) === _fu(import.meta.url);
 if (_isMain) {
   const PORT = process.env.PORT || 3000;
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     log.info("Compass started", {
       port: Number(PORT),
       marketing: `http://localhost:${PORT}/`,
@@ -4367,6 +4368,16 @@ if (_isMain) {
     // Weekly DM digest — long-tail catch-up for users with unread
     // messages older than 24h. 7 days between digests per user.
     startDmDigestLoop({ prismaClient: prisma, sendMail });
+    // pg-boss-backed background job queue. Skips when JOBS_DISABLED=1
+    // (worker side off; enqueueJob still queues from this pod) or when
+    // DATABASE_URL isn't set (in-process fallback). See lib/jobs.js.
+    try {
+      await startJobsRuntime();
+    } catch (err) {
+      log.warn("jobs runtime failed to start; falling back to in-process", {
+        err: err && err.message,
+      });
+    }
   });
 }
 
