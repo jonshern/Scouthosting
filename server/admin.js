@@ -62,6 +62,7 @@ import { deriveBillingStatus, billingBanner } from "../lib/billingState.js";
 import {
   isConfigured as stripeConfigured,
   createCheckoutSession,
+  createBillingPortalSession,
   cancelAtPeriodEnd as stripeCancel,
   reactivateSubscription as stripeReactivate,
 } from "../lib/stripe.js";
@@ -496,6 +497,21 @@ function layout(req, { title, body, flash }) {
     return `<a href="${escape(sec.href)}" class="${isActive ? "topnav-link active" : "topnav-link"}">${escape(sec.label)}</a>`;
   }).join("");
 
+  // Persistent billing banner — surfaces trial countdown, past-due,
+  // expired etc. on every admin page. /admin/billing renders its own
+  // copy of the same banner inside the page body, so suppress here
+  // to avoid duplication. Demo orgs short-circuit to "active" with no
+  // banner, so this is a no-op for walkthroughs.
+  const billingState = deriveBillingStatus(org);
+  const banner = billingBanner(billingState);
+  const onBillingPage = pathname === "/admin/billing" || pathname.startsWith("/admin/billing/");
+  const bannerHtml = banner && !onBillingPage
+    ? `<div class="billing-banner billing-banner-${banner.tone === "danger" ? "danger" : banner.tone === "warn" ? "warn" : "info"}">
+  <div class="billing-banner-body"><strong>${escape(banner.headline)}</strong>${escape(banner.body)}</div>
+  <a class="billing-banner-cta" href="/admin/billing">Manage billing →</a>
+</div>`
+    : "";
+
   return `<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -522,6 +538,7 @@ function layout(req, { title, body, flash }) {
   ${subnav(pathname)}
 </header>
 <main class="main">
+${bannerHtml}
 ${flashHtml}
 ${body}
 </main>
@@ -632,6 +649,33 @@ h3{font-size:17px;line-height:1.25}
 }
 .flash-ok{background:var(--accent-soft);border:1px solid var(--accent);color:var(--primary)}
 .flash-err{background:#fbe8e3;border:1px solid #f0bcb1;color:#7d2614}
+.flash-warn{background:#fef3c7;border:1px solid #f59e0b;color:#78350f}
+.flash-info{background:var(--surface-alt);border:1px solid var(--line);color:var(--ink-soft)}
+
+/* Persistent billing banner — surfaces trial countdown, past-due
+   warnings, etc. on every admin page so a leader can't miss it.
+   Renders above the page body in layout(). */
+.billing-banner{
+  display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+  padding:.85rem 1.25rem;border-radius:10px;margin-bottom:1.5rem;
+  font-size:.92rem;line-height:1.4;
+}
+.billing-banner strong{display:block;margin-bottom:.15rem;font-weight:600}
+.billing-banner .billing-banner-body{flex:1;min-width:240px}
+.billing-banner .billing-banner-cta{
+  display:inline-block;padding:.45rem .9rem;border-radius:8px;
+  background:var(--primary);color:#fff;text-decoration:none;
+  font-weight:500;font-size:.88rem;border:1px solid var(--primary);
+  white-space:nowrap;
+}
+.billing-banner .billing-banner-cta:hover{background:var(--primary-hover);color:#fff}
+.billing-banner-info{background:var(--surface-alt);border:1px solid var(--line);color:var(--ink-soft)}
+.billing-banner-warn{background:#fef3c7;border:1px solid #f59e0b;color:#78350f}
+.billing-banner-warn .billing-banner-cta{background:#92400e;border-color:#92400e}
+.billing-banner-warn .billing-banner-cta:hover{background:#78350f}
+.billing-banner-danger{background:#fbe8e3;border:1px solid #dc2626;color:#7d2614}
+.billing-banner-danger .billing-banner-cta{background:#dc2626;border-color:#dc2626}
+.billing-banner-danger .billing-banner-cta:hover{background:#991b1b}
 
 .card{
   background:var(--surface);border:1px solid var(--line);border-radius:12px;
@@ -10606,6 +10650,12 @@ adminRouter.get("/billing", requireLeader, async (req, res) => {
   const reactivateBtn = showReactivate
     ? `<form method="POST" action="/admin/billing/reactivate">${csrfHidden}<button class="btn btn-primary" type="submit">Resume subscription</button></form>`
     : "";
+  // Customer Portal button — only meaningful once Stripe has issued
+  // a customer record (i.e. after the first checkout). Trial-only
+  // orgs don't have one yet.
+  const portalBtn = stripeReady && req.org.stripeCustomerId
+    ? `<form method="POST" action="/admin/billing/portal">${csrfHidden}<button class="btn btn-secondary" type="submit">Manage billing →</button></form>`
+    : "";
 
   const body = `
 <h1>Billing</h1>
@@ -10621,6 +10671,7 @@ ${flash}
 </table>
 <div class="actions" style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-top:1.5rem">
   ${subscribeBtn}
+  ${portalBtn}
   ${cancelBtn}
   ${reactivateBtn}
 </div>
@@ -10663,6 +10714,37 @@ adminRouter.post("/billing/checkout", requireLeader, async (req, res) => {
       layout(req, {
         title: "Billing",
         body: `<h1>Couldn't start checkout</h1><p>${escape(err.message)}</p><p><a href="/admin/billing">← Back to billing</a></p>`,
+      })
+    );
+  }
+});
+
+// POST /admin/billing/portal — open Stripe's hosted Customer Portal
+// for self-serve card update / invoice history / pause / resume /
+// cancel. Configure the portal's available actions + return URL in
+// the Stripe Dashboard at /settings/billing/portal — not in code.
+adminRouter.post("/billing/portal", requireLeader, async (req, res) => {
+  if (!stripeConfigured()) {
+    return res.redirect("/admin/billing?blocked=stripe_not_configured");
+  }
+  if (!req.org.stripeCustomerId) {
+    return res.redirect("/admin/billing?blocked=no_customer");
+  }
+  try {
+    const apex = process.env.APEX_DOMAIN || "compass.app";
+    const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+    const portSuffix = process.env.PORT && process.env.NODE_ENV !== "production"
+      ? `:${process.env.PORT}` : "";
+    const base = `${protocol}://${req.org.slug}.${apex}${portSuffix}`;
+    const { url } = await createBillingPortalSession(req.org, {
+      returnUrl: `${base}/admin/billing`,
+    });
+    return res.redirect(303, url);
+  } catch (err) {
+    return res.status(500).type("html").send(
+      layout(req, {
+        title: "Billing",
+        body: `<h1>Couldn't open billing portal</h1><p>${escape(err.message)}</p><p><a href="/admin/billing">← Back to billing</a></p>`,
       })
     );
   }
