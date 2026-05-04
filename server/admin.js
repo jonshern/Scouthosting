@@ -399,6 +399,7 @@ const NAV_SECTIONS = [
     href: "/admin/members",
     pages: [
       { href: "/admin/members", label: "Members" },
+      { href: "/admin/members/trash", label: "Trash" },
       { href: "/admin/leads", label: "Leads" },
       { href: "/admin/positions", label: "Position roster" },
       { href: "/admin/training", label: "Training" },
@@ -2759,7 +2760,7 @@ adminRouter.post("/events/:id/reminder", requireLeader, async (req, res) => {
   const audience = req.body?.audience || "everyone";
   // Restrict to active roster — leads receive their own outreach via
   // /admin/leads, not the event-announcement composer.
-  const where = { orgId: req.org.id, email: { not: null }, status: "active" };
+  const where = { orgId: req.org.id, email: { not: null }, status: "active", deletedAt: null };
   if (audience === "adults") where.isYouth = false;
   else if (audience === "youth") where.isYouth = true;
   else if (audience === "patrol" && req.body?.patrol) where.patrol = req.body.patrol;
@@ -4309,7 +4310,13 @@ adminRouter.get("/members", requireLeader, async (req, res) => {
   // ?status=all to see everyone.
   const showAll = req.query?.status === "all";
   const members = await prisma.member.findMany({
-    where: { orgId: req.org.id, ...(showAll ? {} : { status: "active" }) },
+    where: {
+      orgId: req.org.id,
+      // Soft-deleted members live in /admin/members/trash. Even
+      // ?status=all shows active+prospect+alumni, not removed.
+      deletedAt: null,
+      ...(showAll ? {} : { status: "active" }),
+    },
     orderBy: [{ isYouth: "desc" }, { lastName: "asc" }, { firstName: "asc" }],
   });
   const youth = members.filter((m) => m.isYouth);
@@ -5092,7 +5099,7 @@ async function loadAudienceFromRules(orgId, rules) {
   const r = rules || {};
   const [members, validTrainings] = await Promise.all([
     prisma.member.findMany({
-      where: { orgId, status: "active" },
+      where: { orgId, status: "active", deletedAt: null },
       orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
     r.trainings?.length
@@ -5129,7 +5136,7 @@ adminRouter.get("/groups", requireLeader, async (req, res) => {
     prisma.member.findMany({
       // Match audienceFor's roster scope so the count on the Groups
       // page is the count that would actually receive a broadcast.
-      where: { orgId: req.org.id, status: "active" },
+      where: { orgId: req.org.id, status: "active", deletedAt: null },
       select: { id: true, isYouth: true, patrol: true, skills: true, interests: true, parentIds: true },
     }),
     prisma.training.findMany({
@@ -6489,19 +6496,114 @@ adminRouter.get("/members/:id/messages", requireLeader, async (req, res) => {
 
 adminRouter.post("/members/:id/delete", requireLeader, async (req, res) => {
   const target = await prisma.member.findFirst({
-    where: { id: req.params.id, orgId: req.org.id },
+    where: { id: req.params.id, orgId: req.org.id, deletedAt: null },
     select: { firstName: true, lastName: true },
   });
-  await prisma.member.deleteMany({ where: { id: req.params.id, orgId: req.org.id } });
+  // Soft-delete: stamp deletedAt so /admin/members/trash can restore.
+  // The 30-day cron in lib/newsletterCron.js permanent-deletes after.
+  await prisma.member.updateMany({
+    where: { id: req.params.id, orgId: req.org.id, deletedAt: null },
+    data: { deletedAt: new Date() },
+  });
   await recordAudit({
     org: req.org,
     user: req.user,
     entityType: "Member",
     entityId: req.params.id,
     action: "delete",
-    summary: target ? `Deleted ${target.firstName} ${target.lastName}` : "Deleted member",
+    summary: target ? `Removed ${target.firstName} ${target.lastName} (recoverable from Trash for 30 days)` : "Removed member",
   });
   res.redirect("/admin/members");
+});
+
+/* ------------------------------------------------------------------ */
+/* /admin/members/trash — soft-deleted members + restore               */
+/* ------------------------------------------------------------------ */
+//
+// Anything POST /members/:id/delete sets Member.deletedAt instead of
+// hard-deleting. The 30-day cron in lib/newsletterCron.js permanent-
+// deletes after that. /admin/members/trash lists the recoverable
+// rows with restore + immediate-purge actions.
+
+adminRouter.get("/members/trash", requireLeader, async (req, res) => {
+  const removed = await prisma.member.findMany({
+    where: { orgId: req.org.id, deletedAt: { not: null } },
+    orderBy: { deletedAt: "desc" },
+  });
+  const csrf = req.csrfToken
+    ? `<input type="hidden" name="csrf" value="${escape(req.csrfToken)}">`
+    : "";
+  const fmtAgo = (d) => {
+    if (!d) return "—";
+    const days = Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+    if (days === 0) return "today";
+    if (days === 1) return "yesterday";
+    return `${days}d ago`;
+  };
+  const items = removed
+    .map((m) => {
+      const purgeIn = Math.max(0, 30 - Math.floor((Date.now() - new Date(m.deletedAt).getTime()) / 86400000));
+      return `
+        <li>
+          <div style="flex:1">
+            <strong>${escape(m.firstName)} ${escape(m.lastName)}</strong>
+            ${m.isYouth ? `<span class="tag">youth</span>` : ""}
+            ${m.patrol ? `<span class="tag">${escape(m.patrol)}</span>` : ""}
+            <p class="muted small" style="margin:.1rem 0 0">${escape(m.email || "(no email)")} · removed ${escape(fmtAgo(m.deletedAt))} · auto-purge in ${purgeIn} day${purgeIn === 1 ? "" : "s"}</p>
+          </div>
+          <div class="row">
+            <form class="inline" method="post" action="/admin/members/${escape(m.id)}/restore">${csrf}
+              <button class="btn btn-primary small" type="submit">Restore</button>
+            </form>
+            <form class="inline" method="post" action="/admin/members/${escape(m.id)}/purge"
+                  onsubmit="return confirm('Permanently delete ${escape(m.firstName)} ${escape(m.lastName)}? This skips the 30-day grace and cannot be undone.')">${csrf}
+              <button class="btn btn-danger small" type="submit">Delete now</button>
+            </form>
+          </div>
+        </li>`;
+    })
+    .join("");
+  const body = `
+    <a href="/admin/members" style="color:var(--ink-muted);text-decoration:none">← Members</a>
+    <h1>Trash <span class="muted" style="font-size:14px;font-weight:400">(${removed.length})</span></h1>
+    <p class="muted">Removed members live here for 30 days, then a nightly sweep permanently deletes them. Posts and comments they wrote stay attributed to a former member; their parent/youth linkages restore intact if you bring them back.</p>
+    ${removed.length ? `<ul class="items">${items}</ul>` : `<div class="empty">Nothing here. Members removed from <a href="/admin/members">Members</a> show up here for 30 days.</div>`}`;
+  res.type("html").send(layout(req, { title: "Trash", body }));
+});
+
+adminRouter.post("/members/:id/restore", requireLeader, async (req, res) => {
+  const target = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id, deletedAt: { not: null } },
+    select: { firstName: true, lastName: true },
+  });
+  if (!target) return res.redirect("/admin/members/trash");
+  await prisma.member.updateMany({
+    where: { id: req.params.id, orgId: req.org.id },
+    data: { deletedAt: null },
+  });
+  await recordAudit({
+    org: req.org, user: req.user,
+    entityType: "Member", entityId: req.params.id, action: "restore",
+    summary: `Restored ${target.firstName} ${target.lastName}`,
+  });
+  res.redirect("/admin/members");
+});
+
+adminRouter.post("/members/:id/purge", requireLeader, async (req, res) => {
+  const target = await prisma.member.findFirst({
+    where: { id: req.params.id, orgId: req.org.id, deletedAt: { not: null } },
+    select: { firstName: true, lastName: true },
+  });
+  if (!target) return res.redirect("/admin/members/trash");
+  await prisma.member.deleteMany({
+    where: { id: req.params.id, orgId: req.org.id, deletedAt: { not: null } },
+  });
+  await recordAudit({
+    org: req.org, user: req.user,
+    entityType: "Member", entityId: req.params.id, action: "purge",
+    summary: `Permanently deleted ${target.firstName} ${target.lastName}`,
+  });
+  res.redirect("/admin/members/trash");
 });
 
 /* ------------------------------------------------------------------ */
@@ -6527,7 +6629,7 @@ async function audienceFor(orgId, kind, patrol) {
   // Static audiences ("everyone", "youth", "adults", "patrol") restrict
   // to the active roster — leads on /admin/leads receive their own
   // outreach, not general broadcasts.
-  const where = { orgId, status: "active" };
+  const where = { orgId, status: "active", deletedAt: null };
   if (kind === "adults") where.isYouth = false;
   else if (kind === "youth") where.isYouth = true;
   else if (kind === "patrol" && patrol) where.patrol = patrol;

@@ -3487,7 +3487,7 @@ app.get("/members", async (req, res, next) => {
       .send(renderDirectory(req.org, null, { notAMember: true }));
   }
   const members = await prisma.member.findMany({
-    where: { orgId: req.org.id },
+    where: { orgId: req.org.id, deletedAt: null },
     orderBy: [{ isYouth: "desc" }, { lastName: "asc" }, { firstName: "asc" }],
   });
 

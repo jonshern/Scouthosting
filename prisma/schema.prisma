@@ -348,6 +348,13 @@ model Member {
   prospectNote      String?   // free-form: what grade is the kid? what unit are they coming from?
   firstContactedAt  DateTime? // set on first /admin/leads "Mark contacted" or send
   lastContactedAt   DateTime? // updated on every contact event
+  // Soft delete. /admin/members "Remove" sets this; the row stays in
+  // place so parent linkages, audit history, and contributed content
+  // (posts/comments/photos) keep their attribution. /admin/members/
+  // trash lets a leader restore (clear deletedAt) or permanently
+  // purge. A cron sweep hard-deletes rows whose deletedAt is older
+  // than 30 days.
+  deletedAt      DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -361,6 +368,7 @@ model Member {
   @@index([orgId])
   @@index([orgId, lastName])
   @@index([orgId, status])
+  @@index([orgId, deletedAt])
 }
 
 model Event {
