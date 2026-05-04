@@ -1578,17 +1578,28 @@ model Reaction {
 //   subgroupPresets: [{ key, label, grade }]
 //   positionList:    [position-name strings] (optional, future use)
 //   customPagesSeed: [{ slug, title, body, visibility }] (optional)
+// JSON shapes:
+//   vocab:                { singular, plural, heading }
+//   subgroupPresets:      [{ key, label, grade }]
+//   positionList:         [position-name strings] (optional, future use)
+//   customPagesSeed:      [{ slug, title, body, visibility }] (optional)
+//   eventCategoriesSeed:  [{ slug, label, color }] (optional) — copied
+//                         into EventCategory at provision time so a
+//                         freshly-created org lands with a usable
+//                         category vocabulary instead of falling back
+//                         to the lib/eventCategories.js hardcoded 12.
 model OrgTemplate {
-  id              String   @id @default(cuid())
-  name            String   @unique // "Cub Scout Pack" / "Girl Scout Troop" / leader-named custom
-  unitType        UnitType
-  vocab           Json
-  subgroupPresets Json     @default("[]")
-  positionList    Json?
-  customPagesSeed Json?
-  isBuiltIn       Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  name                String   @unique // "Cub Scout Pack" / "Girl Scout Troop" / leader-named custom
+  unitType            UnitType
+  vocab               Json
+  subgroupPresets     Json     @default("[]")
+  positionList        Json?
+  customPagesSeed     Json?
+  eventCategoriesSeed Json?
+  isBuiltIn           Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@index([unitType])
 }

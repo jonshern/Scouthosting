@@ -156,6 +156,40 @@ async function persistSeedBroadcastChannels(org, { templateId } = {}) {
   });
 }
 
+// Seed the per-org event-category vocabulary at provision time. The
+// template's eventCategoriesSeed wins when present; otherwise we fall
+// back to the lib defaults via ensureDefaultEventCategories on first
+// /admin/categories visit. Empty array on the template means "no
+// pre-seeded categories" — admin starts from scratch.
+async function persistSeedEventCategories(org, { templateId } = {}) {
+  let seeds = null;
+  if (templateId) {
+    const tmpl = await prisma.orgTemplate.findUnique({ where: { id: templateId } });
+    if (tmpl && Array.isArray(tmpl.eventCategoriesSeed)) {
+      seeds = tmpl.eventCategoriesSeed;
+    }
+  }
+  if (!seeds) {
+    // No template-supplied list. Don't pre-seed — leave the table
+    // empty so ensureDefaultEventCategories(orgId) seeds the lib
+    // defaults on first /admin/categories visit, which keeps existing
+    // org-creation paths working unchanged.
+    return;
+  }
+  const HEX = /^#[0-9a-f]{6}$/i;
+  const data = seeds
+    .filter((s) => s && typeof s === "object" && s.slug && s.label && HEX.test(s.color || ""))
+    .map((s, idx) => ({
+      orgId: org.id,
+      slug: String(s.slug).toLowerCase().slice(0, 40),
+      label: String(s.label).slice(0, 40),
+      color: String(s.color).toLowerCase(),
+      sortOrder: idx,
+    }));
+  if (!data.length) return;
+  await prisma.eventCategory.createMany({ data, skipDuplicates: true });
+}
+
 /**
  * Create an Org record. Throws if the slug is reserved or already in use.
  * Caller is responsible for catching and translating to an HTTP error.
@@ -210,6 +244,7 @@ export async function provisionOrg(input) {
   });
 
   await persistSeedBroadcastChannels(org, { templateId: input.templateId || null });
+  await persistSeedEventCategories(org, { templateId: input.templateId || null });
 
   // Apply the default site template so a freshly-provisioned org lands
   // on a populated, properly-rendering homepage instead of a blank

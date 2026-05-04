@@ -1237,6 +1237,10 @@ superAdminRouter.get("/templates/:id/edit", requireSuperAdmin, async (req, res) 
       <label>Custom-pages seed <span class="muted small">(JSON array, optional)</span>
         <textarea name="customPagesSeed" rows="4" style="font-family:var(--font-mono,monospace);font-size:.85rem">${escapeJsonForTextarea(t.customPagesSeed ?? [])}</textarea>
       </label>
+      <label>Event-categories seed <span class="muted small">(JSON array of { slug, label, color }, optional)</span>
+        <textarea name="eventCategoriesSeed" rows="6" placeholder='[{"slug":"meeting","label":"Meeting","color":"#bcd0f4"}]' style="font-family:var(--font-mono,monospace);font-size:.85rem">${escapeJsonForTextarea(t.eventCategoriesSeed ?? [])}</textarea>
+      </label>
+      <p class="muted small" style="margin:-.4rem 0 .8rem">Copied into EventCategory rows when an org is provisioned with this template. Leave blank to fall back to the lib/eventCategories.js defaults on first /admin/categories visit.</p>
       <div class="row">
         <button class="btn btn-primary" type="submit">Save</button>
         <a class="btn btn-ghost" href="/__super/templates/${escape(t.id)}/clone">Clone to customize</a>
@@ -1258,6 +1262,7 @@ superAdminRouter.post("/templates/:id", requireSuperAdmin, async (req, res) => {
   const subgroupPresets = parseJsonField(req.body?.subgroupPresets, []);
   const positionList = parseJsonField(req.body?.positionList, null);
   const customPagesSeed = parseJsonField(req.body?.customPagesSeed, null);
+  const eventCategoriesSeed = parseJsonField(req.body?.eventCategoriesSeed, null);
   if (!vocab || !Array.isArray(subgroupPresets)) return res.redirect(`/__super/templates/${t.id}/edit`);
 
   await prisma.orgTemplate.update({
@@ -1267,6 +1272,7 @@ superAdminRouter.post("/templates/:id", requireSuperAdmin, async (req, res) => {
       unitType,
       vocab,
       subgroupPresets,
+      eventCategoriesSeed,
       positionList: Array.isArray(positionList) && positionList.length ? positionList : null,
       customPagesSeed: Array.isArray(customPagesSeed) && customPagesSeed.length ? customPagesSeed : null,
     },
