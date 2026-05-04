@@ -377,18 +377,18 @@ app.post("/__telemetry", express.json({ limit: "8kb" }), async (req, res) => {
 
 const STATIC_FALLTHROUGH = express.static(ROOT, { extensions: ["html"], index: "index.html" });
 
-// Apex static-asset extensions. These are *always* served from the
-// repo root regardless of host routing — even when req.org is set
-// because the apex hostname is mapped to an org via customDomain (the
-// single-host-staging pattern). Without this, /styles.css /tokens.css
-// /script.js etc. silently 404 on customDomain'd hosts because the
-// tenant routing has no business serving apex-marketing assets and
-// the marketing handler had an early-out that fired on req.org.
-const APEX_ASSET_EXT = /\.(css|js|png|jpe?g|gif|svg|webp|ico|map|woff2?|txt|xml)$/i;
-
+// Apex static-asset shortcut: serve apex-marketing files (/styles.css,
+// /tokens.css, /script.js, fonts, etc.) ONLY when the request is for
+// the bare apex (no req.org / no req.slugFromHost). On a tenant request
+// the same URL paths are tenant-owned — `/styles.css` resolves to
+// `demo/styles.css` via the tenant catch-all so the unit-page template
+// gets unit-page CSS instead of marketing CSS. Earlier revision (commit
+// 396f78a) intercepted these regardless of host to fix a single-host
+// customDomain'd-apex case; that broke every subdomain tenant's CSS.
+// We now keep the strict apex-only behaviour and document the
+// customDomain'd-apex case in CLAUDE.md instead (use real subdomains).
 app.use((req, res, next) => {
-  const isApexAsset = APEX_ASSET_EXT.test(req.path || "");
-  if ((req.slugFromHost || req.org) && !isApexAsset) return next();
+  if (req.slugFromHost || req.org) return next();
 
   // Resolve the candidate HTML path the same way express.static would,
   // then read+send if it's HTML. Path safety: only accept GETs whose

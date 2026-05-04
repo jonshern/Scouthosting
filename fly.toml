@@ -10,10 +10,24 @@ primary_region = 'ord'
   dockerfile = 'Dockerfile'
 
 [env]
-  APEX_DOMAIN = 'compass-staging.fly.dev'
+  APEX_DOMAIN = 'scoutingcompass.com'
   NODE_ENV = 'production'
   PORT = '8080'
   PUSH_DRIVER = 'console'
+  # Persist uploads across deploys/restarts. The mount below provides
+  # a real disk at /data; lib/storage.js writes to UPLOAD_ROOT.
+  UPLOAD_ROOT = '/data/uploads'
+
+# Persistent volume for user uploads (album photos, post photos, form
+# attachments, reimbursement receipts, org logos). Without this, every
+# `fly deploy` and every machine restart wipes /app/var/uploads/* and
+# the live demo 404s on every photo until someone re-seeds.
+# Volume created via: fly volumes create compass_uploads --region ord --size 1
+# Note: volumes are tied to a single machine. Scaling past 1 machine
+# requires either per-machine volumes or moving to object storage (Tigris/S3).
+[[mounts]]
+  source = 'compass_uploads'
+  destination = '/data'
 
 [http_service]
   internal_port = 8080

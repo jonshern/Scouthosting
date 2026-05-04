@@ -12,7 +12,7 @@ split.
 - Mobile: Expo SDK 51 + React Native 0.74 (no eject; uses Expo modules)
 - Local infra: docker-compose for Postgres only; the Express server runs as a host Node process
 - Production / staging: deployed via Dockerfile (single image runs migrations on boot, then Express)
-- Hosts that exist today: **`compass-staging.fly.dev`** (Fly.io). Production isn't live; cloudbuild.yaml exists but no GCP deploy is wired up.
+- Hosts that exist today: **`scoutingcompass.com`** (staging, Fly app `compass-staging`). Wildcard `*.scoutingcompass.com` cert via Let's Encrypt DNS-01, DNS at Cloudflare (DNS-only / grey cloud — never proxy). All three demo tenants reachable as real subdomains: `troop100.`, `pack100.`, `gstroop100.`. The Fly hostname `compass-staging.fly.dev` still resolves but isn't canonical. Production isn't live; cloudbuild.yaml exists but no GCP deploy is wired up.
 
 Run `make help` for the day-to-day commands — there are 10. Internal helpers (db-up, migrate, wipe, etc.) are still callable but hidden.
 
@@ -22,7 +22,7 @@ Run `make help` for the day-to-day commands — there are 10. Internal helpers (
 
 ### 1. The Dockerfile COPY list silently lags root-level files
 
-`server/index.js` serves every `*.html / *.css / *.js` at the repo root for the apex/marketing surface. Locally that's free — Express reads from the working tree. **In Docker, only files explicitly listed in the Dockerfile's `COPY` step ship into the image.** Anything you add at the root (`pitch.html`, `tokens.css`, a new marketing page, etc.) **must** be added to `Dockerfile:43-53` or it 404s in production.
+`server/index.js` serves every `*.html / *.css / *.js` at the repo root for the apex/marketing surface, and serves tenant assets from `demo/<file>` for subdomain/customDomain'd tenants. Locally that's free — Express reads from the working tree. **In Docker, only files explicitly listed in the Dockerfile's `COPY` step ship into the image.** Anything you add at the root (`pitch.html`, `tokens.css`, a new marketing page, etc.) **must** be added to `Dockerfile:43-53` or it 404s in production. The `demo/` directory is also COPY'd; if you add new tenant assets there make sure the COPY block still picks them up (`COPY demo ./demo` is recursive).
 
 Symptom when you forget: site looks "wrong" — fonts default, palette tokens fall back, login button does nothing (because `script.js` 404'd). Hard to diagnose because everything works locally.
 

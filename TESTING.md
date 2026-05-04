@@ -26,22 +26,44 @@ them.
 
 ## URLs — Staging (Fly.io)
 
-Base host: **`https://compass-staging.fly.dev`** · App: `compass-staging` · Region: `ord`
+Base host: **`https://scoutingcompass.com`** · App: `compass-staging` (Fly) · Region: `ord` · DNS: Cloudflare (DNS-only, grey cloud)
+
+The Fly hostname `compass-staging.fly.dev` still works but is no longer canonical — `scoutingcompass.com` is the staging domain (wildcard cert via Fly + Let's Encrypt DNS-01).
+
+### Marketing / cross-tenant
 
 | Surface | URL |
 |---|---|
-| Marketing site | <https://compass-staging.fly.dev/> |
-| Sign in | <https://compass-staging.fly.dev/login.html> |
-| Sign up | <https://compass-staging.fly.dev/signup.html> |
-| Pricing | <https://compass-staging.fly.dev/plans.html> |
-| Pitch | <https://compass-staging.fly.dev/pitch.html> |
-| Positioning | <https://compass-staging.fly.dev/positioning.html> |
-| Health | <https://compass-staging.fly.dev/healthz> |
-| API: orgs | <https://compass-staging.fly.dev/api/orgs> |
-| Super-admin | <https://compass-staging.fly.dev/__super> *(SSO required)* |
+| Marketing site | <https://scoutingcompass.com/> |
+| Sign in | <https://scoutingcompass.com/login.html> |
+| Sign up | <https://scoutingcompass.com/signup.html> |
+| Pricing | <https://scoutingcompass.com/plans.html> |
+| Pitch | <https://scoutingcompass.com/pitch.html> |
+| Positioning | <https://scoutingcompass.com/positioning.html> |
+| Health | <https://scoutingcompass.com/healthz> |
+| API: orgs | <https://scoutingcompass.com/api/orgs> |
+| Super-admin | <https://scoutingcompass.com/__super> *(SSO required)* |
 | Fly dashboard | <https://fly.io/apps/compass-staging/monitoring> |
 
-> **Per-org subdomains don't work on staging** — Fly's free tier has no wildcard DNS, so `troop100.compass-staging.fly.dev` won't route. The mobile app and `/api/v1/*` work fine because they're host-agnostic. For per-org web (admin, public unit pages) keep testing locally.
+### Per-tenant (subdomain wildcards via `*.scoutingcompass.com`)
+
+| Tenant | Public site | Admin |
+|---|---|---|
+| Sample Troop 100 | <https://troop100.scoutingcompass.com/> | <https://troop100.scoutingcompass.com/admin> |
+| Sample Pack 100 | <https://pack100.scoutingcompass.com/> | <https://pack100.scoutingcompass.com/admin> |
+| Sample Girl Scout Troop 100 | <https://gstroop100.scoutingcompass.com/> | <https://gstroop100.scoutingcompass.com/admin> |
+
+### DNS records (Cloudflare, all DNS-only / grey cloud)
+
+| Type  | Name              | Content                                       |
+|-------|-------------------|-----------------------------------------------|
+| A     | `@`               | `66.241.124.237` (Fly shared-v4 IP)           |
+| AAAA  | `@`               | `2a09:8280:1::10f:bbc7:0` (Fly v6 IP)         |
+| A     | `*`               | `66.241.124.237`                              |
+| AAAA  | `*`               | `2a09:8280:1::10f:bbc7:0`                     |
+| CNAME | `_acme-challenge` | `scoutingcompass.com.qjm5mmp.flydns.net`      |
+
+**All DNS-only — never flip the apex/wildcard to orange (proxied) without first switching Cloudflare SSL mode to Full (strict) and testing.** Proxying breaks Let's Encrypt HTTP-01 validation and forces the cert to be re-issued via DNS-01.
 
 ---
 
@@ -74,8 +96,8 @@ Bring up with `make dev` (after `make bootstrap` once).
 2. Phone must be on the same Wi-Fi as the Mac.
 3. Confirm `mobile/.env` exists (gitignored) with:
    ```
-   EXPO_PUBLIC_COMPASS_BASE_URL=https://compass-staging.fly.dev
-   EXPO_PUBLIC_COMPASS_APEX=compass-staging.fly.dev
+   EXPO_PUBLIC_COMPASS_BASE_URL=https://scoutingcompass.com
+   EXPO_PUBLIC_COMPASS_APEX=scoutingcompass.com
    ```
 
 ### Daily
@@ -93,7 +115,7 @@ Inside the app: tap **Sign in** → in-app browser → email **`parent@example.i
 ### End-to-end message test
 
 1. Phone is signed in as `parent@example.invalid` and viewing a troop100 chat channel.
-2. On the Mac, sign in to <https://compass-staging.fly.dev/login.html> as the same parent (or a different seeded user — but parent is the only one that works on staging).
+2. On the Mac, sign in to <https://scoutingcompass.com/login.html> as the same parent (or a different seeded user).
 3. Send a message in the same channel from the web.
 4. Phone polls every ~5–10 s; the message appears.
 

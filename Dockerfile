@@ -40,6 +40,10 @@ COPY --from=deps --chown=compass:compass /app/prisma ./prisma
 COPY --chown=compass:compass package.json package-lock.json ./
 COPY --chown=compass:compass server ./server
 COPY --chown=compass:compass lib ./lib
+# Tenant-asset bucket. Tenant requests for /styles.css /script.js etc.
+# resolve to demo/<asset> via the tenant catch-all in server/index.js.
+# Without this COPY the unit page renders unstyled in production.
+COPY --chown=compass:compass demo ./demo
 # Apex static assets. Each new top-level *.html / *.css / *.js needs
 # to be added here — Express serves these as the marketing/login surface.
 # script.js is the login form's submit handler; tokens.css holds every
