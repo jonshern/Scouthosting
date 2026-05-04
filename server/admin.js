@@ -10,8 +10,13 @@
 
 import express from "express";
 import multer from "multer";
+import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
+import { fileURLToPath } from "node:url";
+
+const __filename = fileURLToPath(import.meta.url);
+const ROOT = path.resolve(path.dirname(__filename), "..");
 import { prisma } from "../lib/db.js";
 import { lucia, verifyPassword, roleInOrg } from "../lib/auth.js";
 import {
@@ -370,9 +375,10 @@ const NAV_SECTIONS = [
   {
     key: "site",
     label: "Site",
-    href: "/admin/content",
+    href: "/admin/site",
     pages: [
-      { href: "/admin/content", label: "Homepage" },
+      { href: "/admin/site", label: "Editor" },
+      { href: "/admin/content", label: "Settings" },
       { href: "/admin/pages", label: "Custom pages" },
       { href: "/admin/site/template", label: "Templates" },
     ],
@@ -1467,6 +1473,153 @@ function dashboardCss() {
 }
 </style>`;
 }
+
+/* ------------------------------------------------------------------ */
+/* Site editor (GrapesJS visual block editor)                          */
+/* ------------------------------------------------------------------ */
+
+// Visual block-based editor for the homepage. Mounts GrapesJS in the
+// browser, loaded from /vendor/grapesjs/. The shell renders a minimal
+// toolbar + the canvas + block palette div + drops the org's current
+// block tree as window.__INITIAL_BLOCKS__ for the browser-side script
+// to hydrate.
+//
+// POST /admin/site accepts JSON { blocks: [...] } and persists into
+// Page.customBlocks after running each row through the existing
+// normaliseHomepageCustomBlock validator (rejects unknown types,
+// clamps configs, etc.) so the same admin-form code path can't be
+// bypassed via a richer client.
+adminRouter.get("/site", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const blocks = readHomepageCustomBlocks(page);
+  // Inline the JSON into a script tag — single source of truth for the
+  // editor's initial state. Escape </script> to be safe.
+  const safeJson = JSON.stringify(blocks).replace(/<\/script>/gi, "<\\/script>");
+  const orgName = JSON.stringify(req.org.displayName || "your unit");
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Edit site · ${escape(req.org.displayName)}</title>
+<link rel="stylesheet" href="/vendor/grapesjs/css/grapes.min.css">
+<link rel="stylesheet" href="/tokens.css">
+<style>
+  body { margin: 0; font-family: 'Inter Tight', system-ui, -apple-system, sans-serif; background: #f3f4f6; color: #111; }
+  .ed-shell { display: grid; grid-template-rows: 60px 1fr; height: 100vh; }
+  .ed-toolbar { background: #111827; color: #fff; display: flex; align-items: center; gap: 1rem; padding: 0 1rem; box-shadow: 0 1px 4px rgba(0,0,0,.15); }
+  .ed-toolbar h1 { margin: 0; font-size: 1rem; font-weight: 600; }
+  .ed-toolbar h1 small { display: block; font-size: .72rem; color: #9ca3af; font-weight: 400; }
+  .ed-toolbar nav { display: flex; align-items: center; gap: .5rem; margin-left: auto; }
+  .ed-toolbar a, .ed-toolbar button { background: transparent; color: #fff; border: 1px solid #374151; padding: .45rem .85rem; border-radius: 6px; font: inherit; text-decoration: none; cursor: pointer; }
+  .ed-toolbar a:hover, .ed-toolbar button:hover { background: #1f2937; }
+  .ed-toolbar button.primary { background: #caa54a; border-color: #caa54a; color: #111; font-weight: 600; }
+  .ed-toolbar button.primary:hover { background: #b9933e; }
+  .ed-toolbar button:disabled { opacity: .6; cursor: wait; }
+  .ed-body { display: grid; grid-template-columns: 240px 1fr; min-height: 0; }
+  .ed-blocks-pane { background: #fff; border-right: 1px solid #e5e7eb; overflow-y: auto; padding: 1rem .75rem; }
+  .ed-blocks-pane h2 { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin: .8rem .25rem .4rem; font-weight: 600; }
+  #gjs-blocks .gjs-blocks-c { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
+  #gjs-blocks .gjs-block { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: .6rem .35rem; text-align: center; cursor: grab; font-size: .82rem; color: #374151; transition: border-color 120ms ease-out; min-height: auto; }
+  #gjs-blocks .gjs-block:hover { border-color: #1d6b39; color: #1d6b39; }
+  #gjs-blocks .gjs-block-label { display: block; }
+  #gjs-blocks .gjs-block-category { font-size: .68rem; text-transform: uppercase; color: #6b7280; letter-spacing: .05em; padding: .5rem .25rem .25rem; }
+  .ed-canvas-pane { min-height: 0; overflow: hidden; }
+  #gjs { border: 0 !important; height: 100%; }
+  .gjs-cv-canvas { background: #fafafa; }
+</style>
+</head>
+<body>
+<div class="ed-shell">
+  <header class="ed-toolbar">
+    <h1>Site editor <small>${escape(req.org.displayName)}</small></h1>
+    <nav>
+      <a href="/admin/content">Settings</a>
+      <a href="/admin/site/template">Templates</a>
+      <a href="/" target="_blank" rel="noopener">View live ↗</a>
+      <button id="ed-save" class="primary" type="button">Save</button>
+    </nav>
+  </header>
+  <main class="ed-body">
+    <aside class="ed-blocks-pane">
+      <h2>Blocks</h2>
+      <div id="gjs-blocks"></div>
+    </aside>
+    <section class="ed-canvas-pane">
+      <div id="gjs"></div>
+    </section>
+  </main>
+</div>
+
+<script>
+  window.__INITIAL_BLOCKS__ = ${safeJson};
+  window.__CSRF_TOKEN__ = ${JSON.stringify(req.csrfToken || "")};
+  window.__ORG_NAME__ = ${orgName};
+</script>
+<script src="/vendor/grapesjs/grapes.min.js"></script>
+<script src="/admin/site-editor/editor.js"></script>
+</body>
+</html>`;
+  res.type("html").send(html);
+});
+
+// Save: POST JSON { blocks: [...] }. Each block goes through the same
+// validator the form-edit path uses so the richer client can't bypass
+// per-type constraints. Rebuilds sectionOrder so the new arrangement
+// renders in the order the admin left it on the canvas.
+adminRouter.post("/site", requireLeader, express.json({ limit: "256kb" }), async (req, res) => {
+  const incoming = Array.isArray(req.body?.blocks) ? req.body.blocks : null;
+  if (!incoming) return res.status(400).type("text/plain").send("expected { blocks: [...] }");
+
+  const cleaned = [];
+  const errors = [];
+  for (let i = 0; i < incoming.length; i++) {
+    try {
+      cleaned.push(normaliseHomepageCustomBlock(incoming[i]));
+    } catch (err) {
+      errors.push({ idx: i, message: err.message });
+    }
+  }
+  if (errors.length) {
+    return res.status(400).json({ ok: false, errors });
+  }
+
+  // sectionOrder mirrors the canvas order. Live blocks render in
+  // place; we hide all built-in sections so the canvas is the
+  // single source of truth for what shows on the homepage.
+  const sectionOrder = cleaned.map((b) => `block:${b.id}`);
+  const sectionVisibility = {
+    hero: false, about: false, whatWeDo: false, upcoming: false,
+    posts: false, albums: false, testimonials: false, join: false, contact: false,
+  };
+
+  await prisma.page.upsert({
+    where: { orgId: req.org.id },
+    update: { customBlocks: cleaned, sectionOrder, sectionVisibility },
+    create: { orgId: req.org.id, customBlocks: cleaned, sectionOrder, sectionVisibility },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "update",
+    summary: `Edited homepage in site editor (${cleaned.length} blocks)`,
+  });
+  res.json({ ok: true, blocks: cleaned.length });
+});
+
+// Static asset route for the site editor's bundled JS/CSS. Lives
+// under admin/ rather than as a top-level marketing file so it doesn't
+// pollute the apex root.
+adminRouter.get("/site-editor/:file", requireLeader, async (req, res) => {
+  const file = String(req.params.file || "");
+  if (!/^[a-zA-Z0-9._-]+$/.test(file)) return res.status(404).send("Not found");
+  const dir = path.join(ROOT, "admin", "site-editor");
+  const full = path.join(dir, file);
+  if (!full.startsWith(dir)) return res.status(404).send("Not found");
+  if (!fs.existsSync(full)) return res.status(404).send("Not found");
+  res.sendFile(full);
+});
 
 /* ------------------------------------------------------------------ */
 /* Site templates                                                      */

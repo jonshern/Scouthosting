@@ -1351,6 +1351,34 @@ app.post("/auth/apple/callback", async (req, res) => {
   res.redirect("/");
 });
 
+/* ------------------ Vendored client libs (admin + tenant) --------- */
+
+// Vendored npm packages reachable from any host (admin + public). The
+// allow-list is intentionally tiny — adding a new entry is a deliberate
+// security decision because anything in node_modules could be served.
+// Files are content-addressable by version (npm pins them), so the
+// long-immutable cache header is safe.
+const VENDOR_PACKAGES = {
+  "/vendor/grapesjs/": path.join(ROOT, "node_modules", "grapesjs", "dist"),
+};
+app.get(/^\/vendor\/[^/]+\/.+$/, (req, res, next) => {
+  for (const [prefix, dir] of Object.entries(VENDOR_PACKAGES)) {
+    if (!req.path.startsWith(prefix)) continue;
+    const sub = req.path.slice(prefix.length);
+    // Only single-segment names (with optional sub-folder under dist/),
+    // no traversal. css/grapes.min.css is a real GrapesJS layout.
+    if (!/^[a-zA-Z0-9._/-]+$/.test(sub) || sub.includes("..")) {
+      return res.status(404).send("Not found");
+    }
+    const file = path.join(dir, sub);
+    if (!file.startsWith(dir)) return res.status(404).send("Not found");
+    if (!fs.existsSync(file)) return res.status(404).send("Not found");
+    res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+    return res.sendFile(file);
+  }
+  return next();
+});
+
 /* ------------------ Admin (org subdomain only) -------------------- */
 
 app.use("/admin", (req, res, next) => {

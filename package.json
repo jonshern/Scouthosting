@@ -30,6 +30,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "fullcalendar": "^6.1.20",
+    "grapesjs": "^0.22.16",
     "lucia": "^3.2.2",
     "multer": "^2.0.0",
     "oslo": "^1.2.1",
