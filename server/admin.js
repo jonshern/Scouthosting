@@ -112,17 +112,8 @@ import {
   applyTemplate as applySiteTemplate,
 } from "../lib/templates/index.js";
 import {
-  SECTIONS as HOMEPAGE_SECTIONS,
-  BLOCK_TYPES as HOMEPAGE_BLOCK_TYPES,
-  isLiveBlockType as isHomepageLiveBlockType,
-  resolvePlan as resolveHomepagePlan,
-  normaliseSectionPatch as normaliseHomepageSectionPatch,
-  readTestimonials as readHomepageTestimonials,
   readCustomBlocks as readHomepageCustomBlocks,
   normaliseCustomBlock as normaliseHomepageCustomBlock,
-  isCustomBlockKey as isHomepageBlockKey,
-  customBlockId as homepageBlockId,
-  customBlockKey as homepageBlockKey,
 } from "../lib/homepageSections.js";
 import { categoryMeta as eventCategoryMeta } from "../lib/eventCategories.js";
 
@@ -227,114 +218,6 @@ function resolvePatrolFromBody(body) {
   return body?.patrol?.trim() || null;
 }
 
-function sectionPlannerRows(page) {
-  const order = resolveHomepagePlan(page);
-  const knownSet = new Set(order);
-  const blocks = readHomepageCustomBlocks(page);
-  const blocksById = new Map(blocks.map((b) => [b.id, b]));
-  // Include hidden sections at the bottom so the admin can re-show them.
-  const hiddenBuiltins = Object.keys(HOMEPAGE_SECTIONS).filter((k) => !knownSet.has(k));
-  const hiddenBlocks = blocks
-    .map((b) => homepageBlockKey(b.id))
-    .filter((k) => !knownSet.has(k));
-  const all = [...order, ...hiddenBuiltins, ...hiddenBlocks];
-  const vis = page?.sectionVisibility || {};
-  return all
-    .map((key, idx) => {
-      let label;
-      let description;
-      if (isHomepageBlockKey(key)) {
-        const b = blocksById.get(homepageBlockId(key));
-        if (!b) return ""; // backing block was deleted; skip silently
-        const typeMeta = HOMEPAGE_BLOCK_TYPES[b.type];
-        const title =
-          (b.type === "image" ? b.caption : b.title) ||
-          `Untitled ${typeMeta?.label || "block"}`;
-        label = `${title} <span class="tag">Custom · ${escape(typeMeta?.label || b.type)}</span>`;
-        description = typeMeta?.description || "";
-      } else {
-        const meta = HOMEPAGE_SECTIONS[key];
-        if (!meta) return "";
-        label = escape(meta.label);
-        description = meta.description;
-      }
-      const visible = vis[key] !== false;
-      return `
-      <li draggable="true" style="cursor:grab" data-key="${escape(key)}">
-        <input type="hidden" name="order[]" value="${escape(key)}">
-        <span style="font-family:'JetBrains Mono',ui-monospace,monospace;color:var(--ink-muted);font-size:.75rem;width:1.4rem">${idx + 1}.</span>
-        <div style="flex:1">
-          <strong>${label}</strong>
-          <p>${escape(description)}</p>
-        </div>
-        <label style="margin:0;display:flex;align-items:center;gap:.4rem;flex:0 0 auto">
-          <input type="checkbox" name="visible[${escape(key)}]" value="1" ${visible ? "checked" : ""} style="width:auto">
-          Show
-        </label>
-      </li>`;
-    })
-    .join("");
-}
-
-// Render the "Custom blocks" section of the editor — list of existing
-// blocks with edit/delete actions, plus an "Add a block" picker.
-function customBlockRows(page) {
-  const blocks = readHomepageCustomBlocks(page);
-  if (!blocks.length) {
-    return `<p class="muted small">No custom blocks yet. Add one below to drop a text snippet, photo, or call-to-action onto your homepage.</p>`;
-  }
-  return `<ul class="items" style="margin:0 0 .8rem">${blocks
-    .map((b) => {
-      const typeMeta = HOMEPAGE_BLOCK_TYPES[b.type];
-      const heading =
-        (b.type === "image" ? b.caption : b.title) ||
-        `Untitled ${typeMeta?.label || "block"}`;
-      const preview =
-        b.type === "text"
-          ? (b.body || "").slice(0, 120)
-          : b.type === "image"
-          ? b.filename
-            ? `Image: ${b.filename}`
-            : "No image uploaded yet"
-          : b.type === "cta"
-          ? `${b.buttonLabel || "Button"} → ${b.buttonLink || "(no link)"}`
-          : "";
-      return `
-        <li>
-          <div style="flex:1">
-            <h3 style="margin:0">${escape(heading)} <span class="tag">${escape(typeMeta?.label || b.type)}</span></h3>
-            <p class="muted small" style="margin:.2rem 0 0">${escape(preview)}</p>
-          </div>
-          <div class="row">
-            <a class="btn btn-ghost small" href="/admin/content/blocks/${escape(b.id)}/edit">Edit</a>
-            <form class="inline" method="post" action="/admin/content/blocks/${escape(b.id)}/delete" onsubmit="return confirm('Delete this block?')">
-              <button class="btn btn-danger small" type="submit">Delete</button>
-            </form>
-          </div>
-        </li>`;
-    })
-    .join("")}</ul>`;
-}
-
-function testimonialFormRows(page) {
-  const rows = readHomepageTestimonials(page);
-  // Always render at least one empty row so admins can add their first.
-  const slots = rows.length ? [...rows, { quote: "", attribution: "" }] : [{ quote: "", attribution: "" }];
-  return slots
-    .map(
-      (t, i) => `
-    <div class="card" style="background:var(--bg);margin-bottom:.5rem">
-      <label style="margin-bottom:.4rem">Quote
-        <textarea name="quote[]" rows="2" placeholder="My son loves it.">${escape(t.quote)}</textarea>
-      </label>
-      <label style="margin-bottom:0">Attribution (optional)
-        <input name="attribution[]" type="text" value="${escape(t.attribution)}" placeholder="— Megan O'Brien, Den 4 parent">
-      </label>
-    </div>`,
-    )
-    .join("");
-}
-
 function memberPositionField({ unitType, current, formId }) {
   const listId = `position-options-${formId}`;
   const datalist = positionOptions(unitType)
@@ -378,7 +261,6 @@ const NAV_SECTIONS = [
     href: "/admin/site",
     pages: [
       { href: "/admin/site", label: "Editor" },
-      { href: "/admin/content", label: "Settings" },
       { href: "/admin/pages", label: "Custom pages" },
       { href: "/admin/site/template", label: "Templates" },
     ],
@@ -1272,7 +1154,7 @@ ${dashboardCss()}
     <p class="dash-summary">${dashboardSummaryLine(model)}</p>
   </div>
   <div class="dash-greeting-actions">
-    <a class="dash-btn-ghost" href="/admin/content">Edit homepage</a>
+    <a class="dash-btn-ghost" href="/admin/site">Edit homepage</a>
     <a class="dash-btn-ghost" href="/admin/email">Send a message</a>
     <a class="dash-btn-accent" href="/admin/events">+ New event</a>
   </div>
@@ -1553,6 +1435,16 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
   // editor's initial state. Escape </script> to be safe.
   const safeJson = JSON.stringify(blocks).replace(/<\/script>/gi, "<\\/script>");
   const orgName = JSON.stringify(req.org.displayName || "your unit");
+  const settings = {
+    heroHeadline: page?.heroHeadline ?? "",
+    heroLede: page?.heroLede ?? "",
+    aboutBody: page?.aboutBody ?? "",
+    joinBody: page?.joinBody ?? "",
+    contactNote: page?.contactNote ?? "",
+    primaryColor: req.org.primaryColor || "#1d6b39",
+    accentColor: req.org.accentColor || "#caa54a",
+  };
+  const logoFilename = req.org.logoFilename || "";
   const html = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1573,7 +1465,7 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
   .ed-toolbar button.primary { background: #caa54a; border-color: #caa54a; color: #111; font-weight: 600; }
   .ed-toolbar button.primary:hover { background: #b9933e; }
   .ed-toolbar button:disabled { opacity: .6; cursor: wait; }
-  .ed-body { display: grid; grid-template-columns: 240px 1fr; min-height: 0; }
+  .ed-body { display: grid; grid-template-columns: 240px 1fr 320px; min-height: 0; }
   .ed-blocks-pane { background: #fff; border-right: 1px solid #e5e7eb; overflow-y: auto; padding: 1rem .75rem; }
   .ed-blocks-pane h2 { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin: .25rem .25rem .4rem; font-weight: 600; }
   .ed-rail-category { font-size: .68rem; text-transform: uppercase; color: #6b7280; letter-spacing: .06em; padding: .9rem .25rem .35rem; font-weight: 600; }
@@ -1587,6 +1479,33 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
   .ed-canvas-pane { min-height: 0; overflow: hidden; }
   #gjs { border: 0 !important; height: 100%; }
   .gjs-cv-canvas { background: #fafafa; }
+
+  /* Right rail: settings */
+  .ed-settings-pane { background: #fff; border-left: 1px solid #e5e7eb; overflow-y: auto; padding: 1rem .9rem; }
+  .ed-settings-pane h2 { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin: .25rem 0 .8rem; font-weight: 600; }
+  .ed-settings-group { border-top: 1px solid #f3f4f6; padding: .9rem 0 .25rem; }
+  .ed-settings-group:first-of-type { border-top: 0; padding-top: 0; }
+  .ed-settings-group h3 { font-size: .85rem; font-weight: 600; margin: 0 0 .55rem; color: #111; letter-spacing: .01em; }
+  .ed-settings-group label { display: block; font-size: .78rem; color: #374151; margin-bottom: .55rem; }
+  .ed-settings-group input[type="text"], .ed-settings-group textarea { width: 100%; padding: .4rem .5rem; border: 1px solid #d1d5db; border-radius: 6px; font: inherit; font-size: .85rem; box-sizing: border-box; }
+  .ed-settings-group textarea { min-height: 4.5rem; resize: vertical; line-height: 1.45; }
+  .ed-settings-group input[type="color"] { width: 100%; height: 32px; padding: 0; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; }
+  .ed-settings-row { display: flex; gap: .5rem; }
+  .ed-settings-row > label { flex: 1; }
+  .ed-settings-save { display: flex; align-items: center; gap: .6rem; margin-top: .35rem; }
+  .ed-settings-save button { background: #1d6b39; color: #fff; border: 0; border-radius: 6px; padding: .5rem .9rem; font: inherit; font-weight: 600; font-size: .85rem; cursor: pointer; }
+  .ed-settings-save button:hover { background: #145228; }
+  .ed-settings-save button:disabled { opacity: .6; cursor: wait; }
+  .ed-settings-save .ed-settings-status { font-size: .75rem; color: #6b7280; }
+  .ed-logo-preview { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: .6rem; text-align: center; margin-bottom: .55rem; }
+  .ed-logo-preview img { max-height: 64px; max-width: 100%; }
+  .ed-logo-preview .muted { color: #9ca3af; font-size: .78rem; }
+  .ed-logo-form button { margin-top: .35rem; }
+  .ed-logo-form input[type="file"] { font-size: .78rem; width: 100%; }
+  .ed-logo-clear { margin-top: .5rem; }
+  .ed-logo-clear button { background: transparent; color: #b91c1c; border: 1px solid #fecaca; }
+  .ed-logo-clear button:hover { background: #fef2f2; }
+  .ed-settings-tip { font-size: .72rem; color: #9ca3af; margin: .15rem 0 .55rem; line-height: 1.45; }
 </style>
 </head>
 <body>
@@ -1594,10 +1513,9 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
   <header class="ed-toolbar">
     <h1>Site editor <small>${escape(req.org.displayName)}</small></h1>
     <nav>
-      <a href="/admin/content">Settings</a>
       <a href="/admin/site/template">Templates</a>
       <a href="/" target="_blank" rel="noopener">View live ↗</a>
-      <button id="ed-save" class="primary" type="button">Save</button>
+      <button id="ed-save" class="primary" type="button">Save layout</button>
     </nav>
   </header>
   <main class="ed-body">
@@ -1612,6 +1530,72 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
     <section class="ed-canvas-pane">
       <div id="gjs"></div>
     </section>
+    <aside class="ed-settings-pane">
+      <h2>Site settings</h2>
+
+      <form id="ed-settings-form" autocomplete="off">
+        <div class="ed-settings-group">
+          <h3>Hero</h3>
+          <label>Headline
+            <input type="text" name="heroHeadline" value="${escape(settings.heroHeadline)}" placeholder="Adventure, leadership, and the outdoors — since 1972.">
+          </label>
+          <label>Lede
+            <textarea name="heroLede" placeholder="A short pitch that appears under the headline.">${escape(settings.heroLede)}</textarea>
+          </label>
+        </div>
+
+        <div class="ed-settings-group">
+          <h3>Page text</h3>
+          <p class="ed-settings-tip">These render in the built-in About, Join, and Contact sections of your homepage. Leave blank for the auto-generated default copy.</p>
+          <label>About
+            <textarea name="aboutBody" placeholder="Tell visitors about the unit.">${escape(settings.aboutBody)}</textarea>
+          </label>
+          <label>Join (Curious? Come visit.)
+            <textarea name="joinBody" placeholder="What a visitor can expect at their first meeting.">${escape(settings.joinBody)}</textarea>
+          </label>
+          <label>Contact note
+            <textarea name="contactNote" placeholder="Optional note above the contact info.">${escape(settings.contactNote)}</textarea>
+          </label>
+        </div>
+
+        <div class="ed-settings-group">
+          <h3>Theme</h3>
+          <div class="ed-settings-row">
+            <label>Primary
+              <input type="color" name="primaryColor" value="${escape(settings.primaryColor)}">
+            </label>
+            <label>Accent
+              <input type="color" name="accentColor" value="${escape(settings.accentColor)}">
+            </label>
+          </div>
+        </div>
+
+        <div class="ed-settings-save">
+          <button type="submit" id="ed-settings-submit">Save settings</button>
+          <span class="ed-settings-status" id="ed-settings-status"></span>
+        </div>
+      </form>
+
+      <div class="ed-settings-group">
+        <h3>Logo</h3>
+        ${
+          logoFilename
+            ? `<div class="ed-logo-preview"><img src="/uploads/${escape(logoFilename)}" alt="Current logo"></div>`
+            : `<div class="ed-logo-preview"><span class="muted">No logo · using unit-number badge</span></div>`
+        }
+        <form class="ed-logo-form" method="post" action="/admin/site/logo" enctype="multipart/form-data">
+          <input type="file" name="logo" accept="image/*" required>
+          <button class="ed-settings-save" type="submit">Upload logo</button>
+        </form>
+        ${
+          logoFilename
+            ? `<form class="ed-logo-clear" method="post" action="/admin/site/logo/clear" onsubmit="return confirm('Remove the current logo?')">
+                 <button type="submit">Remove logo</button>
+               </form>`
+            : ""
+        }
+      </div>
+    </aside>
   </main>
 </div>
 
@@ -1629,8 +1613,7 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
 
 // Save: POST JSON { blocks: [...] }. Each block goes through the same
 // validator the form-edit path uses so the richer client can't bypass
-// per-type constraints. Rebuilds sectionOrder so the new arrangement
-// renders in the order the admin left it on the canvas.
+// per-type constraints. Canvas array order is the order they render in.
 adminRouter.post("/site", requireLeader, express.json({ limit: "256kb" }), async (req, res) => {
   const incoming = Array.isArray(req.body?.blocks) ? req.body.blocks : null;
   if (!incoming) return res.status(400).type("text/plain").send("expected { blocks: [...] }");
@@ -1648,19 +1631,10 @@ adminRouter.post("/site", requireLeader, express.json({ limit: "256kb" }), async
     return res.status(400).json({ ok: false, errors });
   }
 
-  // sectionOrder mirrors the canvas order. Live blocks render in
-  // place; we hide all built-in sections so the canvas is the
-  // single source of truth for what shows on the homepage.
-  const sectionOrder = cleaned.map((b) => `block:${b.id}`);
-  const sectionVisibility = {
-    hero: false, about: false, whatWeDo: false, upcoming: false,
-    posts: false, albums: false, testimonials: false, join: false, contact: false,
-  };
-
   await prisma.page.upsert({
     where: { orgId: req.org.id },
-    update: { customBlocks: cleaned, sectionOrder, sectionVisibility },
-    create: { orgId: req.org.id, customBlocks: cleaned, sectionOrder, sectionVisibility },
+    update: { customBlocks: cleaned },
+    create: { orgId: req.org.id, customBlocks: cleaned },
   });
   await recordAudit({
     org: req.org,
@@ -1670,6 +1644,102 @@ adminRouter.post("/site", requireLeader, express.json({ limit: "256kb" }), async
     summary: `Edited homepage in site editor (${cleaned.length} blocks)`,
   });
   res.json({ ok: true, blocks: cleaned.length });
+});
+
+// Site settings — hero text, page text, theme. Saved as JSON from the
+// right-rail Settings panel in /admin/site. Page columns + Org colors
+// in one round-trip so the editor doesn't have to choreograph two
+// requests.
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+adminRouter.post("/site/settings", requireLeader, express.json({ limit: "32kb" }), async (req, res) => {
+  const body = req.body || {};
+  const pageFields = ["heroHeadline", "heroLede", "aboutBody", "joinBody", "contactNote"];
+  const pageData = {};
+  for (const f of pageFields) {
+    const v = (body[f] ?? "").toString().trim();
+    pageData[f] = v === "" ? null : v;
+  }
+  const orgData = {};
+  const primary = (body.primaryColor || "").toString().trim();
+  const accent = (body.accentColor || "").toString().trim();
+  if (HEX_COLOR.test(primary)) orgData.primaryColor = primary;
+  if (HEX_COLOR.test(accent)) orgData.accentColor = accent;
+
+  await prisma.page.upsert({
+    where: { orgId: req.org.id },
+    update: pageData,
+    create: { orgId: req.org.id, ...pageData },
+  });
+  if (Object.keys(orgData).length) {
+    await prisma.org.update({ where: { id: req.org.id }, data: orgData });
+  }
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "update",
+    summary: "Site settings updated",
+  });
+  res.json({ ok: true });
+});
+
+// Logo upload — multipart from the Settings panel. Replaces any
+// existing logo (best-effort cleanup of the prior file).
+adminRouter.post(
+  "/site/logo",
+  requireLeader,
+  upload.single("logo"),
+  async (req, res) => {
+    if (!req.file) return res.redirect("/admin/site");
+    const ext = (req.file.originalname.match(/\.([a-z0-9]+)$/i)?.[1] || "png").toLowerCase();
+    const filename = `logo-${crypto.randomBytes(8).toString("hex")}.${ext}`;
+    await moveFromTemp(req.org.id, filename, req.file.path);
+
+    if (req.org.logoFilename) {
+      try {
+        await removeFile(req.org.id, req.org.logoFilename);
+      } catch (_) {
+        // ignore — old file may already be gone
+      }
+    }
+
+    await prisma.org.update({
+      where: { id: req.org.id },
+      data: { logoFilename: filename },
+    });
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "Org",
+      entityId: req.org.id,
+      action: "update",
+      summary: "Uploaded new logo",
+    });
+    res.redirect("/admin/site");
+  },
+);
+
+adminRouter.post("/site/logo/clear", requireLeader, async (req, res) => {
+  if (req.org.logoFilename) {
+    try {
+      await removeFile(req.org.id, req.org.logoFilename);
+    } catch (_) {
+      // best-effort
+    }
+  }
+  await prisma.org.update({
+    where: { id: req.org.id },
+    data: { logoFilename: null },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Org",
+    entityId: req.org.id,
+    action: "delete",
+    summary: "Removed logo",
+  });
+  res.redirect("/admin/site");
 });
 
 // Static asset route for the site editor's bundled JS/CSS. Lives
@@ -1734,610 +1804,6 @@ adminRouter.post("/site/template", requireLeader, async (req, res) => {
     summary: `Applied "${tpl.label}" template (${result.customPages.length} starter pages)`,
   });
   res.redirect("/admin/site?template=applied");
-});
-
-/* ------------------------------------------------------------------ */
-/* Page content                                                        */
-/* ------------------------------------------------------------------ */
-
-// Render the per-type config form for a live block (events, photos,
-// posts, contact, …) on the block-edit screen. Each spec ships its
-// own `defaults` shape — we generate a small set of <select>/<input>
-// fields by inspecting that shape rather than hard-coding the UI per
-// block type. POST submission collapses everything into req.body.config.
-function renderLiveBlockFields(block) {
-  const cfg = block.config || {};
-  const meta = HOMEPAGE_BLOCK_TYPES[block.type] || {};
-  const defaults = meta.defaults || {};
-  const fields = [];
-
-  // Limit (most live blocks have one).
-  if ("limit" in defaults) {
-    const v = cfg.limit ?? defaults.limit;
-    fields.push(`
-      <label>How many to show
-        <input name="config[limit]" type="number" min="1" max="20" value="${escape(String(v))}">
-      </label>`);
-  }
-
-  // Layout — render as <select> using whatever the spec normalises to.
-  // We don't have a list of allowed layouts here in the admin module,
-  // so we just take whatever the block currently has and let the
-  // normaliser clamp. UX-grade dropdowns can come later when we extract
-  // each block's UI alongside its renderer.
-  if ("layout" in defaults) {
-    const v = cfg.layout ?? defaults.layout;
-    fields.push(`
-      <label>Layout
-        <input name="config[layout]" type="text" value="${escape(String(v))}" placeholder="${escape(String(defaults.layout))}">
-      </label>
-      <p class="muted small" style="margin-top:-.4rem">Block-specific layout key. Common values: list, cards, compact (events), grid, masonry, carousel, feature (photos), excerpt, compact (posts), card, inline (contact).</p>`);
-  }
-
-  // Photos block has mode + albumSlug.
-  if ("mode" in defaults) {
-    const v = cfg.mode ?? defaults.mode;
-    fields.push(`
-      <label>Source
-        <input name="config[mode]" type="text" value="${escape(String(v))}" placeholder="latest, album, or all">
-      </label>`);
-  }
-  if ("albumSlug" in defaults) {
-    const v = cfg.albumSlug ?? defaults.albumSlug ?? "";
-    fields.push(`
-      <label>Album slug (only when source = album)
-        <input name="config[albumSlug]" type="text" value="${escape(String(v))}" placeholder="e.g. spring-camporee-2024">
-      </label>`);
-  }
-
-  // Contact block has showMap toggle.
-  if ("showMap" in defaults) {
-    const v = cfg.showMap ?? defaults.showMap;
-    fields.push(`
-      <label style="display:flex;align-items:center;gap:.5rem">
-        <input name="config[showMap]" type="checkbox" value="1" ${v ? "checked" : ""} style="width:auto;display:inline">
-        Show map link
-      </label>`);
-  }
-
-  if (!fields.length) {
-    fields.push(`<p class="muted">This block has no editable settings — it just pulls from your data.</p>`);
-  }
-
-  return `
-    <p class="muted small" style="margin:0 0 .8rem">${escape(meta.description || "")}</p>
-    ${fields.join("")}`;
-}
-
-adminRouter.get("/content", requireLeader, async (req, res) => {
-  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
-  const v = (k, fallback = "") => escape(page?.[k] ?? fallback);
-  const body = `
-    <h1>Homepage</h1>
-    <p class="muted">Edit the copy and section order on your public site's front page. <a href="/" target="_blank" rel="noopener">View site ↗</a></p>
-    <p class="muted small">${MARKDOWN_HINT}</p>
-    <form class="card" method="post" action="/admin/content">
-      <label>Hero headline
-        <input name="heroHeadline" type="text" value="${v("heroHeadline")}" placeholder="e.g. Adventure, leadership, and the outdoors — since 1972.">
-      </label>
-      <label>Hero lede (1–2 sentences)
-        <textarea name="heroLede" placeholder="A short pitch that appears under the headline.">${v("heroLede")}</textarea>
-      </label>
-      <label>About body (paragraphs separated by blank lines)
-        <textarea name="aboutBody" rows="8" placeholder="Tell visitors about the troop.">${v("aboutBody")}</textarea>
-      </label>
-      <label>"Curious? Come visit." body
-        <textarea name="joinBody" rows="5" placeholder="What a visitor can expect at their first meeting.">${v("joinBody")}</textarea>
-      </label>
-      <label>Contact note
-        <textarea name="contactNote" rows="3" placeholder="Optional note above the contact info, e.g. 'Email us anytime.'">${v("contactNote")}</textarea>
-      </label>
-      <label>"What we do" body (free-form Markdown — sits between About and Join)
-        <textarea name="whatWeDoBody" rows="5" placeholder="Camping, service projects, community partnerships, anything else.">${v("whatWeDoBody")}</textarea>
-      </label>
-      <h3 style="margin-top:1.25rem;margin-bottom:.4rem">Hero buttons</h3>
-      <p class="muted small">Two CTAs on the hero. Leave both blank to show the default "Visit us / Calendar" pair.</p>
-      <div class="row">
-        <label style="margin:0;flex:1">Primary label<input name="ctaPrimaryLabel" type="text" value="${v("ctaPrimaryLabel")}" placeholder="Visit us"></label>
-        <label style="margin:0;flex:1">Primary link<input name="ctaPrimaryLink" type="text" value="${v("ctaPrimaryLink")}" placeholder="/join or https://…"></label>
-      </div>
-      <div class="row">
-        <label style="margin:0;flex:1">Secondary label<input name="ctaSecondaryLabel" type="text" value="${v("ctaSecondaryLabel")}" placeholder="Calendar"></label>
-        <label style="margin:0;flex:1">Secondary link<input name="ctaSecondaryLink" type="text" value="${v("ctaSecondaryLink")}" placeholder="/events"></label>
-      </div>
-      <div class="row">
-        <button class="btn btn-primary" type="submit">Save</button>
-        <a class="btn btn-ghost" href="/admin">Cancel</a>
-        ${page ? `<a class="btn btn-ghost" style="margin-left:auto" href="/admin/content/reset" onclick="return confirm('Reset to defaults?')">Reset to defaults</a>` : ""}
-      </div>
-    </form>
-
-    <h2 style="margin-top:1.75rem">Custom blocks</h2>
-    <p class="muted small">Drop in your own text, photos, or call-to-action cards. Each block appears in the section order below — drag it wherever you want it on the page.</p>
-    ${customBlockRows(page)}
-    <form class="card" method="post" action="/admin/content/blocks" style="display:flex;gap:.5rem;flex-wrap:wrap;align-items:center">
-      <span class="muted small" style="margin-right:.4rem">Add a block:</span>
-      ${Object.entries(HOMEPAGE_BLOCK_TYPES)
-        .map(
-          ([key, meta]) => `
-        <button class="btn btn-ghost small" type="submit" name="type" value="${escape(key)}">+ ${escape(meta.label)}</button>`,
-        )
-        .join("")}
-    </form>
-
-    <h2 style="margin-top:1.75rem">Section order &amp; visibility</h2>
-    <p class="muted small">Drag the rows to reorder. Untick "Show" to hide a section. New section types added later auto-appear at the bottom.</p>
-    <form class="card" method="post" action="/admin/content/sections">
-      <ul id="sortable-sections" class="items" style="margin:0">
-        ${sectionPlannerRows(page)}
-      </ul>
-      <button class="btn btn-primary" type="submit" style="margin-top:.6rem">Save layout</button>
-    </form>
-    <script>
-      // Drag-reorder the section planner rows. Native HTML5 DnD is
-      // sufficient — no library needed. We refresh the order[] hidden
-      // inputs after each drop so the form posts the new order.
-      (function () {
-        const list = document.getElementById("sortable-sections");
-        if (!list) return;
-        let dragging = null;
-
-        function getRow(target) {
-          while (target && target !== list) {
-            if (target.tagName === "LI") return target;
-            target = target.parentNode;
-          }
-          return null;
-        }
-
-        list.addEventListener("dragstart", (e) => {
-          const row = getRow(e.target);
-          if (!row) return;
-          dragging = row;
-          row.style.opacity = "0.5";
-          // Ensure dragover gets fired in Firefox.
-          if (e.dataTransfer) {
-            e.dataTransfer.effectAllowed = "move";
-            e.dataTransfer.setData("text/plain", row.dataset.key || "");
-          }
-        });
-
-        list.addEventListener("dragend", () => {
-          if (dragging) dragging.style.opacity = "1";
-          dragging = null;
-        });
-
-        list.addEventListener("dragover", (e) => {
-          e.preventDefault();
-          if (!dragging) return;
-          const target = getRow(e.target);
-          if (!target || target === dragging) return;
-          const rect = target.getBoundingClientRect();
-          const before = e.clientY < rect.top + rect.height / 2;
-          if (before) target.parentNode.insertBefore(dragging, target);
-          else target.parentNode.insertBefore(dragging, target.nextSibling);
-        });
-
-        // Touch fallback — promote a long-press into drag mode for
-        // phones / tablets where HTML5 DnD doesn't fire.
-        list.querySelectorAll("li").forEach((li) => {
-          li.style.cursor = "grab";
-          li.setAttribute("draggable", "true");
-        });
-      })();
-    </script>
-
-    <h2 style="margin-top:1.75rem">Testimonials</h2>
-    <p class="muted small">Parent or alum quotes that appear in the testimonials block. Leave blank to hide the section.</p>
-    <form class="card" method="post" action="/admin/content/testimonials">
-      <div id="testimonials-list">
-        ${testimonialFormRows(page)}
-      </div>
-      <button class="btn btn-primary" type="submit">Save testimonials</button>
-    </form>
-
-    <h2 style="margin-top:1.5rem">Theme</h2>
-    <p class="muted small">Pick the colors and logo that show up on your unit's public site, the admin sidebar, and event date badges.</p>
-    <form class="card" method="post" action="/admin/theme">
-      <div class="row">
-        <label style="margin:0;flex:1">Primary color
-          <input name="primaryColor" type="color" value="${escape(req.org.primaryColor || "#1d6b39")}">
-          <span class="muted small">${escape(req.org.primaryColor || "#1d6b39")}</span>
-        </label>
-        <label style="margin:0;flex:1">Accent color
-          <input name="accentColor" type="color" value="${escape(req.org.accentColor || "#caa54a")}">
-          <span class="muted small">${escape(req.org.accentColor || "#caa54a")}</span>
-        </label>
-      </div>
-      <div class="theme-preview">
-        <span class="theme-chip" style="background:${escape(req.org.primaryColor || "#1d6b39")}">Primary</span>
-        <span class="theme-chip" style="background:${escape(req.org.accentColor || "#caa54a")};color:var(--ink)">Accent</span>
-      </div>
-      <div class="row">
-        <button class="btn btn-primary" type="submit">Save theme</button>
-        <a class="btn btn-ghost" style="margin-left:auto" href="/admin/theme/reset" onclick="return confirm('Reset to the default Compass evergreen + chartreuse?')">Reset to defaults</a>
-      </div>
-    </form>
-
-    <h3 style="margin-top:1.25rem">Logo</h3>
-    <p class="muted small">Square or wide images both work. Replaces the unit-number badge in the public site header. PNG / JPG / SVG / WebP.</p>
-    <div class="card">
-      ${
-        req.org.logoFilename
-          ? `<div class="logo-preview"><img src="/uploads/${escape(req.org.logoFilename)}" alt="Current logo"></div>`
-          : `<p class="muted small">No logo uploaded yet — using the unit-number badge.</p>`
-      }
-      <form method="post" action="/admin/theme/logo" enctype="multipart/form-data">
-        <label>Replace logo<input name="logo" type="file" accept="image/*" required></label>
-        <button class="btn btn-primary" type="submit">Upload</button>
-      </form>
-      ${
-        req.org.logoFilename
-          ? `<form method="post" action="/admin/theme/logo/clear" onsubmit="return confirm('Remove the current logo?')" style="margin-top:.5rem">
-               <button class="btn btn-ghost" type="submit">Remove logo</button>
-             </form>`
-          : ""
-      }
-    </div>
-
-    <style>
-      .theme-preview{display:flex;gap:.6rem;margin:.6rem 0}
-      .theme-chip{display:inline-block;padding:.3rem .8rem;border-radius:6px;color:#fff;font-size:.85rem;font-weight:600}
-      .logo-preview{margin-bottom:.75rem}
-      .logo-preview img{max-height:80px;max-width:240px;border:1px solid var(--line);border-radius:8px;background:#fff;padding:.5rem}
-    </style>
-  `;
-  res.type("html").send(layout(req, { title: "Page content", body }));
-});
-
-adminRouter.post("/content", requireLeader, async (req, res) => {
-  const fields = [
-    "heroHeadline",
-    "heroLede",
-    "aboutBody",
-    "joinBody",
-    "contactNote",
-    "whatWeDoBody",
-    "ctaPrimaryLabel",
-    "ctaPrimaryLink",
-    "ctaSecondaryLabel",
-    "ctaSecondaryLink",
-  ];
-  const data = {};
-  const changed = [];
-  for (const f of fields) {
-    const v = (req.body?.[f] ?? "").toString().trim();
-    data[f] = v === "" ? null : v;
-    if (v) changed.push(f);
-  }
-  await prisma.page.upsert({
-    where: { orgId: req.org.id },
-    update: data,
-    create: { orgId: req.org.id, ...data },
-  });
-  await recordAudit({
-    org: req.org,
-    user: req.user,
-    entityType: "Page",
-    action: "update",
-    summary: `Edited home page (${changed.join(", ") || "cleared"})`,
-  });
-  res.redirect("/admin/content?saved=1");
-});
-
-adminRouter.post("/content/sections", requireLeader, async (req, res) => {
-  // Form posts arrive with order[]=hero, order[]=about, etc., and
-  // visible[hero]=1, visible[about]=1 for checked rows.
-  const order = Array.isArray(req.body?.order) ? req.body.order : [];
-  const visMap = req.body?.visible && typeof req.body.visible === "object" ? req.body.visible : {};
-  // Every known section key is implicitly hidden if not in visMap; we
-  // walk the registry to build a complete map.
-  const visibility = {};
-  for (const key of order) {
-    visibility[key] = visMap[key] === "1" || visMap[key] === true;
-  }
-  const existing = await prisma.page.findUnique({ where: { orgId: req.org.id } });
-  const knownBlockIds = readHomepageCustomBlocks(existing).map((b) => b.id);
-  let patch;
-  try {
-    patch = normaliseHomepageSectionPatch({ order, visibility }, { knownBlockIds });
-  } catch (e) {
-    return res.status(400).type("text/plain").send(e.message);
-  }
-  await prisma.page.upsert({
-    where: { orgId: req.org.id },
-    update: patch,
-    create: { orgId: req.org.id, ...patch },
-  });
-  await recordAudit({
-    org: req.org,
-    user: req.user,
-    entityType: "Page",
-    action: "update",
-    summary: "Homepage section layout updated",
-  });
-  res.redirect("/admin/content?saved=sections");
-});
-
-adminRouter.post("/content/testimonials", requireLeader, async (req, res) => {
-  const quotes = req.body?.quote;
-  const attrs = req.body?.attribution;
-  const quoteList = Array.isArray(quotes) ? quotes : quotes ? [quotes] : [];
-  const attrList = Array.isArray(attrs) ? attrs : attrs ? [attrs] : [];
-  const testimonials = quoteList
-    .map((q, i) => ({
-      quote: String(q || "").trim(),
-      attribution: String(attrList[i] || "").trim(),
-    }))
-    .filter((t) => t.quote);
-  await prisma.page.upsert({
-    where: { orgId: req.org.id },
-    update: { testimonialsJson: testimonials.length ? testimonials : null },
-    create: { orgId: req.org.id, testimonialsJson: testimonials.length ? testimonials : null },
-  });
-  await recordAudit({
-    org: req.org,
-    user: req.user,
-    entityType: "Page",
-    action: "update",
-    summary: `Testimonials updated (${testimonials.length})`,
-  });
-  res.redirect("/admin/content?saved=testimonials");
-});
-
-// Custom homepage blocks — Squarespace-style "drop in a text/image/CTA"
-// path. POST creates a fresh draft block of the chosen type and
-// redirects to its edit page. The block lives in Page.customBlocks
-// (JSONB array); section ordering treats it as "block:<id>".
-adminRouter.post("/content/blocks", requireLeader, async (req, res) => {
-  const type = String(req.body?.type || "");
-  if (!HOMEPAGE_BLOCK_TYPES[type]) return res.redirect("/admin/content");
-
-  const id = `cb_${crypto.randomBytes(6).toString("hex")}`;
-  const fresh = normaliseHomepageCustomBlock({ id, type });
-
-  const existing = await prisma.page.findUnique({ where: { orgId: req.org.id } });
-  const blocks = readHomepageCustomBlocks(existing);
-  blocks.push(fresh);
-
-  await prisma.page.upsert({
-    where: { orgId: req.org.id },
-    update: { customBlocks: blocks },
-    create: { orgId: req.org.id, customBlocks: blocks },
-  });
-  await recordAudit({
-    org: req.org,
-    user: req.user,
-    entityType: "Page",
-    action: "create",
-    summary: `Added ${HOMEPAGE_BLOCK_TYPES[type].label} block`,
-  });
-  res.redirect(`/admin/content/blocks/${id}/edit`);
-});
-
-adminRouter.get("/content/blocks/:id/edit", requireLeader, async (req, res) => {
-  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
-  const block = readHomepageCustomBlocks(page).find((b) => b.id === req.params.id);
-  if (!block) return res.status(404).send("Block not found");
-  const typeMeta = HOMEPAGE_BLOCK_TYPES[block.type];
-
-  let fields;
-  if (block.type === "text") {
-    fields = `
-      <label>Heading
-        <input name="title" type="text" maxlength="120" value="${escape(block.title || "")}" placeholder="e.g. Our story">
-      </label>
-      <label>Body (Markdown supported)
-        <textarea name="body" rows="8" placeholder="Tell visitors something about your unit.">${escape(block.body || "")}</textarea>
-      </label>`;
-  } else if (block.type === "image") {
-    const preview = block.filename
-      ? `<div style="margin-bottom:.6rem"><img src="/uploads/${escape(block.filename)}" alt="" style="max-width:100%;max-height:240px;border-radius:8px;border:1px solid var(--line)"></div>`
-      : `<p class="muted small" style="margin:0 0 .6rem">No image uploaded yet. Upload one below.</p>`;
-    fields = `
-      ${preview}
-      <p class="muted small">Upload a new image from the Photos section first, then paste the filename here. (We'll add a one-click picker in a future polish pass.)</p>
-      <label>Image filename
-        <input name="filename" type="text" maxlength="200" value="${escape(block.filename || "")}" placeholder="e.g. spring-camporee.jpg">
-      </label>
-      <label>Caption (optional)
-        <input name="caption" type="text" maxlength="200" value="${escape(block.caption || "")}" placeholder="What's in the photo?">
-      </label>
-      <label>Alt text (for screen readers)
-        <input name="alt" type="text" maxlength="200" value="${escape(block.alt || "")}" placeholder="Brief description">
-      </label>`;
-  } else if (block.type === "cta") {
-    fields = `
-      <label>Heading
-        <input name="title" type="text" maxlength="120" value="${escape(block.title || "")}" placeholder="e.g. Ready to join?">
-      </label>
-      <label>Body
-        <textarea name="body" rows="3" placeholder="A short blurb under the heading.">${escape(block.body || "")}</textarea>
-      </label>
-      <div class="row">
-        <label style="margin:0;flex:1">Button label<input name="buttonLabel" type="text" maxlength="60" value="${escape(block.buttonLabel || "")}" placeholder="Visit us"></label>
-        <label style="margin:0;flex:1">Button link<input name="buttonLink" type="text" maxlength="500" value="${escape(block.buttonLink || "")}" placeholder="/join or https://…"></label>
-      </div>`;
-  } else if (typeMeta?.live) {
-    // Live blocks pull from the org's database at render time. The
-    // admin only configures lightweight presentation knobs (limit,
-    // layout, etc.). Each live block type gets a tailored field set
-    // here; unknown types fall back to a JSON textarea so we never
-    // 500 on a misconfigured registry.
-    fields = renderLiveBlockFields(block);
-  }
-
-  const body = `
-    <a class="back" href="/admin/content" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Homepage</a>
-    <h1>Edit ${escape(typeMeta.label)} block</h1>
-    <p class="muted">${escape(typeMeta.description)}</p>
-
-    <form class="card" method="post" action="/admin/content/blocks/${escape(block.id)}">
-      ${fields}
-      <div class="row" style="margin-top:.4rem">
-        <button class="btn btn-primary" type="submit">Save block</button>
-        <a class="btn btn-ghost" href="/admin/content">Cancel</a>
-        <form class="inline" method="post" action="/admin/content/blocks/${escape(block.id)}/delete" onsubmit="return confirm('Delete this block?')" style="margin-left:auto">
-          <button class="btn btn-danger" type="submit">Delete block</button>
-        </form>
-      </div>
-    </form>
-  `;
-  res.type("html").send(layout(req, { title: `Edit ${typeMeta.label} block`, body }));
-});
-
-adminRouter.post("/content/blocks/:id", requireLeader, async (req, res) => {
-  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
-  const blocks = readHomepageCustomBlocks(page);
-  const idx = blocks.findIndex((b) => b.id === req.params.id);
-  if (idx === -1) return res.status(404).send("Block not found");
-
-  let updated;
-  try {
-    updated = normaliseHomepageCustomBlock({ ...blocks[idx], ...req.body, id: blocks[idx].id, type: blocks[idx].type });
-  } catch (e) {
-    return res.status(400).type("text/plain").send(e.message);
-  }
-  blocks[idx] = updated;
-
-  await prisma.page.update({
-    where: { orgId: req.org.id },
-    data: { customBlocks: blocks },
-  });
-  await recordAudit({
-    org: req.org,
-    user: req.user,
-    entityType: "Page",
-    action: "update",
-    summary: `Edited ${HOMEPAGE_BLOCK_TYPES[updated.type].label} block`,
-  });
-  res.redirect("/admin/content?saved=block");
-});
-
-adminRouter.post("/content/blocks/:id/delete", requireLeader, async (req, res) => {
-  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
-  const blocks = readHomepageCustomBlocks(page);
-  const target = blocks.find((b) => b.id === req.params.id);
-  const remaining = blocks.filter((b) => b.id !== req.params.id);
-
-  // Also drop the block's key from sectionOrder / sectionVisibility so
-  // the planner doesn't render a stale row.
-  const blockKey = homepageBlockKey(req.params.id);
-  const order = Array.isArray(page?.sectionOrder)
-    ? page.sectionOrder.filter((k) => k !== blockKey)
-    : null;
-  const vis = page?.sectionVisibility ? { ...page.sectionVisibility } : null;
-  if (vis) delete vis[blockKey];
-
-  await prisma.page.update({
-    where: { orgId: req.org.id },
-    data: {
-      customBlocks: remaining,
-      ...(order ? { sectionOrder: order } : {}),
-      ...(vis ? { sectionVisibility: vis } : {}),
-    },
-  });
-  if (target) {
-    await recordAudit({
-      org: req.org,
-      user: req.user,
-      entityType: "Page",
-      action: "delete",
-      summary: `Removed ${HOMEPAGE_BLOCK_TYPES[target.type]?.label || "custom"} block`,
-    });
-  }
-  res.redirect("/admin/content");
-});
-
-adminRouter.get("/content/reset", requireLeader, async (req, res) => {
-  await prisma.page.deleteMany({ where: { orgId: req.org.id } });
-  await recordAudit({
-    org: req.org,
-    user: req.user,
-    entityType: "Page",
-    action: "delete",
-    summary: "Reset home page to defaults",
-  });
-  res.redirect("/admin/content");
-});
-
-const HEX_COLOR = /^#[0-9a-f]{6}$/i;
-adminRouter.post("/theme", requireLeader, async (req, res) => {
-  const primary = (req.body?.primaryColor || "").toString().trim();
-  const accent = (req.body?.accentColor || "").toString().trim();
-  const data = {};
-  if (HEX_COLOR.test(primary)) data.primaryColor = primary;
-  if (HEX_COLOR.test(accent)) data.accentColor = accent;
-  if (Object.keys(data).length) {
-    await prisma.org.update({ where: { id: req.org.id }, data });
-  }
-  res.redirect("/admin/content");
-});
-
-adminRouter.get("/theme/reset", requireLeader, async (req, res) => {
-  await prisma.org.update({
-    where: { id: req.org.id },
-    data: { primaryColor: "#1d6b39", accentColor: "#caa54a" },
-  });
-  res.redirect("/admin/content");
-});
-
-adminRouter.post(
-  "/theme/logo",
-  requireLeader,
-  upload.single("logo"),
-  async (req, res) => {
-    if (!req.file) return res.redirect("/admin/content");
-    const ext = (req.file.originalname.match(/\.([a-z0-9]+)$/i)?.[1] || "png").toLowerCase();
-    const filename = `logo-${crypto.randomBytes(8).toString("hex")}.${ext}`;
-    await moveFromTemp(req.org.id, filename, req.file.path);
-
-    // Clean up the previous logo file (best-effort).
-    if (req.org.logoFilename) {
-      try {
-        await removeFile(req.org.id, req.org.logoFilename);
-      } catch (_) {
-        // ignore — old file may already be gone
-      }
-    }
-
-    await prisma.org.update({
-      where: { id: req.org.id },
-      data: { logoFilename: filename },
-    });
-    await recordAudit({
-      org: req.org,
-      user: req.user,
-      entityType: "Org",
-      entityId: req.org.id,
-      action: "update",
-      summary: "Uploaded new logo",
-    });
-    res.redirect("/admin/content");
-  },
-);
-
-adminRouter.post("/theme/logo/clear", requireLeader, async (req, res) => {
-  if (req.org.logoFilename) {
-    try {
-      await removeFile(req.org.id, req.org.logoFilename);
-    } catch (_) {
-      // best-effort
-    }
-  }
-  await prisma.org.update({
-    where: { id: req.org.id },
-    data: { logoFilename: null },
-  });
-  await recordAudit({
-    org: req.org,
-    user: req.user,
-    entityType: "Org",
-    entityId: req.org.id,
-    action: "delete",
-    summary: "Removed logo",
-  });
-  res.redirect("/admin/content");
 });
 
 /* ------------------------------------------------------------------ */

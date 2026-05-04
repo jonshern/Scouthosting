@@ -1,105 +1,102 @@
-// Homepage CMS section-plan tests.
+// Homepage block-validation tests. The CMS no longer has a "section
+// plan" concept — Page.customBlocks array order is the single source
+// of truth for layout. These tests cover what's left: block-type
+// registration and per-block normalisation.
 
 import { describe, it, expect } from "vitest";
 import {
-  SECTIONS,
-  DEFAULT_ORDER,
-  resolvePlan,
-  normaliseSectionPatch,
-  readTestimonials,
+  BLOCK_TYPES,
+  isLiveBlockType,
+  readCustomBlocks,
+  normaliseCustomBlock,
 } from "../lib/homepageSections.js";
 
-describe("resolvePlan", () => {
-  it("returns the default order when the page has no overrides", () => {
-    expect(resolvePlan(null)).toEqual([...DEFAULT_ORDER]);
-    expect(resolvePlan({})).toEqual([...DEFAULT_ORDER]);
+describe("BLOCK_TYPES registry", () => {
+  it("registers the static block types", () => {
+    expect(BLOCK_TYPES.text).toBeTruthy();
+    expect(BLOCK_TYPES.image).toBeTruthy();
+    expect(BLOCK_TYPES.cta).toBeTruthy();
   });
 
-  it("respects a custom order", () => {
-    const plan = resolvePlan({
-      sectionOrder: ["hero", "join", "about"],
-    });
-    // Custom keys come first, then any not-yet-listed defaults.
-    expect(plan.slice(0, 3)).toEqual(["hero", "join", "about"]);
-    expect(plan).toContain("upcoming");
-    expect(plan).toContain("contact");
+  it("registers the live block types", () => {
+    expect(BLOCK_TYPES.events).toBeTruthy();
+    expect(BLOCK_TYPES.photos).toBeTruthy();
+    expect(BLOCK_TYPES.posts).toBeTruthy();
+    expect(BLOCK_TYPES.contact).toBeTruthy();
   });
 
-  it("filters out invisible sections", () => {
-    const plan = resolvePlan({
-      sectionVisibility: { posts: false, contact: false },
-    });
-    expect(plan).not.toContain("posts");
-    expect(plan).not.toContain("contact");
-    expect(plan).toContain("hero");
-  });
-
-  it("drops unknown section keys silently (rename-safe)", () => {
-    const plan = resolvePlan({
-      sectionOrder: ["hero", "ghostSection", "about"],
-    });
-    expect(plan).not.toContain("ghostSection");
-    expect(plan).toContain("hero");
-    expect(plan).toContain("about");
+  it("isLiveBlockType discriminates static from live", () => {
+    expect(isLiveBlockType("text")).toBe(false);
+    expect(isLiveBlockType("events")).toBe(true);
+    expect(isLiveBlockType("ghost")).toBe(false);
   });
 });
 
-describe("normaliseSectionPatch", () => {
-  it("returns only the supplied subset (missing keys leave existing alone)", () => {
-    const out = normaliseSectionPatch({ visibility: { posts: false } });
-    expect(out).toEqual({ sectionVisibility: { posts: false } });
+describe("readCustomBlocks", () => {
+  it("returns [] when missing or wrong type", () => {
+    expect(readCustomBlocks(null)).toEqual([]);
+    expect(readCustomBlocks({})).toEqual([]);
+    expect(readCustomBlocks({ customBlocks: "garbage" })).toEqual([]);
   });
 
-  it("coerces visibility values to booleans (form posts arrive as strings)", () => {
-    const out = normaliseSectionPatch({ visibility: { hero: "true", contact: "" } });
-    expect(out.sectionVisibility).toEqual({ hero: true, contact: false });
-  });
-
-  it("throws on unknown section keys (loud failure on tampered input)", () => {
-    expect(() => normaliseSectionPatch({ order: ["hero", "evil"] })).toThrow(/Unknown section/);
-    expect(() => normaliseSectionPatch({ visibility: { evil: true } })).toThrow(/Unknown section/);
-  });
-
-  it("throws when order is not an array", () => {
-    expect(() => normaliseSectionPatch({ order: "hero,about" })).toThrow();
-  });
-});
-
-describe("readTestimonials", () => {
-  it("parses well-formed rows", () => {
+  it("drops rows missing id or unknown type (renderer would skip them anyway)", () => {
     const page = {
-      testimonialsJson: [
-        { quote: "Great unit", attribution: "— Mom" },
-        { quote: "My son loves it" },
+      customBlocks: [
+        { id: "a", type: "text", title: "ok", body: "ok" },
+        { type: "text" },
+        { id: "b", type: "ghost" },
+        { id: "c", type: "image", filename: "p.jpg" },
       ],
     };
-    expect(readTestimonials(page)).toEqual([
-      { quote: "Great unit", attribution: "— Mom" },
-      { quote: "My son loves it", attribution: "" },
-    ]);
-  });
-
-  it("filters malformed rows", () => {
-    const page = {
-      testimonialsJson: [{ quote: "ok" }, "string", null, { attribution: "no-quote" }],
-    };
-    expect(readTestimonials(page)).toEqual([{ quote: "ok", attribution: "" }]);
-  });
-
-  it("returns [] when missing or wrong type", () => {
-    expect(readTestimonials(null)).toEqual([]);
-    expect(readTestimonials({ testimonialsJson: null })).toEqual([]);
-    expect(readTestimonials({ testimonialsJson: "garbage" })).toEqual([]);
+    const out = readCustomBlocks(page);
+    expect(out.map((b) => b.id)).toEqual(["a", "c"]);
   });
 });
 
-describe("SECTIONS registry", () => {
-  it("every section in DEFAULT_ORDER is registered", () => {
-    for (const k of DEFAULT_ORDER) expect(SECTIONS[k]).toBeTruthy();
+describe("normaliseCustomBlock", () => {
+  it("clamps text fields to their max lengths", () => {
+    const out = normaliseCustomBlock({
+      id: "a",
+      type: "text",
+      title: "x".repeat(200),
+      body: "y".repeat(10000),
+    });
+    expect(out.title.length).toBe(120);
+    expect(out.body.length).toBe(8000);
   });
 
-  it("is frozen so consumers can't mutate the registry", () => {
-    expect(Object.isFrozen(SECTIONS)).toBe(true);
-    expect(Object.isFrozen(DEFAULT_ORDER)).toBe(true);
+  it("normalises CTA fields", () => {
+    const out = normaliseCustomBlock({
+      id: "a",
+      type: "cta",
+      title: "Join",
+      body: "Come visit",
+      buttonLabel: "Visit us",
+      buttonLink: "/join",
+    });
+    expect(out).toMatchObject({
+      id: "a",
+      type: "cta",
+      title: "Join",
+      buttonLabel: "Visit us",
+      buttonLink: "/join",
+    });
+  });
+
+  it("normalises live-block config under .config", () => {
+    const out = normaliseCustomBlock({
+      id: "a",
+      type: "events",
+      config: { limit: 5, layout: "list" },
+    });
+    expect(out.id).toBe("a");
+    expect(out.type).toBe("events");
+    expect(out.config).toBeTruthy();
+  });
+
+  it("throws on unknown type / missing id", () => {
+    expect(() => normaliseCustomBlock({ id: "a", type: "ghost" })).toThrow(/Unknown block type/);
+    expect(() => normaliseCustomBlock({ type: "text" })).toThrow(/block id required/);
+    expect(() => normaliseCustomBlock(null)).toThrow();
   });
 });

@@ -86,8 +86,8 @@ function renderHeroPhotos(photos) {
 // Render the leader-defined custom blocks (text, image, CTA, plus
 // live blocks like events/photos/posts/contact) that follow the
 // gallery on the public homepage. Blocks render in the order they
-// appear in `page.sectionOrder` (block keys only); blocks with
-// `sectionVisibility[block:<id>] === false` are skipped.
+// appear in `page.customBlocks` — the canvas array IS the source of
+// truth for ordering.
 //
 // `liveBlocksData` is a map of block.id → pre-fetched data, built by
 // `fetchLiveBlocksData` from lib/blocks/. Static blocks (text/image/
@@ -96,25 +96,9 @@ function renderCustomBlocks(page, liveBlocksData = {}) {
   if (!page) return "";
   const blocks = Array.isArray(page.customBlocks) ? page.customBlocks : [];
   if (!blocks.length) return "";
-  const vis = page.sectionVisibility || {};
-  const order = Array.isArray(page.sectionOrder) ? page.sectionOrder : [];
-  const blocksById = new Map(
-    blocks.filter((b) => b && typeof b.id === "string").map((b) => [b.id, b]),
-  );
-  // Order blocks by their position in sectionOrder (for blocks that
-  // are placed there); blocks not in sectionOrder fall to the end in
-  // customBlocks-array order.
-  const placed = order
-    .filter((k) => typeof k === "string" && k.startsWith("block:"))
-    .map((k) => k.slice("block:".length))
-    .map((id) => blocksById.get(id))
-    .filter(Boolean);
-  const placedIds = new Set(placed.map((b) => b.id));
-  const tail = blocks.filter((b) => b && b.id && !placedIds.has(b.id));
-  const ordered = [...placed, ...tail];
 
-  const html = ordered
-    .filter((b) => vis[`block:${b.id}`] !== false)
+  const html = blocks
+    .filter((b) => b && b.id && b.type)
     .map((b) => renderCustomBlock(b, liveBlocksData[b.id]))
     .filter(Boolean)
     .join("\n");

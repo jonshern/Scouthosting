@@ -655,38 +655,19 @@ model Newsletter {
 model Page {
   id           String   @id @default(cuid())
   orgId        String   @unique
+  // Hero text — rendered into site.html at the top of every unit page.
   heroHeadline String?
   heroLede     String?
+  // Built-in About / Join / Contact sections in site.html. Edited via
+  // the /admin/site Settings panel (right rail).
   aboutBody    String?
   joinBody     String?
   contactNote  String?
-  // Optional hero image filename (uploaded via /admin/content). Sits
-  // in the same per-org storage area as Album photos.
-  heroImage    String?
-  // Two CTA buttons on the hero — primary (e.g. "Join us") and
-  // secondary (e.g. "See the calendar"). Both label + link are user-
-  // editable so a unit can point them at their own targets.
-  ctaPrimaryLabel    String?
-  ctaPrimaryLink     String?
-  ctaSecondaryLabel  String?
-  ctaSecondaryLink   String?
-  // Ordered JSON array of section keys controlling the homepage's
-  // visible blocks: ["hero","about","upcoming","posts","albums",
-  // "join","contact"]. Drag-to-reorder in the admin; null = the
-  // built-in default order.
-  sectionOrder Json?
-  // Map of section key → boolean (true = visible). null = all visible.
-  sectionVisibility Json?
-  // Free-form Markdown for a "what we do" section between about + join.
-  whatWeDoBody String?
-  // Free-form testimonials (parent quotes). JSON array of
-  // { quote, attribution }. null = none.
-  testimonialsJson  Json?
-  // Custom blocks the leader has added — the squarespace-style
-  // "drop in a text/image/CTA" path. JSON array of
-  // { id, type, ...config } objects. Each block's id can appear in
-  // sectionOrder as "block:<id>" so leaders place them anywhere.
-  customBlocks      Json?
+  // The canvas — JSON array of { id, type, ...config } objects, in
+  // render order. Edited via the GrapesJS surface at /admin/site.
+  // Block types defined in lib/homepageSections.js (text, image, cta)
+  // and lib/blocks/* (events, photos, posts, contact).
+  customBlocks Json?
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
 

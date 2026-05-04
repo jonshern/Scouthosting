@@ -316,6 +316,47 @@
   }
 
   // ---------------------------------------------------------------
+  // Site settings form (right rail) — POSTs JSON to /admin/site/settings.
+  // ---------------------------------------------------------------
+  const settingsForm = document.getElementById("ed-settings-form");
+  const settingsStatus = document.getElementById("ed-settings-status");
+  if (settingsForm) {
+    settingsForm.addEventListener("submit", async (ev) => {
+      ev.preventDefault();
+      const submit = document.getElementById("ed-settings-submit");
+      if (submit) submit.disabled = true;
+      if (settingsStatus) settingsStatus.textContent = "Saving…";
+      try {
+        const fd = new FormData(settingsForm);
+        const body = {};
+        fd.forEach((v, k) => { body[k] = v; });
+        const r = await fetch("/admin/site/settings", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken,
+          },
+          body: JSON.stringify(body),
+          credentials: "same-origin",
+        });
+        if (!r.ok) {
+          const text = await r.text().catch(() => "");
+          throw new Error(`HTTP ${r.status}${text ? ": " + text.slice(0, 160) : ""}`);
+        }
+        if (settingsStatus) {
+          settingsStatus.textContent = "Saved ✓";
+          setTimeout(() => { settingsStatus.textContent = ""; }, 1500);
+        }
+      } catch (err) {
+        if (settingsStatus) settingsStatus.textContent = "Save failed";
+        alert("Couldn't save settings: " + (err.message || err));
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    });
+  }
+
+  // ---------------------------------------------------------------
   // Helpers
   // ---------------------------------------------------------------
   function esc(s) {
