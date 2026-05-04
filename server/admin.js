@@ -7436,20 +7436,70 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
     },
   });
 
+  // Build a "what just got sent" recap. The previous version showed
+  // only counts; admins immediately want to verify the message body
+  // and the recipient list (semi-irreversible action). Re-show the
+  // full message + an expandable recipient breakdown.
+  const sentTotal = emailResult.sent + smsResult.sent;
+  const subjectEsc = escape(subject.trim());
+  const bodyEsc = escape(cleanBody);
+  const audienceEsc = escape(audienceLabel);
+  const summary = allErrors.length === 0
+    ? `Delivered to ${sentTotal} ${sentTotal === 1 ? "recipient" : "recipients"}.`
+    : `Delivered to ${sentTotal} of ${sentTotal + allErrors.length} ${(sentTotal + allErrors.length) === 1 ? "recipient" : "recipients"} — ${allErrors.length} failed.`;
+  const channelLine = `Email: <strong>${emailResult.sent}</strong> · SMS: <strong>${smsResult.sent}</strong>${
+    allErrors.length ? ` · failed: <strong>${allErrors.length}</strong>` : ""
+  }`;
+  const recipientLines = [
+    ...emailRecipients.map((m) => ({
+      label: `${m.firstName} ${m.lastName}`,
+      detail: m.email,
+      channel: "email",
+    })),
+    ...smsRecipients.map((m) => ({
+      label: `${m.firstName} ${m.lastName}`,
+      detail: m.phone,
+      channel: "sms",
+    })),
+  ];
+  const recipientsHtml = recipientLines.length
+    ? `<details class="card" style="margin-top:1rem"><summary>Recipients (${recipientLines.length})</summary>
+        <ul class="items" style="margin:.5rem 0 0">${recipientLines
+          .map(
+            (r) => `<li>
+              <div>
+                <h3 style="margin:0">${escape(r.label)}</h3>
+                <p class="muted small" style="margin:.15rem 0 0">${escape(r.detail)} · <span class="tag">${escape(r.channel)}</span></p>
+              </div>
+            </li>`,
+          )
+          .join("")}</ul>
+      </details>`
+    : `<p class="muted small" style="margin-top:.4rem">No matching recipients — message was not sent to anyone.</p>`;
+
   const ack = `
-    <h1>Sent</h1>
-    <p>Email: <strong>${emailResult.sent}</strong> · SMS: <strong>${smsResult.sent}</strong>${
-    allErrors.length ? ` · failed: ${allErrors.length}` : ""
-  }</p>
+    <h1>Message sent</h1>
+    <p class="muted">${summary}</p>
+
+    <section class="card" style="margin-top:1rem">
+      <p class="muted small" style="margin:0 0 .35rem">To: <strong>${audienceEsc}</strong></p>
+      <p class="muted small" style="margin:0 0 .9rem">Channels: ${channelLine}</p>
+      <h2 style="margin:0 0 .4rem;font-size:1.15rem">${subjectEsc}</h2>
+      <pre style="white-space:pre-wrap;font-family:inherit;margin:0;color:var(--ink-700)">${bodyEsc}</pre>
+    </section>
+
+    ${recipientsHtml}
+
     ${
       allErrors.length
-        ? `<details class="card"><summary>Errors</summary><pre>${escape(JSON.stringify(allErrors, null, 2))}</pre></details>`
+        ? `<details class="card" style="margin-top:1rem"><summary>${allErrors.length} delivery error${allErrors.length === 1 ? "" : "s"}</summary><pre style="white-space:pre-wrap;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem">${escape(JSON.stringify(allErrors, null, 2))}</pre></details>`
         : ""
     }
-    <p style="margin-top:1.25rem">
+
+    <div class="row" style="margin-top:1.5rem;gap:.5rem">
       <a class="btn btn-primary" href="/admin/email">Send another</a>
       <a class="btn btn-ghost" href="/admin/email/sent">View history</a>
-    </p>
+    </div>
   `;
   res.type("html").send(layout(req, { title: "Sent", body: ack }));
 });

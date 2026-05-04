@@ -294,19 +294,15 @@ off here with the commit SHA.
   Contact) and let admins add/remove from there. That matches the
   Troop 567 pattern without forcing every unit to manually trim.
 
-### Email broadcast post-send page is uninformative
-- After sending a broadcast at `/admin/email`, the success page shows
+### ~~Email broadcast post-send page is uninformative~~
+- ~~After sending a broadcast at `/admin/email`, the success page shows
   only the headline "Sent", the counts ("Email: 4 · SMS: 0"), and two
-  buttons (Send another, View history). No echo of the message body,
-  subject line, recipient list, or sample render.
-- Expected: show what was actually sent (subject + body preview) and
-  who it went to (audience label + recipient count breakdown, with
-  expandable list). Then the same Send another / View history actions.
-- Useful because the admin just sent something semi-irreversible to
-  real members and immediately wants confidence "that was the right
-  message to the right people."
-- Source: search `server/admin.js` for the post-send redirect / render
-  on the email broadcast POST handler.
+  buttons.~~
+- **Fixed (session 2026-05-03)**: post-send page now shows audience
+  label, channel breakdown, full subject + body, expandable recipient
+  list (name / email-or-phone / channel tag), and an expandable error
+  panel only when there were failures. Send another / View history
+  buttons preserved.
 
 ### Site builder redesign — functional CMS is shipped, visual reskin is not
 - **Correction to earlier entry.** The CMS itself *is* implemented and
