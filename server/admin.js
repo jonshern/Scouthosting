@@ -275,6 +275,7 @@ const NAV_SECTIONS = [
       { href: "/admin/dm/sent", label: "My DMs" },
       { href: "/admin/newsletters", label: "Newsletters" },
       { href: "/admin/channels", label: "Channels" },
+      { href: "/admin/groups", label: "Groups" },
       { href: "/admin/posts", label: "Activity feed" },
       { href: "/admin/announcements", label: "Announcements" },
     ],
@@ -299,8 +300,10 @@ const NAV_SECTIONS = [
       { href: "/admin/positions", label: "Position roster" },
       { href: "/admin/training", label: "Training" },
       { href: "/admin/ypt", label: "YPT status" },
+      { href: "/admin/eagle", label: "Eagle Scouts" },
+      { href: "/admin/mbc", label: "Merit Badge Counselors" },
+      { href: "/admin/oa", label: "OA elections" },
       { href: "/admin/invites", label: "Invites" },
-      { href: "/admin/groups", label: "Groups" },
       { href: "/admin/reports", label: "Reports" },
     ],
   },
@@ -337,13 +340,9 @@ const NAV_SECTIONS = [
     href: "/admin/equipment",
     pages: [
       { href: "/admin/equipment", label: "Equipment" },
-      { href: "/admin/eagle", label: "Eagle Scouts" },
-      { href: "/admin/mbc", label: "Merit Badge Counselors" },
-      { href: "/admin/oa", label: "OA elections" },
       { href: "/admin/audit", label: "Audit log" },
       { href: "/admin/analytics", label: "Analytics" },
       { href: "/admin/export", label: "Export" },
-      { href: "/admin/security", label: "Security" },
     ],
   },
 ];
@@ -425,6 +424,7 @@ function layout(req, { title, body, flash }) {
     <nav class="topnav" aria-label="Sections">${topNavLinks}</nav>
     <div class="me">
       <span class="me-name">${escape(user.displayName)}</span>
+      <a class="me-public" href="/admin/security" title="Account security (2FA, backup codes)">Security</a>
       <a class="me-public" href="/" target="_blank" rel="noopener" title="View the public site">View site ↗</a>
       <a class="me-public" href="/help" target="_blank" rel="noopener" title="Contact Compass support">Help</a>
       <form method="post" action="/admin/logout" class="inline"><button class="btn btn-ghost small">Log out</button></form>
