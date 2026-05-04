@@ -2489,19 +2489,17 @@ function eventForm({ event, action, submitLabel }) {
         <label style="margin:0;flex:1">Repeats
           <select name="recurrence">
             <option value="">Doesn't repeat</option>
-            <option value="WEEKLY"${/^FREQ=WEEKLY/.test(event?.rrule || "") ? " selected" : ""}>Weekly</option>
+            <option value="WEEKLY"${/^FREQ=WEEKLY(?!;INTERVAL=2)/.test(event?.rrule || "") ? " selected" : ""}>Weekly</option>
             <option value="BIWEEKLY"${/^FREQ=WEEKLY;INTERVAL=2/.test(event?.rrule || "") ? " selected" : ""}>Every 2 weeks</option>
-            <option value="MONTHLY"${/^FREQ=MONTHLY/.test(event?.rrule || "") ? " selected" : ""}>Monthly (same day)</option>
-            <option value="CUSTOM"${event?.rrule && !/^FREQ=(WEEKLY|MONTHLY)/.test(event.rrule) ? " selected" : ""}>Custom RRULE…</option>
+            <option value="MONTHLY"${event?.rrule && /^FREQ=MONTHLY$/.test(event.rrule) ? " selected" : ""}>Monthly (same date)</option>
+            <option value="MONTHLY_NTH"${/^FREQ=MONTHLY;BYDAY=/.test(event?.rrule || "") ? " selected" : ""}>Monthly (Nth weekday)</option>
           </select>
         </label>
         <label style="margin:0;flex:1">Until (optional)
           <input name="recurrenceUntil" type="date" value="${event?.recurrenceUntil ? new Date(event.recurrenceUntil).toISOString().slice(0, 10) : ""}">
         </label>
       </div>
-      <label>Custom RRULE (only used when Repeats = Custom)
-        <input name="rruleCustom" type="text" maxlength="200" placeholder="e.g. FREQ=MONTHLY;BYDAY=1TU" value="${event?.rrule && !/^FREQ=(WEEKLY|MONTHLY)/.test(event.rrule) ? escape(event.rrule) : ""}">
-      </label>
+      <p class="muted small" style="margin-top:-.4rem">"Nth weekday" = same weekday and same week-of-month as the start date (e.g. start on the first Tuesday → repeats first Tuesday every month).</p>
       <h3 style="margin-top:1rem">Credits per attendee</h3>
       <p class="muted small" style="margin-top:-.4rem">Each member with a "yes" RSVP earns these. Service hours feed Eagle / rank requirements; camping nights and hiking miles feed Camping &amp; Hiking awards.</p>
       <div class="row">
@@ -2521,6 +2519,7 @@ function eventDataFromBody(body) {
   const capacity = body?.capacity ? parseInt(body.capacity, 10) : null;
 
   let rrule = null;
+  const startsAt = parseDtLocal(body?.startsAt) || new Date();
   switch (body?.recurrence) {
     case "WEEKLY":
       rrule = "FREQ=WEEKLY";
@@ -2531,9 +2530,16 @@ function eventDataFromBody(body) {
     case "MONTHLY":
       rrule = "FREQ=MONTHLY";
       break;
-    case "CUSTOM":
-      rrule = (body?.rruleCustom || "").trim() || null;
+    case "MONTHLY_NTH": {
+      // Derive BYDAY=<N><DAY> from the start date — e.g. Tuesday in
+      // the second week of the month → BYDAY=2TU. Saves the admin
+      // from typing RFC 5545 syntax.
+      const dayCodes = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+      const day = dayCodes[startsAt.getDay()];
+      const week = Math.ceil(startsAt.getDate() / 7); // 1..5
+      rrule = `FREQ=MONTHLY;BYDAY=${week}${day}`;
       break;
+    }
   }
   const recurrenceUntil = body?.recurrenceUntil ? new Date(body.recurrenceUntil) : null;
 
@@ -2544,7 +2550,7 @@ function eventDataFromBody(body) {
   return {
     title: body?.title?.trim() || "Untitled",
     description: body?.description?.trim() || null,
-    startsAt: parseDtLocal(body?.startsAt) || new Date(),
+    startsAt,
     endsAt: parseDtLocal(body?.endsAt),
     allDay: body?.allDay === "1",
     location: body?.location?.trim() || null,
