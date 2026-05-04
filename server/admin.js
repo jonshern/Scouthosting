@@ -63,6 +63,7 @@ import {
 } from "../lib/chat.js";
 import { tallyCredits, formatCsvRow } from "../lib/credits.js";
 import { recordAudit } from "../lib/audit.js";
+import { enqueueJob } from "../lib/jobs.js";
 import { renderChatShell } from "./render.js";
 import { deriveBillingStatus, billingBanner } from "../lib/billingState.js";
 import {
@@ -7338,17 +7339,6 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
     }),
   }));
 
-  const [emailResult, smsResult] = await Promise.all([
-    messages.length ? sendBatch(messages) : Promise.resolve({ sent: 0, errors: [] }),
-    smsMessages.length ? sendSmsBatch(smsMessages) : Promise.resolve({ sent: 0, errors: [] }),
-  ]);
-
-  const totalSent = emailResult.sent + smsResult.sent;
-  const allErrors = [
-    ...emailResult.errors.map((e) => ({ ...e, channel: "email" })),
-    ...smsResult.errors.map((e) => ({ ...e, channel: "sms" })),
-  ];
-
   let audienceLabel;
   if (audience === "patrol") {
     audienceLabel = `Patrol: ${patrol || "—"}`;
@@ -7362,6 +7352,11 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
     audienceLabel = AUDIENCES.find((a) => a.value === audience)?.label ?? "Everyone";
   }
 
+  // Pre-create the MailLog row in "queued" state so workers can
+  // increment per-recipient counters as they finish. recipientCount
+  // counts only the email side for now; SMS still flows synchronously
+  // pending PR-Q2. status finalises to sent / partial / failed once
+  // delivered + failed equals recipientCount.
   await prisma.mailLog.create({
     data: {
       id: mailLogId,
@@ -7371,9 +7366,8 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
       body: cleanBody,
       channel: smsRecipients.length ? (emailRecipients.length ? "both" : "sms") : "email",
       audienceLabel,
-      recipientCount: totalSent,
-      status: allErrors.length === 0 ? "sent" : totalSent > 0 ? "partial" : "failed",
-      errors: allErrors.length ? JSON.stringify(allErrors) : null,
+      recipientCount: messages.length,
+      status: messages.length ? "queued" : "sent",
       recipients: [
         ...emailRecipients.map((m) => ({ name: `${m.firstName} ${m.lastName}`, email: m.email, channel: "email" })),
         ...smsRecipients.map((m) => ({ name: `${m.firstName} ${m.lastName}`, phone: m.phone, channel: "sms" })),
@@ -7381,20 +7375,54 @@ adminRouter.post("/email", requireLeader, async (req, res) => {
     },
   });
 
-  // Build a "what just got sent" recap. The previous version showed
-  // only counts; admins immediately want to verify the message body
-  // and the recipient list (semi-irreversible action). Re-show the
-  // full message + an expandable recipient breakdown.
-  const sentTotal = emailResult.sent + smsResult.sent;
+  // Enqueue per-recipient email jobs. Worker (lib/jobs.js#email.broadcast.
+  // send-one) handles delivery + atomically updates MailLog progress.
+  // pg-boss in-process mode (no DATABASE_URL or JOBS_DISABLED=1) runs
+  // each job synchronously in this request thread — same end-state,
+  // just no async benefit until the worker pod runs queued mode.
+  for (const message of messages) {
+    await enqueueJob(
+      "email.broadcast.send-one",
+      { mailLogId, message },
+      { retryLimit: 2 },
+    );
+  }
+
+  // SMS still synchronous in PR-Q1 — moves to its own queue in PR-Q2.
+  const smsResult = smsMessages.length
+    ? await sendSmsBatch(smsMessages)
+    : { sent: 0, errors: [] };
+
+  const allErrors = smsResult.errors.map((e) => ({ ...e, channel: "sms" }));
+  // The recap below was previously rendered against the now-completed
+  // sendBatch + smsSendBatch results. Email is now async; surface that
+  // honestly rather than lying about delivery counts.
+  const emailQueued = messages.length;
+  const emailResult = { sent: 0, errors: [], queued: emailQueued };
+  const totalSent = smsResult.sent;
+
+  // Build a "what just got sent" recap. Email is now async (per-
+  // recipient pg-boss jobs); SMS still synchronous (PR-Q2 will queue
+  // it too). Surface that honestly: queued vs sent are different states.
   const subjectEsc = escape(subject.trim());
   const bodyEsc = escape(cleanBody);
   const audienceEsc = escape(audienceLabel);
-  const summary = allErrors.length === 0
-    ? `Delivered to ${sentTotal} ${sentTotal === 1 ? "recipient" : "recipients"}.`
-    : `Delivered to ${sentTotal} of ${sentTotal + allErrors.length} ${(sentTotal + allErrors.length) === 1 ? "recipient" : "recipients"} — ${allErrors.length} failed.`;
-  const channelLine = `Email: <strong>${emailResult.sent}</strong> · SMS: <strong>${smsResult.sent}</strong>${
-    allErrors.length ? ` · failed: <strong>${allErrors.length}</strong>` : ""
-  }`;
+  const summaryParts = [];
+  if (emailQueued > 0) {
+    summaryParts.push(`Queued ${emailQueued} email${emailQueued === 1 ? "" : "s"} for delivery`);
+  }
+  if (smsResult.sent > 0) {
+    summaryParts.push(`Sent ${smsResult.sent} SMS message${smsResult.sent === 1 ? "" : "s"}`);
+  }
+  if (allErrors.length > 0) {
+    summaryParts.push(`${allErrors.length} SMS failed`);
+  }
+  const summary = summaryParts.length
+    ? summaryParts.join(" · ") + "."
+    : "No matching recipients — nothing was sent.";
+  const channelLine = `Email queued: <strong>${emailQueued}</strong> · SMS sent: <strong>${smsResult.sent}</strong>${
+    allErrors.length ? ` · SMS failed: <strong>${allErrors.length}</strong>` : ""
+  }${emailQueued ? ` · <a href="/admin/email/sent/${escape(mailLogId)}">Track delivery →</a>` : ""}`;
   const recipientLines = [
     ...emailRecipients.map((m) => ({
       label: `${m.firstName} ${m.lastName}`,

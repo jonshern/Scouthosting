@@ -578,7 +578,16 @@ model MailLog {
   channel        String   @default("email") // email | sms | both
   audienceLabel  String // "Everyone", "Adults", "Youth", "Patrol: Eagles", ...
   recipientCount Int      @default(0)
-  status         String   @default("sent") // sent | failed | partial | dryrun
+  // Per-recipient delivery state, updated as workers complete the
+  // email.broadcast.send-one + sms.broadcast.send-one jobs. status
+  // moves from "queued" → "sent"/"partial"/"failed" once
+  // (deliveredCount + failedCount) === recipientCount.
+  deliveredCount Int      @default(0)
+  failedCount    Int      @default(0)
+  // sent | partial | failed | dryrun | queued — queued is the new
+  // default; previously every send was synchronous and rows landed
+  // in "sent" immediately.
+  status         String   @default("queued")
   errors         String?
   sentAt         DateTime @default(now())
 
