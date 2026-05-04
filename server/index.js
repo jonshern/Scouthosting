@@ -377,8 +377,18 @@ app.post("/__telemetry", express.json({ limit: "8kb" }), async (req, res) => {
 
 const STATIC_FALLTHROUGH = express.static(ROOT, { extensions: ["html"], index: "index.html" });
 
+// Apex static-asset extensions. These are *always* served from the
+// repo root regardless of host routing — even when req.org is set
+// because the apex hostname is mapped to an org via customDomain (the
+// single-host-staging pattern). Without this, /styles.css /tokens.css
+// /script.js etc. silently 404 on customDomain'd hosts because the
+// tenant routing has no business serving apex-marketing assets and
+// the marketing handler had an early-out that fired on req.org.
+const APEX_ASSET_EXT = /\.(css|js|png|jpe?g|gif|svg|webp|ico|map|woff2?|txt|xml)$/i;
+
 app.use((req, res, next) => {
-  if (req.slugFromHost || req.org) return next();
+  const isApexAsset = APEX_ASSET_EXT.test(req.path || "");
+  if ((req.slugFromHost || req.org) && !isApexAsset) return next();
 
   // Resolve the candidate HTML path the same way express.static would,
   // then read+send if it's HTML. Path safety: only accept GETs whose

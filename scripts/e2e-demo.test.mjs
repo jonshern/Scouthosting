@@ -73,6 +73,30 @@ function cookieJar(setCookies) {
   return setCookies.map((c) => c.split(";")[0]).join("; ");
 }
 
+// Guards against two classes of "missing stylesheet" regression we've
+// hit twice now: (1) Dockerfile COPY list lagging new top-level files,
+// (2) tenant routing accidentally swallowing apex-marketing static
+// requests. Every root-level *.html / *.css / *.js MUST serve as 200
+// from the apex.
+test("apex serves every root-level static asset (no Dockerfile / routing drift)", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const repoRoot = path.resolve(here, "..");
+  const wanted = fs
+    .readdirSync(repoRoot)
+    .filter((f) => /\.(html|css|js)$/i.test(f))
+    .filter((f) => f !== "vitest.config.js"); // dev tooling, not shipped
+  assert.ok(wanted.length > 5, `expected to find static assets at repo root, got ${wanted.length}`);
+  const broken = [];
+  for (const file of wanted) {
+    const r = await req("localhost", "/" + file);
+    if (r.status !== 200) broken.push(`${file} → HTTP ${r.status}`);
+  }
+  assert.equal(broken.length, 0, `apex static assets that 404'd:\n  ${broken.join("\n  ")}`);
+});
+
 test("server is reachable: /healthz", async () => {
   const r = await req("localhost", "/healthz");
   assert.equal(r.status, 200);

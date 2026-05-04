@@ -159,6 +159,7 @@ model Org {
   feedbackRequests   FeedbackRequest[]
   newsletterSchedule NewsletterSchedule?
   newsletterRules    NewsletterRule[]
+  errorLogs          ErrorLog[]
   owner              User? @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([plan])
@@ -214,6 +215,7 @@ model User {
   feedbackComments   FeedbackComment[]
   ownedOrgs          Org[] @relation("OrgOwner")
   backupCodes        BackupCode[]
+  errorLogs          ErrorLog[]
 }
 
 // One-time-use 2FA backup codes. Generated at enrollment (10 per user),
