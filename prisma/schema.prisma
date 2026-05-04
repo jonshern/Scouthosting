@@ -140,6 +140,7 @@ model Org {
   customPages          CustomPage[]
   surveys              Survey[]
   pageVersions         PageVersion[]
+  eventCategories      EventCategory[]
   eagleScouts          EagleScout[]
   eagleProjects        EagleProject[]
   cohAwards            CohAward[]
@@ -960,6 +961,30 @@ model PageVersion {
   @@index([orgId, publishedAt])
   @@index([pageId, publishedAt])
   @@index([customPageId, publishedAt])
+}
+
+// Per-org calendar category vocabulary. Replaces the hardcoded list
+// in lib/eventCategories.js as the source of truth — admins manage
+// labels + colors at /admin/categories. Event.category stores the
+// slug (free-form string, no FK) so deleting a category doesn't
+// orphan/break events; the slug just falls back to a generic label.
+//
+// Defaults are seeded lazily on first /admin/categories visit (see
+// ensureDefaultEventCategories) so existing orgs migrate transparently.
+model EventCategory {
+  id        String   @id @default(cuid())
+  orgId     String
+  slug      String   // stable lowercase id matched against Event.category
+  label     String   // human label shown in pickers + tags
+  color     String   // hex (#rrggbb) for the tag background
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, slug])
+  @@index([orgId, sortOrder])
 }
 
 // Surveys: leader-composed question sets that members (or anyone, if
