@@ -5274,11 +5274,68 @@ adminRouter.post("/members/:id/message", requireLeader, async (req, res) => {
   res.redirect(backHref);
 });
 
+// Build the inline composer that sits at the top of /admin/dm/sent.
+// Uses the existing POST /admin/members/:id/message handler — the
+// form's action is rewritten on submit to include the selected
+// member id, so we don't need a new server route. Members without
+// an email aren't selectable (the existing handler bounces them).
+function dmComposerHtml(req, members) {
+  const options = members
+    .filter((m) => m.email)
+    .map(
+      (m) => `<option value="${escape(m.id)}">${escape(m.firstName)} ${escape(m.lastName)} · ${escape(m.email)}</option>`,
+    )
+    .join("");
+  const csrfHidden = `<input type="hidden" name="csrf" value="${escape(req.csrfToken)}">`;
+  return `
+    <form class="card" id="dm-composer" method="post" action="" style="margin-top:0;margin-bottom:1.25rem">
+      <h2 style="margin-top:0">New direct message</h2>
+      ${csrfHidden}
+      <label>To
+        <select id="dm-composer-to" name="recipientId" required>
+          <option value="">Pick a member…</option>
+          ${options}
+        </select>
+      </label>
+      <label>Message
+        <textarea name="body" rows="3" required maxlength="4000" placeholder="Type your message — sends as a DM in the app, with an email reminder if unread after 30 minutes."></textarea>
+      </label>
+      <div class="row" style="margin-top:.4rem">
+        <button class="btn btn-primary" type="submit">Send DM</button>
+        <span class="muted small" style="margin-left:.6rem;align-self:center">Or DM from a member's profile in <a href="/admin/members">Roster</a>.</span>
+      </div>
+    </form>
+    <script>
+      (function () {
+        const form = document.getElementById("dm-composer");
+        if (!form) return;
+        form.addEventListener("submit", (e) => {
+          const id = document.getElementById("dm-composer-to").value;
+          if (!id) { e.preventDefault(); return; }
+          form.action = "/admin/members/" + encodeURIComponent(id) + "/message";
+        });
+      })();
+    </script>`;
+}
+
 // "My DMs" admin view — DM messages the current admin sent, grouped
 // by read status. The over-24h-unread bucket is the call-to-action:
 // time to nudge by phone or SMS for hard-to-reach folks.
 adminRouter.get("/dm/sent", requireLeader, async (req, res) => {
   const meId = req.user.id;
+  // For the inline composer at the top — list of members the admin
+  // could DM. We pull this regardless of whether they've sent any
+  // DMs yet so the empty state isn't a dead end.
+  const composerMembers = await prisma.member.findMany({
+    where: {
+      orgId: req.org.id,
+      deletedAt: null,
+      status: "active",
+      email: { not: null },
+    },
+    orderBy: [{ isYouth: "asc" }, { lastName: "asc" }, { firstName: "asc" }],
+    select: { id: true, firstName: true, lastName: true, email: true },
+  });
   // DM channels in this org that the admin is a member of (and so
   // could have authored messages in). The "name LIKE 'dm:%'" guard
   // keeps the result focused on direct-message channels even though
@@ -5306,8 +5363,9 @@ adminRouter.get("/dm/sent", requireLeader, async (req, res) => {
   if (!myDmChannels.length) {
     const body = `
       <h1>My DMs</h1>
-      <p class="muted">DM messages you've sent will appear here, grouped by whether the recipient has read them. Send your first DM from <a href="/admin/members">Members</a> or <a href="/admin/leads">Leads</a>.</p>
-      <div class="empty">You haven't sent any DMs yet.</div>
+      <p class="muted">DM messages you send appear here, grouped by whether the recipient has read them. The over-24h-unread bucket is the call-to-action — those folks may need a phone call or SMS instead.</p>
+      ${dmComposerHtml(req, composerMembers)}
+      <div class="empty">You haven't sent any DMs yet — use the composer above to send your first one.</div>
     `;
     return res.type("html").send(layout(req, { title: "My DMs", body }));
   }
@@ -5374,6 +5432,7 @@ adminRouter.get("/dm/sent", requireLeader, async (req, res) => {
   const body = `
     <h1>My DMs</h1>
     <p class="muted">DM messages you've sent, grouped by whether the recipient has read them. The over-24h bucket is the call-to-action — those folks may need a phone call or SMS instead.</p>
+    ${dmComposerHtml(req, composerMembers)}
     ${section("Sent over 24h ago, still unread", unreadOver24h,
       "Nothing in the cold-tail bucket. Nice — your DMs are landing.",
       "These are good candidates to follow up by phone or SMS for hard-to-reach members.")}
@@ -5381,7 +5440,7 @@ adminRouter.get("/dm/sent", requireLeader, async (req, res) => {
       "No fresh DMs awaiting a read.",
       "Push delivery works asynchronously; the email-reminder cron will nudge after 30 minutes.")}
     ${section("Read", read,
-      "No DMs yet. Send one from the Members or Leads page.",
+      "No DMs yet — use the composer above to send your first one.",
       null)}
   `;
   res.type("html").send(layout(req, { title: "My DMs", body }));

@@ -327,12 +327,17 @@ off here with the commit SHA.
 - Either way, the data layer is fine — no schema changes needed.
 - Ref: long discussion in session 2026-05-03.
 
-### My DMs page has no way to actually send a DM
-- `/admin/dm/sent` (admin.js:4933) shows an empty state with the copy
-  *"Send your first DM from Members or Leads"* — but Members lands you
-  on a 200+ row roster with no visible DM action. Real path is
-  Roster → click person → Edit → Message tab. Three clicks deep, no
-  signposting.
+### ~~My DMs page has no way to actually send a DM~~
+- ~~`/admin/dm/sent` shows an empty state with copy that points to a
+  3-clicks-deep flow.~~
+- **Fixed (session 2026-05-03)**: added an inline composer at the top
+  of /admin/dm/sent — recipient dropdown (all org members with email,
+  sorted leaders→adults→youth, last name) + message textarea + Send
+  DM button. On submit the form action is rewritten to the existing
+  `POST /admin/members/:id/message` route so all of the existing DM
+  logic (DM channel resolution, push, 30-min email reminder cron)
+  applies unchanged. Visible in both the empty state and the populated
+  view.
 - Fix: add an inline composer (To: autocomplete + body + send) at the
   top of the My DMs view. Re-uses existing
   `POST /admin/members/:id/message` (admin.js:4863).
