@@ -2869,10 +2869,17 @@ app.get("/p/:slug", async (req, res, next) => {
     if (!role) return res.status(403).send("Members only");
   }
 
+  // Live blocks (events / photos / posts / contact) on a custom page
+  // need the same per-request data fetch the homepage does.
+  const blocks = Array.isArray(page.blocks) ? page.blocks : [];
+  const liveBlocksData = blocks.length
+    ? await fetchLiveBlocksData({ blocks, orgId: req.org.id, prisma })
+    : {};
+
   const { renderCustomPage } = await import("./render.js");
   res
     .set("Content-Type", "text/html; charset=utf-8")
-    .send(renderCustomPage(req.org, page));
+    .send(renderCustomPage(req.org, page, { liveBlocksData }));
 });
 
 // Forms & documents — visibility filters by viewer role.

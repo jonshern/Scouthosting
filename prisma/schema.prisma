@@ -898,7 +898,15 @@ model CustomPage {
   orgId       String
   slug        String   // URL slug, lowercased, kebab-case
   title       String
+  // Legacy markdown body. Used when `blocks` is null/empty so existing
+  // pages keep rendering during the cutover. New pages saved via the
+  // GrapesJS canvas write `blocks` and leave `body` alone.
   body        String   // markdown-ish; rendered with paragraph + line-break preservation
+  // Canvas — same shape as Page.customBlocks. JSON array of
+  // { id, type, ...config }. Edited via /admin/pages/:id/edit.
+  // Render path at /p/:slug prefers blocks if non-empty, falls back to
+  // rendering `body` as Markdown otherwise.
+  blocks      Json?
   visibility  String   @default("public") // public | members
   sortOrder   Int      @default(0)
   showInNav   Boolean  @default(true)

@@ -92,30 +92,19 @@ function renderHeroPhotos(photos) {
 // `liveBlocksData` is a map of block.id → pre-fetched data, built by
 // `fetchLiveBlocksData` from lib/blocks/. Static blocks (text/image/
 // cta) ignore it; live blocks pull their content out of it.
-function renderCustomBlocks(page, liveBlocksData = {}) {
-  const blocks = Array.isArray(page?.customBlocks) ? page.customBlocks : [];
-
-  const html = blocks
+// Take a blocks array (Page.customBlocks for the homepage,
+// CustomPage.blocks for /p/:slug) and a live-data map keyed by
+// block.id (built by lib/blocks#fetchLiveBlocksData) and return the
+// rendered HTML string. If the array is empty, return "" so callers
+// can decide on their own fallback.
+export function renderBlockList(blocks, liveBlocksData = {}) {
+  const list = Array.isArray(blocks) ? blocks : [];
+  const html = list
     .filter((b) => b && b.id && b.type)
     .map((b) => renderCustomBlock(b, liveBlocksData[b.id]))
     .filter(Boolean)
     .join("\n");
-
-  // Empty-canvas fallback: site.html now defers everything between
-  // hero and footer to this function, so a homepage with no blocks
-  // would otherwise be a void. Render a neutral "in progress" stub
-  // pointing leaders at the editor / template gallery so they have an
-  // obvious next action.
-  if (!html) {
-    return `
-    <section class="section cms-empty">
-      <div class="wrap" style="max-width:560px;text-align:center;padding:4rem 1rem">
-        <p style="color:var(--ink-500);margin:0 0 .5rem;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase">Homepage in progress</p>
-        <h2 style="font-family:'Newsreader',Georgia,serif;font-size:1.6rem;color:var(--ink-800);margin:0 0 1rem">This unit's homepage is still being set up.</h2>
-        <p style="color:var(--ink-600);line-height:1.6">Sign-ins, calendar, photos, and forms still work — visit them from the menu above.</p>
-      </div>
-    </section>`;
-  }
+  if (!html) return "";
   return `${html}
     <style>
       .cms-block{padding:3rem 0}
@@ -131,6 +120,25 @@ function renderCustomBlocks(page, liveBlocksData = {}) {
       .cms-block--cta p{margin:0 0 1.25rem;color:rgba(255,255,255,.85)}
       .cms-block--cta .btn{background:var(--accent);color:var(--ink);border:0;padding:.7rem 1.4rem;border-radius:8px;font-weight:600;text-decoration:none;display:inline-block}
     </style>`;
+}
+
+function renderCustomBlocks(page, liveBlocksData = {}) {
+  const html = renderBlockList(page?.customBlocks, liveBlocksData);
+  // Empty-canvas fallback: site.html now defers everything between
+  // hero and footer to this function, so a homepage with no blocks
+  // would otherwise be a void. Render a neutral "in progress" stub
+  // so leaders have an obvious next action.
+  if (!html) {
+    return `
+    <section class="section cms-empty">
+      <div class="wrap" style="max-width:560px;text-align:center;padding:4rem 1rem">
+        <p style="color:var(--ink-500);margin:0 0 .5rem;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase">Homepage in progress</p>
+        <h2 style="font-family:'Newsreader',Georgia,serif;font-size:1.6rem;color:var(--ink-800);margin:0 0 1rem">This unit's homepage is still being set up.</h2>
+        <p style="color:var(--ink-600);line-height:1.6">Sign-ins, calendar, photos, and forms still work — visit them from the menu above.</p>
+      </div>
+    </section>`;
+  }
+  return html;
 }
 
 function renderCustomBlock(b, liveData) {
@@ -1054,12 +1062,20 @@ function renderPostCard(p, { showLink = true, viewerUserId = null } = {}) {
 }
 
 
-export function renderCustomPage(org, page) {
+export function renderCustomPage(org, page, { liveBlocksData = {} } = {}) {
+  // Prefer the canvas blocks when present; fall back to the legacy
+  // markdown body so pre-PR-2 content keeps rendering during the
+  // cutover. Either way the page title sits on top with a back-to-
+  // home link.
+  const blocks = Array.isArray(page.blocks) ? page.blocks : [];
+  const blocksHtml = blocks.length ? renderBlockList(blocks, liveBlocksData) : "";
+  const inner = blocksHtml
+    || `<div class="prose" style="max-width:65ch;line-height:1.65">${textToHtml(page.body || "")}</div>`;
   const body = `
     <section class="event-list">
       <a class="back" href="/">← Home</a>
       <h1>${escapeHtml(page.title)}</h1>
-      <div class="prose" style="max-width:65ch;line-height:1.65">${textToHtml(page.body)}</div>
+      ${inner}
     </section>`;
   return pageShell(org, page.title, body);
 }

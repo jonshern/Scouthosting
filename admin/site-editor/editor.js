@@ -16,6 +16,11 @@
 (function () {
   const initial = Array.isArray(window.__INITIAL_BLOCKS__) ? window.__INITIAL_BLOCKS__ : [];
   const csrfToken = window.__CSRF_TOKEN__ || "";
+  // Editor is reused by /admin/site and /admin/pages/:id/edit; the
+  // server inlines the right URLs as window globals so the same code
+  // works for both. Default to the homepage URLs for backwards compat.
+  const saveUrl = window.__SAVE_URL__ || "/admin/site";
+  const settingsUrl = window.__SETTINGS_URL__ || "";
 
   // ---------------------------------------------------------------
   // Block specs — must match types in lib/blocks/*.js + the static
@@ -253,7 +258,7 @@
       saveBtn.textContent = "Saving…";
       try {
         const blocks = serializeCanvas();
-        const r = await fetch("/admin/site", {
+        const r = await fetch(saveUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -320,7 +325,7 @@
   // ---------------------------------------------------------------
   const settingsForm = document.getElementById("ed-settings-form");
   const settingsStatus = document.getElementById("ed-settings-status");
-  if (settingsForm) {
+  if (settingsForm && settingsUrl) {
     settingsForm.addEventListener("submit", async (ev) => {
       ev.preventDefault();
       const submit = document.getElementById("ed-settings-submit");
@@ -329,8 +334,10 @@
       try {
         const fd = new FormData(settingsForm);
         const body = {};
+        // Collapse repeated/checkbox values: checkbox sends value="1"
+        // when checked, nothing when unchecked. The server normalises.
         fd.forEach((v, k) => { body[k] = v; });
-        const r = await fetch("/admin/site/settings", {
+        const r = await fetch(settingsUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",

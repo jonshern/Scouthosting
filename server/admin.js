@@ -1423,31 +1423,33 @@ function dashboardCss() {
 // block tree as window.__INITIAL_BLOCKS__ for the browser-side script
 // to hydrate.
 //
-// POST /admin/site accepts JSON { blocks: [...] } and persists into
-// Page.customBlocks after running each row through the existing
-// normaliseHomepageCustomBlock validator (rejects unknown types,
-// clamps configs, etc.) so the same admin-form code path can't be
-// bypassed via a richer client.
-adminRouter.get("/site", requireLeader, async (req, res) => {
-  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
-  const blocks = readHomepageCustomBlocks(page);
-  // Inline the JSON into a script tag — single source of truth for the
-  // editor's initial state. Escape </script> to be safe.
-  const safeJson = JSON.stringify(blocks).replace(/<\/script>/gi, "<\\/script>");
-  const orgName = JSON.stringify(req.org.displayName || "your unit");
-  const settings = {
-    heroHeadline: page?.heroHeadline ?? "",
-    heroLede: page?.heroLede ?? "",
-    primaryColor: req.org.primaryColor || "#1d6b39",
-    accentColor: req.org.accentColor || "#caa54a",
-  };
-  const logoFilename = req.org.logoFilename || "";
-  const html = `<!DOCTYPE html>
+// Reusable shell for the GrapesJS canvas. Used by /admin/site
+// (homepage editor) and /admin/pages/:id/edit (custom-page editor).
+// Caller supplies the right-rail settings HTML — homepage gets hero/
+// theme/logo, custom pages get title/slug/visibility/showInNav. The
+// browser-side editor.js reads `window.__SAVE_URL__` and
+// `window.__SETTINGS_URL__` so the same script works on both surfaces.
+function renderEditorShell({
+  req,
+  pageTitle,
+  toolbarTitle,
+  toolbarSubtitle,
+  blocks,
+  saveUrl,
+  settingsUrl,
+  viewLiveUrl,
+  viewLiveLabel = "View live ↗",
+  toolbarExtras = "",
+  settingsHtml = "",
+  emptyHint = "",
+}) {
+  const safeBlocks = JSON.stringify(blocks || []).replace(/<\/script>/gi, "<\\/script>");
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Edit site · ${escape(req.org.displayName)}</title>
+<title>${escape(pageTitle)}</title>
 <link rel="stylesheet" href="/vendor/grapesjs/css/grapes.min.css">
 <link rel="stylesheet" href="/tokens.css">
 <style>
@@ -1485,8 +1487,10 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
   .ed-settings-group h3 { font-size: .85rem; font-weight: 600; margin: 0 0 .55rem; color: #111; letter-spacing: .01em; }
   .ed-settings-group label { display: block; font-size: .78rem; color: #374151; margin-bottom: .55rem; }
   .ed-settings-group input[type="text"], .ed-settings-group textarea { width: 100%; padding: .4rem .5rem; border: 1px solid #d1d5db; border-radius: 6px; font: inherit; font-size: .85rem; box-sizing: border-box; }
+  .ed-settings-group select { width: 100%; padding: .4rem .5rem; border: 1px solid #d1d5db; border-radius: 6px; font: inherit; font-size: .85rem; background: #fff; box-sizing: border-box; }
   .ed-settings-group textarea { min-height: 4.5rem; resize: vertical; line-height: 1.45; }
   .ed-settings-group input[type="color"] { width: 100%; height: 32px; padding: 0; border: 1px solid #d1d5db; border-radius: 6px; cursor: pointer; }
+  .ed-settings-group input[type="checkbox"] { width: auto; margin-right: .35rem; }
   .ed-settings-row { display: flex; gap: .5rem; }
   .ed-settings-row > label { flex: 1; }
   .ed-settings-save { display: flex; align-items: center; gap: .6rem; margin-top: .35rem; }
@@ -1502,16 +1506,19 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
   .ed-logo-clear { margin-top: .5rem; }
   .ed-logo-clear button { background: transparent; color: #b91c1c; border: 1px solid #fecaca; }
   .ed-logo-clear button:hover { background: #fef2f2; }
+  .ed-settings-danger { margin-top: 1rem; }
+  .ed-settings-danger button { background: transparent; color: #b91c1c; border: 1px solid #fecaca; padding: .45rem .8rem; border-radius: 6px; font: inherit; font-size: .8rem; cursor: pointer; }
+  .ed-settings-danger button:hover { background: #fef2f2; }
   .ed-settings-tip { font-size: .72rem; color: #9ca3af; margin: .15rem 0 .55rem; line-height: 1.45; }
 </style>
 </head>
 <body>
 <div class="ed-shell">
   <header class="ed-toolbar">
-    <h1>Site editor <small>${escape(req.org.displayName)}</small></h1>
+    <h1>${escape(toolbarTitle)}${toolbarSubtitle ? ` <small>${escape(toolbarSubtitle)}</small>` : ""}</h1>
     <nav>
-      <a href="/admin/site/template">Templates</a>
-      <a href="/" target="_blank" rel="noopener">View live ↗</a>
+      ${toolbarExtras}
+      ${viewLiveUrl ? `<a href="${escape(viewLiveUrl)}" target="_blank" rel="noopener">${escape(viewLiveLabel)}</a>` : ""}
       <button id="ed-save" class="primary" type="button">Save layout</button>
     </nav>
   </header>
@@ -1520,16 +1527,43 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
       <h2>Blocks</h2>
       <p class="muted" style="font-size:.78rem;color:#6b7280;margin:0 .25rem .25rem;line-height:1.45">Click a block to add it to the bottom of the page. Drag blocks on the canvas to reorder. <strong>Live</strong> blocks pull from your data automatically.</p>
       <div id="gjs-blocks"></div>
-      <div class="ed-rail-help">
-        Want a populated layout to start from? <a href="/admin/site/template" style="color:#1d6b39">Apply a starter template →</a>
-      </div>
+      ${emptyHint ? `<div class="ed-rail-help">${emptyHint}</div>` : ""}
     </aside>
     <section class="ed-canvas-pane">
       <div id="gjs"></div>
     </section>
     <aside class="ed-settings-pane">
-      <h2>Site settings</h2>
+      ${settingsHtml}
+    </aside>
+  </main>
+</div>
 
+<script>
+  window.__INITIAL_BLOCKS__ = ${safeBlocks};
+  window.__CSRF_TOKEN__ = ${JSON.stringify(req.csrfToken || "")};
+  window.__SAVE_URL__ = ${JSON.stringify(saveUrl)};
+  window.__SETTINGS_URL__ = ${JSON.stringify(settingsUrl || "")};
+</script>
+<script src="/vendor/grapesjs/grapes.min.js"></script>
+<script src="/admin/site-editor/editor.js"></script>
+</body>
+</html>`;
+}
+
+// Homepage editor — Page.customBlocks canvas + Hero/Theme/Logo settings
+// in the right rail.
+adminRouter.get("/site", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  const blocks = readHomepageCustomBlocks(page);
+  const settings = {
+    heroHeadline: page?.heroHeadline ?? "",
+    heroLede: page?.heroLede ?? "",
+    primaryColor: req.org.primaryColor || "#1d6b39",
+    accentColor: req.org.accentColor || "#caa54a",
+  };
+  const logoFilename = req.org.logoFilename || "";
+  const settingsHtml = `
+      <h2>Site settings</h2>
       <form id="ed-settings-form" autocomplete="off">
         <div class="ed-settings-group">
           <h3>Hero</h3>
@@ -1578,21 +1612,21 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
                </form>`
             : ""
         }
-      </div>
-    </aside>
-  </main>
-</div>
+      </div>`;
 
-<script>
-  window.__INITIAL_BLOCKS__ = ${safeJson};
-  window.__CSRF_TOKEN__ = ${JSON.stringify(req.csrfToken || "")};
-  window.__ORG_NAME__ = ${orgName};
-</script>
-<script src="/vendor/grapesjs/grapes.min.js"></script>
-<script src="/admin/site-editor/editor.js"></script>
-</body>
-</html>`;
-  res.type("html").send(html);
+  res.type("html").send(renderEditorShell({
+    req,
+    pageTitle: `Edit site · ${req.org.displayName}`,
+    toolbarTitle: "Site editor",
+    toolbarSubtitle: req.org.displayName,
+    blocks,
+    saveUrl: "/admin/site",
+    settingsUrl: "/admin/site/settings",
+    viewLiveUrl: "/",
+    toolbarExtras: `<a href="/admin/site/template">Templates</a><a href="/admin/pages">Custom pages</a>`,
+    settingsHtml,
+    emptyHint: `Want a populated layout to start from? <a href="/admin/site/template" style="color:#1d6b39">Apply a starter template →</a>`,
+  }));
 });
 
 // Save: POST JSON { blocks: [...] }. Each block goes through the same
@@ -7460,7 +7494,7 @@ adminRouter.get("/pages", requireLeader, async (req, res) => {
 
   const body = `
     <h1>Custom pages</h1>
-    <p class="muted">Add extra pages beyond the home page — History, Eagle list, FAQ, anything. They live at <code>/p/&lt;slug&gt;</code>.</p>
+    <p class="muted">Add extra pages beyond the home page — History, Eagle list, FAQ, anything. They live at <code>/p/&lt;slug&gt;</code>. Title now, then drop blocks onto the canvas.</p>
 
     <form class="card" method="post" action="/admin/pages">
       <h2 style="margin-top:0">New page</h2>
@@ -7468,10 +7502,6 @@ adminRouter.get("/pages", requireLeader, async (req, res) => {
       <label>URL slug (optional — derived from title if blank)
         <input name="slug" type="text" maxlength="60" pattern="[a-z0-9-]+" placeholder="our-history">
       </label>
-      <label>Body
-        <textarea name="body" rows="8" required></textarea>
-      </label>
-      <p class="muted small" style="margin-top:-.4rem">${MARKDOWN_HINT}</p>
       <div class="row" style="align-items:flex-end;gap:1.25rem;margin-bottom:1rem">
         <label style="margin:0;flex:1">Visibility
           <select name="visibility">
@@ -7481,7 +7511,7 @@ adminRouter.get("/pages", requireLeader, async (req, res) => {
         </label>
         <label style="margin:0;padding-bottom:.55rem"><input name="showInNav" type="checkbox" value="1" checked style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Show in main nav</label>
       </div>
-      <button class="btn btn-primary" type="submit" style="margin-top:.5rem">Create</button>
+      <button class="btn btn-primary" type="submit" style="margin-top:.5rem">Create &amp; edit</button>
     </form>
 
     <h2 style="margin-top:1.25rem">Pages</h2>
@@ -7508,74 +7538,153 @@ adminRouter.post("/pages", requireLeader, async (req, res) => {
   const title = req.body?.title?.trim();
   if (!title) return res.redirect("/admin/pages");
   const slug = await pickUniqueSlug(req.org.id, req.body?.slug?.trim() || title);
-  await prisma.customPage.create({
+  const created = await prisma.customPage.create({
     data: {
       orgId: req.org.id,
       slug,
       title,
-      body: (req.body?.body || "").toString().trim() || "",
+      body: "",
       visibility: req.body?.visibility === "members" ? "members" : "public",
       showInNav: req.body?.showInNav === "1",
     },
   });
-  res.redirect("/admin/pages");
+  // Drop the admin straight into the canvas editor — that's where the
+  // page actually gets written. Body stays empty until they save the
+  // first block (or drag in legacy markdown via the body field on the
+  // page-settings panel).
+  res.redirect(`/admin/pages/${created.id}/edit`);
 });
 
+// Canvas editor for a single custom page. Same GrapesJS surface as
+// /admin/site, but the right rail edits page metadata (title / slug /
+// visibility / nav) instead of homepage-level settings.
+//
+// First time the canvas is opened on a legacy page that only has body
+// Markdown, we hydrate the canvas with a single Text block carrying
+// that markdown so the admin doesn't lose what was there.
 adminRouter.get("/pages/:id/edit", requireLeader, async (req, res) => {
   const p = await prisma.customPage.findFirst({
     where: { id: req.params.id, orgId: req.org.id },
   });
   if (!p) return res.status(404).send("Not found");
-  const v = (k) => escape(p[k] ?? "");
+  let blocks = readHomepageCustomBlocks({ customBlocks: p.blocks });
+  if (!blocks.length && (p.body || "").trim()) {
+    // Legacy fallback: convert the markdown body into a single text
+    // block so the canvas isn't empty on first open.
+    blocks = [{
+      id: `cb_legacy_${p.id.slice(-8)}`,
+      type: "text",
+      title: "",
+      body: p.body,
+    }];
+  }
   const sel = (cond) => (cond ? " selected" : "");
-  const body = `
-    <a class="back" href="/admin/pages" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Custom pages</a>
-    <h1>Edit page</h1>
-    <form class="card" method="post" action="/admin/pages/${escape(p.id)}">
-      <label>Title<input name="title" type="text" required maxlength="120" value="${v("title")}"></label>
-      <label>URL slug<input name="slug" type="text" maxlength="60" pattern="[a-z0-9-]+" value="${v("slug")}"></label>
-      <p class="muted small" style="margin:-.5rem 0 .5rem">Public URL: <code>/p/${v("slug")}</code></p>
-      <label>Body<textarea name="body" rows="12" required>${v("body")}</textarea></label>
-      <p class="muted small" style="margin-top:-.4rem">${MARKDOWN_HINT}</p>
-      <div class="row">
-        <label style="margin:0;flex:1">Visibility
-          <select name="visibility">
-            <option value="public"${sel(p.visibility === "public")}>Public</option>
-            <option value="members"${sel(p.visibility === "members")}>Members only</option>
-          </select>
-        </label>
-        <label style="margin:0"><input name="showInNav" type="checkbox" value="1"${
-          p.showInNav ? " checked" : ""
-        } style="width:auto;display:inline;margin-top:0;margin-right:.4rem">Show in main nav</label>
-      </div>
-      <div class="row">
-        <button class="btn btn-primary" type="submit">Save</button>
-        <a class="btn btn-ghost" href="/admin/pages">Cancel</a>
-      </div>
-    </form>
-  `;
-  res.type("html").send(layout(req, { title: "Edit page", body }));
+  const settingsHtml = `
+      <h2>Page settings</h2>
+      <form id="ed-settings-form" autocomplete="off">
+        <div class="ed-settings-group">
+          <h3>Identity</h3>
+          <label>Title
+            <input type="text" name="title" required maxlength="120" value="${escape(p.title)}">
+          </label>
+          <label>URL slug
+            <input type="text" name="slug" maxlength="60" pattern="[a-z0-9-]+" value="${escape(p.slug)}">
+          </label>
+          <p class="ed-settings-tip">Public URL: <code>/p/${escape(p.slug)}</code></p>
+        </div>
+
+        <div class="ed-settings-group">
+          <h3>Visibility</h3>
+          <label>Who can see this page
+            <select name="visibility">
+              <option value="public"${sel(p.visibility === "public")}>Public</option>
+              <option value="members"${sel(p.visibility === "members")}>Members only</option>
+            </select>
+          </label>
+          <label style="display:flex;align-items:center;gap:.4rem;margin-top:.5rem">
+            <input type="checkbox" name="showInNav" value="1"${p.showInNav ? " checked" : ""}>
+            Show in main nav
+          </label>
+        </div>
+
+        <div class="ed-settings-save">
+          <button type="submit" id="ed-settings-submit">Save settings</button>
+          <span class="ed-settings-status" id="ed-settings-status"></span>
+        </div>
+      </form>
+
+      <div class="ed-settings-danger">
+        <form method="post" action="/admin/pages/${escape(p.id)}/delete" onsubmit="return confirm('Delete this page? This cannot be undone.')">
+          <button type="submit">Delete page</button>
+        </form>
+      </div>`;
+
+  res.type("html").send(renderEditorShell({
+    req,
+    pageTitle: `Edit · ${p.title}`,
+    toolbarTitle: p.title,
+    toolbarSubtitle: `/p/${p.slug}`,
+    blocks,
+    saveUrl: `/admin/pages/${p.id}/canvas`,
+    settingsUrl: `/admin/pages/${p.id}/settings`,
+    viewLiveUrl: `/p/${p.slug}`,
+    toolbarExtras: `<a href="/admin/pages">← All pages</a>`,
+    settingsHtml,
+  }));
 });
 
-adminRouter.post("/pages/:id", requireLeader, async (req, res) => {
+// Save canvas blocks for a custom page. JSON { blocks: [...] }; same
+// validator as the homepage canvas so block-type rules can't be
+// bypassed.
+adminRouter.post("/pages/:id/canvas", requireLeader, express.json({ limit: "256kb" }), async (req, res) => {
+  const p = await prisma.customPage.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!p) return res.status(404).type("text/plain").send("Not found");
+
+  const incoming = Array.isArray(req.body?.blocks) ? req.body.blocks : null;
+  if (!incoming) return res.status(400).type("text/plain").send("expected { blocks: [...] }");
+
+  const cleaned = [];
+  const errors = [];
+  for (let i = 0; i < incoming.length; i++) {
+    try {
+      cleaned.push(normaliseHomepageCustomBlock(incoming[i]));
+    } catch (err) {
+      errors.push({ idx: i, message: err.message });
+    }
+  }
+  if (errors.length) return res.status(400).json({ ok: false, errors });
+
+  await prisma.customPage.update({
+    where: { id: p.id },
+    data: { blocks: cleaned },
+  });
+  res.json({ ok: true, blocks: cleaned.length });
+});
+
+// Save page metadata (title / slug / visibility / showInNav) from the
+// right-rail Settings panel. JSON in / JSON out.
+adminRouter.post("/pages/:id/settings", requireLeader, express.json({ limit: "8kb" }), async (req, res) => {
   const p = await prisma.customPage.findFirst({
     where: { id: req.params.id, orgId: req.org.id },
   });
-  if (!p) return res.status(404).send("Not found");
-  const title = req.body?.title?.trim() || p.title;
-  const slugInput = req.body?.slug?.trim() || p.slug;
+  if (!p) return res.status(404).type("text/plain").send("Not found");
+
+  const body = req.body || {};
+  const title = (body.title ?? "").toString().trim() || p.title;
+  const slugInput = (body.slug ?? "").toString().trim() || p.slug;
   const slug = slugInput === p.slug ? p.slug : await pickUniqueSlug(req.org.id, slugInput, p.id);
+  const visibility = body.visibility === "members" ? "members" : "public";
+  // Checkbox value="1" arrives as string when checked, missing otherwise.
+  const showInNav = body.showInNav === "1" || body.showInNav === 1 || body.showInNav === true;
+
   await prisma.customPage.update({
     where: { id: p.id },
-    data: {
-      title,
-      slug,
-      body: (req.body?.body || "").toString().trim() || "",
-      visibility: req.body?.visibility === "members" ? "members" : "public",
-      showInNav: req.body?.showInNav === "1",
-    },
+    data: { title, slug, visibility, showInNav },
   });
-  res.redirect("/admin/pages");
+  res.json({ ok: true, slug });
 });
 
 adminRouter.post("/pages/:id/delete", requireLeader, async (req, res) => {
