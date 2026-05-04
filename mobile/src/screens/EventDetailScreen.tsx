@@ -25,6 +25,7 @@ import { fontFamilies, palette, radius, spacing } from "../theme/tokens";
 import { useAuth } from "../state/AuthContext";
 import {
   fetchEvent,
+  resolveEventColor,
   setEventRsvp,
   type EventDetail,
   type EventRsvp,
@@ -188,7 +189,7 @@ export default function EventDetailScreen() {
     );
   }
 
-  const accent = paletteFor(event.color);
+  const accent = resolveEventColor(event, paletteFor);
   const start = new Date(event.startsAt);
   const end = event.endsAt ? new Date(event.endsAt) : null;
   const dateLine = formatDateLine(start, end, event.allDay);

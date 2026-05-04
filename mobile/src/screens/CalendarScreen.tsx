@@ -25,7 +25,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { fontFamilies, palette, radius, spacing } from "../theme/tokens";
 import { useAuth } from "../state/AuthContext";
-import { fetchEvents, type CalendarEvent, type EventRsvp } from "../api/events";
+import { fetchEvents, resolveEventColor, type CalendarEvent, type EventRsvp } from "../api/events";
 import type { CalendarStackParamList } from "../navigation/types";
 
 const FILTERS = ["All", "Going", "Outings", "Meetings"] as const;
@@ -382,7 +382,7 @@ function MonthView({
                   {dayEvents.slice(0, 3).map((e, j) => (
                     <View
                       key={j}
-                      style={[styles.eventDot, { backgroundColor: paletteFor(e.color) }]}
+                      style={[styles.eventDot, { backgroundColor: resolveEventColor(e, paletteFor) }]}
                     />
                   ))}
                 </View>
@@ -433,7 +433,7 @@ function SelectedDayPanel({
         <Text style={styles.dayPanelEmpty}>Nothing scheduled.</Text>
       ) : (
         events.map((e) => {
-          const accent = paletteFor(e.color);
+          const accent = resolveEventColor(e, paletteFor);
           const start = new Date(e.startsAt);
           const time = start.toLocaleString("en-US", { hour: "numeric", minute: "2-digit" });
           const sub = `${time}${e.location ? ` · ${e.location}` : ""}${
@@ -518,7 +518,7 @@ function AgendaView({
               hour: "numeric",
               minute: "2-digit",
             })}`;
-            const accent = paletteFor(e.color);
+            const accent = resolveEventColor(e, paletteFor);
             const badge = rsvpBadge(e.myRsvp);
             return (
               <Pressable

@@ -387,9 +387,12 @@ apiRouter.get("/events/:id", resolveApiUser, async (req, res) => {
   ]);
   const counts = { yes: 0, no: 0, maybe: 0 };
   for (const r of rsvpCounts) counts[r.response] = r._count._all;
-  const { resolveCategoryStyle, loadOrgCategories } = await import("../lib/eventCategories.js");
+  const { resolveCategoryStyle, loadOrgCategories, categoryMeta } = await import("../lib/eventCategories.js");
   const categoryMap = await loadOrgCategories({ orgId: event.orgId, prisma });
   const style = event.category ? resolveCategoryStyle(event.category, categoryMap) : null;
+  // Legacy semantic key for older mobile builds that read `color`.
+  // New builds should prefer categoryColor (hex) when present.
+  const legacyMeta = event.category ? categoryMeta(event.category) : null;
   res.json({
     event: {
       id: event.id,
@@ -410,6 +413,10 @@ apiRouter.get("/events/:id", resolveApiUser, async (req, res) => {
       // opaque sentinel and fall back to its own theme primary).
       categoryColor: style?.bg || null,
       categoryInk: style?.fg || null,
+      // Legacy field kept for older mobile builds. Mobile clients
+      // running v0.4 or earlier expect this to be the semantic
+      // palette key ("sky" / "accent" / etc.).
+      color: legacyMeta?.color || "primary",
       rsvps: counts,
       myRsvp: mine || null,
     },
@@ -1441,7 +1448,7 @@ apiRouter.get("/orgs/:orgId/events", resolveApiUser, async (req, res) => {
   const yesMap = new Map(yesByEvent.map((r) => [r.eventId, r._count._all]));
   const mineMap = new Map(mineByEvent.map((r) => [r.eventId, r.response]));
 
-  const { resolveCategoryStyle, loadOrgCategories } = await import("../lib/eventCategories.js");
+  const { resolveCategoryStyle, loadOrgCategories, categoryMeta } = await import("../lib/eventCategories.js");
   const orgIdForMap = events[0]?.orgId || null;
   const categoryMap = orgIdForMap
     ? await loadOrgCategories({ orgId: orgIdForMap, prisma })
@@ -1449,6 +1456,7 @@ apiRouter.get("/orgs/:orgId/events", resolveApiUser, async (req, res) => {
   res.json({
     events: events.map((e) => {
       const style = e.category ? resolveCategoryStyle(e.category, categoryMap) : null;
+      const legacyMeta = e.category ? categoryMeta(e.category) : null;
       return {
         id: e.id,
         title: e.title,
@@ -1459,6 +1467,9 @@ apiRouter.get("/orgs/:orgId/events", resolveApiUser, async (req, res) => {
         categoryLabel: style?.label || null,
         categoryColor: style?.bg || null,
         categoryInk: style?.fg || null,
+        // Legacy semantic-key field for older mobile builds — see
+        // comment on /api/v1/events/:id above.
+        color: legacyMeta?.color || "primary",
         capacity: e.capacity,
         costCents: e.cost ? e.cost * 100 : null,
         rsvpYesCount: yesMap.get(e.id) || 0,
