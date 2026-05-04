@@ -4067,6 +4067,27 @@ app.post("/resubscribe/:token", async (req, res, next) => {
 //   1. it belongs to the current req.org (no cross-org reads)
 //   2. it's still active (no deleted-but-orphaned files served)
 //   3. the album visibility allows the request (members-only requires login)
+// Pipe a stored file to the response with error handling. A missing
+// file (ENOENT) becomes a 404; any other read failure becomes a 500.
+// Without this, a missing-file error on the readStream bubbles up to
+// `uncaughtException`, the process exits, the machine reboots, and
+// every concurrent request 502s during the ~10s restart. That happens
+// in practice on Fly because `/app/var/uploads/*` is ephemeral — any
+// photo seeded on a previous boot is gone after a deploy.
+function streamUpload(res, orgId, filename) {
+  const stream = storage.readStream(orgId, filename);
+  stream.on("error", (err) => {
+    if (err.code === "ENOENT") {
+      if (!res.headersSent) return res.status(404).type("text/plain").send("Not found");
+      return res.destroy();
+    }
+    log.warn("upload.read_failed", { orgId, filename, code: err.code, msg: err.message });
+    if (!res.headersSent) return res.status(500).type("text/plain").send("Read failed");
+    return res.destroy();
+  });
+  stream.pipe(res);
+}
+
 app.get("/uploads/:filename", async (req, res) => {
   if (!req.org) return res.status(404).send("Not found");
   const { filename } = req.params;
@@ -4083,7 +4104,7 @@ app.get("/uploads/:filename", async (req, res) => {
       : "application/octet-stream";
     res.set("Content-Type", mime);
     res.set("Cache-Control", "public, max-age=3600");
-    return storage.readStream(req.org.id, filename).pipe(res);
+    return streamUpload(res, req.org.id, filename);
   }
 
   // Photos first.
@@ -4124,7 +4145,7 @@ app.get("/uploads/:filename", async (req, res) => {
     }
     res.set("Content-Type", photo.mimeType);
     res.set("Cache-Control", photo.message ? "private, max-age=300" : "public, max-age=86400");
-    return storage.readStream(req.org.id, photo.filename).pipe(res);
+    return streamUpload(res, req.org.id, photo.filename);
   }
 
   // PostPhotos.
@@ -4138,7 +4159,7 @@ app.get("/uploads/:filename", async (req, res) => {
     }
     res.set("Content-Type", postPhoto.mimeType);
     res.set("Cache-Control", "public, max-age=86400");
-    return storage.readStream(req.org.id, postPhoto.filename).pipe(res);
+    return streamUpload(res, req.org.id, postPhoto.filename);
   }
 
   // Reimbursement receipts — visible to the requester or to leaders/admins.
@@ -4156,7 +4177,7 @@ app.get("/uploads/:filename", async (req, res) => {
     }
     res.set("Content-Type", reimb.receiptMimeType || "application/octet-stream");
     res.set("Cache-Control", "private, max-age=300");
-    return storage.readStream(req.org.id, reimb.receiptFilename).pipe(res);
+    return streamUpload(res, req.org.id, reimb.receiptFilename);
   }
 
   // Forms / documents — visibility-gated.
@@ -4177,7 +4198,7 @@ app.get("/uploads/:filename", async (req, res) => {
       "Content-Disposition",
       `inline; filename="${(form.originalName || form.filename).replace(/[^\w.\-]/g, "_")}"`
     );
-    return storage.readStream(req.org.id, form.filename).pipe(res);
+    return streamUpload(res, req.org.id, form.filename);
   }
 
   res.status(404).send("Not found");
