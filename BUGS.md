@@ -350,6 +350,33 @@ off here with the commit SHA.
 - Fix: give gstroop100 the same fake events/posts/albums in the seed
   so visitors see what a populated GS site looks like.
 
+### Canvas-only homepage follow-ups
+Tracking the things deliberately *not* done in PR-1 (the canvas-only
+strip-down landed in session 2026-05-04). Each is a follow-up PR.
+
+- **Announcements as a block type** — currently `{{ANNOUNCEMENTS}}` is
+  fixed chrome between hero and the canvas (renders empty if no
+  announcements exist). Eventually it should be a `announcements`
+  block in `lib/blocks/` so admins who want it lower on the page (or
+  not at all) have control. Fixed-chrome is the conservative default
+  since announcements are load-bearing for time-critical comms.
+- **Hero CTAs** — the two buttons in the hero band are still hardcoded
+  in `server/template/site.html` (currently "See what's coming up" →
+  `/events` and "Forms & documents" → `/forms`). Make them admin-
+  editable via a Hero CTAs settings group, or drop them entirely (the
+  topbar has the same destinations).
+- **PR-2: GrapesJS on custom pages** — extend the canvas surface to
+  `CustomPage`. Add `blocks Json?`; render `/p/:slug` from blocks if
+  set, else from existing `body` Markdown. Migrate Classic Troop's
+  starter pages.
+- **PR-3: Form + calendar embed blocks** — new live block types
+  (`form` + `calendar`) so admins can drop a Compass form or a month-
+  grid calendar into any page. Available on both homepage and
+  custom-page surfaces once PR-2 lands.
+- **Menu customization** — add `OrgMenu` model so admins can reorder /
+  hide / rename topbar links and add external URLs (e.g. Scoutbook).
+  Today the topbar is fixed chrome with one slot for custom pages.
+
 ---
 
 ## P2 — small but visible

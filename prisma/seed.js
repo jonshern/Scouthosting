@@ -78,6 +78,9 @@ async function writeImage(orgId, top, bottom, w = 800, h = 600) {
 // ---------- seed sections ----------
 
 async function seedPage(orgId) {
+  // Just hero text. The rest of the homepage comes from the Classic
+  // Troop template's customBlocks, applied at the bottom of the demo
+  // seed (and at signup via server/provision.js).
   await prisma.page.upsert({
     where: { orgId },
     update: {},
@@ -86,15 +89,6 @@ async function seedPage(orgId) {
       heroHeadline: "Adventure, leadership, and the outdoors — since 2010.",
       heroLede:
         "Sample Troop 100 is a demo unit on Compass. Click around — every section here is real, just filled with placeholder content.",
-      aboutBody:
-        "We meet every Monday at 7 PM at the Example Charter Organization. Scouts ages 11–17 are welcome to drop in for a meeting before joining.\n\n" +
-        "We rotate one major outdoor adventure per year — Philmont, Sea Base, Boundary Waters, jamborees — and a service project every quarter.\n\n" +
-        "We're scout-led: the Scouts run meetings; the adults guide and plan.",
-      joinBody:
-        "Show up to a Monday meeting. Wear comfortable clothes — closed-toe shoes are smart. A current member will pair you with a patrol so you're not standing alone.\n\n" +
-        "Bring a parent the first time so we can hand them a welcome packet.",
-      contactNote:
-        "Questions before you visit? Email the Scoutmaster — replies usually within a day.",
     },
   });
   console.log("✓ Page content");

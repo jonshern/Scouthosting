@@ -656,13 +656,10 @@ model Page {
   id           String   @id @default(cuid())
   orgId        String   @unique
   // Hero text — rendered into site.html at the top of every unit page.
+  // Edited via Settings → Hero in the right rail of /admin/site. The
+  // hero is fixed chrome; everything else lives on the canvas.
   heroHeadline String?
   heroLede     String?
-  // Built-in About / Join / Contact sections in site.html. Edited via
-  // the /admin/site Settings panel (right rail).
-  aboutBody    String?
-  joinBody     String?
-  contactNote  String?
   // The canvas — JSON array of { id, type, ...config } objects, in
   // render order. Edited via the GrapesJS surface at /admin/site.
   // Block types defined in lib/homepageSections.js (text, image, cta)

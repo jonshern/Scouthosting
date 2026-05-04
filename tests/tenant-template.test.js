@@ -1,13 +1,12 @@
-// Smoke tests for the live per-tenant template, rebuilt on the Compass
-// design tokens in alignment step 3. Two layers of assertions:
+// Smoke tests for the canvas-only per-tenant template. Two layers:
 //
-//   1. The static template (server/template/site.html) preserves all the
-//      {{placeholders}} server/render.js expects, references the right
-//      stylesheet, and uses the new design tokens (top bar, hero
-//      watermark, dark-band advancement, callouts, contact, footer).
+//   1. server/template/site.html — topbar + hero + announcements +
+//      {{CUSTOM_BLOCKS}} + footer. Hardcoded About / Advancement /
+//      Resources / Contact sections were removed; everything between
+//      hero and footer comes from the GrapesJS canvas now.
 //
-//   2. The tenant CSS at demo/styles.css declares the Forest & Ember
-//      palette and styles every class the render.js helpers emit.
+//   2. demo/styles.css declares the Slate & Sky palette and styles
+//      every class the render.js helpers still emit.
 
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -31,7 +30,6 @@ describe("server/template/site.html", () => {
   it("preserves every placeholder render.js writes into ctx", () => {
     // Pulled directly from server/render.js#renderSite.
     const required = [
-      "{{UNIT_TYPE}}",
       "{{UNIT_NUMBER}}",
       "{{DISPLAY_NAME}}",
       "{{BRAND_MARK}}",
@@ -43,21 +41,11 @@ describe("server/template/site.html", () => {
       "{{COUNCIL}}",
       "{{DISTRICT}}",
       "{{FOUNDED_LINE}}",
-      "{{MEETING_DAY}}",
-      "{{MEETING_TIME}}",
-      "{{MEETING_LOCATION}}",
-      "{{SCOUTMASTER_NAME}}",
-      "{{SCOUTMASTER_EMAIL}}",
-      "{{COMMITTEE_EMAIL}}",
       "{{PRIMARY_COLOR}}",
       "{{ACCENT_COLOR}}",
-      "{{ABOUT_BODY}}",
-      "{{JOIN_BODY}}",
-      "{{CONTACT_NOTE}}",
       "{{ANNOUNCEMENTS}}",
-      "{{FEED}}",
-      "{{EVENTS}}",
-      "{{GALLERY}}",
+      "{{CUSTOM_BLOCKS}}",
+      "{{HERO_PHOTOS}}",
       "{{NAV_AUTH}}",
       "{{NAV_CUSTOM}}",
       "{{DEMO_BANNER}}",
@@ -69,20 +57,20 @@ describe("server/template/site.html", () => {
     expect(tpl).toMatch(/:root\s*\{\s*--primary:\s*\{\{PRIMARY_COLOR\}\};\s*--accent:\s*\{\{ACCENT_COLOR\}\};/);
   });
 
-  it("uses the new design tokens (topbar, hero watermark, callouts, contact)", () => {
+  it("uses the design tokens for the surviving fixed chrome (topbar, hero, footer)", () => {
     expect(tpl).toMatch(/<header[^>]*class="[^"]*topbar/);
     expect(tpl).toMatch(/class="hero__watermark"/);
     expect(tpl).toMatch(/class="hero__headline"/);
-    expect(tpl).toMatch(/class="about"/);
-    expect(tpl).toMatch(/class="sponsor-card"/);
-    expect(tpl).toMatch(/class="[^"]*\badvancement\b/);
-    expect(tpl).toMatch(/class="rank-trail"/);
-    expect(tpl).toMatch(/class="callouts"/);
-    expect(tpl).toMatch(/class="callout callout--accent/);
-    expect(tpl).toMatch(/class="callout callout--sky/);
-    expect(tpl).toMatch(/class="callout callout--ember/);
-    expect(tpl).toMatch(/class="contact band-dark"/);
     expect(tpl).toMatch(/<footer[^>]*class="footer"/);
+  });
+
+  it("hands everything between hero and footer to the canvas", () => {
+    // The hardcoded About / Advancement / Resources / Contact sections
+    // were removed in the canvas-only refactor.
+    expect(tpl).not.toMatch(/class="about"/);
+    expect(tpl).not.toMatch(/class="[^"]*\badvancement\b/);
+    expect(tpl).not.toMatch(/class="callouts"/);
+    expect(tpl).not.toMatch(/class="contact band-dark"/);
   });
 
   it("nav links cover the existing tenant routes (events, posts, forms, members)", () => {
@@ -90,10 +78,6 @@ describe("server/template/site.html", () => {
     expect(tpl).toMatch(/href="\/posts"/);
     expect(tpl).toMatch(/href="\/forms"/);
     expect(tpl).toMatch(/href="\/members"/);
-  });
-
-  it("links to Scoutbook from the advancement section (deferred system of record)", () => {
-    expect(tpl).toMatch(/href="https:\/\/scoutbook\.scouting\.org\/"/);
   });
 
   it("footer attributes the platform to Compass", () => {

@@ -1438,9 +1438,6 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
   const settings = {
     heroHeadline: page?.heroHeadline ?? "",
     heroLede: page?.heroLede ?? "",
-    aboutBody: page?.aboutBody ?? "",
-    joinBody: page?.joinBody ?? "",
-    contactNote: page?.contactNote ?? "",
     primaryColor: req.org.primaryColor || "#1d6b39",
     accentColor: req.org.accentColor || "#caa54a",
   };
@@ -1536,25 +1533,12 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
       <form id="ed-settings-form" autocomplete="off">
         <div class="ed-settings-group">
           <h3>Hero</h3>
+          <p class="ed-settings-tip">Headline and lede in the dark band at the top of every public page. To add more sections — about, contact, photos — drop blocks onto the canvas.</p>
           <label>Headline
             <input type="text" name="heroHeadline" value="${escape(settings.heroHeadline)}" placeholder="Adventure, leadership, and the outdoors — since 1972.">
           </label>
           <label>Lede
             <textarea name="heroLede" placeholder="A short pitch that appears under the headline.">${escape(settings.heroLede)}</textarea>
-          </label>
-        </div>
-
-        <div class="ed-settings-group">
-          <h3>Page text</h3>
-          <p class="ed-settings-tip">These render in the built-in About, Join, and Contact sections of your homepage. Leave blank for the auto-generated default copy.</p>
-          <label>About
-            <textarea name="aboutBody" placeholder="Tell visitors about the unit.">${escape(settings.aboutBody)}</textarea>
-          </label>
-          <label>Join (Curious? Come visit.)
-            <textarea name="joinBody" placeholder="What a visitor can expect at their first meeting.">${escape(settings.joinBody)}</textarea>
-          </label>
-          <label>Contact note
-            <textarea name="contactNote" placeholder="Optional note above the contact info.">${escape(settings.contactNote)}</textarea>
           </label>
         </div>
 
@@ -1646,14 +1630,14 @@ adminRouter.post("/site", requireLeader, express.json({ limit: "256kb" }), async
   res.json({ ok: true, blocks: cleaned.length });
 });
 
-// Site settings — hero text, page text, theme. Saved as JSON from the
-// right-rail Settings panel in /admin/site. Page columns + Org colors
-// in one round-trip so the editor doesn't have to choreograph two
-// requests.
+// Site settings — hero text + theme. Saved as JSON from the right-rail
+// Settings panel in /admin/site. Page columns + Org colors in one
+// round-trip so the editor doesn't have to choreograph two requests.
+// Anything richer than headline+lede goes on the canvas as a block.
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 adminRouter.post("/site/settings", requireLeader, express.json({ limit: "32kb" }), async (req, res) => {
   const body = req.body || {};
-  const pageFields = ["heroHeadline", "heroLede", "aboutBody", "joinBody", "contactNote"];
+  const pageFields = ["heroHeadline", "heroLede"];
   const pageData = {};
   for (const f of pageFields) {
     const v = (body[f] ?? "").toString().trim();

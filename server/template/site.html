@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="/tokens.css" />
   <link rel="stylesheet" href="/styles.css" />
 <style>
-  /* Per-org brand override — Page model exposes color pickers for these. */
+  /* Per-org brand override — Settings panel exposes color pickers. */
   :root { --primary: {{PRIMARY_COLOR}}; --accent: {{ACCENT_COLOR}}; }
 </style>
 </head>
@@ -23,7 +23,6 @@
 
 <!-- ====================================================================
      Top bar — Compass wordmark + unit name + city/est + nav links.
-     Mirrors unit-site/index.html top bar.
      ==================================================================== -->
 <header class="topbar" id="top" role="banner">
   <div class="topbar__brand">
@@ -35,15 +34,12 @@
     <span class="topbar__meta">{{CITY}}, {{STATE}}{{FOUNDED_LINE}}</span>
   </div>
   <nav class="topbar__nav" aria-label="Primary">
-    <a href="#about">About</a>
     <a href="/events">Calendar</a>
     <a href="/posts">Posts</a>
     <a href="/chat">Chat</a>
-    <a href="#gallery">Photos</a>
     <a href="/forms">Forms</a>
     <a href="/members">Directory</a>
     {{NAV_CUSTOM}}
-    <a href="#contact">Contact</a>
     {{NAV_AUTH}}
   </nav>
 </header>
@@ -51,7 +47,10 @@
 <main id="main">
 
   <!-- ==================================================================
-       Hero — dark forest band with oversized italic numeric watermark.
+       Hero — fixed chrome. Edited via Settings → Hero in /admin/site.
+       The watermark, kicker, hardcoded CTAs, and hero-photos rotation
+       stay here so the unit's visual identity can't be accidentally
+       moved or deleted from the canvas.
        ================================================================== -->
   <section class="hero" aria-labelledby="hero-headline">
     <span class="hero__watermark" aria-hidden="true">{{UNIT_NUMBER}}</span>
@@ -65,130 +64,23 @@
       </h1>
       <p class="hero__body">{{HERO_LEDE}}</p>
       <div class="hero__ctas">
-        <a class="btn btn--accent" href="#join">Visit a meeting</a>
-        <a class="btn btn--ghost-light" href="/events">See what's coming up</a>
+        <a class="btn btn--accent" href="/events">See what's coming up</a>
+        <a class="btn btn--ghost-light" href="/forms">Forms &amp; documents</a>
       </div>
     </div>
     {{HERO_PHOTOS}}
   </section>
 
+  <!-- Time-critical messaging — renders empty when no announcements
+       exist. Stays above the canvas because it's load-bearing chrome
+       (cancellations, last-minute changes); making it a block would let
+       an admin accidentally move/delete it. Future PR: announcements
+       block type so admins who want full canvas control can opt in. -->
   {{ANNOUNCEMENTS}}
 
-  {{FEED}}
-
-  <!-- ==================================================================
-       About + sponsor card — drop-cap About paragraph + sidebar dl.
-       ================================================================== -->
-  <section id="about" class="about">
-    <div>
-      <div class="section-eyebrow">§ About the {{UNIT_TYPE}}</div>
-      <h2 class="about__title">What we're <em>about.</em></h2>
-      <div class="about__body">{{ABOUT_BODY}}</div>
-    </div>
-    <aside class="sponsor-card" aria-label="Charter, council, meeting info">
-      <div class="sponsor-card__label">Chartered by</div>
-      <div class="sponsor-card__name">{{CHARTER_ORG}}</div>
-      <dl>
-        <div>
-          <dt>Where we meet</dt>
-          <dd>{{MEETING_LOCATION}}</dd>
-        </div>
-        <div>
-          <dt>When</dt>
-          <dd>{{MEETING_DAY}} · {{MEETING_TIME}}</dd>
-        </div>
-        <div>
-          <dt>Council</dt>
-          <dd>{{COUNCIL}}, {{DISTRICT}}</dd>
-        </div>
-        <div>
-          <dt>Scoutmaster</dt>
-          <dd>{{SCOUTMASTER_NAME}}</dd>
-        </div>
-      </dl>
-    </aside>
-  </section>
-
-  {{EVENTS}}
-
-  {{GALLERY}}
-
+  <!-- The canvas. Everything between hero and footer comes from
+       Page.customBlocks, edited via GrapesJS at /admin/site. -->
   {{CUSTOM_BLOCKS}}
-
-  <!-- ==================================================================
-       Advancement — Scoutbook deep-link. We don't compete with Scoutbook;
-       we point to it.
-       ================================================================== -->
-  <section id="advancement" class="band-dark advancement">
-    <div class="advancement__inner">
-      <div class="section-eyebrow section-eyebrow--accent">§ Advancement</div>
-      <h2 class="advancement__title">Ranks &amp; merit badges live in <em>Scoutbook.</em></h2>
-      <p class="advancement__lede">
-        Compass owns the troop's communication and operations layer. Scouting America's official
-        advancement system &mdash; Scoutbook &mdash; is where ranks, merit badges, and partials are
-        recorded. Your unit leader can help you get set up there.
-      </p>
-      <ol class="rank-trail" aria-label="Scouts BSA rank progression">
-        <li><span>Scout</span></li>
-        <li><span>Tenderfoot</span></li>
-        <li><span>Second Class</span></li>
-        <li><span>First Class</span></li>
-        <li><span>Star</span></li>
-        <li><span>Life</span></li>
-        <li class="rank-trail__eagle"><span>Eagle</span></li>
-      </ol>
-      <p class="advancement__cta">
-        <a class="btn btn--accent" href="https://scoutbook.scouting.org/" target="_blank" rel="noopener">Open Scoutbook ↗</a>
-      </p>
-    </div>
-  </section>
-
-  <!-- ==================================================================
-       Resources / Members / Join — three quick callouts.
-       ================================================================== -->
-  <section id="resources" class="callouts">
-    <article class="callout callout--accent">
-      <div class="section-eyebrow">§ Forms &amp; resources</div>
-      <h2 class="callout__title">Permission slips, medical forms, bylaws.</h2>
-      <p>Everything a parent needs &mdash; one click away.</p>
-      <p><a class="btn btn--ink" href="/forms">Browse forms &rarr;</a></p>
-    </article>
-    <article id="members" class="callout callout--sky">
-      <div class="section-eyebrow">§ Members</div>
-      <h2 class="callout__title">Family directory &amp; patrol rosters.</h2>
-      <p>Visible to signed-in members of the {{UNIT_TYPE}}.</p>
-      <p><a class="btn btn--ink" href="/members">View directory &rarr;</a></p>
-    </article>
-    <article id="join" class="callout callout--ember">
-      <div class="section-eyebrow">§ New to Scouting?</div>
-      <h2 class="callout__title">Curious? Come visit.</h2>
-      <div class="prose">{{JOIN_BODY}}</div>
-      <p><a class="btn btn--ink" href="#contact">Email the Scoutmaster &rarr;</a></p>
-    </article>
-  </section>
-
-  <!-- ==================================================================
-       Contact — emails for Scoutmaster + Committee Chair.
-       ================================================================== -->
-  <section id="contact" class="contact band-dark">
-    <div class="contact__inner">
-      <div class="section-eyebrow section-eyebrow--accent">§ Get in touch</div>
-      <h2 class="contact__title">Reach the <em>{{UNIT_TYPE}}.</em></h2>
-      <div class="contact__note prose">{{CONTACT_NOTE}}</div>
-      <ul class="contact-list">
-        <li>
-          <span class="contact-list__role">Scoutmaster</span>
-          <span class="contact-list__name">{{SCOUTMASTER_NAME}}</span>
-          <a class="contact-list__email" href="mailto:{{SCOUTMASTER_EMAIL}}">{{SCOUTMASTER_EMAIL}}</a>
-        </li>
-        <li>
-          <span class="contact-list__role">Committee Chair</span>
-          <span class="contact-list__name">&mdash;</span>
-          <a class="contact-list__email" href="mailto:{{COMMITTEE_EMAIL}}">{{COMMITTEE_EMAIL}}</a>
-        </li>
-      </ul>
-    </div>
-  </section>
 
 </main>
 

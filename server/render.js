@@ -93,16 +93,29 @@ function renderHeroPhotos(photos) {
 // `fetchLiveBlocksData` from lib/blocks/. Static blocks (text/image/
 // cta) ignore it; live blocks pull their content out of it.
 function renderCustomBlocks(page, liveBlocksData = {}) {
-  if (!page) return "";
-  const blocks = Array.isArray(page.customBlocks) ? page.customBlocks : [];
-  if (!blocks.length) return "";
+  const blocks = Array.isArray(page?.customBlocks) ? page.customBlocks : [];
 
   const html = blocks
     .filter((b) => b && b.id && b.type)
     .map((b) => renderCustomBlock(b, liveBlocksData[b.id]))
     .filter(Boolean)
     .join("\n");
-  if (!html) return "";
+
+  // Empty-canvas fallback: site.html now defers everything between
+  // hero and footer to this function, so a homepage with no blocks
+  // would otherwise be a void. Render a neutral "in progress" stub
+  // pointing leaders at the editor / template gallery so they have an
+  // obvious next action.
+  if (!html) {
+    return `
+    <section class="section cms-empty">
+      <div class="wrap" style="max-width:560px;text-align:center;padding:4rem 1rem">
+        <p style="color:var(--ink-500);margin:0 0 .5rem;font-size:.85rem;letter-spacing:.04em;text-transform:uppercase">Homepage in progress</p>
+        <h2 style="font-family:'Newsreader',Georgia,serif;font-size:1.6rem;color:var(--ink-800);margin:0 0 1rem">This unit's homepage is still being set up.</h2>
+        <p style="color:var(--ink-600);line-height:1.6">Sign-ins, calendar, photos, and forms still work — visit them from the menu above.</p>
+      </div>
+    </section>`;
+  }
   return `${html}
     <style>
       .cms-block{padding:3rem 0}
@@ -164,53 +177,6 @@ function renderCustomBlock(b, liveData) {
   return "";
 }
 
-function renderGallery(albums) {
-  if (!albums || albums.length === 0) {
-    return `
-  <section id="gallery" class="section">
-    <div class="wrap">
-      <header class="section-head">
-        <h2>Photo gallery</h2>
-        <p>Albums from your unit's events show up here.</p>
-      </header>
-      <p class="muted">No albums yet.</p>
-    </div>
-  </section>`;
-  }
-
-  const tiles = albums
-    .map((a) => {
-      const cover = a.photos[0];
-      const thumb = cover
-        ? `style="background:center/cover url('/uploads/${escapeHtml(cover.filename)}')"`
-        : `style="background:linear-gradient(135deg,#1f3b22,#79a05a)"`;
-      const date = a.takenAt
-        ? a.takenAt.toLocaleDateString("en-US", { month: "short", year: "numeric" })
-        : "";
-      return `
-      <figure>
-        <div class="thumb" ${thumb}></div>
-        <figcaption>
-          <strong>${escapeHtml(a.title)}</strong>
-          <span>${a._count.photos} photo${a._count.photos === 1 ? "" : "s"}${
-            date ? ` · ${escapeHtml(date)}` : ""
-          }</span>
-        </figcaption>
-      </figure>`;
-    })
-    .join("");
-
-  return `
-  <section id="gallery" class="section">
-    <div class="wrap">
-      <header class="section-head">
-        <h2>Photo gallery</h2>
-        <p>Recent troop adventures.</p>
-      </header>
-      <div class="grid gallery">${tiles}</div>
-    </div>
-  </section>`;
-}
 
 const MONTH_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
@@ -230,54 +196,6 @@ function fmtDateLong(d) {
   });
 }
 
-function renderEvents(events) {
-  if (!events || events.length === 0) {
-    return `
-  <section id="calendar" class="section alt">
-    <div class="wrap">
-      <header class="section-head">
-        <h2>Upcoming events</h2>
-        <p>Once you create events in the admin, they'll appear here automatically.</p>
-      </header>
-      <p class="muted">Nothing on the calendar yet.</p>
-    </div>
-  </section>`;
-  }
-
-  const items = events
-    .slice(0, 8)
-    .map((e) => {
-      const d = new Date(e.startsAt);
-      return `
-    <li>
-      <time datetime="${escapeHtml(d.toISOString())}">
-        <span class="m">${escapeHtml(MONTH_SHORT[d.getMonth()])}</span>
-        <span class="d">${d.getDate()}</span>
-      </time>
-      <div>
-        <h3><a href="/events/${escapeHtml(e.id)}" style="color:inherit;text-decoration:none">${escapeHtml(e.title)}</a></h3>
-        <p>${escapeHtml(fmtTime(e.startsAt))}${e.location ? ` · ${escapeHtml(e.location)}` : ""}</p>
-      </div>
-    </li>`;
-    })
-    .join("");
-
-  return `
-  <section id="calendar" class="section alt">
-    <div class="wrap">
-      <header class="section-head">
-        <h2>Upcoming events</h2>
-        <p>The next few weeks at a glance.</p>
-      </header>
-      <ul class="events">${items}</ul>
-      <p class="cta-row">
-        <a class="btn primary" href="/calendar">Open full calendar →</a>
-        <a class="btn ghost" href="/events">List view</a>
-        <a class="btn ghost" href="/calendar.ics">Subscribe (.ics)</a>
-      </p>
-    </div>
-  </section>`;
-}
 
 /* ------------------ Standalone event pages ------------------ */
 
@@ -1135,22 +1053,6 @@ function renderPostCard(p, { showLink = true, viewerUserId = null } = {}) {
     </article>`;
 }
 
-function renderFeed(posts) {
-  if (!posts || posts.length === 0) return "";
-  const items = posts.map((p) => renderPostCard(p)).join("");
-  return `
-  <section id="feed" class="section">
-    <div class="wrap">
-      <header class="section-head">
-        <h2>Latest from the troop</h2>
-      </header>
-      <div class="post-feed">${items}</div>
-      <p class="cta-row" style="margin-top:1rem">
-        <a class="btn ghost" href="/posts">All posts →</a>
-      </p>
-    </div>
-  </section>`;
-}
 
 export function renderCustomPage(org, page) {
   const body = `
@@ -2742,13 +2644,13 @@ function renderAnnouncements(list) {
 }
 
 export function renderSite(org, extras = {}) {
-  const { page, announcements, albums, posts, user, role, customPages, heroPhotos, liveBlocksData } = extras;
+  const { page, announcements, user, role, customPages, heroPhotos, liveBlocksData } = extras;
   const tpl = loadTemplate();
   const navAuth = user
     ? `${role === "admin" || role === "leader" ? `<li><a href="/admin">Admin</a></li>` : ""}
        <li><a class="cta" href="/logout" onclick="event.preventDefault();fetch('/logout',{method:'POST'}).then(()=>location.href='/');">Sign out</a></li>`
     : `<li><a href="/login">Sign in</a></li>
-       <li><a class="cta" href="#join">Join</a></li>`;
+       <li><a class="cta" href="/forms">Join</a></li>`;
   const navCustom = (customPages || [])
     .filter((p) => p.showInNav)
     .map((p) => `<li><a href="/p/${escapeHtml(p.slug)}">${escapeHtml(p.title)}</a></li>`)
@@ -2762,18 +2664,6 @@ export function renderSite(org, extras = {}) {
   const heroHeadline =
     page?.heroHeadline ||
     `Adventure, leadership, and the outdoors — since ${org.founded || "now"}.`;
-
-  const aboutBody =
-    page?.aboutBody ||
-    `${org.displayName} is sponsored by ${org.charterOrg} in ${org.city}, ${org.state}. We are part of ${
-      org.district || "our district"
-    } in the ${org.council || "our council"}.`;
-
-  const joinBody =
-    page?.joinBody ||
-    `Any Scout-aged youth is welcome to drop in on a ${org.meetingDay} meeting at ${
-      org.meetingLocation || org.charterOrg
-    }.`;
 
   const ctx = {
     UNIT_TYPE: org.unitType,
@@ -2789,21 +2679,9 @@ export function renderSite(org, extras = {}) {
     DISTRICT: org.district || "your district",
     FOUNDED: org.founded || "—",
     FOUNDED_LINE: org.founded ? ` · Est. ${org.founded}` : "",
-    MEETING_DAY: org.meetingDay,
-    MEETING_TIME: org.meetingTime,
-    MEETING_LOCATION: org.meetingLocation || org.charterOrg,
-    SCOUTMASTER_NAME: org.scoutmasterName,
-    SCOUTMASTER_EMAIL: org.scoutmasterEmail,
-    COMMITTEE_EMAIL: org.committeeChairEmail || org.scoutmasterEmail,
     PRIMARY_COLOR: org.primaryColor,
     ACCENT_COLOR: org.accentColor,
-    ABOUT_BODY: raw(textToHtml(aboutBody)),
-    JOIN_BODY: raw(textToHtml(joinBody)),
-    CONTACT_NOTE: raw(page?.contactNote ? textToHtml(page.contactNote) : ""),
     ANNOUNCEMENTS: raw(renderAnnouncements(announcements)),
-    FEED: raw(renderFeed(posts)),
-    EVENTS: raw(renderEvents(extras.events)),
-    GALLERY: raw(renderGallery(albums)),
     CUSTOM_BLOCKS: raw(renderCustomBlocks(page, liveBlocksData || {})),
     HERO_PHOTOS: raw(renderHeroPhotos(heroPhotos || [])),
     NAV_AUTH: raw(navAuth),
