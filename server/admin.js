@@ -89,7 +89,7 @@ import {
   track,
   EVENTS,
 } from "../lib/analytics.js";
-import { parseRoster, mapMemberRows } from "../lib/rosterImport.js";
+import { parseRoster, mapMemberRows, planRosterImport } from "../lib/rosterImport.js";
 import {
   POST_POLICIES,
   POST_POLICY_LABELS,
@@ -4394,7 +4394,12 @@ adminRouter.get("/members", requireLeader, async (req, res) => {
       </div>
     </li>`;
 
+  const flashMsg = req.query?.flash ? String(req.query.flash) : "";
+  const flashHtml = flashMsg
+    ? `<div class="flash flash-ok">${escape(flashMsg)}</div>`
+    : "";
   const body = `
+    ${flashHtml}
     <h1>Members</h1>
     <p class="muted">${members.length} on the roster · ${youth.length} youth · ${adults.length} adults</p>
 
@@ -4647,7 +4652,73 @@ adminRouter.get("/members/import", requireLeader, async (req, res) => {
   res.type("html").send(layout(req, { title: "Import members", body }));
 });
 
+// Two-phase: first POST renders a diff preview ("3 new, 2 updates, 1
+// unchanged, 0 conflicts — Apply or Cancel?"), second POST (with
+// confirm=1 + the planned DTOs in a hidden field) executes. The plan is
+// re-computed from the same DTOs against current DB state on confirm,
+// so a stale preview against state that changed since opening the
+// preview won't double-write — the second plan's diff wins.
+//
+// After applying creates/updates, we re-run provisionStandingChannels so
+// the patrol/parents/leaders ChannelMember rows pick up new linkages
+// (e.g. a parent whose patrol just got set to "Lion Den" joins the
+// Lion Den channel automatically). Broadcast channels' autoAddRules are
+// computed lazily at audience-resolution time, so they don't need a
+// reconcile pass.
 adminRouter.post("/members/import", requireLeader, csvUpload.single("file"), async (req, res) => {
+  // Phase 2: confirm + apply.
+  if (req.body?.confirm === "1" && req.body?.plan) {
+    let dtos;
+    try {
+      dtos = JSON.parse(Buffer.from(String(req.body.plan), "base64").toString("utf8"));
+      if (!Array.isArray(dtos)) throw new Error("plan is not an array");
+    } catch (e) {
+      return res.status(400).type("text/plain").send(`Couldn't decode the import plan: ${e.message}`);
+    }
+    // Force orgId regardless of what the encoded payload claims; never
+    // trust client-side data to write across orgs.
+    const data = dtos.map((d) => ({ ...d, orgId: req.org.id }));
+    const existing = await prisma.member.findMany({
+      where: { orgId: req.org.id },
+      select: {
+        id: true, firstName: true, lastName: true, email: true, phone: true,
+        patrol: true, position: true, isYouth: true, commPreference: true,
+        smsOptIn: true, skills: true, interests: true, notes: true, deletedAt: true,
+      },
+    });
+    const plan = planRosterImport({ rows: data, existing });
+
+    if (plan.creates.length) {
+      await prisma.member.createMany({ data: plan.creates });
+    }
+    for (const u of plan.updates) {
+      await prisma.member.update({ where: { id: u.id }, data: u.data });
+    }
+    // Auto-group: re-sync standing channel membership so anyone whose
+    // patrol just changed (or who was just added) lands in the right
+    // patrol/parents/leaders channels.
+    try {
+      await provisionStandingChannels({ org: req.org, prismaClient: prisma });
+    } catch (err) {
+      // Don't fail the import if reconciliation hiccups — the nightly
+      // reconciler will catch it. Log and move on.
+      console.error("[roster-import] provisionStandingChannels failed:", err.message);
+    }
+
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "Member",
+      entityId: null,
+      action: "roster_import",
+      summary: `Imported roster: ${plan.creates.length} created, ${plan.updates.length} updated (${plan.updates.filter((u) => u.restored).length} restored), ${plan.unchanged.length} unchanged, ${plan.conflicts.length} conflicts`,
+    });
+
+    const flash = `Imported: ${plan.creates.length} new · ${plan.updates.length} updated · ${plan.unchanged.length} unchanged${plan.conflicts.length ? ` · ${plan.conflicts.length} conflicts skipped` : ""}.`;
+    return res.redirect(`/admin/members?flash=${encodeURIComponent(flash)}`);
+  }
+
+  // Phase 1: parse + plan + render preview.
   let rows = [];
   try {
     rows = parseRoster({
@@ -4658,12 +4729,90 @@ adminRouter.post("/members/import", requireLeader, csvUpload.single("file"), asy
   } catch (e) {
     return res.status(400).type("text/plain").send(`Couldn't parse the roster: ${e.message}`);
   }
-  if (rows.length < 2) return res.redirect("/admin/members");
-  const data = mapMemberRows({ rows, orgId: req.org.id });
-  if (data.length) {
-    await prisma.member.createMany({ data });
+  if (rows.length < 2) return res.redirect("/admin/members/import");
+
+  const dtos = mapMemberRows({ rows, orgId: req.org.id });
+  if (!dtos.length) {
+    return res.redirect("/admin/members/import");
   }
-  res.redirect("/admin/members");
+  const existing = await prisma.member.findMany({
+    where: { orgId: req.org.id },
+    select: {
+      id: true, firstName: true, lastName: true, email: true, phone: true,
+      patrol: true, position: true, isYouth: true, commPreference: true,
+      smsOptIn: true, skills: true, interests: true, notes: true, deletedAt: true,
+    },
+  });
+  const plan = planRosterImport({ rows: dtos, existing });
+
+  const csrf = req.csrfToken
+    ? `<input type="hidden" name="csrf" value="${escape(req.csrfToken)}">`
+    : "";
+  const planB64 = Buffer.from(JSON.stringify(dtos), "utf8").toString("base64");
+
+  const fmtRow = (label) => (item) =>
+    `<li>${label}<strong>${escape(item.firstName)} ${escape(item.lastName)}</strong>${item.email ? ` · ${escape(item.email)}` : ""}${item.patrol ? ` · ${escape(item.patrol)}` : ""}</li>`;
+
+  const createsHtml = plan.creates.length
+    ? `<details open><summary><strong>${plan.creates.length} new</strong> — will be added to the roster</summary><ul class="import-list">${plan.creates.map(fmtRow("")).join("")}</ul></details>`
+    : "";
+  const updatesHtml = plan.updates.length
+    ? `<details open><summary><strong>${plan.updates.length} updated</strong> — existing members will have changed fields overwritten</summary><ul class="import-list">${plan.updates.map((u) => {
+        const changeList = Object.keys(u.changes)
+          .map((k) => `<code>${escape(k)}</code>`)
+          .join(", ");
+        const restoredTag = u.restored ? ` <span class="badge badge-warn">restoring removed member</span>` : "";
+        return `<li><strong>${escape(u.firstName)} ${escape(u.lastName)}</strong>${restoredTag}<br><span class="muted small">changes: ${changeList || "(restore only)"}</span></li>`;
+      }).join("")}</ul></details>`
+    : "";
+  const unchangedHtml = plan.unchanged.length
+    ? `<details><summary><strong>${plan.unchanged.length} unchanged</strong> — already match the roster, no write</summary><ul class="import-list muted">${plan.unchanged.map(fmtRow("")).join("")}</ul></details>`
+    : "";
+  const conflictsHtml = plan.conflicts.length
+    ? `<details open><summary><strong style="color:var(--danger)">${plan.conflicts.length} conflicts</strong> — these will be skipped</summary><ul class="import-list">${plan.conflicts.map((c) =>
+        `<li><strong>${escape(c.row.firstName)} ${escape(c.row.lastName)}</strong> — ${escape(c.reason)}</li>`).join("")}</ul></details>`
+    : "";
+
+  const body = `
+    <h1>Confirm roster import</h1>
+    <p class="muted">Review the changes below before applying. Updates only overwrite the columns present in your file; unspecified fields stay as they were. ${plan.updates.some((u) => u.restored) ? `<br><span style="color:var(--ember)">Heads-up: re-uploading a roster restores members who had been removed.</span>` : ""}</p>
+
+    <div class="card">
+      <div class="import-summary">
+        <span><strong>${plan.creates.length}</strong> new</span>
+        <span><strong>${plan.updates.length}</strong> updated</span>
+        <span><strong>${plan.unchanged.length}</strong> unchanged</span>
+        ${plan.conflicts.length ? `<span style="color:var(--danger)"><strong>${plan.conflicts.length}</strong> conflicts</span>` : ""}
+      </div>
+      ${createsHtml}
+      ${updatesHtml}
+      ${unchangedHtml}
+      ${conflictsHtml}
+    </div>
+
+    <form method="post" action="/admin/members/import">
+      ${csrf}
+      <input type="hidden" name="confirm" value="1">
+      <input type="hidden" name="plan" value="${escape(planB64)}">
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Apply ${plan.creates.length + plan.updates.length} change${plan.creates.length + plan.updates.length === 1 ? "" : "s"}</button>
+        <a class="btn btn-ghost" href="/admin/members/import">Cancel — re-upload</a>
+      </div>
+      <p class="muted small" style="margin-top:.75rem">Patrol/parents/leaders channels will be auto-synced after the import so new members land in the right chats.</p>
+    </form>
+
+    <style>
+      .import-summary{display:flex;gap:1.5rem;flex-wrap:wrap;margin-bottom:1rem;padding-bottom:1rem;border-bottom:1px solid var(--line);font-size:.95rem}
+      .import-list{margin:.5rem 0 0;padding-left:1.25rem;line-height:1.6}
+      .import-list li{margin:.15rem 0}
+      .badge{display:inline-block;padding:.1rem .45rem;border-radius:6px;font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.04em;vertical-align:middle}
+      .badge-warn{background:#fef3c7;color:#78350f;border:1px solid #f59e0b}
+      details{margin-top:.75rem}
+      details summary{cursor:pointer;font-size:.95rem;padding:.4rem 0}
+      details[open] summary{margin-bottom:.25rem}
+    </style>
+  `;
+  res.type("html").send(layout(req, { title: "Confirm roster import", body }));
 });
 
 // Message compose for a single Member. The recipient model is:

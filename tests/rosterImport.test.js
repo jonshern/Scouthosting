@@ -9,6 +9,7 @@ import {
   parseCsv,
   parseXlsx,
   mapMemberRows,
+  planRosterImport,
 } from "../lib/rosterImport.js";
 
 describe("parseCsv", () => {
@@ -176,5 +177,128 @@ describe("mapMemberRows", () => {
     const out = mapMemberRows({ rows, orgId });
     expect(out[0].commPreference).toBe("both");
     expect(out[1].commPreference).toBe("email");
+  });
+});
+
+describe("planRosterImport", () => {
+  const orgId = "org1";
+  const baseRow = (over = {}) => ({
+    orgId,
+    firstName: "Alex",
+    lastName: "Park",
+    email: "alex@example.com",
+    phone: null,
+    patrol: "Eagles",
+    position: null,
+    isYouth: true,
+    commPreference: "email",
+    smsOptIn: false,
+    skills: [],
+    interests: [],
+    notes: null,
+    ...over,
+  });
+
+  it("creates rows that don't match anything", () => {
+    const plan = planRosterImport({ rows: [baseRow()], existing: [] });
+    expect(plan.creates).toHaveLength(1);
+    expect(plan.updates).toHaveLength(0);
+    expect(plan.unchanged).toHaveLength(0);
+  });
+
+  it("matches by email and reports unchanged when fields are identical", () => {
+    const existing = [{ id: "m1", ...baseRow() }];
+    const plan = planRosterImport({ rows: [baseRow()], existing });
+    expect(plan.creates).toHaveLength(0);
+    expect(plan.unchanged).toEqual([{ id: "m1", firstName: "Alex", lastName: "Park" }]);
+  });
+
+  it("matches by email and reports an update when fields differ", () => {
+    const existing = [{ id: "m1", ...baseRow({ phone: "555-old", patrol: "Eagles" }) }];
+    const plan = planRosterImport({
+      rows: [baseRow({ phone: "555-new", patrol: "Hawks" })],
+      existing,
+    });
+    expect(plan.updates).toHaveLength(1);
+    expect(plan.updates[0].id).toBe("m1");
+    expect(plan.updates[0].changes).toEqual({ phone: "555-new", patrol: "Hawks" });
+    expect(plan.updates[0].restored).toBe(false);
+  });
+
+  it("falls back to firstName+lastName+patrol for rows with no email", () => {
+    const cub = baseRow({ email: null, firstName: "Atlas", lastName: "Pemberton", patrol: "Lion Den" });
+    const existing = [{ id: "m1", ...cub, phone: "old-phone" }];
+    const plan = planRosterImport({
+      rows: [{ ...cub, phone: "new-phone" }],
+      existing,
+    });
+    expect(plan.updates).toHaveLength(1);
+    expect(plan.updates[0].id).toBe("m1");
+    expect(plan.updates[0].changes).toEqual({ phone: "new-phone" });
+  });
+
+  it("matches existing rows whose email is stored in mixed case", () => {
+    // Real-world DBs have emails with mixed casing; mapMemberRows lower-
+    // cases incoming. The matcher must still find the existing row.
+    const existing = [{ id: "m1", ...baseRow({ email: "ALEX@example.com" }) }];
+    const plan = planRosterImport({
+      rows: [baseRow({ email: "alex@example.com" })], // already lowercased
+      existing,
+    });
+    expect(plan.creates).toHaveLength(0);
+    // Other fields are identical → either an update normalising the email
+    // case, or unchanged. We accept either, but it must not be a create.
+    expect(plan.updates.length + plan.unchanged.length).toBe(1);
+  });
+
+  it("restores a soft-deleted match by clearing deletedAt", () => {
+    const existing = [
+      { id: "m1", ...baseRow(), deletedAt: new Date("2026-04-01T00:00:00Z") },
+    ];
+    const plan = planRosterImport({ rows: [baseRow()], existing });
+    expect(plan.updates).toHaveLength(1);
+    expect(plan.updates[0].restored).toBe(true);
+    expect(plan.updates[0].data.deletedAt).toBeNull();
+  });
+
+  it("flags a conflict when two existing rows share the same email", () => {
+    const existing = [
+      { id: "m1", ...baseRow() },
+      { id: "m2", ...baseRow({ firstName: "Other" }) },
+    ];
+    const plan = planRosterImport({ rows: [baseRow()], existing });
+    expect(plan.conflicts).toHaveLength(1);
+    expect(plan.conflicts[0].reason).toMatch(/multiple existing members share email/);
+    expect(plan.updates).toHaveLength(0);
+  });
+
+  it("flags a conflict on the name fallback when two existing rows share name+patrol", () => {
+    const cub = baseRow({ email: null });
+    const existing = [
+      { id: "m1", ...cub },
+      { id: "m2", ...cub },
+    ];
+    const plan = planRosterImport({ rows: [cub], existing });
+    expect(plan.conflicts).toHaveLength(1);
+    expect(plan.conflicts[0].reason).toMatch(/multiple existing members named/);
+  });
+
+  it("compares array fields like skills/interests structurally", () => {
+    const existing = [{ id: "m1", ...baseRow({ skills: ["knots", "first-aid"] }) }];
+    // Same array content, different identity — should be unchanged.
+    const same = baseRow({ skills: ["knots", "first-aid"] });
+    expect(planRosterImport({ rows: [same], existing }).unchanged).toHaveLength(1);
+    // Different content — should be an update.
+    const diff = baseRow({ skills: ["knots"] });
+    expect(planRosterImport({ rows: [diff], existing }).updates).toHaveLength(1);
+  });
+
+  it("doesn't include orgId in the update diff", () => {
+    const existing = [{ id: "m1", orgId: "org1", ...baseRow({ patrol: "Eagles" }) }];
+    const incoming = baseRow({ patrol: "Hawks" });
+    incoming.orgId = "org-DIFFERENT"; // simulate a row that somehow has wrong orgId
+    const plan = planRosterImport({ rows: [incoming], existing });
+    expect(plan.updates[0].changes.orgId).toBeUndefined();
+    expect(plan.updates[0].changes.patrol).toBe("Hawks");
   });
 });
