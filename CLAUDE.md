@@ -20,13 +20,13 @@ Run `make help` for the day-to-day commands — there are 10. Internal helpers (
 
 ## Traps that have actually bitten this repo
 
-### 1. The Dockerfile COPY list silently lags root-level files
+### 1. ~~The Dockerfile COPY list silently lags root-level files~~ (fixed)
 
-`server/index.js` serves every `*.html / *.css / *.js` at the repo root for the apex/marketing surface, and serves tenant assets from `demo/<file>` for subdomain/customDomain'd tenants. Locally that's free — Express reads from the working tree. **In Docker, only files explicitly listed in the Dockerfile's `COPY` step ship into the image.** Anything you add at the root (`pitch.html`, `tokens.css`, a new marketing page, etc.) **must** be added to `Dockerfile:43-53` or it 404s in production. The `demo/` directory is also COPY'd; if you add new tenant assets there make sure the COPY block still picks them up (`COPY demo ./demo` is recursive).
+**Was**: `Dockerfile` had an explicit `COPY index.html signup.html …` list. Anything you added at the root or in a new top-level dir (a new marketing page, the `demo/` tenant assets, the `admin/` editor JS) silently 404'd in production until someone remembered to edit the COPY list. This bit us four times — `pitch.html`, `tokens.css`, `demo/`, `admin/site-editor/editor.js`.
 
-Symptom when you forget: site looks "wrong" — fonts default, palette tokens fall back, login button does nothing (because `script.js` 404'd). Hard to diagnose because everything works locally.
+**Fix**: switched to `COPY . .` driven by `.dockerignore` (commit cd16554-ish). New top-level files / dirs ship automatically. The dev-only stuff (CLAUDE.md, BUGS.md, ROADMAP.md, README.md, TESTING.md, Makefile, docker-compose*, design/, design_handoff_compass/, docs/, email/, infra/, mobile/, scripts/, security/, tests/, .claude, .github, etc.) is excluded by `.dockerignore`.
 
-If you're adding a new top-level static asset, edit the COPY block. If a CI check ever lands that diffs root-level files vs the Dockerfile, that obsoletes this note.
+If you add something the running app needs at request-time, **don't** put it under one of those excluded paths. If you need to exclude something new from the image, add it to `.dockerignore` rather than reverting the Dockerfile to an explicit list.
 
 ### 2. `NODE_ENV=production` blocks admin password login (with an opt-in bypass)
 

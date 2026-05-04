@@ -1,19 +1,73 @@
+# .dockerignore — anything listed here is NOT included in the build
+# context, so `COPY . .` in the Dockerfile won't pull it in. We use
+# this as the single source of truth for "what doesn't ship to
+# production" — adding a new top-level file or directory now ships by
+# default (the inverse of the old explicit-list-in-Dockerfile model
+# that kept biting us as trap #1 in CLAUDE.md).
+#
+# Two rules of thumb when adding here:
+#   1. Anything the running app needs at request-time MUST NOT be
+#      excluded (admin/, demo/, lib/, server/, prisma/, top-level
+#      *.html / *.css / *.js, etc.).
+#   2. Anything that's purely dev / docs / dev infra (tests, build
+#      outputs, IDE files, design source, markdown other than the
+#      ones a route reads) SHOULD be excluded — keeps the image slim
+#      and the build context cheap to upload to the remote builder.
+
+# --- never ship: deps the deps stage installs from package.json -----
 node_modules
+package-lock.json.lock
+
+# --- VCS + IDE -----
 .git
 .gitignore
-.env
-.env.local
-var
-tests
-mobile
-design/source
-*.log
-prisma/dev.db*
-.DS_Store
+.github
 .vscode
 .idea
-infra
-ROADMAP.md
-README.md
-.github
+.DS_Store
+
+# --- agent / project memory not relevant to runtime -----
 .claude
+.cursor
+
+# --- env files (secrets must come via fly secrets, not the image) ---
+.env
+.env.local
+.env.*.local
+
+# --- dev-only top-level docs / planning files ---
+README.md
+CLAUDE.md
+TESTING.md
+ROADMAP.md
+BUGS.md
+LICENSE
+LICENSE.md
+
+# --- dev-only top-level config not used at runtime ---
+Makefile
+docker-compose.yml
+docker-compose.override.yml
+docker-compose.prod.yml
+cloudbuild.yaml
+fly.toml
+
+# --- dev runtime artefacts (uploads etc. live in /data on Fly) ---
+var
+prisma/dev.db*
+*.log
+
+# --- subdirs the app doesn't touch at runtime ---
+docs
+design
+design_handoff_compass
+email
+infra
+mobile
+scripts
+security
+tests
+
+# --- log / temp files ---
+*.tmp
+.tmp-*

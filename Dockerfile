@@ -35,29 +35,20 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
 RUN useradd --create-home --shell /usr/sbin/nologin --uid 10001 compass \
   && mkdir -p /app/var/uploads /app/var/tmp
 
+# node_modules + the prisma client come from the deps stage (cached
+# across builds because they're versioned by package-lock + schema).
 COPY --from=deps --chown=compass:compass /app/node_modules ./node_modules
 COPY --from=deps --chown=compass:compass /app/prisma ./prisma
-COPY --chown=compass:compass package.json package-lock.json ./
-COPY --chown=compass:compass server ./server
-COPY --chown=compass:compass lib ./lib
-# Tenant-asset bucket. Tenant requests for /styles.css /script.js etc.
-# resolve to demo/<asset> via the tenant catch-all in server/index.js.
-# Without this COPY the unit page renders unstyled in production.
-COPY --chown=compass:compass demo ./demo
-# Apex static assets. Each new top-level *.html / *.css / *.js needs
-# to be added here — Express serves these as the marketing/login surface.
-# script.js is the login form's submit handler; tokens.css holds every
-# CSS custom property the rest of the stylesheet reads. Missing either
-# silently breaks the apex experience (login button no-ops, palette
-# tokens fall back, fonts go to system defaults).
-COPY --chown=compass:compass \
-  index.html signup.html login.html security.html \
-  pitch.html plans.html positioning.html \
-  styles.css security.css tokens.css \
-  script.js sw.js \
-  ./
 
-RUN chown -R compass:compass /app
+# Everything else ships from the build context. .dockerignore is the
+# single source of truth for what's excluded — anything not listed
+# there gets copied in, so adding a new top-level file or directory
+# (admin/, demo/, a new marketing.html, etc.) is automatically picked
+# up. Replaces the previous explicit per-file COPY list that kept
+# biting us as trap #1 in CLAUDE.md (each new asset silently 404'd
+# in prod until someone re-edited this file).
+COPY --chown=compass:compass . .
+
 USER compass
 
 EXPOSE 8080
