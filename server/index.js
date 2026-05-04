@@ -66,6 +66,7 @@ import {
   renderNewsletterPage,
   renderChatPage,
 } from "./render.js";
+import { fetchLiveBlocksData } from "../lib/blocks/index.js";
 import { adminRouter } from "./admin.js";
 import * as storage from "../lib/storage.js";
 import { googleOAuth, googleConfigured, fetchGoogleProfile, appleOAuth, appleConfigured, decodeAppleIdToken } from "../lib/oauth.js";
@@ -4313,6 +4314,16 @@ app.get("*", async (req, res, next) => {
   ]);
 
   const role = req.user ? await roleInOrg(req.user.id, req.org.id) : null;
+
+  // Live blocks (events feed, photo feed, etc.) embedded in the
+  // page's customBlocks query their own data — fetch in parallel
+  // before render so renderSite stays sync.
+  const liveBlocksData = await fetchLiveBlocksData({
+    blocks: page?.customBlocks,
+    orgId: req.org.id,
+    prisma,
+  });
+
   const html = renderSite(req.org, {
     page,
     announcements,
@@ -4321,6 +4332,7 @@ app.get("*", async (req, res, next) => {
     events,
     posts,
     customPages,
+    liveBlocksData,
     user: req.user,
     role,
   });

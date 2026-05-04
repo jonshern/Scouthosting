@@ -18,6 +18,7 @@ import { MEAL_DIETARY_TAGS, mealConflicts } from "../lib/dietary.js";
 import { renderMarkdown } from "../lib/markdown.js";
 import { scoutbookUrl } from "../lib/scoutbook.js";
 import { parseVideoUrl } from "../lib/videoEmbed.js";
+import { isLiveBlockType, renderLiveBlock } from "../lib/blocks/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -82,11 +83,16 @@ function renderHeroPhotos(photos) {
     </style>`;
 }
 
-// Render the leader-defined custom blocks (text, image, CTA) that
-// follow the gallery on the public homepage. Blocks render in the
-// order they appear in `page.sectionOrder` (block keys only); blocks
-// with `sectionVisibility[block:<id>] === false` are skipped.
-function renderCustomBlocks(page) {
+// Render the leader-defined custom blocks (text, image, CTA, plus
+// live blocks like events/photos/posts/contact) that follow the
+// gallery on the public homepage. Blocks render in the order they
+// appear in `page.sectionOrder` (block keys only); blocks with
+// `sectionVisibility[block:<id>] === false` are skipped.
+//
+// `liveBlocksData` is a map of block.id → pre-fetched data, built by
+// `fetchLiveBlocksData` from lib/blocks/. Static blocks (text/image/
+// cta) ignore it; live blocks pull their content out of it.
+function renderCustomBlocks(page, liveBlocksData = {}) {
   if (!page) return "";
   const blocks = Array.isArray(page.customBlocks) ? page.customBlocks : [];
   if (!blocks.length) return "";
@@ -109,7 +115,7 @@ function renderCustomBlocks(page) {
 
   const html = ordered
     .filter((b) => vis[`block:${b.id}`] !== false)
-    .map((b) => renderCustomBlock(b))
+    .map((b) => renderCustomBlock(b, liveBlocksData[b.id]))
     .filter(Boolean)
     .join("\n");
   if (!html) return "";
@@ -130,8 +136,11 @@ function renderCustomBlocks(page) {
     </style>`;
 }
 
-function renderCustomBlock(b) {
+function renderCustomBlock(b, liveData) {
   if (!b || !b.type) return "";
+  if (isLiveBlockType(b.type)) {
+    return renderLiveBlock(b, liveData, { escapeHtml, textToHtml });
+  }
   if (b.type === "text") {
     const heading = b.title ? `<h2>${escapeHtml(b.title)}</h2>` : "";
     const body = b.body ? `<div class="cms-body">${textToHtml(b.body)}</div>` : "";
@@ -2749,7 +2758,7 @@ function renderAnnouncements(list) {
 }
 
 export function renderSite(org, extras = {}) {
-  const { page, announcements, albums, posts, user, role, customPages, heroPhotos } = extras;
+  const { page, announcements, albums, posts, user, role, customPages, heroPhotos, liveBlocksData } = extras;
   const tpl = loadTemplate();
   const navAuth = user
     ? `${role === "admin" || role === "leader" ? `<li><a href="/admin">Admin</a></li>` : ""}
@@ -2811,7 +2820,7 @@ export function renderSite(org, extras = {}) {
     FEED: raw(renderFeed(posts)),
     EVENTS: raw(renderEvents(extras.events)),
     GALLERY: raw(renderGallery(albums)),
-    CUSTOM_BLOCKS: raw(renderCustomBlocks(page)),
+    CUSTOM_BLOCKS: raw(renderCustomBlocks(page, liveBlocksData || {})),
     HERO_PHOTOS: raw(renderHeroPhotos(heroPhotos || [])),
     NAV_AUTH: raw(navAuth),
     NAV_CUSTOM: raw(navCustom),

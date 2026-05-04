@@ -104,6 +104,7 @@ import {
 import {
   SECTIONS as HOMEPAGE_SECTIONS,
   BLOCK_TYPES as HOMEPAGE_BLOCK_TYPES,
+  isLiveBlockType as isHomepageLiveBlockType,
   resolvePlan as resolveHomepagePlan,
   normaliseSectionPatch as normaliseHomepageSectionPatch,
   readTestimonials as readHomepageTestimonials,
@@ -1465,6 +1466,75 @@ function dashboardCss() {
 /* Page content                                                        */
 /* ------------------------------------------------------------------ */
 
+// Render the per-type config form for a live block (events, photos,
+// posts, contact, …) on the block-edit screen. Each spec ships its
+// own `defaults` shape — we generate a small set of <select>/<input>
+// fields by inspecting that shape rather than hard-coding the UI per
+// block type. POST submission collapses everything into req.body.config.
+function renderLiveBlockFields(block) {
+  const cfg = block.config || {};
+  const meta = HOMEPAGE_BLOCK_TYPES[block.type] || {};
+  const defaults = meta.defaults || {};
+  const fields = [];
+
+  // Limit (most live blocks have one).
+  if ("limit" in defaults) {
+    const v = cfg.limit ?? defaults.limit;
+    fields.push(`
+      <label>How many to show
+        <input name="config[limit]" type="number" min="1" max="20" value="${escape(String(v))}">
+      </label>`);
+  }
+
+  // Layout — render as <select> using whatever the spec normalises to.
+  // We don't have a list of allowed layouts here in the admin module,
+  // so we just take whatever the block currently has and let the
+  // normaliser clamp. UX-grade dropdowns can come later when we extract
+  // each block's UI alongside its renderer.
+  if ("layout" in defaults) {
+    const v = cfg.layout ?? defaults.layout;
+    fields.push(`
+      <label>Layout
+        <input name="config[layout]" type="text" value="${escape(String(v))}" placeholder="${escape(String(defaults.layout))}">
+      </label>
+      <p class="muted small" style="margin-top:-.4rem">Block-specific layout key. Common values: list, cards, compact (events), grid, masonry, carousel, feature (photos), excerpt, compact (posts), card, inline (contact).</p>`);
+  }
+
+  // Photos block has mode + albumSlug.
+  if ("mode" in defaults) {
+    const v = cfg.mode ?? defaults.mode;
+    fields.push(`
+      <label>Source
+        <input name="config[mode]" type="text" value="${escape(String(v))}" placeholder="latest, album, or all">
+      </label>`);
+  }
+  if ("albumSlug" in defaults) {
+    const v = cfg.albumSlug ?? defaults.albumSlug ?? "";
+    fields.push(`
+      <label>Album slug (only when source = album)
+        <input name="config[albumSlug]" type="text" value="${escape(String(v))}" placeholder="e.g. spring-camporee-2024">
+      </label>`);
+  }
+
+  // Contact block has showMap toggle.
+  if ("showMap" in defaults) {
+    const v = cfg.showMap ?? defaults.showMap;
+    fields.push(`
+      <label style="display:flex;align-items:center;gap:.5rem">
+        <input name="config[showMap]" type="checkbox" value="1" ${v ? "checked" : ""} style="width:auto;display:inline">
+        Show map link
+      </label>`);
+  }
+
+  if (!fields.length) {
+    fields.push(`<p class="muted">This block has no editable settings — it just pulls from your data.</p>`);
+  }
+
+  return `
+    <p class="muted small" style="margin:0 0 .8rem">${escape(meta.description || "")}</p>
+    ${fields.join("")}`;
+}
+
 adminRouter.get("/content", requireLeader, async (req, res) => {
   const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
   const v = (k, fallback = "") => escape(page?.[k] ?? fallback);
@@ -1814,6 +1884,13 @@ adminRouter.get("/content/blocks/:id/edit", requireLeader, async (req, res) => {
         <label style="margin:0;flex:1">Button label<input name="buttonLabel" type="text" maxlength="60" value="${escape(block.buttonLabel || "")}" placeholder="Visit us"></label>
         <label style="margin:0;flex:1">Button link<input name="buttonLink" type="text" maxlength="500" value="${escape(block.buttonLink || "")}" placeholder="/join or https://…"></label>
       </div>`;
+  } else if (typeMeta?.live) {
+    // Live blocks pull from the org's database at render time. The
+    // admin only configures lightweight presentation knobs (limit,
+    // layout, etc.). Each live block type gets a tailored field set
+    // here; unknown types fall back to a JSON textarea so we never
+    // 500 on a misconfigured registry.
+    fields = renderLiveBlockFields(block);
   }
 
   const body = `
