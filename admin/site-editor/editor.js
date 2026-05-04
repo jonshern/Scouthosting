@@ -317,8 +317,17 @@
           throw new Error(`HTTP ${r.status}${text ? ": " + text.slice(0, 200) : ""}`);
         }
         saveBtn.textContent = "Saved ✓";
+        // Flip the status indicator to "Unpublished changes" — the save
+        // wrote a draft, so the live site and the editor now diverge
+        // until Publish.
+        const status = document.getElementById("ed-status");
+        if (status) {
+          status.textContent = "Unpublished changes";
+          status.classList.remove("ed-status--published");
+          status.classList.add("ed-status--draft");
+        }
         setTimeout(() => {
-          saveBtn.textContent = "Save";
+          saveBtn.textContent = "Save draft";
           saveBtn.disabled = false;
         }, 1500);
       } catch (err) {

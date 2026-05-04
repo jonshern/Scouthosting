@@ -22,13 +22,13 @@ datasource db {
 // ------------------------------------------------------------------
 
 enum UnitType {
-  Troop          // Scouts BSA Troop (formerly Boy Scouts)
-  Pack           // Cub Scout Pack
-  Crew           // Venturing Crew
-  Ship           // Sea Scout Ship
-  Post           // Exploring Post
+  Troop // Scouts BSA Troop (formerly Boy Scouts)
+  Pack // Cub Scout Pack
+  Crew // Venturing Crew
+  Ship // Sea Scout Ship
+  Post // Exploring Post
   GirlScoutTroop // Girl Scouts of the USA Troop (separate organisation
-                 // from Scouts BSA — different program, different vocab)
+  // from Scouts BSA — different program, different vocab)
 }
 
 enum Plan {
@@ -58,24 +58,24 @@ enum Role {
 }
 
 model Org {
-  id                  String   @id @default(cuid())
-  slug                String   @unique
-  unitType            UnitType
-  unitNumber          String
-  displayName         String
-  tagline             String?
-  charterOrg          String
-  city                String
-  state               String
-  council             String?
-  district            String?
-  founded             String?
-  meetingDay          String   @default("Mondays")
-  meetingTime         String   @default("7:00 PM")
-  meetingLocation     String?
-  scoutmasterName     String
-  scoutmasterEmail    String
-  committeeChairEmail String?
+  id                   String             @id @default(cuid())
+  slug                 String             @unique
+  unitType             UnitType
+  unitNumber           String
+  displayName          String
+  tagline              String?
+  charterOrg           String
+  city                 String
+  state                String
+  council              String?
+  district             String?
+  founded              String?
+  meetingDay           String             @default("Mondays")
+  meetingTime          String             @default("7:00 PM")
+  meetingLocation      String?
+  scoutmasterName      String
+  scoutmasterEmail     String
+  committeeChairEmail  String?
   // Workspace-style ownership. Single User who holds plan/billing/delete
   // authority on this org — the Slack "primary owner" / GitHub "owner"
   // analogue. Distinct from OrgMembership.role: an owner also holds an
@@ -84,98 +84,99 @@ model Org {
   // only fire for the founding scoutmaster: change plan, delete org,
   // transfer ownership. Backfilled from scoutmasterEmail at migration
   // time; nullable because the founder might be deleted before transfer.
-  ownerId             String?
-  primaryColor        String   @default("#1d6b39")
-  accentColor         String   @default("#caa54a")
+  ownerId              String?
+  primaryColor         String             @default("#1d6b39")
+  accentColor          String             @default("#caa54a")
   // Per-org logo. Filename in the same per-org storage area as Photos
   // (lib/storage.js). null = use the default brand mark (unit number).
-  logoFilename        String?
-  plan                Plan     @default(patrol)
-  isDemo              Boolean  @default(false)
-  customDomain        String?  @unique
+  logoFilename         String?
+  plan                 Plan               @default(patrol)
+  isDemo               Boolean            @default(false)
+  customDomain         String?            @unique
   // Per-org feature flags. Map of feature key → boolean (or any JSON
   // value for richer config). Read via lib/featureFlags.js so unknown
   // flags get sensible defaults. Toggled from /__super (super-admin
   // console) — leaders don't edit this directly.
-  features            Json?
+  features             Json?
   // Suspended orgs are read-only: no admin login, no API writes, the
   // public site still renders. Used for non-payment / abuse holds.
   // suspendedReason renders on the (still-public) homepage so members
   // know to nudge their charter org.
-  suspendedAt         DateTime?
-  suspendedReason     String?
+  suspendedAt          DateTime?
+  suspendedReason      String?
   // Stripe billing state. Webhook events (lib/stripe.js) are the single
   // writer for these fields — admin UI reads them but never mutates them
   // directly. `subscriptionStatus` is the gate for plan enforcement
   // (lib/billingState.js). A null `stripeCustomerId` is fine: the org is
   // either pre-checkout (still trialing) or grandfathered.
-  stripeCustomerId    String?  @unique
-  stripeSubscriptionId String? @unique
-  stripePriceId       String?
-  subscriptionStatus  SubscriptionStatus @default(trialing)
-  trialEndsAt         DateTime?
-  currentPeriodEnd    DateTime?
-  cancelAtPeriodEnd   Boolean  @default(false)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  stripePriceId        String?
+  subscriptionStatus   SubscriptionStatus @default(trialing)
+  trialEndsAt          DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
 
-  memberships OrgMembership[]
-  members     Member[]
-  events      Event[]
-  photos      Photo[]
-  albums      Album[]
-  forms       Form[]
-  page        Page?
-  announcements Announcement[]
-  posts         Post[]
-  comments      Comment[]
-  rsvps         Rsvp[]
-  slots         SignupSlot[]
-  slotAssignments SlotAssignment[]
-  tripPlans     TripPlan[]
-  meals         Meal[]
-  ingredients   Ingredient[]
-  gear          GearItem[]
-  equipment     Equipment[]
-  customPages   CustomPage[]
-  surveys       Survey[]
-  eagleScouts   EagleScout[]
-  eagleProjects EagleProject[]
-  cohAwards     CohAward[]
-  positionTerms PositionTerm[]
-  trainings     Training[]
-  auditLogs     AuditLog[]
-  carRides      CarRide[]
-  carRideRiders CarRideRider[]
+  memberships          OrgMembership[]
+  members              Member[]
+  events               Event[]
+  photos               Photo[]
+  albums               Album[]
+  forms                Form[]
+  page                 Page?
+  announcements        Announcement[]
+  posts                Post[]
+  comments             Comment[]
+  rsvps                Rsvp[]
+  slots                SignupSlot[]
+  slotAssignments      SlotAssignment[]
+  tripPlans            TripPlan[]
+  meals                Meal[]
+  ingredients          Ingredient[]
+  gear                 GearItem[]
+  equipment            Equipment[]
+  customPages          CustomPage[]
+  surveys              Survey[]
+  pageVersions         PageVersion[]
+  eagleScouts          EagleScout[]
+  eagleProjects        EagleProject[]
+  cohAwards            CohAward[]
+  positionTerms        PositionTerm[]
+  trainings            Training[]
+  auditLogs            AuditLog[]
+  carRides             CarRide[]
+  carRideRiders        CarRideRider[]
   meritBadgeCounselors MeritBadgeCounselor[]
-  reimbursements Reimbursement[]
-  oaElections    OaElection[]
-  oaCandidates   OaCandidate[]
-  videos         Video[]
-  newsletters    Newsletter[]
-  channels       Channel[]
-  supportTickets SupportTicket[]
-  refunds        Refund[]
-  feedbackRequests   FeedbackRequest[]
-  newsletterSchedule NewsletterSchedule?
-  newsletterRules    NewsletterRule[]
-  errorLogs          ErrorLog[]
-  owner              User? @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  reimbursements       Reimbursement[]
+  oaElections          OaElection[]
+  oaCandidates         OaCandidate[]
+  videos               Video[]
+  newsletters          Newsletter[]
+  channels             Channel[]
+  supportTickets       SupportTicket[]
+  refunds              Refund[]
+  feedbackRequests     FeedbackRequest[]
+  newsletterSchedule   NewsletterSchedule?
+  newsletterRules      NewsletterRule[]
+  errorLogs            ErrorLog[]
+  owner                User?                 @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([plan])
   @@index([ownerId])
 }
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String?
-  displayName  String
-  emailVerified Boolean  @default(false)
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  passwordHash       String?
+  displayName        String
+  emailVerified      Boolean   @default(false)
   // Compass operator. Bypasses all per-org auth, sees the super-admin
   // console at /__super on the apex. Set manually in the DB or via the
   // CLI; never granted from any HTTP form.
-  isSuperAdmin Boolean  @default(false)
+  isSuperAdmin       Boolean   @default(false)
   // Last time the weekly DM digest was sent to this user. Set by the
   // dmDigestCron sweep; null means never digested. Drives the 7-day
   // cadence: a user is eligible for a fresh digest only when they
@@ -191,31 +192,32 @@ model User {
   totpSecret         String?
   totpEnrolledAt     DateTime?
   totpLastUsedAt     DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  sessions    Session[]
-  memberships OrgMembership[]
-  announcements Announcement[]
-  posts         Post[]
-  comments      Comment[]
-  oauthAccounts OAuthAccount[]
-  rsvps         Rsvp[]
-  slotAssignments SlotAssignment[]
-  newsletters     Newsletter[]
-  apiTokens          ApiToken[]
-  channelMemberships ChannelMember[]
-  messages           Message[]
-  reactions          Reaction[]
-  uploadedPhotos     Photo[]
-  pushDevices        PushDevice[]
-  postReactions      PostReaction[]
-  feedbackRequests   FeedbackRequest[]
-  feedbackVotes      FeedbackVote[]
-  feedbackComments   FeedbackComment[]
-  ownedOrgs          Org[] @relation("OrgOwner")
-  backupCodes        BackupCode[]
-  errorLogs          ErrorLog[]
+  sessions              Session[]
+  memberships           OrgMembership[]
+  announcements         Announcement[]
+  posts                 Post[]
+  comments              Comment[]
+  oauthAccounts         OAuthAccount[]
+  rsvps                 Rsvp[]
+  slotAssignments       SlotAssignment[]
+  newsletters           Newsletter[]
+  apiTokens             ApiToken[]
+  channelMemberships    ChannelMember[]
+  messages              Message[]
+  reactions             Reaction[]
+  uploadedPhotos        Photo[]
+  pushDevices           PushDevice[]
+  postReactions         PostReaction[]
+  feedbackRequests      FeedbackRequest[]
+  feedbackVotes         FeedbackVote[]
+  feedbackComments      FeedbackComment[]
+  ownedOrgs             Org[]             @relation("OrgOwner")
+  backupCodes           BackupCode[]
+  errorLogs             ErrorLog[]
+  publishedPageVersions PageVersion[]
 }
 
 // One-time-use 2FA backup codes. Generated at enrollment (10 per user),
@@ -240,8 +242,8 @@ model BackupCode {
 model OAuthAccount {
   id                String   @id @default(cuid())
   userId            String
-  provider          String   // "google", "apple", ...
-  providerAccountId String   // provider's stable user id (e.g. Google `sub`)
+  provider          String // "google", "apple", ...
+  providerAccountId String // provider's stable user id (e.g. Google `sub`)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -255,17 +257,17 @@ model OAuthAccount {
 // who serves at council level, etc.). Each membership has a role within
 // that org.
 model OrgMembership {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   userId          String
   orgId           String
-  role            Role     @default(parent)
+  role            Role      @default(parent)
   // YPT (Youth Protection Training) status. A leader/admin is "current"
   // if yptCurrentUntil is in the future. Drives the two-deep guard on
   // every chat-channel write where youth are present.
   // Leader-entered for v1 (CSV import / manual edit). The BSA training
   // roster scrape is a separate fight.
   yptCurrentUntil DateTime?
-  createdAt       DateTime @default(now())
+  createdAt       DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   org  Org  @relation(fields: [orgId], references: [id], onDelete: Cascade)
@@ -289,35 +291,35 @@ model Session {
 // ------------------------------------------------------------------
 
 model Member {
-  id             String   @id @default(cuid())
-  orgId          String
-  firstName      String
-  lastName       String
-  email          String?
-  phone          String?
+  id                String    @id @default(cuid())
+  orgId             String
+  firstName         String
+  lastName          String
+  email             String?
+  phone             String?
   // Drives which channel a broadcast targets this member on.
   // email: send email only
   // sms:   send SMS only (requires phone + smsOptIn)
   // both:  send both
   // none:  do not contact (still appears in the directory)
-  commPreference String   @default("email")
-  smsOptIn       Boolean  @default(false)
-  patrol         String?
-  position       String?  // SPL, ASPL, Patrol Leader, Scoutmaster, etc.
-  joinedAt       DateTime @default(now())
-  birthdate      DateTime?
-  isYouth        Boolean  @default(true)
-  dietaryFlags   String[] @default([]) // e.g. ["vegetarian", "gluten-free"]
-  notes          String?
+  commPreference    String    @default("email")
+  smsOptIn          Boolean   @default(false)
+  patrol            String?
+  position          String? // SPL, ASPL, Patrol Leader, Scoutmaster, etc.
+  joinedAt          DateTime  @default(now())
+  birthdate         DateTime?
+  isYouth           Boolean   @default(true)
+  dietaryFlags      String[]  @default([]) // e.g. ["vegetarian", "gluten-free"]
+  notes             String?
   // Scoutbook link — Scoutbook user id lets admins jump from the
   // member directory to that Scout's Scoutbook record. We don't store
   // any advancement data; that lives in Scoutbook.
-  scoutbookUserId String?
+  scoutbookUserId   String?
   // Family linkage. Each row points to its parent Members (typically the
   // youth's mom/dad/guardian); the inverse relation gives parents their
   // children. Postgres array of Member IDs keeps schema simple — no join
   // table needed for v1. Filter at query time.
-  parentIds      String[] @default([])
+  parentIds         String[]  @default([])
   // Recipient-level unsubscribe. Set when the member clicks the
   // unsubscribe link in a broadcast (or hits the one-click List-Unsubscribe
   // header). Filters them out of audienceFor regardless of commPreference.
@@ -334,8 +336,8 @@ model Member {
   // Free-form roster lookups: "who has WFA?", "who can drive a 15-passenger
   // van?", "who plays a guitar for campfires?". Lowercased on save for
   // dedupe; display preserves first-seen casing.
-  skills         String[] @default([])
-  interests      String[] @default([])
+  skills            String[]  @default([])
+  interests         String[]  @default([])
   // Lifecycle status — drives /admin/leads vs /admin/members visibility.
   //   prospect — interested but not yet registered with the council
   //              (a "lead" — appears on /admin/leads, hidden from
@@ -346,8 +348,8 @@ model Member {
   status            String    @default("active")
   // Lead-tracking metadata. All null for status="active"/"alumni"; a
   // lead admin populates them as the prospect moves through the funnel.
-  prospectSource    String?   // "web-form" | "walk-up" | "referral" | "other"
-  prospectNote      String?   // free-form: what grade is the kid? what unit are they coming from?
+  prospectSource    String? // "web-form" | "walk-up" | "referral" | "other"
+  prospectNote      String? // free-form: what grade is the kid? what unit are they coming from?
   firstContactedAt  DateTime? // set on first /admin/leads "Mark contacted" or send
   lastContactedAt   DateTime? // updated on every contact event
   // Soft delete. /admin/members "Remove" sets this; the row stays in
@@ -356,14 +358,14 @@ model Member {
   // trash lets a leader restore (clear deletedAt) or permanently
   // purge. A cron sweep hard-deletes rows whose deletedAt is older
   // than 30 days.
-  deletedAt      DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  deletedAt         DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  rsvps Rsvp[]
-  positionTerms PositionTerm[]
-  trainings     Training[]
+  org                  Org                   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rsvps                Rsvp[]
+  positionTerms        PositionTerm[]
+  trainings            Training[]
   meritBadgeCounselors MeritBadgeCounselor[]
   oaCandidacies        OaCandidate[]
 
@@ -374,21 +376,21 @@ model Member {
 }
 
 model Event {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   orgId           String
   title           String
   description     String?
   startsAt        DateTime
   endsAt          DateTime?
-  allDay          Boolean  @default(false)
+  allDay          Boolean   @default(false)
   location        String?
   // For map links: stored verbatim and used to build Google/Apple/Waze URLs
   // at render time.
   locationAddress String?
-  cost            Int?     // dollars
+  cost            Int? // dollars
   capacity        Int?
-  signupRequired  Boolean  @default(false)
-  category        String?  // meeting, campout, service, court-of-honor...
+  signupRequired  Boolean   @default(false)
+  category        String? // meeting, campout, service, court-of-honor...
   // RFC 5545 RRULE without the leading "RRULE:" prefix. Null = single
   // occurrence. Examples: "FREQ=WEEKLY;BYDAY=MO" (every Monday),
   // "FREQ=MONTHLY;BYDAY=1TU" (first Tuesday of every month).
@@ -401,17 +403,17 @@ model Event {
   serviceHours    Float?
   campingNights   Int?
   hikingMiles     Float?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  org       Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  rsvps     Rsvp[]
-  slots     SignupSlot[]
-  plan      TripPlan?
-  cohAwards CohAward[]
-  rides     CarRide[]
+  org            Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rsvps          Rsvp[]
+  slots          SignupSlot[]
+  plan           TripPlan?
+  cohAwards      CohAward[]
+  rides          CarRide[]
   reimbursements Reimbursement[]
-  channel   Channel?
+  channel        Channel?
 
   @@index([orgId, startsAt])
 }
@@ -420,19 +422,19 @@ model Event {
 // (or N people): drivers, food items to bring, gear to provide. Unlike
 // RSVPs (one-per-person, yes/no/maybe), slots are tied to specific tasks.
 model SignupSlot {
-  id             String   @id @default(cuid())
-  orgId          String
-  eventId        String
-  title          String          // "Bring drinks for 30", "Drive 2 scouts"
-  description    String?
-  capacity       Int      @default(1)
+  id            String   @id @default(cuid())
+  orgId         String
+  eventId       String
+  title         String // "Bring drinks for 30", "Drive 2 scouts"
+  description   String?
+  capacity      Int      @default(1)
   // When a slot fills, additional sign-ups join a waitlist (ordered by
   // createdAt). The oldest waitlister auto-promotes when an active
   // assignment is released. Leaders can disable per-slot.
-  allowWaitlist  Boolean  @default(true)
-  sortOrder      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  allowWaitlist Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   org         Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
   event       Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -445,7 +447,7 @@ model SlotAssignment {
   id         String   @id @default(cuid())
   orgId      String
   slotId     String
-  userId     String?  // signed-in user (preferred path)
+  userId     String? // signed-in user (preferred path)
   name       String
   email      String?
   notes      String?
@@ -469,8 +471,8 @@ model Rsvp {
   id        String   @id @default(cuid())
   orgId     String
   eventId   String
-  userId    String?  // signed-in user (preferred path)
-  memberId  String?  // optional link to the directory entry
+  userId    String? // signed-in user (preferred path)
+  memberId  String? // optional link to the directory entry
   name      String
   email     String?
   response  String   @default("yes") // yes | no | maybe
@@ -510,30 +512,30 @@ model Album {
 }
 
 model Photo {
-  id           String    @id @default(cuid())
-  orgId        String
+  id             String    @id @default(cuid())
+  orgId          String
   // Albums are the public-gallery surface. Chat-attached photos live
   // outside any album (albumId=null) and are reached via the chat
   // surface only — the /uploads route's auth check looks up the
   // attached message and confirms the viewer can read its channel.
-  albumId      String?
+  albumId        String?
   // Set when this photo is attached to a chat Message. Mutually
   // exclusive with albumId — a photo is either gallery-context or
   // chat-context. The /uploads route uses the populated side to
   // authorize. Setting deletedAt on the Message soft-deletes the
   // photo from chat without losing the file (audit retention).
-  messageId    String?
-  filename     String
-  originalName String?
-  mimeType     String
-  sizeBytes    Int
-  caption      String?
-  takenAt      DateTime?
-  width        Int?
-  height       Int?
-  sortOrder    Int       @default(0)
+  messageId      String?
+  filename       String
+  originalName   String?
+  mimeType       String
+  sizeBytes      Int
+  caption        String?
+  takenAt        DateTime?
+  width          Int?
+  height         Int?
+  sortOrder      Int       @default(0)
   uploaderUserId String?
-  createdAt    DateTime  @default(now())
+  createdAt      DateTime  @default(now())
 
   org      Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   album    Album?   @relation(fields: [albumId], references: [id], onDelete: Cascade)
@@ -555,7 +557,7 @@ model Form {
   originalName String?
   mimeType     String?
   sizeBytes    Int?
-  category     String?  // health, permission, bylaws, welcome, ...
+  category     String? // health, permission, bylaws, welcome, ...
   visibility   String   @default("members") // public | members | leaders
   sortOrder    Int      @default(0)
   createdAt    DateTime @default(now())
@@ -567,23 +569,23 @@ model Form {
 }
 
 model MailLog {
-  id              String   @id @default(cuid())
-  orgId           String
-  authorId        String?
-  subject         String
-  body            String
-  channel         String   @default("email") // email | sms | both
-  audienceLabel   String   // "Everyone", "Adults", "Youth", "Patrol: Eagles", ...
-  recipientCount  Int      @default(0)
-  status          String   @default("sent")  // sent | failed | partial | dryrun
-  errors          String?
-  sentAt          DateTime @default(now())
+  id             String   @id @default(cuid())
+  orgId          String
+  authorId       String?
+  subject        String
+  body           String
+  channel        String   @default("email") // email | sms | both
+  audienceLabel  String // "Everyone", "Adults", "Youth", "Patrol: Eagles", ...
+  recipientCount Int      @default(0)
+  status         String   @default("sent") // sent | failed | partial | dryrun
+  errors         String?
+  sentAt         DateTime @default(now())
 
   // Recipient snapshot — JSON array of { name, email, phone, channel } so the
   // history shows who got the message even if directory entries change later.
-  recipients      Json
+  recipients Json
 
-  events          MailEvent[]
+  events MailEvent[]
 }
 
 // Per-recipient tracking events for a MailLog row: image-pixel "open"s
@@ -592,17 +594,17 @@ model MailLog {
 // so the table can satisfy a "show me a parent's data" request without
 // surfacing PII beyond what they typed in.
 model MailEvent {
-  id          String   @id @default(cuid())
-  orgId       String
-  mailLogId   String
-  recipient   String   // email or E.164 phone, matched against MailLog.recipients[]
-  kind        String   // "open" | "click"
-  url         String?  // destination URL for clicks
-  userAgent   String?
-  ipHash      String?  // SHA-256 of the request IP, never the raw IP
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  orgId     String
+  mailLogId String
+  recipient String // email or E.164 phone, matched against MailLog.recipients[]
+  kind      String // "open" | "click"
+  url       String? // destination URL for clicks
+  userAgent String?
+  ipHash    String? // SHA-256 of the request IP, never the raw IP
+  createdAt DateTime @default(now())
 
-  mailLog     MailLog  @relation(fields: [mailLogId], references: [id], onDelete: Cascade)
+  mailLog MailLog @relation(fields: [mailLogId], references: [id], onDelete: Cascade)
 
   @@index([mailLogId, kind])
   @@index([orgId, createdAt])
@@ -616,32 +618,32 @@ model MailEvent {
 // goes through sendBatch() and records a MailLog row, so existing
 // audit / history surfaces work unchanged.
 model Newsletter {
-  id               String   @id @default(cuid())
+  id               String    @id @default(cuid())
   orgId            String
   authorId         String?
-  title            String   // "Weekly Digest, May 4"
+  title            String // "Weekly Digest, May 4"
   // Markdown — leader's framing paragraph at the top of the issue.
   intro            String
   // Snapshot of which Posts + Events were included when the issue was
   // composed. Stored as ID arrays; the renderer pulls the live rows at
   // render time so URLs stay current.
-  includedPostIds  String[] @default([])
-  includedEventIds String[] @default([])
+  includedPostIds  String[]  @default([])
+  includedEventIds String[]  @default([])
   // Same audience values as the broadcast composer — "everyone" / "adults"
   // / "youth" / "patrol" (with audiencePatrol set) / "subgroup:<id>".
-  audience         String   @default("everyone")
+  audience         String    @default("everyone")
   audiencePatrol   String?
-  status           String   @default("draft")  // draft | sent
+  status           String    @default("draft") // draft | sent
   publishedAt      DateTime?
   // The MailLog row created when this issue was sent. Null for drafts.
   // Lets the admin Newsletter detail link straight to the recipient list
   // and bounce/complaint state.
-  mailLogId        String?  @unique
+  mailLogId        String?   @unique
   // Public archive visibility. "members" gates /newsletters behind login,
   // "public" lets the page show on the unit's public site like Posts.
-  visibility       String   @default("members") // members | public
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  visibility       String    @default("members") // members | public
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   org    Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   author User? @relation(fields: [authorId], references: [id], onDelete: SetNull)
@@ -660,15 +662,21 @@ model Page {
   // hero is fixed chrome; everything else lives on the canvas.
   heroHeadline String?
   heroLede     String?
-  // The canvas — JSON array of { id, type, ...config } objects, in
-  // render order. Edited via the GrapesJS surface at /admin/site.
-  // Block types defined in lib/homepageSections.js (text, image, cta)
-  // and lib/blocks/* (events, photos, posts, contact).
+  // The published canvas — JSON array of { id, type, ...config }
+  // objects, in render order. Public site reads from here. Edited
+  // via the GrapesJS surface at /admin/site, but writes land on
+  // draftBlocks first; only Publish copies draft → customBlocks.
   customBlocks Json?
+  // Unpublished work-in-progress. When non-null, the editor loads
+  // from here instead of customBlocks. Save writes to draftBlocks;
+  // Publish promotes to customBlocks (snapshotting the previous
+  // customBlocks into PageVersion); Revert clears draftBlocks.
+  draftBlocks  Json?
   updatedAt    DateTime @updatedAt
   createdAt    DateTime @default(now())
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org      Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  versions PageVersion[]
 }
 
 model Announcement {
@@ -695,21 +703,21 @@ model Announcement {
 // a single chronological surface; existing Announcement/Album models are
 // kept around so older tenant content keeps rendering.
 model Post {
-  id          String      @id @default(cuid())
+  id          String   @id @default(cuid())
   orgId       String
   authorId    String?
   title       String?
   body        String
-  visibility  String      @default("public")  // public | members
-  pinned      Boolean     @default(false)
-  publishedAt DateTime    @default(now())
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  visibility  String   @default("public") // public | members
+  pinned      Boolean  @default(false)
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  org     Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  author  User?       @relation(fields: [authorId], references: [id], onDelete: SetNull)
-  photos  PostPhoto[]
-  comments Comment[]
+  org       Org            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  author    User?          @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  photos    PostPhoto[]
+  comments  Comment[]
   reactions PostReaction[]
 
   @@index([orgId, publishedAt])
@@ -726,7 +734,7 @@ model Post {
 model PostReaction {
   postId    String
   userId    String
-  kind      String   // "like" | "bookmark"
+  kind      String // "like" | "bookmark"
   createdAt DateTime @default(now())
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
@@ -757,16 +765,16 @@ model PostPhoto {
 // Trip & meal planner. One plan per Event. Headcount can be overridden,
 // otherwise derived from the count of yes-RSVPs at render time.
 model TripPlan {
-  id              String   @id @default(cuid())
-  orgId           String
-  eventId         String   @unique
+  id                String   @id @default(cuid())
+  orgId             String
+  eventId           String   @unique
   headcountOverride Int?
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  event Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  org   Org        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
   meals Meal[]
   gear  GearItem[]
 
@@ -774,24 +782,24 @@ model TripPlan {
 }
 
 model Meal {
-  id           String   @id @default(cuid())
-  orgId        String
-  tripPlanId   String
-  name         String   // "Saturday breakfast"
-  recipeName   String?  // "Foil packets", "Mac and cheese"
-  notes        String?
+  id          String    @id @default(cuid())
+  orgId       String
+  tripPlanId  String
+  name        String // "Saturday breakfast"
+  recipeName  String? // "Foil packets", "Mac and cheese"
+  notes       String?
   // "Contains" tags applied at the recipe level (e.g. "contains-meat",
   // "contains-gluten"). Cross-checked against each Member.dietaryFlags
   // to surface conflicts on the planner. See lib/dietary.js for the
   // canonical tag set and conflict map.
-  dietaryTags  String[] @default([])
-  sortOrder    Int      @default(0)
-  servesAt     DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  dietaryTags String[]  @default([])
+  sortOrder   Int       @default(0)
+  servesAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  org         Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  tripPlan    TripPlan    @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+  org         Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  tripPlan    TripPlan     @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
   ingredients Ingredient[]
 
   @@index([orgId, tripPlanId, sortOrder])
@@ -801,10 +809,10 @@ model Ingredient {
   id                String   @id @default(cuid())
   orgId             String
   mealId            String
-  name              String   // "Ground beef"
-  quantityPerPerson Float    // e.g., 0.25
-  unit              String   // "lb", "oz", "ea", "cup", ...
-  category          String?  // "Meat", "Produce", "Dairy", "Pantry", "Drinks", "Other"
+  name              String // "Ground beef"
+  quantityPerPerson Float // e.g., 0.25
+  unit              String // "lb", "oz", "ea", "cup", ...
+  category          String? // "Meat", "Produce", "Dairy", "Pantry", "Drinks", "Other"
   // Optional cost per `unit` (e.g. $5 per lb). When set, the trip plan
   // sums quantityPerPerson * unitCost across meals to surface a
   // cost-per-Scout estimate.
@@ -829,9 +837,9 @@ model GearItem {
   // gear item references a real Equipment row — clicking through opens
   // the catalog entry and surfaces the current loan / location.
   equipmentId String?
-  name        String   // "Patrol box", "Propane stove"
+  name        String // "Patrol box", "Propane stove"
   quantity    Int      @default(1)
-  assignedTo  String?  // free-form name; future: link to Member
+  assignedTo  String? // free-form name; future: link to Member
   notes       String?
   packed      Boolean  @default(false)
   sortOrder   Int      @default(0)
@@ -854,7 +862,7 @@ model Comment {
   postId    String
   authorId  String?
   body      String
-  hidden    Boolean  @default(false)  // soft-moderation by admin
+  hidden    Boolean  @default(false) // soft-moderation by admin
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -869,21 +877,21 @@ model Comment {
 // a per-trip packing list). Tracks what the troop owns: patrol boxes,
 // stoves, lanterns, propane tanks, the trailer itself, etc.
 model Equipment {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   orgId       String
-  name        String           // "Patrol box #1", "Coleman 2-burner stove"
-  category    String?          // "Patrol box", "Cooking", "Shelter", "Tools", ...
-  serialOrTag String?          // serial number or asset tag
-  location    String?          // "Trailer", "Storage closet", "Loaned: Smith family"
-  condition   String   @default("good")  // good | fair | needs-repair | retired
-  quantity    Int      @default(1)
+  name        String // "Patrol box #1", "Coleman 2-burner stove"
+  category    String? // "Patrol box", "Cooking", "Shelter", "Tools", ...
+  serialOrTag String? // serial number or asset tag
+  location    String? // "Trailer", "Storage closet", "Loaned: Smith family"
+  condition   String    @default("good") // good | fair | needs-repair | retired
+  quantity    Int       @default(1)
   acquiredAt  DateTime?
   notes       String?
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
-  org   Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org       Org        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   gearItems GearItem[]
 
   @@index([orgId, category])
@@ -896,27 +904,62 @@ model Equipment {
 model CustomPage {
   id          String   @id @default(cuid())
   orgId       String
-  slug        String   // URL slug, lowercased, kebab-case
+  slug        String // URL slug, lowercased, kebab-case
   title       String
   // Legacy markdown body. Used when `blocks` is null/empty so existing
   // pages keep rendering during the cutover. New pages saved via the
   // GrapesJS canvas write `blocks` and leave `body` alone.
-  body        String   // markdown-ish; rendered with paragraph + line-break preservation
-  // Canvas — same shape as Page.customBlocks. JSON array of
-  // { id, type, ...config }. Edited via /admin/pages/:id/edit.
-  // Render path at /p/:slug prefers blocks if non-empty, falls back to
-  // rendering `body` as Markdown otherwise.
+  body        String // markdown-ish; rendered with paragraph + line-break preservation
+  // Published canvas — same shape as Page.customBlocks. Render path
+  // at /p/:slug prefers blocks if non-empty, falls back to `body`
+  // Markdown otherwise.
   blocks      Json?
+  // Unpublished work-in-progress (same draft/publish flow as Page).
+  // When non-null, the editor loads from draftBlocks instead of blocks.
+  draftBlocks Json?
   visibility  String   @default("public") // public | members
   sortOrder   Int      @default(0)
   showInNav   Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org      Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  versions PageVersion[]
 
   @@unique([orgId, slug])
   @@index([orgId, sortOrder])
+}
+
+// Snapshot history for the homepage + custom pages. Each row is a
+// frozen blocks array captured at Publish time, so an admin can
+// restore "yesterday's version" as a fresh draft.
+//
+// Polymorphic: exactly one of pageId / customPageId is set. The
+// editor's History panel queries by whichever surface it's on.
+model PageVersion {
+  id            String   @id @default(cuid())
+  orgId         String
+  pageId        String?
+  customPageId  String?
+  // The blocks array as it stood the moment Publish was clicked.
+  blocks        Json
+  publishedAt   DateTime @default(now())
+  // Who pressed Publish. Nullable so deleting a User doesn't cascade
+  // away the snapshot (history is auditable).
+  publishedById String?
+  // Optional human label admins can attach later ("Pre-spring-camporee").
+  // Not exposed in v1 UI, but reserved so we don't have to migrate
+  // when the rename feature lands.
+  label         String?
+
+  org         Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  page        Page?       @relation(fields: [pageId], references: [id], onDelete: Cascade)
+  customPage  CustomPage? @relation(fields: [customPageId], references: [id], onDelete: Cascade)
+  publishedBy User?       @relation(fields: [publishedById], references: [id], onDelete: SetNull)
+
+  @@index([orgId, publishedAt])
+  @@index([pageId, publishedAt])
+  @@index([customPageId, publishedAt])
 }
 
 // Surveys: leader-composed question sets that members (or anyone, if
@@ -925,11 +968,11 @@ model CustomPage {
 // table per question type. Responses likewise — answers keyed by
 // question id.
 model Survey {
-  id            String   @id @default(cuid())
-  orgId         String
-  slug          String
-  title         String
-  description   String?
+  id          String    @id @default(cuid())
+  orgId       String
+  slug        String
+  title       String
+  description String?
   // Array of { id, type, label, options?, required } objects. Types:
   //   "text"   — short free-form
   //   "long"   — paragraph
@@ -937,14 +980,14 @@ model Survey {
   //   "select" — pick one of options[]
   //   "multi"  — pick any of options[]
   //   "scale"  — 1–5
-  questions     Json     @default("[]")
+  questions   Json      @default("[]")
   // who can respond:
   //   "anyone"  — anonymous form, name + email required
   //   "members" — sign-in required
-  audience      String   @default("anyone")
-  closesAt      DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  audience    String    @default("anyone")
+  closesAt    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   org       Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
   responses SurveyResponse[]
@@ -954,15 +997,15 @@ model Survey {
 }
 
 model SurveyResponse {
-  id          String   @id @default(cuid())
-  orgId       String
-  surveyId    String
-  userId      String?  // signed-in path
-  name        String
-  email       String?
+  id        String   @id @default(cuid())
+  orgId     String
+  surveyId  String
+  userId    String? // signed-in path
+  name      String
+  email     String?
   // Map of questionId → answer (string | boolean | number | string[])
-  answers     Json
-  createdAt   DateTime @default(now())
+  answers   Json
+  createdAt DateTime @default(now())
 
   survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
 
@@ -996,18 +1039,18 @@ model EagleScout {
 // communication / planning layer); the workbook itself lives in
 // Scoutbook (advancement system of record).
 model EagleProject {
-  id            String   @id @default(cuid())
-  orgId         String
-  scoutName     String   // typed; we don't enforce a Member link
-  beneficiary   String?  // who the project serves
-  mentorName    String?
-  status        String   @default("idea")  // idea | proposal | approved | in-progress | complete
-  workbookUrl   String?  // link to the BSA workbook (uploaded elsewhere)
-  startedAt     DateTime?
-  completedAt   DateTime?
-  notes         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id          String    @id @default(cuid())
+  orgId       String
+  scoutName   String // typed; we don't enforce a Member link
+  beneficiary String? // who the project serves
+  mentorName  String?
+  status      String    @default("idea") // idea | proposal | approved | in-progress | complete
+  workbookUrl String? // link to the BSA workbook (uploaded elsewhere)
+  startedAt   DateTime?
+  completedAt DateTime?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1018,16 +1061,16 @@ model EagleProject {
 // event. Each row prints as a line item on the printable program.
 // Tied to an Event (typically with category = "Court of Honor").
 model CohAward {
-  id          String   @id @default(cuid())
-  orgId       String
-  eventId     String
-  recipient   String   // "Demo Scout 2"
-  award       String   // "Tenderfoot rank", "First Aid merit badge", "Mile-Swim award"
-  category    String?  // "Rank", "Merit Badge", "Award", "Recognition"
-  notes       String?
-  sortOrder   Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  orgId     String
+  eventId   String
+  recipient String // "Demo Scout 2"
+  award     String // "Tenderfoot rank", "First Aid merit badge", "Mile-Swim award"
+  category  String? // "Rank", "Merit Badge", "Award", "Recognition"
+  notes     String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   org   Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
   event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -1041,15 +1084,15 @@ model CohAward {
 // rendering; on save the admin reconciles by closing the open term and
 // opening a new one when the label changes.
 model PositionTerm {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   orgId     String
   memberId  String
-  position  String   // "SPL", "Scoutmaster", "Patrol Leader — Eagles"
+  position  String // "SPL", "Scoutmaster", "Patrol Leader — Eagles"
   startedAt DateTime
   endedAt   DateTime?
   notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   org    Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
@@ -1067,7 +1110,7 @@ model Training {
   id          String    @id @default(cuid())
   orgId       String
   memberId    String
-  courseName  String    // "Youth Protection Training", "IOLS", "Wood Badge", ...
+  courseName  String // "Youth Protection Training", "IOLS", "Wood Badge", ...
   completedAt DateTime
   expiresAt   DateTime?
   notes       String?
@@ -1094,15 +1137,15 @@ model Training {
 // user) here so the rollup story stays unified. orgId is nullable;
 // when null the row represents an apex/marketing event.
 model AuditLog {
-  id           String   @id @default(cuid())
-  orgId        String?
-  userId       String?
-  userDisplay  String?
-  entityType   String   // "Page", "Announcement", "Post", "Member", ...
-  entityId     String?
-  action       String   // "create", "update", "delete"
-  summary      String?  // short human-readable: "Edited About body"
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  orgId       String?
+  userId      String?
+  userDisplay String?
+  entityType  String // "Page", "Announcement", "Post", "Member", ...
+  entityId    String?
+  action      String // "create", "update", "delete"
+  summary     String? // short human-readable: "Edited About body"
+  createdAt   DateTime @default(now())
 
   org Org? @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1127,10 +1170,10 @@ model AuditLog {
 // Grafana Cloud, Honeycomb) still ingest the stdout stream.
 model ErrorLog {
   id          String   @id @default(cuid())
-  fingerprint String   // sha1(name + first stack frame), 40 hex chars
+  fingerprint String // sha1(name + first stack frame), 40 hex chars
   message     String
   stack       String?
-  errorName   String?  // "TypeError", "PrismaClientKnownRequestError", ...
+  errorName   String? // "TypeError", "PrismaClientKnownRequestError", ...
   // Request context
   method      String?
   path        String?
@@ -1157,23 +1200,23 @@ model ErrorLog {
 // list of riders assigned to it. v1 is admin-managed (leaders build
 // the plan manually based on RSVPs).
 model CarRide {
-  id                  String          @id @default(cuid())
-  orgId               String
-  eventId             String
-  driverName          String
-  driverEmail         String?
-  driverPhone         String?
-  vehicleNote         String?         // "Honda Pilot — silver", "15-passenger van"
-  seats               Int             @default(4)
-  departureTime       DateTime?
-  departureLocation   String?
-  returnTime          DateTime?
-  notes               String?
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
+  id                String    @id @default(cuid())
+  orgId             String
+  eventId           String
+  driverName        String
+  driverEmail       String?
+  driverPhone       String?
+  vehicleNote       String? // "Honda Pilot — silver", "15-passenger van"
+  seats             Int       @default(4)
+  departureTime     DateTime?
+  departureLocation String?
+  returnTime        DateTime?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  org    Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  event  Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  org    Org            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event  Event          @relation(fields: [eventId], references: [id], onDelete: Cascade)
   riders CarRideRider[]
 
   @@index([orgId, eventId])
@@ -1201,19 +1244,19 @@ model CarRideRider {
 // troop actually uses for which badges. Scouts and parents read this list
 // when they're picking a counselor.
 model MeritBadgeCounselor {
-  id          String   @id @default(cuid())
-  orgId       String
-  name        String
-  email       String?
-  phone       String?
-  badges      String[] @default([])  // e.g. ["First Aid", "Camping", "Citizenship in the Community"]
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  email     String?
+  phone     String?
+  badges    String[] @default([]) // e.g. ["First Aid", "Camping", "Citizenship in the Community"]
   // Optional link to a roster member if the counselor is also part of
   // the unit. Free-form names are allowed too — many councils share
   // counselors across units.
-  memberId    String?
-  notes       String?  // "Best for First Aid; reach out via email", "Lives in Oakdale"
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  memberId  String?
+  notes     String? // "Best for First Aid; reach out via email", "Lives in Oakdale"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   org    Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
   member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
@@ -1231,24 +1274,24 @@ model MeritBadgeCounselor {
 //   pending → denied              (rejected)
 //   pending → paid                (treasurer skips approval — small unit shorthand)
 model Reimbursement {
-  id                String    @id @default(cuid())
-  orgId             String
-  requesterUserId   String?
-  requesterName     String
-  requesterEmail    String?
-  eventId           String?
-  amountCents       Int
-  purpose           String
-  receiptFilename   String?
-  receiptMimeType   String?
-  status            String    @default("pending")  // pending | approved | denied | paid
-  submittedAt       DateTime  @default(now())
-  decidedAt         DateTime?
-  decidedByUserId   String?
-  decidedByDisplay  String?
-  notes             String?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id               String    @id @default(cuid())
+  orgId            String
+  requesterUserId  String?
+  requesterName    String
+  requesterEmail   String?
+  eventId          String?
+  amountCents      Int
+  purpose          String
+  receiptFilename  String?
+  receiptMimeType  String?
+  status           String    @default("pending") // pending | approved | denied | paid
+  submittedAt      DateTime  @default(now())
+  decidedAt        DateTime?
+  decidedByUserId  String?
+  decidedByDisplay String?
+  notes            String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
   event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
@@ -1264,19 +1307,19 @@ model Reimbursement {
 // Status transitions:
 //   planned → conducted → submitted
 model OaElection {
-  id                  String        @id @default(cuid())
-  orgId               String
-  electionDate        DateTime
-  lodgeName           String?
-  lodgeNumber         String?
-  oaTeamContact       String?
-  oaTeamContactEmail  String?
-  votingMembersCount  Int?          // size of the active voting unit at the time
-  votingThreshold     Int?          // 50% + 1 of voting members
-  status              String        @default("planned")  // planned | conducted | submitted
-  notes               String?
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  id                 String   @id @default(cuid())
+  orgId              String
+  electionDate       DateTime
+  lodgeName          String?
+  lodgeNumber        String?
+  oaTeamContact      String?
+  oaTeamContactEmail String?
+  votingMembersCount Int? // size of the active voting unit at the time
+  votingThreshold    Int? // 50% + 1 of voting members
+  status             String   @default("planned") // planned | conducted | submitted
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   org        Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
   candidates OaCandidate[]
@@ -1290,7 +1333,7 @@ model OaCandidate {
   electionId    String
   memberId      String?
   candidateName String
-  status        String   @default("eligible")  // eligible | elected | not-elected | declined
+  status        String   @default("eligible") // eligible | elected | not-elected | declined
   votesFor      Int?
   votesAgainst  Int?
   notes         String?
@@ -1309,17 +1352,17 @@ model OaCandidate {
 // video ourselves is a heavier feature tracked separately in the
 // roadmap.
 model Video {
-  id             String   @id @default(cuid())
-  orgId          String
-  title          String
-  url            String
-  thumbnailUrl   String?
-  recordedAt     DateTime?
-  notes          String?
-  visibility     String   @default("members")  // public | members
-  sortOrder      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id           String    @id @default(cuid())
+  orgId        String
+  title        String
+  url          String
+  thumbnailUrl String?
+  recordedAt   DateTime?
+  notes        String?
+  visibility   String    @default("members") // public | members
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1334,13 +1377,13 @@ model Video {
 // One user can have many active tokens (one per device). Revoking a token
 // stamps revokedAt; no client-side cleanup required.
 model ApiToken {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
   name       String
-  tokenHash  String   @unique
+  tokenHash  String    @unique
   lastUsedAt DateTime?
   revokedAt  DateTime?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1365,16 +1408,16 @@ model ApiToken {
 // two current adults in a youth-containing channel. Suspended channels
 // are read-only until the threshold is restored.
 model Channel {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   orgId           String
-  kind            String   // patrol | troop | parents | leaders | event | custom | broadcast
+  kind            String // patrol | troop | parents | leaders | event | custom | broadcast
   name            String
   // Optional human-readable description, shown in admin and on member-
   // facing channel pages. Replaces Subgroup.description for broadcast
   // channels and is generally useful elsewhere too.
   purpose         String?
-  patrolName      String?  // for kind=patrol; matches Member.patrol
-  eventId         String?  @unique  // for kind=event; one channel per event
+  patrolName      String? // for kind=patrol; matches Member.patrol
+  eventId         String?   @unique // for kind=event; one channel per event
   // Rule-based membership for kind=broadcast (and any future kind that
   // wants dynamic membership). Shape:
   //   { patrols?: string[], skills?: string[],
@@ -1391,12 +1434,12 @@ model Channel {
   //                can post (e.g. only Wolf Den parents post in Wolf Den)
   //   "leaders"  — only adult leaders + admins can post (announcement-only)
   // Adult leaders + admins always pass; this gate scopes who *else* can post.
-  postPolicy      String   @default("members")
-  isSuspended     Boolean  @default(false)
+  postPolicy      String    @default("members")
+  isSuspended     Boolean   @default(false)
   suspendedReason String?
   archivedAt      DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   org      Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
   event    Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
@@ -1412,17 +1455,17 @@ model Channel {
 // is true for those. Manual owner promotions / demotions carry false so
 // the reconciler doesn't undo a leader's deliberate override.
 model ChannelMember {
-  id                 String   @id @default(cuid())
+  id                 String    @id @default(cuid())
   channelId          String
   userId             String
   // Slack-style channel role. "owner" lets the user post into a channel
   // set to the announce-only "leaders" policy and (eventually) manage
   // the channel's settings. Pre-20260503010000 the value was "moderator";
   // the migration in that timestamp folder rewrites every existing row.
-  role               String   @default("member") // member | owner
-  joinedAt           DateTime @default(now())
+  role               String    @default("member") // member | owner
+  joinedAt           DateTime  @default(now())
   mutedUntil         DateTime?
-  addedAutomatically Boolean  @default(true)
+  addedAutomatically Boolean   @default(true)
   // High-water mark for read state: every Message in this channel with
   // createdAt <= lastReadAt is considered "seen by this member". Bumped
   // to NOW() on channel-detail GET (any time the user opens the
@@ -1444,15 +1487,15 @@ model ChannelMember {
 // it as Json lets us evolve the embed shape without a migration each
 // time.
 model Message {
-  id             String   @id @default(cuid())
-  channelId      String
-  authorId       String?
-  body           String
-  attachmentJson Json?
-  pinned         Boolean  @default(false)
-  createdAt      DateTime @default(now())
-  editedAt       DateTime?
-  deletedAt      DateTime?
+  id                  String    @id @default(cuid())
+  channelId           String
+  authorId            String?
+  body                String
+  attachmentJson      Json?
+  pinned              Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  editedAt            DateTime?
+  deletedAt           DateTime?
   // Set by the email-reminder cron when it sends the "you have a
   // message" nudge for an unread DM. Idempotent — never re-fires for
   // the same Message even if the recipient stays unread for days.
@@ -1512,7 +1555,7 @@ model Reaction {
 //   customPagesSeed: [{ slug, title, body, visibility }] (optional)
 model OrgTemplate {
   id              String   @id @default(cuid())
-  name            String   @unique  // "Cub Scout Pack" / "Girl Scout Troop" / leader-named custom
+  name            String   @unique // "Cub Scout Pack" / "Girl Scout Troop" / leader-named custom
   unitType        UnitType
   vocab           Json
   subgroupPresets Json     @default("[]")
@@ -1528,22 +1571,22 @@ model OrgTemplate {
 // signup-page visitors can also file tickets. We snapshot whatever
 // identity we have at write time.
 model SupportTicket {
-  id             String    @id @default(cuid())
-  orgId          String?
-  userId         String?
-  fromEmail      String
-  fromName       String?
-  category       String    @default("question")  // question | bug | billing | abuse | feature | other
-  subject        String
-  body           String
-  status         String    @default("open")
-  priority       String    @default("normal")    // low | normal | high | urgent
-  assignedTo     String?
-  resolutionNote String?
-  acknowledgedAt DateTime?
-  resolvedAt     DateTime?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id                 String    @id @default(cuid())
+  orgId              String?
+  userId             String?
+  fromEmail          String
+  fromName           String?
+  category           String    @default("question") // question | bug | billing | abuse | feature | other
+  subject            String
+  body               String
+  status             String    @default("open")
+  priority           String    @default("normal") // low | normal | high | urgent
+  assignedTo         String?
+  resolutionNote     String?
+  acknowledgedAt     DateTime?
+  resolvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
   // Bug-report attachment captured by the in-page support widget when
   // the user picks the "bug" category. The widget runs html2canvas
   // against the current viewport, uploads the PNG to /uploads via the
@@ -1552,7 +1595,7 @@ model SupportTicket {
   // /__super/support/:id alongside the body.
   screenshotFilename String?
   screenshotMimeType String?
-  viewportPath       String?  // pathname the user was on when they hit "report bug"
+  viewportPath       String? // pathname the user was on when they hit "report bug"
   viewportWidth      Int?
   viewportHeight     Int?
 
@@ -1569,15 +1612,15 @@ model SupportTicket {
 // fee. paymentRef is a free-form pointer to whatever billing system
 // processed it (today: a manual note; future: an invoice id).
 model Refund {
-  id           String   @id @default(cuid())
-  orgId        String
-  paymentRef   String?  // free-form ref to the source payment
-  amountCents  Int
-  reason       String
-  issuedBy     String   // User.id of the super-admin who issued it
-  status       String   @default("issued")  // issued | failed
-  notes        String?
-  createdAt    DateTime @default(now())
+  id          String   @id @default(cuid())
+  orgId       String
+  paymentRef  String? // free-form ref to the source payment
+  amountCents Int
+  reason      String
+  issuedBy    String // User.id of the super-admin who issued it
+  status      String   @default("issued") // issued | failed
+  notes       String?
+  createdAt   DateTime @default(now())
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -1596,24 +1639,24 @@ model Refund {
 // stored token + posts /push/unregister) and on receiving a "bad
 // device" response from the push provider (token gets soft-deleted).
 model PushDevice {
-  id          String   @id @default(cuid())
-  userId      String
-  token       String   @unique
+  id            String    @id @default(cuid())
+  userId        String
+  token         String    @unique
   // "expo" | "apns" | "fcm". Drives which sender lib/push uses.
-  provider    String   @default("expo")
+  provider      String    @default("expo")
   // Per-device label so a user can see "iPhone 15 Pro" / "Pixel 8" in
   // their profile and revoke selectively. Optional.
-  deviceLabel String?
+  deviceLabel   String?
   // App platform — "ios" | "android" | "web". Useful for partial
   // outages (Apple downtime → skip ios devices).
-  platform    String?
+  platform      String?
   // Soft-delete timestamp set when the push provider returns "bad
   // device" (recipient uninstalled / disabled notifications). Skipped
   // by the broadcaster but kept for audit.
-  retiredAt   DateTime?
+  retiredAt     DateTime?
   retiredReason String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1644,52 +1687,52 @@ enum FeedbackStatus {
 enum FeedbackKind {
   feature
   bug
-  help        // private, gets routed to SupportTicket flow instead
+  help // private, gets routed to SupportTicket flow instead
 }
 
 enum FeedbackScope {
-  org         // visible only to this troop
-  global      // visible across the public Compass roadmap
+  org // visible only to this troop
+  global // visible across the public Compass roadmap
 }
 
 model FeedbackRequest {
-  id            String          @id @default(cuid())
+  id          String  @id @default(cuid())
   // Who wrote it. orgId may be null for anonymous global submissions
   // (we still record the email on SupportTicket-style flows).
-  orgId         String?
-  userId        String?
-  authorEmail   String?
-  authorName    String?
+  orgId       String?
+  userId      String?
+  authorEmail String?
+  authorName  String?
 
-  kind          FeedbackKind    @default(feature)
-  scope         FeedbackScope   @default(org)
-  status        FeedbackStatus  @default(submitted)
+  kind   FeedbackKind   @default(feature)
+  scope  FeedbackScope  @default(org)
+  status FeedbackStatus @default(submitted)
 
-  title         String
-  body          String          @db.Text
-  category      String?         // free-form bucket: Calendar / Events / Safety / etc.
+  title    String
+  body     String  @db.Text
+  category String? // free-form bucket: Calendar / Events / Safety / etc.
 
   // Auto-attached context from the composer: troop, role, browser,
   // last-visited page snapshot. Stored as JSON so we don't need a
   // schema migration every time we collect a new field.
-  context       Json?
+  context Json?
 
   // Cached vote count — kept in sync by application code on every
   // FeedbackVote insert/delete. Indexed so "most votes" is cheap.
-  voteCount     Int             @default(0)
+  voteCount Int @default(0)
 
   // Latest engineering update note the operator left. Surfaces inline
   // on the roadmap card. Older updates flow through FeedbackComment.
-  lastUpdate    String?         @db.Text
+  lastUpdate    String?   @db.Text
   lastUpdatedAt DateTime?
 
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  org           Org?              @relation(fields: [orgId], references: [id], onDelete: SetNull)
-  author        User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
-  votes         FeedbackVote[]
-  comments      FeedbackComment[]
+  org      Org?              @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  author   User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  votes    FeedbackVote[]
+  comments FeedbackComment[]
 
   @@index([scope, status, voteCount])
   @@index([orgId, createdAt])
@@ -1719,10 +1762,10 @@ model FeedbackComment {
   id         String   @id @default(cuid())
   requestId  String
   userId     String?
-  authorName String?       // for operator-replies posted from /__super
-  body       String        @db.Text
-  isOperator Boolean       @default(false)
-  createdAt  DateTime      @default(now())
+  authorName String? // for operator-replies posted from /__super
+  body       String   @db.Text
+  isOperator Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   request FeedbackRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
   author  User?           @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -1765,32 +1808,32 @@ model NewsletterSchedule {
 }
 
 enum NewsletterRuleKind {
-  rsvp_nudge        // 7d before any open RSVP
-  dues_reminder     // 14 / 7 / 1 days before due
-  post_event_recap  // 2 days after a campout, when 5+ photos uploaded
-  eagle_coh_invite  // on Scoutbook BoR pass
-  new_family_drip   // 3-email onboarding drip
-  reengage_quiet    // after 3 missed meetings
-  birthday          // birthday week shoutout
-  packing_list      // 5d before a campout
-  medform_expiry    // 30d before annual medical form expiry
+  rsvp_nudge // 7d before any open RSVP
+  dues_reminder // 14 / 7 / 1 days before due
+  post_event_recap // 2 days after a campout, when 5+ photos uploaded
+  eagle_coh_invite // on Scoutbook BoR pass
+  new_family_drip // 3-email onboarding drip
+  reengage_quiet // after 3 missed meetings
+  birthday // birthday week shoutout
+  packing_list // 5d before a campout
+  medform_expiry // 30d before annual medical form expiry
   custom
 }
 
 model NewsletterRule {
-  id          String              @id @default(cuid())
+  id          String             @id @default(cuid())
   orgId       String
   kind        NewsletterRuleKind
   title       String
-  description String?             @db.Text
+  description String?            @db.Text
   // Free-form configuration: cron-ish schedule, audience filter, etc.
   config      Json?
-  enabled     Boolean             @default(true)
+  enabled     Boolean            @default(true)
   // Audit: when did this rule last fire? what did it do?
   lastFiredAt DateTime?
-  lastResult  String?             @db.Text
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
+  lastResult  String?            @db.Text
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 

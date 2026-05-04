@@ -1439,6 +1439,11 @@ function renderEditorShell({
   blocks,
   saveUrl,
   settingsUrl,
+  publishUrl,
+  revertUrl,
+  previewUrl,
+  historyUrl,
+  hasDraft = false,
   viewLiveUrl,
   viewLiveLabel = "View live ↗",
   toolbarExtras = "",
@@ -1512,16 +1517,32 @@ function renderEditorShell({
   .ed-settings-danger button { background: transparent; color: #b91c1c; border: 1px solid #fecaca; padding: .45rem .8rem; border-radius: 6px; font: inherit; font-size: .8rem; cursor: pointer; }
   .ed-settings-danger button:hover { background: #fef2f2; }
   .ed-settings-tip { font-size: .72rem; color: #9ca3af; margin: .15rem 0 .55rem; line-height: 1.45; }
+  .ed-status { display: inline-flex; align-items: center; gap: .35rem; font-size: .78rem; padding: .3rem .6rem; border-radius: 999px; }
+  .ed-status--draft { background: #fef3c7; color: #92400e; }
+  .ed-status--published { background: #d1fae5; color: #065f46; }
+  .ed-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .ed-toolbar form.inline { display: inline; }
 </style>
 </head>
 <body>
 <div class="ed-shell">
   <header class="ed-toolbar">
     <h1>${escape(toolbarTitle)}${toolbarSubtitle ? ` <small>${escape(toolbarSubtitle)}</small>` : ""}</h1>
+    <span class="ed-status ed-status--${hasDraft ? "draft" : "published"}" id="ed-status">${hasDraft ? "Unpublished changes" : "Published"}</span>
     <nav>
       ${toolbarExtras}
       ${viewLiveUrl ? `<a href="${escape(viewLiveUrl)}" target="_blank" rel="noopener">${escape(viewLiveLabel)}</a>` : ""}
-      <button id="ed-save" class="primary" type="button">Save layout</button>
+      ${historyUrl ? `<a href="${escape(historyUrl)}">History</a>` : ""}
+      ${previewUrl ? `<a href="${escape(previewUrl)}" target="_blank" rel="noopener">Preview ↗</a>` : ""}
+      ${revertUrl ? `<form class="inline" method="post" action="${escape(revertUrl)}" onsubmit="return confirm('Discard unpublished changes and restore the live version?')">
+        <input type="hidden" name="csrf" value="${escape(req.csrfToken || "")}">
+        <button type="submit">Revert</button>
+      </form>` : ""}
+      <button id="ed-save" type="button">Save draft</button>
+      ${publishUrl ? `<form class="inline" method="post" action="${escape(publishUrl)}" onsubmit="return confirm('Publish current draft to the live site?')">
+        <input type="hidden" name="csrf" value="${escape(req.csrfToken || "")}">
+        <button class="primary" type="submit">Publish</button>
+      </form>` : ""}
     </nav>
   </header>
   <main class="ed-body">
@@ -1556,7 +1577,12 @@ function renderEditorShell({
 // in the right rail.
 adminRouter.get("/site", requireLeader, async (req, res) => {
   const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
-  const blocks = readHomepageCustomBlocks(page);
+  // Editor shows the draft when one exists; otherwise the live version.
+  // Save writes draft; Publish promotes draft → live.
+  const hasDraft = page?.draftBlocks != null;
+  const blocks = hasDraft
+    ? readHomepageCustomBlocks({ customBlocks: page.draftBlocks })
+    : readHomepageCustomBlocks(page);
   const settings = {
     heroHeadline: page?.heroHeadline ?? "",
     heroLede: page?.heroLede ?? "",
@@ -1622,8 +1648,13 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
     toolbarTitle: "Site editor",
     toolbarSubtitle: req.org.displayName,
     blocks,
+    hasDraft,
     saveUrl: "/admin/site",
     settingsUrl: "/admin/site/settings",
+    publishUrl: "/admin/site/publish",
+    revertUrl: "/admin/site/revert",
+    previewUrl: "/admin/site/preview",
+    historyUrl: "/admin/site/history",
     viewLiveUrl: "/",
     toolbarExtras: `<a href="/admin/site/template">Templates</a><a href="/admin/pages">Custom pages</a>`,
     settingsHtml,
@@ -1651,19 +1682,198 @@ adminRouter.post("/site", requireLeader, express.json({ limit: "256kb" }), async
     return res.status(400).json({ ok: false, errors });
   }
 
+  // Save writes the unpublished draft. Publish copies draft → live.
   await prisma.page.upsert({
     where: { orgId: req.org.id },
-    update: { customBlocks: cleaned },
-    create: { orgId: req.org.id, customBlocks: cleaned },
+    update: { draftBlocks: cleaned },
+    create: { orgId: req.org.id, draftBlocks: cleaned },
   });
   await recordAudit({
     org: req.org,
     user: req.user,
     entityType: "Page",
     action: "update",
-    summary: `Edited homepage in site editor (${cleaned.length} blocks)`,
+    summary: `Saved homepage draft (${cleaned.length} blocks)`,
   });
-  res.json({ ok: true, blocks: cleaned.length });
+  res.json({ ok: true, blocks: cleaned.length, draft: true });
+});
+
+// Publish: snapshot the *current* live blocks into PageVersion (so we
+// can roll back to them later) and promote the draft to live. Clears
+// the draft after promotion. Idempotent in the sense that publishing
+// again with no new draft is a no-op.
+adminRouter.post("/site/publish", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  if (!page || page.draftBlocks == null) {
+    return res.redirect("/admin/site?published=nochange");
+  }
+  // Snapshot the existing live version (if any) BEFORE we overwrite.
+  // The snapshot is what you'd "restore" to — i.e. "what was live
+  // immediately before this publish."
+  if (page.customBlocks != null) {
+    await prisma.pageVersion.create({
+      data: {
+        orgId: req.org.id,
+        pageId: page.id,
+        blocks: page.customBlocks,
+        publishedById: req.user?.id ?? null,
+      },
+    });
+  }
+  await prisma.page.update({
+    where: { id: page.id },
+    data: { customBlocks: page.draftBlocks, draftBlocks: null },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "update",
+    summary: "Published homepage draft",
+  });
+  res.redirect("/admin/site?published=ok");
+});
+
+// Revert: discard the unpublished draft. Live version untouched.
+adminRouter.post("/site/revert", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({
+    where: { orgId: req.org.id },
+    select: { id: true, draftBlocks: true },
+  });
+  if (page?.draftBlocks != null) {
+    await prisma.page.update({
+      where: { id: page.id },
+      data: { draftBlocks: null },
+    });
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "Page",
+      action: "update",
+      summary: "Reverted homepage draft",
+    });
+  }
+  res.redirect("/admin/site");
+});
+
+// Preview: render the public homepage using draft (when present) or
+// live blocks. Same template + render path as the public site, just
+// reached from a different URL so the admin can review without
+// publishing. Lives in a separate route so admins can open it in a
+// new tab without losing canvas state.
+adminRouter.get("/site/preview", requireLeader, async (req, res) => {
+  const { renderSite } = await import("./render.js");
+  const { fetchLiveBlocksData } = await import("../lib/blocks/index.js");
+  const page = await prisma.page.findUnique({ where: { orgId: req.org.id } });
+  // Splice draftBlocks into a Page-shaped object so renderSite sees the
+  // unpublished version. Live customBlocks stays in the row.
+  const previewPage = page
+    ? { ...page, customBlocks: page.draftBlocks ?? page.customBlocks }
+    : null;
+  const blocks = Array.isArray(previewPage?.customBlocks) ? previewPage.customBlocks : [];
+
+  const [announcements, customPages, heroPhotos] = await Promise.all([
+    prisma.announcement.findMany({
+      where: { orgId: req.org.id, publishedAt: { lte: new Date() } },
+      orderBy: [{ pinned: "desc" }, { publishedAt: "desc" }],
+      take: 5,
+    }),
+    prisma.customPage.findMany({
+      where: { orgId: req.org.id, showInNav: true },
+      orderBy: [{ sortOrder: "asc" }, { title: "asc" }],
+      select: { slug: true, title: true, showInNav: true },
+    }),
+    prisma.album.findMany({
+      where: { orgId: req.org.id, visibility: { in: ["public", "members"] } },
+      orderBy: { takenAt: "desc" },
+      take: 1,
+      select: { photos: { take: 4, orderBy: { sortOrder: "asc" } } },
+    }).then((albums) => albums[0]?.photos || []),
+  ]);
+  const liveBlocksData = await fetchLiveBlocksData({ blocks, orgId: req.org.id, prisma });
+
+  res.set("Content-Type", "text/html; charset=utf-8")
+    .send(renderSite(req.org, {
+      page: previewPage,
+      announcements,
+      customPages,
+      heroPhotos,
+      liveBlocksData,
+      user: req.user,
+      role: "admin",
+    }));
+});
+
+// History: list past published versions of the homepage, newest
+// first. Each row exposes a "Restore as draft" form that copies the
+// snapshot back into draftBlocks so the admin can review and re-
+// publish (creating a new PageVersion in the process).
+adminRouter.get("/site/history", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({
+    where: { orgId: req.org.id },
+    select: { id: true, customBlocks: true, draftBlocks: true },
+  });
+  const versions = page?.id
+    ? await prisma.pageVersion.findMany({
+        where: { pageId: page.id },
+        orderBy: { publishedAt: "desc" },
+        take: 100,
+        include: { publishedBy: { select: { displayName: true } } },
+      })
+    : [];
+
+  const fmt = (d) => new Date(d).toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit",
+  });
+
+  const rows = versions.length
+    ? versions.map((v) => `
+      <li>
+        <div style="flex:1">
+          <strong>${escape(fmt(v.publishedAt))}</strong>
+          <p class="muted small" style="margin:.15rem 0 0">
+            ${escape(Array.isArray(v.blocks) ? `${v.blocks.length} block${v.blocks.length === 1 ? "" : "s"}` : "—")}
+            ${v.publishedBy ? ` · published by ${escape(v.publishedBy.displayName)}` : ""}
+          </p>
+        </div>
+        <form class="inline" method="post" action="/admin/site/history/${escape(v.id)}/restore" onsubmit="return confirm('Restore this version as your current draft? Your existing draft will be replaced. The live site is not changed until you click Publish.')">
+          <button class="btn btn-ghost small" type="submit">Restore as draft</button>
+        </form>
+      </li>`).join("")
+    : `<li><p class="muted">No prior versions yet — they'll appear here after your first Publish.</p></li>`;
+
+  const body = `
+    <a class="back" href="/admin/site" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← Site editor</a>
+    <h1>Homepage history</h1>
+    <p class="muted">Each row is a snapshot of what was live at that moment. Restoring loads the snapshot as your current draft — review it in the editor, then Publish to actually replace the live site.</p>
+    <ul class="items" style="margin-top:1rem">${rows}</ul>
+  `;
+  res.type("html").send(layout(req, { title: "Homepage history", body }));
+});
+
+adminRouter.post("/site/history/:versionId/restore", requireLeader, async (req, res) => {
+  const page = await prisma.page.findUnique({
+    where: { orgId: req.org.id },
+    select: { id: true },
+  });
+  if (!page) return res.redirect("/admin/site/history");
+  const version = await prisma.pageVersion.findFirst({
+    where: { id: req.params.versionId, orgId: req.org.id, pageId: page.id },
+  });
+  if (!version) return res.redirect("/admin/site/history");
+  await prisma.page.update({
+    where: { id: page.id },
+    data: { draftBlocks: version.blocks },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Page",
+    action: "update",
+    summary: `Restored homepage version from ${new Date(version.publishedAt).toISOString()} as draft`,
+  });
+  res.redirect("/admin/site");
 });
 
 // Site settings — hero text + theme. Saved as JSON from the right-rail
@@ -7569,10 +7779,14 @@ adminRouter.get("/pages/:id/edit", requireLeader, async (req, res) => {
     where: { id: req.params.id, orgId: req.org.id },
   });
   if (!p) return res.status(404).send("Not found");
-  let blocks = readHomepageCustomBlocks({ customBlocks: p.blocks });
-  if (!blocks.length && (p.body || "").trim()) {
-    // Legacy fallback: convert the markdown body into a single text
-    // block so the canvas isn't empty on first open.
+  // Editor shows draftBlocks when present; falls back to live blocks;
+  // and for legacy markdown-only pages, hydrates the canvas with a
+  // single Text block carrying the body so nothing's lost.
+  const hasDraft = p.draftBlocks != null;
+  let blocks = hasDraft
+    ? readHomepageCustomBlocks({ customBlocks: p.draftBlocks })
+    : readHomepageCustomBlocks({ customBlocks: p.blocks });
+  if (!blocks.length && !hasDraft && (p.body || "").trim()) {
     blocks = [{
       id: `cb_legacy_${p.id.slice(-8)}`,
       type: "text",
@@ -7627,8 +7841,13 @@ adminRouter.get("/pages/:id/edit", requireLeader, async (req, res) => {
     toolbarTitle: p.title,
     toolbarSubtitle: `/p/${p.slug}`,
     blocks,
+    hasDraft,
     saveUrl: `/admin/pages/${p.id}/canvas`,
     settingsUrl: `/admin/pages/${p.id}/settings`,
+    publishUrl: `/admin/pages/${p.id}/publish`,
+    revertUrl: `/admin/pages/${p.id}/revert`,
+    previewUrl: `/admin/pages/${p.id}/preview`,
+    historyUrl: `/admin/pages/${p.id}/history`,
     viewLiveUrl: `/p/${p.slug}`,
     toolbarExtras: `<a href="/admin/pages">← All pages</a>`,
     settingsHtml,
@@ -7659,11 +7878,159 @@ adminRouter.post("/pages/:id/canvas", requireLeader, express.json({ limit: "256k
   }
   if (errors.length) return res.status(400).json({ ok: false, errors });
 
+  // Save writes the unpublished draft. Publish copies draft → live.
   await prisma.customPage.update({
     where: { id: p.id },
-    data: { blocks: cleaned },
+    data: { draftBlocks: cleaned },
   });
-  res.json({ ok: true, blocks: cleaned.length });
+  res.json({ ok: true, blocks: cleaned.length, draft: true });
+});
+
+// Publish a custom page: snapshot current live blocks → PageVersion,
+// promote draft → live, clear draft.
+adminRouter.post("/pages/:id/publish", requireLeader, async (req, res) => {
+  const p = await prisma.customPage.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!p) return res.status(404).send("Not found");
+  if (p.draftBlocks == null) {
+    return res.redirect(`/admin/pages/${p.id}/edit?published=nochange`);
+  }
+  if (p.blocks != null) {
+    await prisma.pageVersion.create({
+      data: {
+        orgId: req.org.id,
+        customPageId: p.id,
+        blocks: p.blocks,
+        publishedById: req.user?.id ?? null,
+      },
+    });
+  }
+  await prisma.customPage.update({
+    where: { id: p.id },
+    data: { blocks: p.draftBlocks, draftBlocks: null },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "CustomPage",
+    entityId: p.id,
+    action: "update",
+    summary: `Published page "${p.title}" draft`,
+  });
+  res.redirect(`/admin/pages/${p.id}/edit?published=ok`);
+});
+
+adminRouter.post("/pages/:id/revert", requireLeader, async (req, res) => {
+  const p = await prisma.customPage.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, title: true, draftBlocks: true },
+  });
+  if (!p) return res.status(404).send("Not found");
+  if (p.draftBlocks != null) {
+    await prisma.customPage.update({
+      where: { id: p.id },
+      data: { draftBlocks: null },
+    });
+    await recordAudit({
+      org: req.org,
+      user: req.user,
+      entityType: "CustomPage",
+      entityId: p.id,
+      action: "update",
+      summary: `Reverted page "${p.title}" draft`,
+    });
+  }
+  res.redirect(`/admin/pages/${p.id}/edit`);
+});
+
+// Preview a custom page using draft blocks if present.
+adminRouter.get("/pages/:id/preview", requireLeader, async (req, res) => {
+  const p = await prisma.customPage.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+  });
+  if (!p) return res.status(404).send("Not found");
+  const { renderCustomPage } = await import("./render.js");
+  const { fetchLiveBlocksData } = await import("../lib/blocks/index.js");
+  const blocks = Array.isArray(p.draftBlocks)
+    ? p.draftBlocks
+    : (Array.isArray(p.blocks) ? p.blocks : []);
+  const liveBlocksData = blocks.length
+    ? await fetchLiveBlocksData({ blocks, orgId: req.org.id, prisma })
+    : {};
+  // Render with the draft spliced into the page object.
+  const previewPage = { ...p, blocks };
+  res.set("Content-Type", "text/html; charset=utf-8")
+    .send(renderCustomPage(req.org, previewPage, { liveBlocksData }));
+});
+
+// History list for a custom page.
+adminRouter.get("/pages/:id/history", requireLeader, async (req, res) => {
+  const p = await prisma.customPage.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, title: true, slug: true },
+  });
+  if (!p) return res.status(404).send("Not found");
+  const versions = await prisma.pageVersion.findMany({
+    where: { customPageId: p.id },
+    orderBy: { publishedAt: "desc" },
+    take: 100,
+    include: { publishedBy: { select: { displayName: true } } },
+  });
+
+  const fmt = (d) => new Date(d).toLocaleString("en-US", {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit",
+  });
+
+  const rows = versions.length
+    ? versions.map((v) => `
+      <li>
+        <div style="flex:1">
+          <strong>${escape(fmt(v.publishedAt))}</strong>
+          <p class="muted small" style="margin:.15rem 0 0">
+            ${escape(Array.isArray(v.blocks) ? `${v.blocks.length} block${v.blocks.length === 1 ? "" : "s"}` : "—")}
+            ${v.publishedBy ? ` · published by ${escape(v.publishedBy.displayName)}` : ""}
+          </p>
+        </div>
+        <form class="inline" method="post" action="/admin/pages/${escape(p.id)}/history/${escape(v.id)}/restore" onsubmit="return confirm('Restore this version as the current draft? Your existing draft will be replaced. The live page is not changed until you click Publish.')">
+          <button class="btn btn-ghost small" type="submit">Restore as draft</button>
+        </form>
+      </li>`).join("")
+    : `<li><p class="muted">No prior versions yet — they'll appear here after your first Publish.</p></li>`;
+
+  const body = `
+    <a class="back" href="/admin/pages/${escape(p.id)}/edit" style="display:inline-block;margin-bottom:.6rem;color:var(--ink-muted);text-decoration:none">← ${escape(p.title)}</a>
+    <h1>History · ${escape(p.title)}</h1>
+    <p class="muted">Snapshots from each Publish. Restoring loads the snapshot as your current draft — review it in the editor, then Publish to actually replace the live page.</p>
+    <ul class="items" style="margin-top:1rem">${rows}</ul>
+  `;
+  res.type("html").send(layout(req, { title: `History · ${p.title}`, body }));
+});
+
+adminRouter.post("/pages/:id/history/:versionId/restore", requireLeader, async (req, res) => {
+  const p = await prisma.customPage.findFirst({
+    where: { id: req.params.id, orgId: req.org.id },
+    select: { id: true, title: true },
+  });
+  if (!p) return res.status(404).send("Not found");
+  const version = await prisma.pageVersion.findFirst({
+    where: { id: req.params.versionId, orgId: req.org.id, customPageId: p.id },
+  });
+  if (!version) return res.redirect(`/admin/pages/${p.id}/history`);
+  await prisma.customPage.update({
+    where: { id: p.id },
+    data: { draftBlocks: version.blocks },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "CustomPage",
+    entityId: p.id,
+    action: "update",
+    summary: `Restored "${p.title}" version from ${new Date(version.publishedAt).toISOString()} as draft`,
+  });
+  res.redirect(`/admin/pages/${p.id}/edit`);
 });
 
 // Save page metadata (title / slug / visibility / showInNav) from the
