@@ -1575,12 +1575,15 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
   .ed-toolbar button:disabled { opacity: .6; cursor: wait; }
   .ed-body { display: grid; grid-template-columns: 240px 1fr; min-height: 0; }
   .ed-blocks-pane { background: #fff; border-right: 1px solid #e5e7eb; overflow-y: auto; padding: 1rem .75rem; }
-  .ed-blocks-pane h2 { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin: .8rem .25rem .4rem; font-weight: 600; }
-  #gjs-blocks .gjs-blocks-c { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; }
-  #gjs-blocks .gjs-block { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: .6rem .35rem; text-align: center; cursor: grab; font-size: .82rem; color: #374151; transition: border-color 120ms ease-out; min-height: auto; }
-  #gjs-blocks .gjs-block:hover { border-color: #1d6b39; color: #1d6b39; }
-  #gjs-blocks .gjs-block-label { display: block; }
-  #gjs-blocks .gjs-block-category { font-size: .68rem; text-transform: uppercase; color: #6b7280; letter-spacing: .05em; padding: .5rem .25rem .25rem; }
+  .ed-blocks-pane h2 { font-size: .75rem; text-transform: uppercase; letter-spacing: .06em; color: #6b7280; margin: .25rem .25rem .4rem; font-weight: 600; }
+  .ed-rail-category { font-size: .68rem; text-transform: uppercase; color: #6b7280; letter-spacing: .06em; padding: .9rem .25rem .35rem; font-weight: 600; }
+  .ed-rail-blocks { display: flex; flex-direction: column; gap: .4rem; }
+  .ed-rail-block { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: .55rem .7rem; text-align: left; cursor: pointer; font: inherit; color: #111; transition: all 120ms ease-out; }
+  .ed-rail-block:hover { border-color: #1d6b39; color: #1d6b39; background: #f0fdf4; }
+  .ed-rail-block__label { display: block; font-weight: 600; font-size: .88rem; }
+  .ed-rail-block__hint { display: block; font-size: .72rem; color: #6b7280; margin-top: .15rem; }
+  .ed-rail-block:hover .ed-rail-block__hint { color: #1d6b39; }
+  .ed-blocks-pane .ed-rail-help { margin-top: 1.25rem; padding: .75rem .65rem; background: #f3f4f6; border-radius: 6px; font-size: .78rem; color: #6b7280; line-height: 1.45; }
   .ed-canvas-pane { min-height: 0; overflow: hidden; }
   #gjs { border: 0 !important; height: 100%; }
   .gjs-cv-canvas { background: #fafafa; }
@@ -1600,7 +1603,11 @@ adminRouter.get("/site", requireLeader, async (req, res) => {
   <main class="ed-body">
     <aside class="ed-blocks-pane">
       <h2>Blocks</h2>
+      <p class="muted" style="font-size:.78rem;color:#6b7280;margin:0 .25rem .25rem;line-height:1.45">Click a block to add it to the bottom of the page. Drag blocks on the canvas to reorder. <strong>Live</strong> blocks pull from your data automatically.</p>
       <div id="gjs-blocks"></div>
+      <div class="ed-rail-help">
+        Want a populated layout to start from? <a href="/admin/site/template" style="color:#1d6b39">Apply a starter template →</a>
+      </div>
     </aside>
     <section class="ed-canvas-pane">
       <div id="gjs"></div>
@@ -1726,7 +1733,7 @@ adminRouter.post("/site/template", requireLeader, async (req, res) => {
     action: "update",
     summary: `Applied "${tpl.label}" template (${result.customPages.length} starter pages)`,
   });
-  res.redirect("/admin/content?template=applied");
+  res.redirect("/admin/site?template=applied");
 });
 
 /* ------------------------------------------------------------------ */

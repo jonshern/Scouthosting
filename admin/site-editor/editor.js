@@ -1,27 +1,30 @@
-// GrapesJS site editor — bootstraps the editor surface, registers our
-// block library (static + live), serializes to/from Page.customBlocks
-// JSON, and POSTs save with CSRF.
+// Site editor — bootstraps the editor surface, registers our block
+// library (static + live), serializes to/from Page.customBlocks JSON,
+// and POSTs save with CSRF.
 //
-// Loaded by /admin/site (server/admin.js renders the shell HTML and
-// inlines the initial block tree as window.__INITIAL_BLOCKS__).
-//
-// Requires: window.grapesjs (loaded via /vendor/grapesjs/grapes.min.js)
+// Design choices:
+// - GrapesJS provides the canvas (iframe with our real CSS), selection,
+//   drag-to-reorder. We bypass its BlockManager UI because mounting
+//   to a custom appendTo doesn't render reliably with default panels
+//   disabled. Instead we render the blocks rail ourselves with
+//   click-to-add and drag-from-rail handlers.
+// - Each block stores its data shape (title, body, config, etc.) on
+//   the rendered DOM via data-attr / data-config attributes; the
+//   canvas IS the source of truth between page loads.
+// - Save: walk the canvas DOM, reconstruct the customBlocks JSON, POST.
 
 (function () {
   const initial = Array.isArray(window.__INITIAL_BLOCKS__) ? window.__INITIAL_BLOCKS__ : [];
   const csrfToken = window.__CSRF_TOKEN__ || "";
-  const orgDisplayName = window.__ORG_NAME__ || "your unit";
 
   // ---------------------------------------------------------------
   // Block specs — must match types in lib/blocks/*.js + the static
-  // text/image/cta from lib/homepageSections.js. The renderInEditor()
-  // function returns the HTML the canvas shows for the block; the
-  // serialize() function reads attributes off the GrapesJS component
-  // and returns a row to push into the customBlocks JSON array.
+  // text/image/cta from lib/homepageSections.js.
   // ---------------------------------------------------------------
   const SPECS = {
     text: {
       label: "Text",
+      hint: "Heading + paragraph",
       category: "Static",
       defaults: { title: "", body: "" },
       renderInEditor(b) {
@@ -34,21 +37,24 @@
     },
     image: {
       label: "Image",
+      hint: "Photo + caption",
       category: "Static",
       defaults: { filename: "", caption: "", alt: "" },
       renderInEditor(b) {
-        const src = b.filename ? `/uploads/${esc(b.filename)}` : placeholderSvg("Image · click to set filename");
+        const src = b.filename ? `/uploads/${esc(b.filename)}` : placeholderSvg("Image · paste filename below");
         return `
           <section class="ed-block ed-block--image" data-block-type="image" data-block-id="${esc(b.id)}">
             <figure>
               <img src="${src}" alt="${esc(b.alt || "")}">
-              ${b.caption ? `<figcaption contenteditable="true" data-attr="caption">${esc(b.caption)}</figcaption>` : `<figcaption contenteditable="true" data-attr="caption" data-empty="1">Add a caption…</figcaption>`}
+              <figcaption contenteditable="true" data-attr="caption">${esc(b.caption || "Add a caption…")}</figcaption>
+              <p class="ed-block__hint">Filename: <input type="text" data-attr="filename" value="${esc(b.filename || "")}" placeholder="e.g. spring-camporee.jpg" style="width:60%"></p>
             </figure>
           </section>`;
       },
     },
     cta: {
       label: "Call to action",
+      hint: "Banner with button",
       category: "Static",
       defaults: { title: "", body: "", buttonLabel: "", buttonLink: "" },
       renderInEditor(b) {
@@ -57,13 +63,15 @@
             <div class="ed-cta">
               <h2 contenteditable="true" data-attr="title">${esc(b.title || "Ready to join?")}</h2>
               <p contenteditable="true" data-attr="body">${esc(b.body || "Tell visitors what to do next.")}</p>
-              <a class="ed-btn" data-attr="buttonLink" href="${esc(b.buttonLink || "#")}"><span contenteditable="true" data-attr="buttonLabel">${esc(b.buttonLabel || "Visit us")}</span></a>
+              <a class="ed-btn"><span contenteditable="true" data-attr="buttonLabel">${esc(b.buttonLabel || "Visit us")}</span></a>
+              <p class="ed-block__hint">Button link: <input type="text" data-attr="buttonLink" value="${esc(b.buttonLink || "")}" placeholder="/join or https://…" style="width:60%"></p>
             </div>
           </section>`;
       },
     },
     events: {
       label: "Upcoming events",
+      hint: "Live calendar feed",
       category: "Live",
       defaults: { config: { limit: 5, layout: "list" } },
       renderInEditor(b) {
@@ -86,6 +94,7 @@
     },
     photos: {
       label: "Photo feed",
+      hint: "Live album grid",
       category: "Live",
       defaults: { config: { mode: "latest", limit: 8, layout: "grid", albumSlug: "" } },
       renderInEditor(b) {
@@ -106,6 +115,7 @@
     },
     posts: {
       label: "Latest posts",
+      hint: "Live activity feed",
       category: "Live",
       defaults: { config: { limit: 4, layout: "excerpt" } },
       renderInEditor(b) {
@@ -117,12 +127,13 @@
               <h2>Latest from the troop</h2>
               <span class="ed-live-meta">${esc(String(cfg.limit || 4))} posts · ${esc(cfg.layout || "excerpt")}</span>
             </div>
-            <p class="ed-live-note">Auto-updates as you publish posts in /admin/posts.</p>
+            <p class="ed-live-note">Auto-updates as you publish posts.</p>
           </section>`;
       },
     },
     contact: {
       label: "Contact card",
+      hint: "Meeting + email info",
       category: "Live",
       defaults: { config: { layout: "card", showMap: true } },
       renderInEditor(b) {
@@ -134,51 +145,62 @@
               <h2>Get in touch</h2>
               <span class="ed-live-meta">Auto-fills from settings · ${esc(cfg.layout || "card")}</span>
             </div>
-            <p class="ed-live-note">Pulls meeting day/time, location, scoutmaster contact from your unit settings.</p>
+            <p class="ed-live-note">Pulls meeting day/time, location, contact from your unit settings.</p>
           </section>`;
       },
     },
   };
 
   // ---------------------------------------------------------------
+  // Render the blocks rail (left side of the editor)
+  // ---------------------------------------------------------------
+  const railEl = document.getElementById("gjs-blocks");
+  if (railEl) {
+    const cats = {};
+    for (const [type, spec] of Object.entries(SPECS)) {
+      (cats[spec.category] ||= []).push([type, spec]);
+    }
+    railEl.innerHTML = Object.entries(cats)
+      .map(([cat, items]) => `
+        <div class="ed-rail-category">${esc(cat)}</div>
+        <div class="ed-rail-blocks">
+          ${items.map(([type, spec]) => `
+            <button class="ed-rail-block" type="button" data-add-type="${esc(type)}" title="${esc(spec.hint)}">
+              <span class="ed-rail-block__label">${esc(spec.label)}</span>
+              <span class="ed-rail-block__hint">${esc(spec.hint)}</span>
+            </button>
+          `).join("")}
+        </div>
+      `).join("");
+    railEl.addEventListener("click", (ev) => {
+      const btn = ev.target.closest("[data-add-type]");
+      if (!btn) return;
+      const type = btn.getAttribute("data-add-type");
+      const spec = SPECS[type];
+      if (!spec) return;
+      addBlock(type, spec);
+    });
+  }
+
+  // ---------------------------------------------------------------
   // Initialize GrapesJS
   // ---------------------------------------------------------------
   const editor = grapesjs.init({
     container: "#gjs",
-    height: "calc(100vh - 60px)",
+    height: "100%",
     width: "auto",
-    storageManager: false, // we handle persistence ourselves via Save button
+    storageManager: false,
     canvas: {
       styles: ["/tokens.css", "/styles.css"],
     },
-    panels: { defaults: [] }, // we render our own toolbar in the shell
+    panels: { defaults: [] },
+    blockManager: { blocks: [] }, // we render our own rail
     deviceManager: {
-      devices: [
-        { name: "Desktop", width: "" },
-        { name: "Tablet", width: "768px" },
-        { name: "Mobile", width: "375px" },
-      ],
+      devices: [{ name: "Desktop", width: "" }],
     },
-    blockManager: {
-      appendTo: "#gjs-blocks",
-      blocks: Object.entries(SPECS).map(([type, spec]) => ({
-        id: `compass-${type}`,
-        label: spec.label,
-        category: spec.category,
-        // When dragged from the palette into the canvas, generate a
-        // fresh row with default config + a unique id, then render.
-        content: () => {
-          const fresh = { id: newId(type), type, ...deepClone(spec.defaults) };
-          return spec.renderInEditor(fresh);
-        },
-      })),
-    },
-    // Editor styles for the placeholders + GrapesJS overrides.
-    canvasCss: editorCanvasCss(),
   });
 
-  // Inject our editor.css into the canvas after init (canvasCss option
-  // isn't always honored across versions).
+  // Inject editor-canvas styles into the iframe once it loads.
   editor.on("load", () => {
     try {
       const doc = editor.Canvas.getDocument();
@@ -188,7 +210,7 @@
     } catch (e) { /* ignore */ }
   });
 
-  // Hydrate canvas with the initial blocks.
+  // Hydrate canvas with the initial blocks (or an empty-state pointer).
   if (initial.length) {
     const html = initial
       .map((b) => SPECS[b.type]?.renderInEditor(b) || "")
@@ -196,52 +218,72 @@
       .join("\n");
     editor.setComponents(html);
   } else {
-    // Empty state — give them something to start from.
     editor.setComponents(`
       <section class="ed-empty">
-        <h2>Drag a block from the left to start.</h2>
-        <p>Or apply a <a href="/admin/site/template">starter template</a> if you want a populated layout to edit.</p>
-      </section>`);
+        <h1>Your homepage is empty.</h1>
+        <p>Pick a block on the left to add it here. You can drag blocks up and down to reorder.</p>
+        <p>Want a head-start? <a href="/admin/site/template">Apply a starter template →</a></p>
+      </section>
+    `);
+  }
+
+  // ---------------------------------------------------------------
+  // Add a block to the end of the canvas
+  // ---------------------------------------------------------------
+  function addBlock(type, spec) {
+    // Strip the "ed-empty" placeholder if it's the only thing in the
+    // canvas. Once a real block lands, the empty hint goes away.
+    const doc = editor.Canvas.getDocument();
+    const empty = doc?.querySelector(".ed-empty");
+    if (empty) empty.parentNode.removeChild(empty);
+
+    const fresh = { id: newId(type), type, ...deepClone(spec.defaults) };
+    const html = spec.renderInEditor(fresh);
+    editor.addComponents(html);
   }
 
   // ---------------------------------------------------------------
   // Save round-trip
   // ---------------------------------------------------------------
-  document.getElementById("ed-save").addEventListener("click", async (ev) => {
-    ev.preventDefault();
-    const btn = ev.currentTarget;
-    btn.disabled = true;
-    btn.textContent = "Saving…";
-    try {
-      const blocks = serializeCanvas();
-      const r = await fetch("/admin/site", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRF-Token": csrfToken,
-        },
-        body: JSON.stringify({ blocks }),
-      });
-      if (!r.ok) throw new Error(`save failed: HTTP ${r.status}`);
-      btn.textContent = "Saved ✓";
-      setTimeout(() => {
-        btn.textContent = "Save";
-        btn.disabled = false;
-      }, 1500);
-    } catch (err) {
-      console.error(err);
-      btn.textContent = "Save failed";
-      btn.disabled = false;
-      alert("Couldn't save: " + (err.message || err));
-    }
-  });
+  const saveBtn = document.getElementById("ed-save");
+  if (saveBtn) {
+    saveBtn.addEventListener("click", async (ev) => {
+      ev.preventDefault();
+      saveBtn.disabled = true;
+      saveBtn.textContent = "Saving…";
+      try {
+        const blocks = serializeCanvas();
+        const r = await fetch("/admin/site", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-Token": csrfToken,
+          },
+          body: JSON.stringify({ blocks }),
+          credentials: "same-origin",
+        });
+        if (!r.ok) {
+          const text = await r.text().catch(() => "");
+          throw new Error(`HTTP ${r.status}${text ? ": " + text.slice(0, 200) : ""}`);
+        }
+        saveBtn.textContent = "Saved ✓";
+        setTimeout(() => {
+          saveBtn.textContent = "Save";
+          saveBtn.disabled = false;
+        }, 1500);
+      } catch (err) {
+        saveBtn.textContent = "Save failed";
+        saveBtn.disabled = false;
+        alert("Couldn't save: " + (err.message || err));
+      }
+    });
+  }
 
   // Walk the canvas DOM, pull every [data-block-type] section in order,
-  // and reconstruct the customBlocks JSON. Supports edits via
-  // contenteditable (text/title/body) and config-as-JSON in attribute
-  // (live blocks).
+  // and reconstruct the customBlocks JSON.
   function serializeCanvas() {
     const doc = editor.Canvas.getDocument();
+    if (!doc) return [];
     const sections = doc.querySelectorAll("[data-block-type]");
     const blocks = [];
     sections.forEach((el) => {
@@ -250,12 +292,13 @@
       const block = { id, type };
 
       // Static-block attribute mirroring: every [data-attr] descendant
-      // contributes its current text content to the matching field.
+      // contributes its current value. <input> goes to .value;
+      // contenteditable nodes use .innerText.
       el.querySelectorAll("[data-attr]").forEach((node) => {
         const attr = node.getAttribute("data-attr");
-        if (!attr || node.getAttribute("data-empty") === "1") return;
-        if (attr === "buttonLink") {
-          block[attr] = node.getAttribute("href") || "";
+        if (!attr) return;
+        if (node.tagName === "INPUT" || node.tagName === "TEXTAREA") {
+          block[attr] = (node.value || "").trim();
         } else {
           block[attr] = (node.innerText || node.textContent || "").trim();
         }
@@ -292,22 +335,27 @@
 
   function editorCanvasCss() {
     return `
-      body { padding: 0; margin: 0; background: #fafafa; font-family: 'Inter Tight', system-ui, sans-serif; }
-      .ed-empty { padding: 4rem 2rem; text-align: center; color: #6b7280; }
-      .ed-empty h2 { font-family: 'Newsreader', Georgia, serif; font-size: 1.6rem; margin: 0 0 .5rem; color: #374151; font-weight: 500; }
-      .ed-block { padding: 2.5rem 1.5rem; border-bottom: 1px dashed transparent; }
+      body { padding: 0; margin: 0; background: #fafafa; font-family: 'Inter Tight', system-ui, sans-serif; color: #111; }
+      .ed-empty { padding: 5rem 2rem; text-align: center; color: #6b7280; max-width: 560px; margin: 4rem auto; }
+      .ed-empty h1 { font-family: 'Newsreader', Georgia, serif; font-size: 2rem; font-weight: 500; margin: 0 0 .75rem; color: #111; }
+      .ed-empty p { line-height: 1.55; margin: .5rem 0; }
+      .ed-empty a { color: #1d6b39; font-weight: 500; }
+      .ed-block { padding: 2.5rem 1.5rem; border-bottom: 1px dashed transparent; max-width: 980px; margin: 0 auto; position: relative; }
       .ed-block:hover { border-color: #d1d5db; }
+      .ed-block.gjs-selected { outline: 2px solid #1d6b39; outline-offset: 4px; border-radius: 4px; }
       .ed-block h2 { font-family: 'Newsreader', Georgia, serif; font-size: 1.8rem; margin: 0 0 .8rem; color: #111; }
       .ed-block--text > div { line-height: 1.65; color: #374151; max-width: 640px; }
-      .ed-block--image figure { margin: 0; max-width: 980px; }
-      .ed-block--image img { width: 100%; height: auto; border-radius: 12px; display: block; }
+      .ed-block--image figure { margin: 0; }
+      .ed-block--image img { width: 100%; height: auto; max-height: 480px; object-fit: cover; border-radius: 12px; display: block; }
       .ed-block--image figcaption { margin-top: .5rem; color: #6b7280; font-size: .9rem; text-align: center; }
+      .ed-block__hint { margin-top: .65rem; color: #9ca3af; font-size: .82rem; font-style: italic; }
+      .ed-block__hint input { font-family: ui-monospace, Menlo, Consolas, monospace; padding: .2rem .4rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: .85rem; }
       .ed-block--cta { display: flex; justify-content: center; }
       .ed-cta { background: #1d6b39; color: #fff; padding: 2rem 2.25rem; border-radius: 14px; max-width: 600px; text-align: center; }
       .ed-cta h2 { color: #fff; }
       .ed-cta p { color: rgba(255,255,255,.85); }
       .ed-btn { display: inline-block; background: #caa54a; color: #111; padding: .65rem 1.4rem; border-radius: 8px; font-weight: 600; text-decoration: none; }
-      .ed-block--live { background: linear-gradient(180deg, #f9fafb 0%, #fff 100%); border: 1px solid #e5e7eb; border-radius: 12px; max-width: 900px; margin: 1.5rem auto; padding: 1.5rem 1.75rem; }
+      .ed-block--live { background: linear-gradient(180deg, #f9fafb 0%, #fff 100%); border: 1px solid #e5e7eb; border-radius: 12px; padding: 1.5rem 1.75rem; }
       .ed-live-header { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; margin-bottom: .8rem; }
       .ed-live-header h2 { margin: 0; font-size: 1.4rem; }
       .ed-live-tag { background: #1d6b39; color: #fff; font-size: .65rem; font-weight: 700; padding: .15rem .45rem; border-radius: 999px; letter-spacing: .04em; text-transform: uppercase; }
@@ -318,7 +366,6 @@
       .ed-photo-tile { aspect-ratio: 1 / 1; background: #e5e7eb; border-radius: 4px; }
       [contenteditable="true"] { outline: none; }
       [contenteditable="true"]:focus { box-shadow: 0 0 0 2px rgba(29,107,57,.25); border-radius: 4px; }
-      [data-empty="1"] { opacity: .5; }
     `;
   }
 })();
