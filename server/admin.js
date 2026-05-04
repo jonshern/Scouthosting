@@ -63,6 +63,7 @@ import {
 } from "../lib/chat.js";
 import { tallyCredits, formatCsvRow } from "../lib/credits.js";
 import { recordAudit } from "../lib/audit.js";
+import { renderChatShell } from "./render.js";
 import { deriveBillingStatus, billingBanner } from "../lib/billingState.js";
 import {
   isConfigured as stripeConfigured,
@@ -274,6 +275,7 @@ const NAV_SECTIONS = [
       { href: "/admin/email/sent", label: "Sent history" },
       { href: "/admin/dm/sent", label: "My DMs" },
       { href: "/admin/newsletters", label: "Newsletters" },
+      { href: "/admin/chat", label: "Chat" },
       { href: "/admin/channels", label: "Channels" },
       { href: "/admin/groups", label: "Groups" },
       { href: "/admin/posts", label: "Activity feed" },
@@ -10329,6 +10331,19 @@ function channelStatusBadge(c) {
   return `<span class="tag" style="background:#bcd0f4;border-color:#1d4ed8;color:#0f172a">active</span>`;
 }
 
+// Embedded chat client — same UI as the public /chat route, just
+// wrapped in the admin shell so leaders doing oversight don't have to
+// jump to a different host. The browser-side code (renderChatShell)
+// talks to /api/v1/* endpoints with the existing Lucia session cookie;
+// no extra auth is needed.
+adminRouter.get("/chat", requireLeader, async (req, res) => {
+  const body = `
+    <h1>Chat</h1>
+    <p class="muted">Live chat across all your channels. Channel management (provisioning, archiving, suspension) lives in <a href="/admin/channels">Channels</a>; this is the same client that runs at <a href="/chat" target="_blank" rel="noopener">/chat</a> on your public site.</p>
+    ${renderChatShell({ orgId: req.org.id })}`;
+  res.type("html").send(layout(req, { title: "Chat", body }));
+});
+
 adminRouter.get("/channels", requireLeader, async (req, res) => {
   const channels = await prisma.channel.findMany({
     where: { orgId: req.org.id },
@@ -10399,7 +10414,8 @@ adminRouter.get("/channels", requireLeader, async (req, res) => {
     <p class="muted">Group chat oversight. Channels are auto-managed: <strong>troop / parents / leaders</strong> are global, <strong>patrol</strong> follows <code>Member.patrol</code>, <strong>event</strong> auto-archives 24h after the event ends. Manual additions and custom channels are listed below the auto-managed ones.</p>
     ${archivedNote}
     <p style="margin:.6rem 0 1rem">
-      <a class="btn btn-primary" href="/admin/channels/provision" onclick="return confirm('Re-run channel auto-provisioning? Idempotent — adds anything missing, doesn\\'t remove anything.')">Provision standing channels</a>
+      <a class="btn btn-primary" href="/admin/chat">Open chat →</a>
+      <a class="btn btn-ghost" href="/admin/channels/provision" style="margin-left:.4rem" onclick="return confirm('Re-run channel auto-provisioning? Idempotent — adds anything missing, doesn\\'t remove anything.')">Provision standing channels</a>
       <a class="btn btn-ghost" href="/admin/ypt" style="margin-left:.4rem">Manage YPT status →</a>
     </p>
     ${sectionFor("troop", "All-members")}

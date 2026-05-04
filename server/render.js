@@ -1662,12 +1662,23 @@ export function renderChatPage(org, { needsSignIn, notAMember } = {}) {
   // The page is mostly a thin client over /api/v1. The browser already
   // carries the Lucia session cookie, so resolveApiUser accepts it as
   // auth and we don't need a bearer token in the web client.
-  const orgId = String(org.id);
   const body = `
-    <section class="chat" id="chat-root" data-org-id="${escapeHtml(orgId)}">
-      <a class="back" href="/">← Home</a>
-      <h1>Chat</h1>
-      <p class="muted small">If you'd rather use a phone, the Compass mobile app talks to the same channels.</p>
+    <a class="back" href="/">← Home</a>
+    <h1>Chat</h1>
+    <p class="muted small">If you'd rather use a phone, the Compass mobile app talks to the same channels.</p>
+    ${renderChatShell({ orgId: org.id })}`;
+  return pageShell(org, "Chat", body);
+}
+
+// Reusable chat surface: <section class="chat" id="chat-root">, the
+// channel sidebar / message list / composer markup, the inline styles,
+// and the client-side ES module that talks to /api/v1. Both the public
+// /chat page (renderChatPage above) and the admin /admin/chat route
+// embed it. Auth flows through the existing Lucia session cookie, so
+// no bearer token is needed in the inlined script.
+export function renderChatShell({ orgId }) {
+  return `
+    <section class="chat" id="chat-root" data-org-id="${escapeHtml(String(orgId))}">
       <div class="chat-shell">
         <aside class="chat-sidebar" aria-label="Channels">
           <ul id="chat-channels" class="chat-channels"></ul>
@@ -1694,7 +1705,6 @@ export function renderChatPage(org, { needsSignIn, notAMember } = {}) {
     </section>
     <style>${CHAT_STYLES}</style>
     <script type="module">${chatClientScript()}</script>`;
-  return pageShell(org, "Chat", body);
 }
 
 const CHAT_STYLES = `
