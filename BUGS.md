@@ -354,31 +354,21 @@ off here with the commit SHA.
 
 ## P2 — small but visible
 
-### Calendar admin: subscribe-URL box is misplaced and uses old palette
-- `/admin/events` (or wherever the calendar admin renders). The
-  subscribe-URL callout (cream/yellow box with "https://troop100.…/calendar.ics"
-  + Copy button) sits between the "Members can subscribe…" heading
-  and the FullCalendar grid.
-- Two issues:
-  - **Position**: it should live at the bottom of the page (or under
-    the calendar grid), not above it. The grid is the primary content;
-    the subscribe URL is a secondary action.
-  - **Color**: the cream/yellow accent + tan border are from the old
-    palette and clash with the rest of the admin (dark green primary,
-    gold accent, neutral surfaces). Should use the current token set
-    (`--surface`, `--ink`, `--accent`).
+### ~~Calendar admin: subscribe-URL box is misplaced and uses old palette~~
+- ~~Cream/yellow box with subscribe URL sat above the calendar grid.~~
+- **Fixed (session 2026-05-03)**: subscribe URL moved to a "Subscribe"
+  section at the bottom of the page (under past events). Re-styled to
+  use the current token set — neutral `--surface` background, `--line`
+  border instead of the cream + blue combo.
 
-### "Choose Files" sits inline with descriptive label text (album upload)
-- `/admin/albums/<id>/photos` — the "Choose Files" native button is
-  rendered immediately after the inline label *"Choose images (JPEG,
-  PNG, WebP, HEIC; up to 10 MB each, 20 at a time)"* on the same line,
-  followed by the chosen filename. Visually cramped — looks like the
-  filename is part of the label.
-- Source: `server/admin.js:2265-2267` — the `<label>` wraps the
-  descriptive text + the `<input type="file">` on one line.
-- Fix: separate the label text and the input onto two lines. Either
-  put the input in its own `<div>` below the label text, or apply
-  `display:block` to the input and add margin-top.
+### ~~"Choose Files" sits inline with descriptive label text (album upload)~~
+- ~~The "Choose Files" native button rendered inline with the label
+  text + filename, looking cramped.~~
+- **Fixed (session 2026-05-03)**: split the wrapping `<label>` into
+  a separate descriptive `<p>` followed by a block-level
+  `<input type="file">` with margin-bottom. The native button now sits
+  on its own line with the chosen filename to its right (browser
+  default), and the upload button is clearly separated below.
 
 ### Custom pages "Create" button cramped against Visibility dropdown
 - `/admin/pages` (admin.js:7551). The button sat directly under the

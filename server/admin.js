@@ -2606,9 +2606,8 @@ adminRouter.get("/albums/:id", requireLeader, async (req, res) => {
 
     <form class="card" method="post" action="/admin/albums/${escape(album.id)}/photos" enctype="multipart/form-data">
       <h2>Add photos</h2>
-      <label>Choose images (JPEG, PNG, WebP, HEIC; up to 10 MB each, 20 at a time)
-        <input name="files" type="file" accept="image/*" multiple required>
-      </label>
+      <p class="muted small" style="margin:0 0 .55rem">JPEG, PNG, WebP, or HEIC; up to 10 MB each, 20 at a time.</p>
+      <input name="files" type="file" accept="image/*" multiple required style="display:block;margin:0 0 1rem">
       <button class="btn btn-primary" type="submit">Upload</button>
     </form>
 
@@ -2912,14 +2911,6 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
   const subscribeUrl = `https://${req.org.slug}.${process.env.APEX_DOMAIN || "compass.app"}/calendar.ics`;
   const body = `
     <h1>Calendar</h1>
-    <p class="muted">Members can <strong>subscribe</strong> to your event feed and have every event you publish show up on their phone calendar automatically.</p>
-    <div class="card" style="margin-bottom:1rem;background:#faf3e3;border:1px solid #1d4ed8">
-      <div class="row" style="align-items:center;gap:.6rem">
-        <code style="flex:1;background:#fff;padding:.45rem .65rem;border-radius:6px;border:1px solid #e2e8f0;overflow:auto;white-space:nowrap">${escape(subscribeUrl)}</code>
-        <button type="button" class="btn btn-ghost small" onclick="navigator.clipboard.writeText('${escape(subscribeUrl)}').then(()=>{this.textContent='Copied'},()=>{this.textContent='Copy failed'})">Copy</button>
-      </div>
-      <p class="muted small" style="margin:.5rem 0 0">Share this URL in a welcome email or post it on your public site. Google Calendar / Apple Calendar / Outlook all accept it via "Subscribe to calendar from URL". Updates fan out automatically when the calendar refreshes (typically every few hours).</p>
-    </div>
 
     <div id="admin-fc" class="admin-fc-host" aria-busy="true">
       <p class="muted small" style="text-align:center;padding:2rem">Loading calendar…</p>
@@ -2941,6 +2932,16 @@ adminRouter.get("/events", requireLeader, async (req, res) => {
         ? `<h2 style="margin-top:2rem">Past (last 20)</h2><ul class="items">${past.map(renderRow).join("")}</ul>`
         : ""
     }
+
+    <h2 style="margin-top:2rem">Subscribe</h2>
+    <p class="muted small">Members can subscribe to your event feed and have every event you publish show up on their phone calendar automatically.</p>
+    <div class="card" style="margin-top:.5rem">
+      <div class="row" style="align-items:center;gap:.6rem">
+        <code style="flex:1;background:var(--surface,#fff);padding:.45rem .65rem;border-radius:6px;border:1px solid var(--line,#e5e7eb);overflow:auto;white-space:nowrap">${escape(subscribeUrl)}</code>
+        <button type="button" class="btn btn-ghost small" onclick="navigator.clipboard.writeText('${escape(subscribeUrl)}').then(()=>{this.textContent='Copied'},()=>{this.textContent='Copy failed'})">Copy</button>
+      </div>
+      <p class="muted small" style="margin:.6rem 0 0">Share this URL in a welcome email or post it on your public site. Google Calendar / Apple Calendar / Outlook all accept it via "Subscribe to calendar from URL". Updates fan out automatically when the calendar refreshes (typically every few hours).</p>
+    </div>
 
     <script src="/vendor/fullcalendar/index.global.min.js" defer></script>
     <script>
