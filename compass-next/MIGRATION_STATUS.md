@@ -57,7 +57,8 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `push.js` | `src/lib/push/index.ts` | ⬜ |
 | `storage.js` | `src/lib/storage/local.ts` (memory + local-disk only) | 🚧 (S3/GCS adapter pending) |
 | `realtime.js` | `src/lib/realtime/bus.ts` (memory + LISTEN/NOTIFY) | ⬜ |
-| `jobs.js` | `src/lib/jobs/index.ts` (pg-boss) | ⬜ |
+| `jobs.js` | `src/lib/jobs/{index,registry,handlers}.ts` (pg-boss + in-process fallback) | ✅ (email handlers; sms.broadcast pending lib/sms port) |
+| `log.js` | `src/lib/log.ts` | ✅ |
 | `otel.js` / `otelBootstrap.js` | `instrumentation.ts` | ⬜ |
 | `errorTracker.js` | `src/lib/ops/error-tracker.ts` | ⬜ |
 | `analytics.js` / `analyticsTag.js` | `src/lib/tracking/*.ts` | ⬜ |
