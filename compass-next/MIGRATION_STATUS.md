@@ -76,7 +76,7 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `newsletter.js` / `newsletterCron.js` | `src/lib/newsletter/*.ts` + cron | ⬜ |
 | `calendar.js` | `src/lib/calendar/{ical,recurrence}.ts` | ✅ |
 | `eventCategories.js` | `src/lib/calendar/categories.ts` | ✅ |
-| `dietary.js` / `shoppingList.js` | `src/lib/trips/*.ts` | ⬜ |
+| `dietary.js` / `shoppingList.js` | `src/lib/trips/{dietary,shopping-list}.ts` | ✅ |
 | `dashboard.js` | server-rendered admin overview | 🚧 (basic) |
 | `homepageSections.js` | RSC sections under `/o/<slug>/` | ⬜ |
 | `marketingWidget.js` / `supportWidget.js` | RSC components | ⬜ |
@@ -87,7 +87,7 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `postReactions.js` | `src/lib/posts/reactions.ts` | ✅ (lib; mutation server action still ⬜) |
 | `trackingToken.js` | `src/lib/tracking/click-token.ts` | ✅ |
 | `trackedMessage.js` | `src/lib/comms/tracked-message.ts` | ✅ |
-| `yptReminder.js` | `src/lib/youth-protection/ypt-reminder.ts` | ⬜ |
+| `yptReminder.js` | `src/lib/youth-protection/ypt-reminder.ts` | ✅ |
 | `credits.js` | `src/lib/billing/credits.ts` | ✅ |
 | `log.js` | structured logger via `pino` (TBD) | ⬜ |
 
