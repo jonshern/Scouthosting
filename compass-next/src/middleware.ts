@@ -1,8 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { classifyHost } from "@/lib/tenancy/resolve";
 
+// Skip Next internals and known static extensions, but DO process paths
+// like /calendar.ical that should be tenant-rewritten.
 export const config = {
-  matcher: ["/((?!_next/|favicon\\.ico|robots\\.txt|sitemap\\.xml|api/|.*\\..*).*)"],
+  matcher: [
+    "/((?!_next/|favicon\\.ico|robots\\.txt|sitemap\\.xml|api/internal/|.*\\.(?:js|css|map|png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf)$).*)",
+  ],
 };
 
 // Paths that should NOT be rewritten under a tenant subdomain.

@@ -33,7 +33,7 @@ export async function signupAction(_prev: ActionState, formData: FormData): Prom
   if (fail) return fail;
   const h = await headers();
   const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
-  const rl = consume(clientKey(`signup:${ip}`), 5, 60_000);
+  const rl = consume(clientKey(`signup:${ip}`), 30, 60_000);
   if (!rl.ok) return { error: "Too many attempts. Try again in a minute." };
 
   const parsed = SignupSchema.safeParse(Object.fromEntries(formData));
@@ -69,7 +69,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   if (fail) return fail;
   const h = await headers();
   const ip = h.get("x-forwarded-for")?.split(",")[0]?.trim() || "anon";
-  const rl = consume(clientKey(`login:${ip}`), 5, 60_000);
+  const rl = consume(clientKey(`login:${ip}`), 30, 60_000);
   if (!rl.ok) return { error: "Too many attempts. Try again in a minute." };
 
   const parsed = LoginSchema.safeParse(Object.fromEntries(formData));

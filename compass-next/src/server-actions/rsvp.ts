@@ -1,0 +1,76 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/auth/lucia";
+import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
+
+const RsvpSchema = z.object({
+  orgSlug: z.string().min(1),
+  eventId: z.string().min(1),
+  response: z.enum(["yes", "no", "maybe"]).default("yes"),
+  guests: z.string().optional(),
+  notes: z.string().max(1000).optional().or(z.literal("")),
+  name: z.string().trim().min(1).max(100).optional(),
+  email: z.string().trim().email().max(320).optional().or(z.literal("")),
+});
+
+export async function submitRsvp(_prev: unknown, formData: FormData) {
+  if (!(await verifyOrigin())) return { error: "Bad origin." };
+  if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) return { error: "Bad CSRF." };
+  const parsed = RsvpSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const d = parsed.data;
+
+  const org = await prisma.org.findUnique({ where: { slug: d.orgSlug } });
+  if (!org) return { error: "Site not found." };
+
+  const event = await prisma.event.findUnique({ where: { id: d.eventId } });
+  if (!event || event.orgId !== org.id) return { error: "Event not found." };
+
+  const { user } = await getSession();
+  const guests = parseInt(d.guests ?? "0", 10) || 0;
+
+  if (user) {
+    const existing = await prisma.rsvp.findFirst({
+      where: { eventId: d.eventId, userId: user.id },
+      select: { id: true },
+    });
+    if (existing) {
+      await prisma.rsvp.update({
+        where: { id: existing.id },
+        data: { response: d.response, guests, notes: d.notes || null },
+      });
+    } else {
+      await prisma.rsvp.create({
+        data: {
+          orgId: org.id,
+          eventId: d.eventId,
+          userId: user.id,
+          name: user.displayName,
+          email: user.email,
+          response: d.response,
+          guests,
+          notes: d.notes || null,
+        },
+      });
+    }
+  } else {
+    if (!d.name || !d.email) return { error: "Name and email are required when not signed in." };
+    await prisma.rsvp.create({
+      data: {
+        orgId: org.id,
+        eventId: d.eventId,
+        name: d.name,
+        email: d.email,
+        response: d.response,
+        guests,
+        notes: d.notes || null,
+      },
+    });
+  }
+
+  revalidatePath(`/o/${org.slug}/calendar`);
+  return { ok: true as const };
+}
