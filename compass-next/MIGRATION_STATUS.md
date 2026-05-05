@@ -53,11 +53,11 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `audit.js` | `src/lib/audit.ts` | ✅ |
 | `mail.js` | `src/lib/mail/index.ts` (+ `audience.ts`) — console + Resend drivers | ✅ |
 | `resendWebhook.js` | `src/lib/mail/resend-webhook.ts` (lib) + `src/app/api/webhooks/resend/route.ts` (route) | ✅ |
-| `sms.js` | `src/lib/sms/index.ts` | ⬜ |
+| `sms.js` | `src/lib/sms/index.ts` (console + twilio drivers) | ✅ |
 | `push.js` | `src/lib/push/index.ts` | ⬜ |
 | `storage.js` | `src/lib/storage/local.ts` (memory + local-disk only) | 🚧 (S3/GCS adapter pending) |
-| `realtime.js` | `src/lib/realtime/bus.ts` (memory + LISTEN/NOTIFY) | ⬜ |
-| `jobs.js` | `src/lib/jobs/{index,registry,handlers}.ts` (pg-boss + in-process fallback) | ✅ (email handlers; sms.broadcast pending lib/sms port) |
+| `realtime.js` | `src/lib/realtime/bus.ts` (in-process EventEmitter; LISTEN/NOTIFY layer pending) | 🚧 |
+| `jobs.js` | `src/lib/jobs/{index,registry,handlers}.ts` (pg-boss + in-process fallback) | ✅ (email + sms broadcast handlers) |
 | `log.js` | `src/lib/log.ts` | ✅ |
 | `otel.js` / `otelBootstrap.js` | `instrumentation.ts` | ⬜ |
 | `errorTracker.js` | `src/lib/ops/error-tracker.ts` | ⬜ |

@@ -4,6 +4,7 @@
 
 import { prisma } from "@/lib/db";
 import { sendMail, type MailMessage } from "@/lib/mail";
+import { sendSms, type SmsMessage } from "@/lib/sms";
 import { registerHandler } from "./registry";
 
 type EmailSendData = MailMessage;
@@ -56,6 +57,49 @@ registerHandler("email.broadcast.send-one", async (data, ctx) => {
     });
     await maybeFinaliseMailLogStatus(mailLogId);
     ctx.logger.info("broadcast email sent", { mailLogId, to: message.to });
+    return;
+  }
+
+  await prisma.mailLog.update({
+    where: { id: mailLogId },
+    data: {
+      failedCount: { increment: 1 },
+      errors: result.error
+        ? `last error (${message.to}): ${result.error}`.slice(0, 4000)
+        : "(unknown)",
+    },
+  });
+  await maybeFinaliseMailLogStatus(mailLogId);
+});
+
+type SmsBroadcastJobData = { mailLogId: string; message: SmsMessage };
+
+/**
+ * `sms.broadcast.send-one` — per-recipient SMS broadcast delivery,
+ * mirror of email.broadcast.send-one. Updates the same MailLog row's
+ * counters so a mixed-channel broadcast (email + SMS to the same
+ * audience) finalises correctly when *both* channels are done.
+ */
+registerHandler("sms.broadcast.send-one", async (data, ctx) => {
+  const { mailLogId, message } = (data ?? {}) as Partial<SmsBroadcastJobData>;
+  if (!mailLogId || !message) {
+    throw new Error("sms.broadcast.send-one: missing mailLogId or message");
+  }
+
+  let result;
+  try {
+    result = await sendSms(message);
+  } catch (err) {
+    result = { ok: false as const, error: err instanceof Error ? err.message : String(err) };
+  }
+
+  if (result.ok) {
+    await prisma.mailLog.update({
+      where: { id: mailLogId },
+      data: { deliveredCount: { increment: 1 } },
+    });
+    await maybeFinaliseMailLogStatus(mailLogId);
+    ctx.logger.info("broadcast SMS sent", { mailLogId, to: message.to });
     return;
   }
 
