@@ -34,7 +34,13 @@ test.describe("chat message delivery", () => {
     // contain youth (so the two-deep gate doesn't block posting).
     const leadersLink = page.getByRole("link", { name: /leaders only/i }).first();
     if (await leadersLink.count()) {
-      await leadersLink.click();
+      // Click + wait for URL to actually update — without this we
+      // race the client navigation and capture the previous channel
+      // id below.
+      await Promise.all([
+        page.waitForURL(/[?&]channel=/, { timeout: 5_000 }).catch(() => {}),
+        leadersLink.click(),
+      ]);
     }
 
     const body = `Delivery probe ${Date.now()}`;
@@ -51,6 +57,9 @@ test.describe("chat message delivery", () => {
 
     await composer.fill(body);
     await page.getByRole("button", { name: /^send$/i }).click();
+    // The server action runs revalidatePath; give the client a beat
+    // to settle before we hard-reload below.
+    await page.waitForLoadState("networkidle").catch(() => {});
 
     // Server action awaits the create + revalidatePath, then the
     // composer's router.refresh() re-runs the server component.
