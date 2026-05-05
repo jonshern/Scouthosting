@@ -38,6 +38,7 @@ export default async function AdminLayout({
             <Link href={`/o/${slug}/admin/pages`}>Pages</Link>
             <Link href={`/o/${slug}/admin/events`}>Events</Link>
             <Link href={`/o/${slug}/admin/photos`}>Photos</Link>
+            <Link href={`/o/${slug}/admin/posts`}>Posts</Link>
             <Link href={`/o/${slug}/admin/email`}>Group email</Link>
             <Link href={`/o/${slug}/admin/members`}>Members</Link>
           </nav>

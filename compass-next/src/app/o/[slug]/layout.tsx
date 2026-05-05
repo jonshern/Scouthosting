@@ -40,6 +40,7 @@ export default async function OrgLayout({
           <nav aria-label="Site" className="flex flex-wrap items-center gap-6 text-sm">
             <Link href="/calendar">Calendar</Link>
             <Link href="/photos">Photos</Link>
+            <Link href="/posts">Posts</Link>
             {org.customPages.map((p) => (
               <Link key={p.slug} href={`/p/${p.slug}`}>{p.title}</Link>
             ))}
