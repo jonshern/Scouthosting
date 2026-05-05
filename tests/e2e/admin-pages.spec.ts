@@ -1,22 +1,13 @@
 // Smoke-coverage: every newly-ported admin page renders without
-// throwing for a leader user. Doesn't exhaustively test interactions
-// — that's per-feature spec. This is the "did the page route at all"
-// safety net.
+// throwing for a leader user. One sign-in per describe (single test
+// case sweeps every page) so we don't blow past the per-IP login
+// rate limit (30/min).
 
 import { expect, test, type Page } from "@playwright/test";
 
 const EMAIL = "scoutmaster@example.invalid";
 const PASSWORD = "AdminPasswordTest123!";
 const TENANT = "http://troop100.localhost:3000";
-
-async function signInTenant(page: Page) {
-  await page.goto(`${TENANT}/login`);
-  await page.getByLabel("Email").fill(EMAIL);
-  await page.getByLabel("Password").fill(PASSWORD);
-  await page.waitForTimeout(1700);
-  await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(`${TENANT}/`);
-}
 
 const ADMIN_PAGES: Array<[string, RegExp]> = [
   ["/admin", /troop|pack|crew|ship|post|admin|overview/i],
@@ -41,19 +32,33 @@ const ADMIN_PAGES: Array<[string, RegExp]> = [
   ["/admin/coh", /court/i],
   ["/admin/oa", /order of the arrow/i],
   ["/admin/merit-badge-counselors", /merit badge counselors/i],
+  ["/admin/car-rides", /car rides/i],
+  ["/admin/refunds", /refunds/i],
+  ["/admin/domain", /custom domain/i],
+  ["/admin/forms/new", /new form/i],
 ];
 
 test.describe("admin smoke coverage", () => {
-  for (const [path, headingRe] of ADMIN_PAGES) {
-    test(`renders ${path}`, async ({ page }) => {
-      await signInTenant(page);
+  test("every admin page renders for a signed-in leader", async ({ page }: { page: Page }) => {
+    test.setTimeout(180_000);
+
+    await page.goto(`${TENANT}/login`);
+    await page.getByLabel("Email").fill(EMAIL);
+    await page.getByLabel("Password").fill(PASSWORD);
+    await page.waitForTimeout(1700);
+    await page.getByRole("button", { name: /sign in/i }).click();
+    await page.waitForURL(`${TENANT}/`);
+
+    for (const [path, headingRe] of ADMIN_PAGES) {
       await page.goto(`${TENANT}${path}`);
-      // Either the heading shows up, or "Not authorized" — but a 500
-      // / runtime exception means the test fails.
       await expect(
         page.locator("body"),
+        `body for ${path} contains "Application error"`,
       ).not.toContainText("Application error");
-      await expect(page.getByRole("heading", { name: headingRe }).first()).toBeVisible();
-    });
-  }
+      await expect(
+        page.getByRole("heading", { name: headingRe }).first(),
+        `heading match for ${path}`,
+      ).toBeVisible();
+    }
+  });
 });

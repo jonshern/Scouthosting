@@ -43,14 +43,24 @@ test.describe("chat message delivery", () => {
       test.skip(true, "No postable channel for the scoutmaster in test env.");
       return;
     }
+    // Capture the channel id BEFORE submitting so the reload pins
+    // to the same channel even if earlier tests changed the
+    // auto-pick.
+    const url = new URL(page.url());
+    const channelId = url.searchParams.get("channel");
+
     await composer.fill(body);
     await page.getByRole("button", { name: /^send$/i }).click();
 
-    // The composer fires router.refresh() on success. Hard reload +
-    // look for the message body in the rendered list — keeps the
-    // assertion deterministic regardless of refresh timing.
-    await page.waitForTimeout(500);
-    await page.reload();
+    // Server action awaits the create + revalidatePath, then the
+    // composer's router.refresh() re-runs the server component.
+    // Belt-and-suspenders: hard reload pinned to the same channel
+    // and look for the message body.
+    await page.waitForTimeout(700);
+    const reloadUrl = channelId
+      ? `${TENANT}/chat?channel=${channelId}`
+      : `${TENANT}/chat`;
+    await page.goto(reloadUrl);
     await expect(page.getByText(body)).toBeVisible({ timeout: 10_000 });
   });
 });

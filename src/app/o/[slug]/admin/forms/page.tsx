@@ -4,6 +4,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
+import { deleteForm } from "@/server-actions/forms";
 
 export default async function FormsPage({
   params,
@@ -42,21 +44,34 @@ export default async function FormsPage({
       ) : (
         <ul className="space-y-2">
           {forms.map((f) => (
-            <li key={f.id} className="card">
-              <div className="font-medium">{f.title}</div>
-              <div className="text-xs text-ink-muted">
-                {f.url ? (
-                  <a href={f.url} target="_blank" rel="noreferrer" className="underline">
-                    External link
-                  </a>
-                ) : f.filename ? (
-                  <a href={`/uploads/${f.filename}`} className="underline">
-                    {f.originalName ?? "Download"}
-                  </a>
-                ) : (
-                  "(no file)"
-                )}
+            <li key={f.id} className="card flex items-baseline justify-between">
+              <div>
+                <div className="font-medium">{f.title}</div>
+                <div className="text-xs text-ink-muted">
+                  {f.url ? (
+                    <a href={f.url} target="_blank" rel="noreferrer" className="underline">
+                      External link
+                    </a>
+                  ) : f.filename ? (
+                    <a href={`/uploads/${f.filename}`} className="underline">
+                      {f.originalName ?? "Download"}
+                    </a>
+                  ) : (
+                    "(no file)"
+                  )}
+                  {f.category ? ` · ${f.category}` : ""}
+                  {" · "}
+                  {f.visibility}
+                </div>
               </div>
+              <form action={deleteForm}>
+                <CsrfTokenInput />
+                <input type="hidden" name="orgSlug" value={slug} />
+                <input type="hidden" name="id" value={f.id} />
+                <button type="submit" className="btn-secondary text-xs">
+                  Delete
+                </button>
+              </form>
             </li>
           ))}
         </ul>
