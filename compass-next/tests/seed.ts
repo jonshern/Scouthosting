@@ -54,8 +54,41 @@ async function main() {
     create: { userId: user.id, orgId: org.id, role: "admin" },
   });
 
+  // A handful of Members so the group-email audience builder has rows.
+  // Mix of email-eligible adults, youth, an opt-out, and a bounce.
+  const memberSeeds = [
+    { firstName: "Avery", lastName: "Adult", email: "avery@example.invalid", isYouth: false, position: "Scoutmaster", patrol: null },
+    { firstName: "Briar", lastName: "Adult", email: "briar@example.invalid", isYouth: false, position: null, patrol: null },
+    { firstName: "Casey", lastName: "Youth", email: "casey@example.invalid", isYouth: true, position: null, patrol: "Eagles" },
+    { firstName: "Dale",  lastName: "Youth", email: "dale@example.invalid",  isYouth: true, position: null, patrol: "Eagles" },
+    { firstName: "Eden",  lastName: "Optout", email: "eden@example.invalid", isYouth: false, position: null, patrol: null,
+      emailUnsubscribed: true, unsubscribedAt: new Date() },
+  ];
+  for (const m of memberSeeds) {
+    const existing = await prisma.member.findFirst({
+      where: { orgId: org.id, email: m.email },
+      select: { id: true },
+    });
+    const data = {
+      orgId: org.id,
+      firstName: m.firstName,
+      lastName: m.lastName,
+      email: m.email,
+      isYouth: m.isYouth,
+      position: m.position,
+      patrol: m.patrol,
+      emailUnsubscribed: m.emailUnsubscribed ?? false,
+      unsubscribedAt: m.unsubscribedAt ?? null,
+    };
+    if (existing) {
+      await prisma.member.update({ where: { id: existing.id }, data });
+    } else {
+      await prisma.member.create({ data });
+    }
+  }
+
   // eslint-disable-next-line no-console
-  console.log("Seeded:", { user: user.email, org: org.slug });
+  console.log("Seeded:", { user: user.email, org: org.slug, members: memberSeeds.length });
 }
 
 main()

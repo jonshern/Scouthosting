@@ -37,8 +37,12 @@ test.describe("photos", () => {
     await page.getByLabel("Album title").fill("E2E album");
     await page.getByLabel("URL slug").fill(albumSlug);
     await page.getByRole("button", { name: /create album/i }).click();
-    await page.waitForURL("**/admin/photos");
-    await expect(page.getByText("E2E album").first()).toBeVisible();
+    // Wait for the redirect to land us back on the album list with the
+    // new album visible (the form action redirects, but waiting on the
+    // URL alone is racy — we land here whether or not the action
+    // succeeded).
+    await page.waitForURL((url) => url.pathname.endsWith("/admin/photos"));
+    await expect(page.locator(`a[href$="/photos/${albumSlug}"]`).first()).toBeVisible();
 
     // Open the album admin page
     await page.goto(`http://troop100.localhost:3000/admin/photos/${albumSlug}`);
