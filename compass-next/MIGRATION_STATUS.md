@@ -80,7 +80,7 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `dashboard.js` | server-rendered admin overview | 🚧 (basic) |
 | `homepageSections.js` | RSC sections under `/o/<slug>/` | ⬜ |
 | `marketingWidget.js` / `supportWidget.js` | RSC components | ⬜ |
-| `permissions.js` / `orgRoles.js` | `src/lib/auth/permissions.ts` | ⬜ |
+| `permissions.js` / `orgRoles.js` | `src/lib/auth/permissions.ts` + `src/lib/auth/org-roles.ts` | ✅ |
 | `rosterImport.js` | Server Action + xlsx parser | ⬜ |
 | `scoutbook.js` | `src/lib/scoutbook/links.ts` | ✅ |
 | `positionTerms.js` | `src/lib/program/positions.ts` | ✅ |
