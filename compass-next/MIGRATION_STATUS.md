@@ -70,7 +70,7 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `featureFlags.js` | `src/lib/features/index.ts` | ✅ |
 | `plans.js` / `plans.constants.js` / `billingState.js` | `src/lib/billing/*.ts` | ⬜ |
 | `stripe.js` | `src/lib/billing/stripe.ts` | ⬜ |
-| `chat.js` / `chatPermissions.js` | `src/lib/chat/*.ts` | ⬜ |
+| `chat.js` / `chatPermissions.js` | `src/lib/chat/{index,permissions,auto-add}.ts` (YPT 2-deep, suspend/unsuspend, reconcile, DM, post-policy) | ✅ (lib; route handlers + write-path wiring still on Express) |
 | `channelAutoAdd.js` | `src/lib/chat/auto-add.ts` | ✅ |
 | `dmReminderCron.js` / `dmDigestCron.js` | pg-boss handlers | ⬜ |
 | `newsletter.js` / `newsletterCron.js` | `src/lib/newsletter/*.ts` + cron | ⬜ |
