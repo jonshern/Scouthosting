@@ -28,6 +28,13 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=deps /app/prisma ./prisma
 COPY . .
 
+# Next.js "Collecting page data" instantiates modules that import the
+# Prisma client. PrismaClient constructor demands DATABASE_URL even
+# when no query runs. Fly's build env doesn't carry runtime secrets,
+# so feed a syntactically-valid placeholder. The real DATABASE_URL is
+# injected at runtime via Fly secrets.
+ENV DATABASE_URL="postgresql://build:build@localhost:5432/build?schema=public"
+
 RUN npm run build
 
 # ---------------------------------------------------------------------

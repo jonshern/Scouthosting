@@ -17,6 +17,8 @@ primary_region = 'ord'
   NODE_ENV = 'production'
   NEXT_TELEMETRY_DISABLED = '1'
   PUSH_DRIVER = 'console'
+  # tenancy/resolve.ts reads APEX_HOST. Mirrors APEX_DOMAIN secret.
+  APEX_HOST = 'scoutingcompass.com'
   # Persist uploads across deploys/restarts. The mount below provides a
   # real disk at /data; lib/storage writes to LOCAL_UPLOADS_DIR.
   LOCAL_UPLOADS_DIR = '/data/uploads'
@@ -35,14 +37,14 @@ primary_region = 'ord'
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 0
-
-  [[http_service.checks]]
-    interval = '30s'
-    timeout = '5s'
-    grace_period = '10s'
-    method = 'GET'
-    path = '/health'
+  # Keep one machine running so the Fly proxy never has to wake a
+  # cold instance — eliminates the autostop ↔ healthcheck loop where
+  # the proxy gives up before migrations + Next boot finish.
+  min_machines_running = 1
+  # No explicit [[http_service.checks]] block — Fly will fall back to
+  # a basic TCP probe on internal_port, which reliably re-runs after
+  # machine restarts. The Dockerfile HEALTHCHECK still hits /health
+  # inside the container for liveness.
 
 [[vm]]
   size = 'shared-cpu-1x'
