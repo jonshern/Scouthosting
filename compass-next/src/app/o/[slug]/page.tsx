@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { renderMarkdownLite } from "@/lib/markdown";
 
 export default async function OrgHome({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -7,15 +8,25 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
     where: { slug },
     include: {
       announcements: { orderBy: { createdAt: "desc" }, take: 3 },
+      page: true,
     },
   });
   if (!org) notFound();
+  const heroHeadline = org.page?.heroHeadline ?? `${org.unitType} ${org.unitNumber}`;
+  const heroLede =
+    org.page?.heroLede ??
+    org.tagline ??
+    `${org.charterOrg} • ${org.city}, ${org.state}`;
   return (
     <section className="mx-auto max-w-content px-6 py-16">
-      <h1 className="font-display text-4xl md:text-5xl font-semibold">
-        {org.unitType} {org.unitNumber}
-      </h1>
-      <p className="mt-2 text-ink-muted">{org.tagline ?? `${org.charterOrg} • ${org.city}, ${org.state}`}</p>
+      <h1 className="font-display text-4xl md:text-5xl font-semibold">{heroHeadline}</h1>
+      {heroLede && (
+        <div
+          className="mt-2 text-ink-muted prose prose-stone"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: renderMarkdownLite(heroLede) }}
+        />
+      )}
 
       <div className="mt-12 grid gap-8 md:grid-cols-2">
         <div>

@@ -34,7 +34,10 @@ export default async function AdminLayout({
           <nav className="flex flex-col gap-2 text-sm">
             <Link href={`/o/${slug}/admin`}>Overview</Link>
             <Link href={`/o/${slug}/admin/announcements`}>Announcements</Link>
-            <Link href={`/o/${slug}/admin/page`}>Page editor</Link>
+            <Link href={`/o/${slug}/admin/site`}>Site hero</Link>
+            <Link href={`/o/${slug}/admin/pages`}>Pages</Link>
+            <Link href={`/o/${slug}/admin/events`}>Events</Link>
+            <Link href={`/o/${slug}/admin/photos`}>Photos</Link>
             <Link href={`/o/${slug}/admin/members`}>Members</Link>
           </nav>
         </aside>

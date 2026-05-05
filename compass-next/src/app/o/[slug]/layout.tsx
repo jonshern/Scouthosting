@@ -10,7 +10,16 @@ export default async function OrgLayout({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const org = await prisma.org.findUnique({ where: { slug } });
+  const org = await prisma.org.findUnique({
+    where: { slug },
+    include: {
+      customPages: {
+        where: { showInNav: true, visibility: "public" },
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { slug: true, title: true },
+      },
+    },
+  });
   if (!org) notFound();
   if (org.suspendedAt) {
     return (
@@ -28,10 +37,12 @@ export default async function OrgLayout({
       <header className="border-b border-ink-muted/15 bg-white">
         <div className="mx-auto flex max-w-content items-center justify-between px-6 py-4">
           <Link href="/" className="font-display text-xl font-semibold">{org.displayName}</Link>
-          <nav aria-label="Site" className="flex items-center gap-6 text-sm">
+          <nav aria-label="Site" className="flex flex-wrap items-center gap-6 text-sm">
             <Link href="/calendar">Calendar</Link>
             <Link href="/photos">Photos</Link>
-            <Link href="/announcements">Announcements</Link>
+            {org.customPages.map((p) => (
+              <Link key={p.slug} href={`/p/${p.slug}`}>{p.title}</Link>
+            ))}
             <Link href="/admin">Admin</Link>
           </nav>
         </div>
