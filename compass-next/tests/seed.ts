@@ -79,6 +79,9 @@ async function main() {
       patrol: m.patrol,
       emailUnsubscribed: m.emailUnsubscribed ?? false,
       unsubscribedAt: m.unsubscribedAt ?? null,
+      // Reset lifecycle on re-seed so test-run mutations don't leak.
+      deletedAt: null,
+      status: "active",
     };
     if (existing) {
       await prisma.member.update({ where: { id: existing.id }, data });
