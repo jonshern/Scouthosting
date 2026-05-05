@@ -51,8 +51,8 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `rsvpToken.js` | `src/lib/security/rsvp-token.ts` | ✅ |
 | `trackingToken.js` | `src/lib/tracking/click-token.ts` | ⬜ |
 | `audit.js` | `src/lib/audit.ts` | ✅ |
-| `mail.js` | `src/lib/mail/index.ts` (+ `audience.ts`) | ✅ (console driver only; Resend driver pending) |
-| `resendWebhook.js` | `src/app/api/webhooks/resend/route.ts` | ⬜ |
+| `mail.js` | `src/lib/mail/index.ts` (+ `audience.ts`) — console + Resend drivers | ✅ |
+| `resendWebhook.js` | `src/lib/mail/resend-webhook.ts` (lib) + `src/app/api/webhooks/resend/route.ts` (route) | ✅ |
 | `sms.js` | `src/lib/sms/index.ts` | ⬜ |
 | `push.js` | `src/lib/push/index.ts` | ⬜ |
 | `storage.js` | `src/lib/storage/local.ts` (memory + local-disk only) | 🚧 (S3/GCS adapter pending) |
