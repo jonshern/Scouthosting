@@ -112,25 +112,25 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 - `photos.ts` ✅
 - `posts.ts` ✅
 - `email.ts` ✅
+- `slots.ts` (takeSlot + releaseSlotAssignment with capacity + waitlist) ✅
 
-⬜ Not yet ported: signup-slot signup/cancel, post reactions/comments
-mutation actions, push device registration, chat channel CRUD, billing
-checkout/portal, super-admin actions, mobile API token actions, roster
-import.
+⬜ Not yet ported: post reactions/comments mutation actions, push
+device registration, chat channel CRUD, billing checkout/portal,
+super-admin actions, mobile API token actions, roster import.
 
 ## Open follow-ups (immediate)
 
-1. **Signup slots.** Calendar page renders slot capacity but
-   `SlotSignupForm` is a placeholder — needs server action with
-   capacity + waitlist semantics + tests.
-2. **Token utilities.** `signedToken`, `inviteToken`, `unsubToken`,
-   `rsvpToken`, `apiToken`, `trackingToken` — all pure utility ports
-   with downstream consumers (newsletter, RSVP, member invites).
-3. **Resend webhook + Resend mail driver.** `mail/index.ts` only has
+1. **Resend webhook + Resend mail driver.** `mail/index.ts` only has
    the console driver today; need Resend transport + the webhook to
    capture bounces/opens/clicks.
-4. **Background jobs (pg-boss).** Required before newsletter,
+2. **Background jobs (pg-boss).** Required before newsletter,
    DM reminder cron, DM digest cron can land.
+3. **Token utilities still pending.** `apiToken` (touches DB), and
+   `trackingToken` (analytics) — grouped with the mobile-API and
+   analytics ports respectively.
+4. **Roster import** (xlsx parser server action).
+5. **Permissions module + orgRoles.** Needs careful enum→string
+   refactor.
 
 ## High-blast-radius items (require explicit review before merging)
 
