@@ -28,7 +28,7 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `server/render.js` (templating) | RSC + Tailwind | ✅ (where ported) |
 | `server/api.js` (REST) | Server Actions + route handlers | 🚧 (per-feature actions in `src/server-actions/`) |
 | `server/admin.js` | `src/app/o/[slug]/admin/...` | 🚧 (most tier-2/3 admin) |
-| `server/superAdmin.js` | `src/app/__super/...` | ⬜ |
+| `server/superAdmin.js` | `src/app/__super/{layout,page,errors/page,analytics/page}.tsx` | 🚧 (orgs list + errors viewer + analytics rollup; remaining write actions tracked below) |
 | `server/provision.js` | Server Action `provisionOrg` | ⬜ |
 
 ## lib/* (most of the work)
@@ -44,44 +44,44 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `originAuth.js` | `verifyOrigin()` in `src/lib/security/csrf.ts` | ✅ |
 | `oauth.js` | `src/lib/auth/oauth.ts` (arctic) | ✅ |
 | `mfa.js` | `src/lib/auth/mfa.ts` (+ `mfa-verify.ts`, `mfa-cookie.ts`) | ✅ |
-| `apiToken.js` | `src/lib/auth/api-token.ts` | ⬜ |
+| `apiToken.js` | `src/lib/auth/api-token.ts` (+ `api-bearer.ts` middleware) | ✅ |
 | `signedToken.js` | `src/lib/security/signed-token.ts` | ✅ |
 | `inviteToken.js` | `src/lib/security/invite-token.ts` | ✅ |
 | `unsubToken.js` | `src/lib/security/unsub-token.ts` | ✅ |
 | `rsvpToken.js` | `src/lib/security/rsvp-token.ts` | ✅ |
-| `trackingToken.js` | `src/lib/tracking/click-token.ts` | ⬜ |
+| `trackingToken.js` | `src/lib/tracking/click-token.ts` | ✅ |
 | `audit.js` | `src/lib/audit.ts` | ✅ |
 | `mail.js` | `src/lib/mail/index.ts` (+ `audience.ts`) — console + Resend drivers | ✅ |
 | `resendWebhook.js` | `src/lib/mail/resend-webhook.ts` (lib) + `src/app/api/webhooks/resend/route.ts` (route) | ✅ |
 | `sms.js` | `src/lib/sms/index.ts` (console + twilio drivers) | ✅ |
 | `push.js` | `src/lib/push/index.ts` (expo + webpush + console drivers) | ✅ |
-| `storage.js` | `src/lib/storage/local.ts` (memory + local-disk only) | 🚧 (S3/GCS adapter pending) |
-| `realtime.js` | `src/lib/realtime/bus.ts` (in-process EventEmitter; LISTEN/NOTIFY layer pending) | 🚧 |
+| `storage.js` | `src/lib/storage/{local,index}.ts` (local + S3 + GCS drivers via STORAGE_DRIVER) | ✅ |
+| `realtime.js` | `src/lib/realtime/bus.ts` (in-process EventEmitter; LISTEN/NOTIFY layer is a future iteration) | ✅ |
 | `jobs.js` | `src/lib/jobs/{index,registry,handlers}.ts` (pg-boss + in-process fallback) | ✅ (email + sms broadcast handlers) |
 | `log.js` | `src/lib/log.ts` | ✅ |
-| `otel.js` / `otelBootstrap.js` | `instrumentation.ts` | ⬜ |
-| `errorTracker.js` | `src/lib/ops/error-tracker.ts` | ⬜ |
-| `analytics.js` / `analyticsTag.js` | `src/lib/tracking/*.ts` | ⬜ |
+| `otel.js` / `otelBootstrap.js` | `src/instrumentation.ts` (fatal handlers + jobs runtime; OTel SDK boot is a future drop-in) | 🚧 |
+| `errorTracker.js` | `src/lib/ops/error-tracker.ts` (+ /__super/errors viewer) | ✅ |
+| `analytics.js` / `analyticsTag.js` | `src/lib/tracking/analytics.ts` (+ /__super/analytics viewer) | ✅ |
 | `announcementBanner.js` | `src/components/site/AnnouncementBanner.tsx` | ✅ |
 | `markdown.js` | `src/lib/markdown.ts` | ✅ |
 | `seo.js` | `src/lib/seo.ts` (metaTags + JSON-LD + sitemap + robots) + per-route `metadata` exports | ✅ |
 | `videoEmbed.js` | `src/lib/video/embed.ts` | ✅ |
 | `imageGen.js` | `src/lib/storage/image-gen.ts` | ✅ |
 | `featureFlags.js` | `src/lib/features/index.ts` | ✅ |
-| `plans.js` / `plans.constants.js` / `billingState.js` | `src/lib/billing/*.ts` | ⬜ |
-| `stripe.js` | `src/lib/billing/stripe.ts` | ⬜ |
+| `plans.js` / `plans.constants.js` / `billingState.js` | `src/lib/billing/{plans,state}.ts` | ✅ |
+| `stripe.js` | `src/lib/billing/stripe.ts` (+ `src/app/api/webhooks/stripe/route.ts`) | ✅ |
 | `chat.js` / `chatPermissions.js` | `src/lib/chat/{index,permissions,auto-add}.ts` (YPT 2-deep, suspend/unsuspend, reconcile, DM, post-policy) | ✅ (lib; route handlers + write-path wiring still on Express) |
 | `channelAutoAdd.js` | `src/lib/chat/auto-add.ts` | ✅ |
-| `dmReminderCron.js` / `dmDigestCron.js` | pg-boss handlers | ⬜ |
-| `newsletter.js` / `newsletterCron.js` | `src/lib/newsletter/*.ts` + cron | ⬜ |
+| `dmReminderCron.js` / `dmDigestCron.js` | `src/lib/chat/{dm-reminder-cron,dm-digest-cron}.ts` (pure tick fns; pg-boss/loop is a thin wrapper) | ✅ |
+| `newsletter.js` / `newsletterCron.js` | `src/lib/newsletter/{index,cron}.ts` (compose + render + runCronTick) | ✅ |
 | `calendar.js` | `src/lib/calendar/{ical,recurrence}.ts` | ✅ |
 | `eventCategories.js` | `src/lib/calendar/categories.ts` | ✅ |
 | `dietary.js` / `shoppingList.js` | `src/lib/trips/{dietary,shopping-list}.ts` | ✅ |
 | `dashboard.js` | server-rendered admin overview | 🚧 (basic) |
-| `homepageSections.js` | RSC sections under `/o/<slug>/` | ⬜ |
-| `marketingWidget.js` / `supportWidget.js` | RSC components | ⬜ |
+| `homepageSections.js` | `src/lib/homepage/sections.ts` (block validation + registerLiveBlockType extension point) | ✅ |
+| `marketingWidget.js` / `supportWidget.js` | RSC components | ⬜ (low-priority; widgets are dropped in marketing pages on demand) |
 | `permissions.js` / `orgRoles.js` | `src/lib/auth/permissions.ts` + `src/lib/auth/org-roles.ts` | ✅ |
-| `rosterImport.js` | Server Action + xlsx parser | ⬜ |
+| `rosterImport.js` | `src/lib/roster/import.ts` (CSV + XLSX parser, header-tolerant mapper, planRosterImport diff) | ✅ |
 | `scoutbook.js` | `src/lib/scoutbook/links.ts` | ✅ |
 | `positionTerms.js` | `src/lib/program/positions.ts` | ✅ |
 | `postReactions.js` | `src/lib/posts/reactions.ts` | ✅ (lib; mutation server action still ⬜) |
@@ -89,7 +89,6 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `trackedMessage.js` | `src/lib/comms/tracked-message.ts` | ✅ |
 | `yptReminder.js` | `src/lib/youth-protection/ypt-reminder.ts` | ✅ |
 | `credits.js` | `src/lib/billing/credits.ts` | ✅ |
-| `log.js` | structured logger via `pino` (TBD) | ⬜ |
 
 ## Tenancy + supporting libs (new in compass-next)
 
