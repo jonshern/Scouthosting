@@ -30,7 +30,12 @@ export default async function EditEventPage({
         <p className="mt-1 text-sm text-ink-muted">
           {total} RSVPs · {yeses} yes
         </p>
-        <Link href={`/o/${slug}/admin/events`} className="text-sm">← All events</Link>
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
+          <Link href={`/o/${slug}/admin/events`}>← All events</Link>
+          <Link href={`/o/${slug}/admin/events/${event.id}/slots`}>
+            Manage signup slots →
+          </Link>
+        </div>
       </div>
       <EventForm
         orgSlug={slug}

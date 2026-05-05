@@ -13,6 +13,11 @@ export default function SignupPage() {
       </p>
       <div className="mt-8 card">
         <SignupForm csrf={<CsrfTokenInput />} />
+        <div className="mt-4">
+          <a href="/api/auth/google/begin" className="btn-secondary w-full block text-center">
+            Continue with Google
+          </a>
+        </div>
       </div>
     </section>
   );

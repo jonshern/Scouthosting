@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/db";
 
-export type AuditAction = "create" | "update" | "delete" | "publish" | "revert";
+export type AuditAction =
+  | "create"
+  | "update"
+  | "delete"
+  | "publish"
+  | "revert"
+  | (string & {});
 
 /**
  * Fire-and-forget audit logger. Failures don't fail the action that
@@ -10,15 +16,14 @@ export type AuditAction = "create" | "update" | "delete" | "publish" | "revert";
  * fact don't change the historical record.
  */
 export function audit(input: {
-  orgId: string | null;
-  userId: string | null;
+  orgId?: string | null;
+  userId?: string | null;
   userDisplay?: string | null;
   entityType: string;
   entityId?: string | null;
   action: AuditAction;
   summary?: string | null;
 }): void {
-  // Do not await — audit logging never blocks the user-facing path.
   void prisma.auditLog
     .create({
       data: {

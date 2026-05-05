@@ -13,6 +13,11 @@ export default function LoginPage() {
       </p>
       <div className="mt-8 card">
         <LoginForm csrf={<CsrfTokenInput />} />
+        <div className="mt-4">
+          <a href="/api/auth/google/begin" className="btn-secondary w-full block text-center">
+            Continue with Google
+          </a>
+        </div>
       </div>
     </section>
   );
