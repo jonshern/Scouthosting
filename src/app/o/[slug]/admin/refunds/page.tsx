@@ -1,5 +1,6 @@
 // /o/[slug]/admin/refunds — operator-issued refunds list.
 
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
@@ -30,7 +31,12 @@ export default async function RefundsPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Refunds</h1>
+      <div className="flex items-end justify-between mb-6">
+        <h1 className="font-display text-3xl">Refunds</h1>
+        <Link href={`/o/${slug}/admin/refunds/new`} className="btn-primary">
+          Issue refund
+        </Link>
+      </div>
       {refunds.length === 0 ? (
         <p className="text-ink-muted">No refunds issued.</p>
       ) : (

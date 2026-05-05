@@ -86,6 +86,59 @@ export async function createForm(formData: FormData): Promise<void> {
   redirect(`/o/${text.data.orgSlug}/admin/forms`);
 }
 
+const UpdateSchema = z.object({
+  orgSlug: z.string().min(1),
+  id: z.string().min(1),
+  title: z.string().trim().min(1).max(200),
+  url: z.string().trim().optional().or(z.literal("")),
+  category: z.string().trim().max(80).optional().or(z.literal("")),
+  visibility: z.string().min(1),
+});
+
+export async function updateForm(formData: FormData): Promise<void> {
+  if (!(await verifyOrigin())) throw new Error("Bad origin.");
+  if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) throw new Error("Bad CSRF.");
+  const parsed = UpdateSchema.safeParse({
+    orgSlug: formData.get("orgSlug"),
+    id: formData.get("id"),
+    title: formData.get("title"),
+    url: formData.get("url"),
+    category: formData.get("category"),
+    visibility: formData.get("visibility"),
+  });
+  if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid input.");
+  if (!VALID_VISIBILITY.has(parsed.data.visibility)) throw new Error("Bad visibility.");
+  const org = await authorize(parsed.data.orgSlug);
+  const row = await prisma.form.findFirst({
+    where: { id: parsed.data.id, orgId: org.id },
+  });
+  if (!row) throw new Error("Not found.");
+
+  const file = formData.get("file");
+  const data: Record<string, unknown> = {
+    title: parsed.data.title,
+    url: parsed.data.url ? parsed.data.url.trim() : null,
+    category: parsed.data.category || null,
+    visibility: parsed.data.visibility,
+  };
+
+  if (file instanceof File && file.size > 0) {
+    if (file.size > 25 * 1024 * 1024) throw new Error("File too large (25 MB cap).");
+    const buf = Buffer.from(await file.arrayBuffer());
+    const ext = path.extname(file.name || "").toLowerCase().slice(0, 8) || ".bin";
+    const random = crypto.randomBytes(8).toString("hex");
+    const key = buildKey(org.id, "attachments", `${random}${ext}`);
+    await put(key, buf);
+    data.filename = key;
+    data.originalName = file.name || null;
+    data.mimeType = file.type || null;
+    data.sizeBytes = buf.length;
+  }
+
+  await prisma.form.update({ where: { id: parsed.data.id }, data });
+  redirect(`/o/${parsed.data.orgSlug}/admin/forms`);
+}
+
 export async function deleteForm(formData: FormData): Promise<void> {
   if (!(await verifyOrigin())) throw new Error("Bad origin.");
   if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) throw new Error("Bad CSRF.");

@@ -1,0 +1,70 @@
+// /o/[slug]/admin/surveys — list surveys with response counts.
+
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/auth/lucia";
+
+export default async function SurveysPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const { user } = await getSession();
+  if (!user) redirect(`/login?next=/o/${slug}/admin/surveys`);
+  const org = await prisma.org.findUnique({ where: { slug } });
+  if (!org) return null;
+  const m = await prisma.orgMembership.findFirst({
+    where: { orgId: org.id, userId: user.id },
+    select: { role: true },
+  });
+  if (!m || (m.role !== "leader" && m.role !== "admin")) {
+    return <p className="p-12">Not authorized.</p>;
+  }
+
+  const surveys = await prisma.survey.findMany({
+    where: { orgId: org.id },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: { _count: { select: { responses: true } } },
+  });
+
+  return (
+    <main className="mx-auto max-w-content px-6 py-12">
+      <div className="flex items-end justify-between mb-6">
+        <h1 className="font-display text-3xl">Surveys</h1>
+        <Link href={`/o/${slug}/admin/surveys/new`} className="btn-primary">
+          New survey
+        </Link>
+      </div>
+      {surveys.length === 0 ? (
+        <p className="text-ink-muted">No surveys yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {surveys.map((s) => (
+            <li key={s.id} className="card flex items-baseline justify-between">
+              <div>
+                <Link
+                  href={`/o/${slug}/admin/surveys/${s.id}`}
+                  className="font-medium"
+                >
+                  {s.title}
+                </Link>
+                <div className="text-xs text-ink-muted">
+                  /survey/{s.slug} · {s.audience}
+                  {s.closesAt
+                    ? ` · closes ${s.closesAt.toLocaleDateString()}`
+                    : ""}
+                </div>
+              </div>
+              <span className="text-xs text-ink-muted">
+                {s._count.responses} responses
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </main>
+  );
+}

@@ -36,6 +36,9 @@ const ADMIN_PAGES: Array<[string, RegExp]> = [
   ["/admin/refunds", /refunds/i],
   ["/admin/domain", /custom domain/i],
   ["/admin/forms/new", /new form/i],
+  ["/admin/refunds/new", /issue refund/i],
+  ["/admin/surveys", /surveys/i],
+  ["/admin/surveys/new", /new survey/i],
 ];
 
 test.describe("admin smoke coverage", () => {
