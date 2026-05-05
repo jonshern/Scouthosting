@@ -64,6 +64,7 @@ import {
 import { tallyCredits, formatCsvRow } from "../lib/credits.js";
 import { recordAudit } from "../lib/audit.js";
 import { enqueueJob } from "../lib/jobs.js";
+import { requireAddOn, hasAddOn } from "../lib/plans.js";
 import { renderChatShell } from "./render.js";
 import { deriveBillingStatus, billingBanner } from "../lib/billingState.js";
 import {
@@ -882,6 +883,20 @@ function billingGateMiddleware(req, res, next) {
 // level middleware in declaration order, so this stays effective for
 // every POST registered after this point.
 adminRouter.use(billingGateMiddleware);
+
+// "Enhanced messaging" add-on gate. Routes that send to multiple
+// recipients (broadcast email/SMS, newsletters, group chat) or do
+// 1:1 messaging (DMs) require the addon. The Standard subscription
+// covers everything else (CMS, roster, calendar, posts, photos,
+// forms). Gated paths land on a sales page with the price + bullets
+// rather than 404 — admins should know the feature exists.
+const messagingGate = requireAddOn("messaging");
+adminRouter.use("/email", messagingGate);
+adminRouter.use("/dm", messagingGate);
+adminRouter.use("/newsletters", messagingGate);
+adminRouter.use("/channels", messagingGate);
+adminRouter.use("/chat", messagingGate);
+adminRouter.use("/groups", messagingGate);
 
 /* ------------------------------------------------------------------ */
 /* Login / logout                                                      */
@@ -5057,7 +5072,7 @@ adminRouter.post("/members/import", requireLeader, csvUpload.single("file"), asy
 //
 // Either path bumps Member.lastContactedAt + audits the action so a
 // leader has a single touch log per Member regardless of channel.
-adminRouter.get("/members/:id/message", requireLeader, async (req, res) => {
+adminRouter.get("/members/:id/message", messagingGate, requireLeader, async (req, res) => {
   const member = await prisma.member.findFirst({
     where: { id: req.params.id, orgId: req.org.id },
     select: { id: true, firstName: true, lastName: true, email: true, status: true },
@@ -5091,7 +5106,7 @@ adminRouter.get("/members/:id/message", requireLeader, async (req, res) => {
   res.type("html").send(layout(req, { title: `Message ${member.firstName}`, body }));
 });
 
-adminRouter.post("/members/:id/message", requireLeader, async (req, res) => {
+adminRouter.post("/members/:id/message", messagingGate, requireLeader, async (req, res) => {
   const member = await prisma.member.findFirst({
     where: { id: req.params.id, orgId: req.org.id },
     select: { id: true, firstName: true, lastName: true, email: true, status: true },
@@ -6878,7 +6893,7 @@ adminRouter.post("/members/:id/clear-bounce", requireLeader, async (req, res) =>
 // look-back; older rows page in via the Older link. For our
 // communication volumes this is comfortably fast — a unit sends a
 // handful of broadcasts per week.
-adminRouter.get("/members/:id/messages", requireLeader, async (req, res) => {
+adminRouter.get("/members/:id/messages", messagingGate, requireLeader, async (req, res) => {
   const member = await prisma.member.findFirst({
     where: { id: req.params.id, orgId: req.org.id },
     select: { id: true, firstName: true, lastName: true, email: true, phone: true },

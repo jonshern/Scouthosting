@@ -23,6 +23,7 @@ import {
   mergeUpdate,
 } from "../lib/featureFlags.js";
 import { recordAudit } from "../lib/audit.js";
+import { ADD_ONS } from "../lib/plans.js";
 import * as storage from "../lib/storage.js";
 import {
   summarize,
@@ -380,6 +381,25 @@ superAdminRouter.get("/orgs/:id", requireSuperAdmin, async (req, res) => {
     </div>
 
     <div class="card">
+      <h2>Add-ons</h2>
+      <p class="muted">À-la-carte feature bundles billed separately from the base subscription. Stripe self-serve is on the way; for now this toggle is the only way to enable.</p>
+      <form method="post" action="/__super/orgs/${escape(org.id)}/addons" class="flag-grid">
+        ${Object.entries(ADD_ONS).map(([key, meta]) => {
+          const enabled = Array.isArray(org.addOns) && org.addOns.includes(key);
+          return `
+          <label class="flag-row" style="margin:0">
+            <input type="checkbox" name="${escape(key)}" value="1" ${enabled ? "checked" : ""}>
+            <span class="flag-meta">
+              <span class="flag-key">${escape(meta.label)}</span> <span class="muted">($${meta.priceUsdPerYear < 100 ? meta.priceUsdPerYear.toFixed(2) : meta.priceUsdPerYear}/yr)</span>
+              <div class="flag-desc">${escape(meta.description)}</div>
+            </span>
+          </label>`;
+        }).join("")}
+        <button class="btn btn-accent" style="align-self:flex-start;margin-top:.5rem">Save add-ons</button>
+      </form>
+    </div>
+
+    <div class="card">
       <h2>Feature flags</h2>
       <form method="post" action="/__super/orgs/${escape(org.id)}/features" class="flag-grid">
         ${Object.entries(FEATURE_FLAGS).map(([key, meta]) => `
@@ -436,6 +456,37 @@ superAdminRouter.post("/orgs/:id/unsuspend", requireSuperAdmin, async (req, res)
     entityId: org.id,
     action: "super:unsuspend",
     summary: "Unsuspended",
+  });
+  res.redirect(`/__super/orgs/${org.id}`);
+});
+
+superAdminRouter.post("/orgs/:id/addons", requireSuperAdmin, async (req, res) => {
+  const org = await prisma.org.findUnique({
+    where: { id: req.params.id },
+    select: { id: true, slug: true, displayName: true, addOns: true },
+  });
+  if (!org) return res.status(404).type("text/plain").send("Not found");
+  // Form sends only checked boxes — every key from ADD_ONS is checked
+  // for presence so unchecked → removed.
+  const next = Object.keys(ADD_ONS).filter((key) => !!req.body?.[key]);
+  await prisma.org.update({
+    where: { id: org.id },
+    data: { addOns: next.length ? next : null },
+  });
+  const before = Array.isArray(org.addOns) ? org.addOns : [];
+  const added = next.filter((k) => !before.includes(k));
+  const removed = before.filter((k) => !next.includes(k));
+  const summary = [
+    added.length ? `+${added.join(", ")}` : "",
+    removed.length ? `-${removed.join(", ")}` : "",
+  ].filter(Boolean).join(" ") || "no changes";
+  await recordAudit({
+    org,
+    user: req.superUser,
+    entityType: "Org",
+    entityId: org.id,
+    action: "super:addons",
+    summary: `Add-ons updated: ${summary}`,
   });
   res.redirect(`/__super/orgs/${org.id}`);
 });

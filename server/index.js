@@ -3568,6 +3568,17 @@ app.get("/members", async (req, res, next) => {
 // via the bearer-token path.
 app.get("/chat", async (req, res, next) => {
   if (!req.org) return next();
+  // Group chat is part of the Enhanced messaging add-on. Without it,
+  // the org has no chat — render a friendly "not available" message.
+  // Visitors aren't the buyer; the admin-side path (/admin/chat) is
+  // where the upgrade prompt belongs.
+  const { hasAddOn } = await import("../lib/plans.js");
+  if (!hasAddOn(req.org, "messaging")) {
+    return res
+      .status(404)
+      .type("html")
+      .send(renderChatPage(req.org, { notEnabled: true }));
+  }
   if (!req.user) {
     return res
       .status(401)

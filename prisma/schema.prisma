@@ -98,6 +98,13 @@ model Org {
   // flags get sensible defaults. Toggled from /__super (super-admin
   // console) — leaders don't edit this directly.
   features             Json?
+  // À-la-carte add-ons orthogonal to the plan tier. JSON array of
+  // string keys (e.g. ["messaging"]). Add-ons unlock specific feature
+  // bundles (DMs, broadcast email/SMS, channels, newsletters) and are
+  // billed separately from the base subscription. Demo orgs bypass.
+  // Self-serve enable/disable lands in a follow-up; for now a super-
+  // admin sets the array.
+  addOns               Json?
   // Suspended orgs are read-only: no admin login, no API writes, the
   // public site still renders. Used for non-payment / abuse holds.
   // suspendedReason renders on the (still-public) homepage so members

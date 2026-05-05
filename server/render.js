@@ -1639,7 +1639,16 @@ export function renderPostsList(org, posts, { viewerUserId = null } = {}) {
 /* Chat — parent web fallback                                          */
 /* ------------------------------------------------------------------ */
 
-export function renderChatPage(org, { needsSignIn, notAMember } = {}) {
+export function renderChatPage(org, { needsSignIn, notAMember, notEnabled } = {}) {
+  if (notEnabled) {
+    const body = `
+      <section class="event-list">
+        <a class="back" href="/">← Home</a>
+        <h1>Chat</h1>
+        <p class="muted">${escapeHtml(org.displayName)} hasn't enabled group chat. Reach out to a leader if you'd like the unit to add it.</p>
+      </section>`;
+    return pageShell(org, "Chat", body);
+  }
   if (needsSignIn) {
     const body = `
       <section class="event-list">
