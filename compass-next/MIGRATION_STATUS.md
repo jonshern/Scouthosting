@@ -45,10 +45,10 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `oauth.js` | `src/lib/auth/oauth.ts` (arctic) | ✅ |
 | `mfa.js` | `src/lib/auth/mfa.ts` (+ `mfa-verify.ts`, `mfa-cookie.ts`) | ✅ |
 | `apiToken.js` | `src/lib/auth/api-token.ts` | ⬜ |
-| `signedToken.js` | `src/lib/security/signed-token.ts` | ⬜ |
-| `inviteToken.js` | `src/lib/security/invite-token.ts` | ⬜ |
-| `unsubToken.js` | `src/lib/security/unsub-token.ts` | ⬜ |
-| `rsvpToken.js` | `src/lib/security/rsvp-token.ts` | ⬜ |
+| `signedToken.js` | `src/lib/security/signed-token.ts` | ✅ |
+| `inviteToken.js` | `src/lib/security/invite-token.ts` | ✅ |
+| `unsubToken.js` | `src/lib/security/unsub-token.ts` | ✅ |
+| `rsvpToken.js` | `src/lib/security/rsvp-token.ts` | ✅ |
 | `trackingToken.js` | `src/lib/tracking/click-token.ts` | ⬜ |
 | `audit.js` | `src/lib/audit.ts` | ✅ |
 | `mail.js` | `src/lib/mail/index.ts` (+ `audience.ts`) | ✅ (console driver only; Resend driver pending) |
