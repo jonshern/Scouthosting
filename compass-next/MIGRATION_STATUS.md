@@ -61,12 +61,12 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `otel.js` / `otelBootstrap.js` | `instrumentation.ts` | ⬜ |
 | `errorTracker.js` | `src/lib/ops/error-tracker.ts` | ⬜ |
 | `analytics.js` / `analyticsTag.js` | `src/lib/tracking/*.ts` | ⬜ |
-| `announcementBanner.js` | RSC component | ⬜ |
+| `announcementBanner.js` | `src/components/site/AnnouncementBanner.tsx` | ✅ |
 | `markdown.js` | `src/lib/markdown.ts` | ✅ |
 | `seo.js` | per-route `metadata` exports | 🚧 (used in marketing) |
-| `videoEmbed.js` | `src/lib/video/embed.ts` | ⬜ |
+| `videoEmbed.js` | `src/lib/video/embed.ts` | ✅ |
 | `imageGen.js` | `src/lib/storage/image-gen.ts` | ⬜ |
-| `featureFlags.js` | `src/lib/features/index.ts` | ⬜ |
+| `featureFlags.js` | `src/lib/features/index.ts` | ✅ |
 | `plans.js` / `plans.constants.js` / `billingState.js` | `src/lib/billing/*.ts` | ⬜ |
 | `stripe.js` | `src/lib/billing/stripe.ts` | ⬜ |
 | `chat.js` / `chatPermissions.js` | `src/lib/chat/*.ts` | ⬜ |
@@ -74,15 +74,15 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `dmReminderCron.js` / `dmDigestCron.js` | pg-boss handlers | ⬜ |
 | `newsletter.js` / `newsletterCron.js` | `src/lib/newsletter/*.ts` + cron | ⬜ |
 | `calendar.js` | `src/lib/calendar/{ical,recurrence}.ts` | ✅ |
-| `eventCategories.js` | `src/lib/calendar/categories.ts` | ⬜ |
+| `eventCategories.js` | `src/lib/calendar/categories.ts` | ✅ |
 | `dietary.js` / `shoppingList.js` | `src/lib/trips/*.ts` | ⬜ |
 | `dashboard.js` | server-rendered admin overview | 🚧 (basic) |
 | `homepageSections.js` | RSC sections under `/o/<slug>/` | ⬜ |
 | `marketingWidget.js` / `supportWidget.js` | RSC components | ⬜ |
 | `permissions.js` / `orgRoles.js` | `src/lib/auth/permissions.ts` | ⬜ |
 | `rosterImport.js` | Server Action + xlsx parser | ⬜ |
-| `scoutbook.js` | `src/lib/scoutbook/links.ts` | ⬜ |
-| `positionTerms.js` | `src/lib/program/positions.ts` | ⬜ |
+| `scoutbook.js` | `src/lib/scoutbook/links.ts` | ✅ |
+| `positionTerms.js` | `src/lib/program/positions.ts` | ✅ |
 | `postReactions.js` | `src/lib/posts/reactions.ts` | 🚧 (component exists, server action pending) |
 | `trackedMessage.js` | `src/lib/comms/tracked-message.ts` | ⬜ |
 | `yptReminder.js` | `src/lib/youth-protection/ypt-reminder.ts` | ⬜ |
