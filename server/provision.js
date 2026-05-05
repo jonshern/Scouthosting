@@ -240,6 +240,10 @@ export async function provisionOrg(input) {
       accentColor: input.accentColor || "#caa54a",
       plan: input.plan || "patrol",
       isDemo: !!input.isDemo,
+      // Enhanced messaging is on by default for every new org. Leaders
+      // can disable from /admin/billing for a gradual rollout. Caller
+      // can override via input.addOns.
+      addOns: Array.isArray(input.addOns) ? input.addOns : ["messaging"],
     },
   });
 

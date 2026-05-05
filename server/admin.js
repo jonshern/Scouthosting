@@ -11523,6 +11523,39 @@ adminRouter.get("/billing", requireLeader, async (req, res) => {
     ? `<form method="POST" action="/admin/billing/portal">${csrfHidden}<button class="btn btn-secondary" type="submit">Manage billing →</button></form>`
     : "";
 
+  // Per-org add-on toggles. Default-on bundles (messaging) show as
+  // "enabled — disable" so a leader doing a gradual rollout can turn
+  // it off temporarily; default-off bundles would show as "off —
+  // enable." Demo orgs bypass via hasAddOn so the toggle is meaningless
+  // for them, but we render it anyway for parity.
+  const { ADD_ONS } = await import("../lib/plans.js");
+  const enabledAddOns = Array.isArray(req.org.addOns) ? req.org.addOns : [];
+  const addOnsRows = Object.entries(ADD_ONS).map(([key, meta]) => {
+    const on = enabledAddOns.includes(key);
+    const action = on ? "disable" : "enable";
+    const verb = on ? "Disable" : "Enable";
+    const tone = on ? "btn-secondary" : "btn-primary";
+    const stateBadge = on
+      ? `<span style="display:inline-block;padding:.15rem .55rem;border-radius:999px;background:#d1fae5;color:#065f46;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">on</span>`
+      : `<span style="display:inline-block;padding:.15rem .55rem;border-radius:999px;background:#fef3c7;color:#92400e;font-size:.7rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase">off</span>`;
+    return `
+      <div style="display:flex;align-items:flex-start;gap:1rem;padding:.85rem 0;border-top:1px solid var(--line)">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.25rem">
+            <strong>${escape(meta.label)}</strong>
+            ${stateBadge}
+          </div>
+          <p class="muted" style="margin:0;font-size:.88rem">${escape(meta.description)}</p>
+        </div>
+        <form method="POST" action="/admin/billing/addons/${escape(key)}/${escape(action)}"${
+          on ? ' onsubmit="return confirm(\'Turn off ' + escape(meta.label) + '? Members lose access until you re-enable.\')"' : ""
+        }>
+          ${csrfHidden}
+          <button class="btn ${tone} small" type="submit">${verb}</button>
+        </form>
+      </div>`;
+  }).join("");
+
   const body = `
 <h1>Billing</h1>
 ${bannerHtml}
@@ -11541,6 +11574,10 @@ ${flash}
   ${cancelBtn}
   ${reactivateBtn}
 </div>
+<h2 style="margin-top:2.5rem">Add-ons</h2>
+<p class="muted">Optional feature bundles. Enhanced messaging is on by default; turn it off if you're rolling out gradually.</p>
+${addOnsRows}
+
 <h2 style="margin-top:2.5rem">What you get</h2>
 <ul>
   <li>Your unit's subdomain at <code>${escape(req.org.slug)}.${escape(apex)}</code>, on for the year.</li>
@@ -11650,6 +11687,37 @@ adminRouter.post("/billing/reactivate", requireLeader, async (req, res) => {
   } catch (err) {
     return res.redirect(`/admin/billing?blocked=${encodeURIComponent(err.message)}`);
   }
+});
+
+// Leader-facing toggle for add-on bundles. Distinct from the super-
+// admin toggle at /__super/orgs/:id/addons which is for billing /
+// operator overrides — this is for the org's own admins to disable
+// during a slow rollout. Demo orgs bypass via hasAddOn so toggling
+// here is effectively a no-op for them.
+adminRouter.post("/billing/addons/:key/:action", requireLeader, async (req, res) => {
+  const { ADD_ONS } = await import("../lib/plans.js");
+  const key = String(req.params.key || "");
+  const action = String(req.params.action || "");
+  if (!ADD_ONS[key] || (action !== "enable" && action !== "disable")) {
+    return res.redirect("/admin/billing");
+  }
+  const current = Array.isArray(req.org.addOns) ? req.org.addOns : [];
+  const next = action === "enable"
+    ? Array.from(new Set([...current, key]))
+    : current.filter((k) => k !== key);
+  await prisma.org.update({
+    where: { id: req.org.id },
+    data: { addOns: next.length ? next : null },
+  });
+  await recordAudit({
+    org: req.org,
+    user: req.user,
+    entityType: "Org",
+    entityId: req.org.id,
+    action: action === "enable" ? "addon.enable" : "addon.disable",
+    summary: `${action === "enable" ? "Enabled" : "Disabled"} ${ADD_ONS[key].label}`,
+  });
+  res.redirect("/admin/billing");
 });
 
 /* ------------------------------------------------------------------ */
