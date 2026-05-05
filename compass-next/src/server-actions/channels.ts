@@ -1,0 +1,78 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/auth/lucia";
+import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
+import { suspendChannel, unsuspendChannel } from "@/lib/chat";
+import { publishArchived } from "@/lib/realtime/bus";
+
+async function authorizeChannelAdmin(orgSlug: string, channelId: string) {
+  const { user } = await getSession();
+  if (!user) return { error: "Sign in." } as const;
+  const org = await prisma.org.findUnique({ where: { slug: orgSlug } });
+  if (!org) return { error: "Org not found." } as const;
+  const membership = await prisma.orgMembership.findFirst({
+    where: { orgId: org.id, userId: user.id },
+    select: { role: true },
+  });
+  if (!membership || (membership.role !== "leader" && membership.role !== "admin")) {
+    return { error: "Forbidden." } as const;
+  }
+  const channel = await prisma.channel.findFirst({
+    where: { id: channelId, orgId: org.id },
+    select: { id: true },
+  });
+  if (!channel) return { error: "Channel not found." } as const;
+  return { org, user, channel } as const;
+}
+
+export async function suspendChannelAction(formData: FormData): Promise<void> {
+  if (!(await verifyOrigin())) throw new Error("Bad origin.");
+  if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) throw new Error("Bad CSRF.");
+  const orgSlug = String(formData.get("orgSlug") ?? "");
+  const channelId = String(formData.get("channelId") ?? "");
+  const reason = String(formData.get("reason") ?? "manual");
+  const auth = await authorizeChannelAdmin(orgSlug, channelId);
+  if ("error" in auth) throw new Error(auth.error);
+  await suspendChannel(channelId, reason, {
+    prismaClient: prisma,
+    org: auth.org,
+    user: auth.user,
+  });
+  redirect(`/o/${orgSlug}/admin/channels`);
+}
+
+export async function unsuspendChannelAction(formData: FormData): Promise<void> {
+  if (!(await verifyOrigin())) throw new Error("Bad origin.");
+  if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) throw new Error("Bad CSRF.");
+  const orgSlug = String(formData.get("orgSlug") ?? "");
+  const channelId = String(formData.get("channelId") ?? "");
+  const auth = await authorizeChannelAdmin(orgSlug, channelId);
+  if ("error" in auth) throw new Error(auth.error);
+  await unsuspendChannel(channelId, {
+    prismaClient: prisma,
+    org: auth.org,
+    user: auth.user,
+  });
+  redirect(`/o/${orgSlug}/admin/channels`);
+}
+
+export async function archiveChannelAction(formData: FormData): Promise<void> {
+  if (!(await verifyOrigin())) throw new Error("Bad origin.");
+  if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) throw new Error("Bad CSRF.");
+  const orgSlug = String(formData.get("orgSlug") ?? "");
+  const channelId = String(formData.get("channelId") ?? "");
+  const auth = await authorizeChannelAdmin(orgSlug, channelId);
+  if ("error" in auth) throw new Error(auth.error);
+  await prisma.channel.update({
+    where: { id: channelId },
+    data: { archivedAt: new Date() },
+  });
+  try {
+    publishArchived(channelId);
+  } catch {
+    // ignore
+  }
+  redirect(`/o/${orgSlug}/admin/channels`);
+}
