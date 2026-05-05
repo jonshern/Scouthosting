@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
 import { renderMarkdownLite } from "@/lib/markdown";
+import { readCustomBlocks } from "@/lib/homepage/sections";
 
 export default async function OrgHome({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -17,6 +18,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
     org.page?.heroLede ??
     org.tagline ??
     `${org.charterOrg} • ${org.city}, ${org.state}`;
+  const blocks = readCustomBlocks(org.page);
   return (
     <section className="mx-auto max-w-content px-6 py-16">
       <h1 className="font-display text-4xl md:text-5xl font-semibold">{heroHeadline}</h1>
@@ -26,6 +28,65 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
           // eslint-disable-next-line react/no-danger
           dangerouslySetInnerHTML={{ __html: renderMarkdownLite(heroLede) }}
         />
+      )}
+
+      {blocks.length > 0 && (
+        <div className="mt-12 space-y-10">
+          {blocks.map((raw) => {
+            const b = raw as Record<string, string> & { type: string };
+            if (b.type === "text") {
+              return (
+                <section key={b.id}>
+                  {b.title && (
+                    <h2 className="font-display text-2xl font-semibold">{b.title}</h2>
+                  )}
+                  {b.body && (
+                    <div
+                      className="mt-2 prose prose-stone"
+                      // eslint-disable-next-line react/no-danger
+                      dangerouslySetInnerHTML={{ __html: renderMarkdownLite(b.body) }}
+                    />
+                  )}
+                </section>
+              );
+            }
+            if (b.type === "image") {
+              return (
+                <figure key={b.id}>
+                  {b.filename && (
+                    /* eslint-disable-next-line @next/next/no-img-element */
+                    <img
+                      src={`/uploads/${b.filename}`}
+                      alt={b.alt || ""}
+                      className="w-full rounded-md"
+                    />
+                  )}
+                  {b.caption && (
+                    <figcaption className="mt-1 text-sm text-ink-muted">
+                      {b.caption}
+                    </figcaption>
+                  )}
+                </figure>
+              );
+            }
+            if (b.type === "cta") {
+              return (
+                <section key={b.id} className="card">
+                  {b.title && (
+                    <h2 className="font-display text-2xl font-semibold">{b.title}</h2>
+                  )}
+                  {b.body && <p className="mt-2 text-ink-muted">{b.body}</p>}
+                  {b.buttonLabel && b.buttonLink && (
+                    <a href={b.buttonLink} className="btn-primary mt-3 inline-block">
+                      {b.buttonLabel}
+                    </a>
+                  )}
+                </section>
+              );
+            }
+            return null;
+          })}
+        </div>
       )}
 
       <div className="mt-12 grid gap-8 md:grid-cols-2">

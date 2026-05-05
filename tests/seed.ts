@@ -9,6 +9,7 @@ const ARGON_PARAMS = { memoryCost: 19456, timeCost: 2, outputLen: 32, parallelis
 
 const ADMIN_EMAIL = "scoutmaster@example.invalid";
 const ADMIN_PASSWORD = "AdminPasswordTest123!";
+const SUPER_EMAIL = "super@example.invalid";
 
 async function main() {
   const passwordHash = await hash(ADMIN_PASSWORD, ARGON_PARAMS);
@@ -21,6 +22,19 @@ async function main() {
       passwordHash,
       displayName: "Sample Scoutmaster",
       emailVerified: true,
+    },
+  });
+
+  // Super-admin for /super-admin write-action tests.
+  await prisma.user.upsert({
+    where: { email: SUPER_EMAIL },
+    update: { passwordHash, displayName: "Sample Super", emailVerified: true, isSuperAdmin: true },
+    create: {
+      email: SUPER_EMAIL,
+      passwordHash,
+      displayName: "Sample Super",
+      emailVerified: true,
+      isSuperAdmin: true,
     },
   });
 

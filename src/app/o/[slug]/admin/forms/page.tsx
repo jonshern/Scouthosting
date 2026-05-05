@@ -64,14 +64,22 @@ export default async function FormsPage({
                   {f.visibility}
                 </div>
               </div>
-              <form action={deleteForm}>
-                <CsrfTokenInput />
-                <input type="hidden" name="orgSlug" value={slug} />
-                <input type="hidden" name="id" value={f.id} />
-                <button type="submit" className="btn-secondary text-xs">
-                  Delete
-                </button>
-              </form>
+              <div className="flex gap-2 items-center">
+                <Link
+                  href={`/o/${slug}/admin/forms/${f.id}`}
+                  className="btn-secondary text-xs"
+                >
+                  Edit
+                </Link>
+                <form action={deleteForm}>
+                  <CsrfTokenInput />
+                  <input type="hidden" name="orgSlug" value={slug} />
+                  <input type="hidden" name="id" value={f.id} />
+                  <button type="submit" className="btn-secondary text-xs">
+                    Delete
+                  </button>
+                </form>
+              </div>
             </li>
           ))}
         </ul>
