@@ -22,6 +22,12 @@ export const GET = withBearerAuth(async (_req, { user }) => {
       email: user.email,
       displayName: user.displayName,
     },
-    orgs: memberships.map((m) => ({ ...m.org, role: m.role })),
+    // Shape matches mobile/src/api/types.ts MeDto.
+    memberships: memberships.map((m) => ({
+      orgId: m.org.id,
+      orgName: m.org.displayName,
+      orgSlug: m.org.slug,
+      role: m.role,
+    })),
   });
 });

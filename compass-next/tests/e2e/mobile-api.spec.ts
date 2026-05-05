@@ -48,10 +48,12 @@ test.describe("mobile API", () => {
     expect(res.status()).toBe(200);
     const body = (await res.json()) as {
       user: { email: string };
-      orgs: Array<{ slug: string; role: string }>;
+      memberships: Array<{ orgSlug: string; role: string }>;
     };
     expect(body.user.email).toBe(EMAIL);
-    expect(body.orgs.find((o) => o.slug === "troop100")?.role).toBe("admin");
+    expect(body.memberships.find((m) => m.orgSlug === "troop100")?.role).toBe(
+      "admin",
+    );
   });
 
   test("/api/v1/orgs/[slug]/events lists upcoming events", async ({ page, request }) => {

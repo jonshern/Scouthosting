@@ -37,6 +37,10 @@ export async function getStripe(): Promise<StripeLike | null> {
     return null;
   }
   try {
+    // Stripe is an optional dep — Next.js builds without it. The
+    // dynamic import + ts-expect-error keeps the build green when
+    // STRIPE_SECRET_KEY is unset and the package isn't installed.
+    // @ts-expect-error optional dep, may not be installed
     const mod = (await import("stripe")) as {
       default: new (key: string, opts: { apiVersion: string }) => StripeLike;
     };
