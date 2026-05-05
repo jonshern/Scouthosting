@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Compass — Design Explorations</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Instrument+Serif:ital@0;1&family=Geist:wght@400;500;600;700&family=Mona+Sans:wght@400;500;600;700&family=Hubot+Sans:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin: 0; padding: 0; }
+  body { font-family: 'Inter Tight', system-ui, sans-serif; background: #e2e8f0; }
+  * { box-sizing: border-box; }
+</style>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="tokens.js"></script>
+<script type="text/babel" src="atoms.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+
+<script type="text/babel" src="marketing-safe.jsx"></script>
+<script type="text/babel" src="marketing-balanced.jsx"></script>
+<script type="text/babel" src="marketing-bold.jsx"></script>
+<script type="text/babel" src="troop-pages.jsx"></script>
+<script type="text/babel" src="admin-pages.jsx"></script>
+<script type="text/babel" src="security.jsx"></script>
+<script type="text/babel" src="font-comparison.jsx"></script>
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="mobile-app.jsx"></script>
+<script type="text/babel" src="mobile-feed.jsx"></script>
+<script type="text/babel" src="mobile-calendar-v2.jsx"></script>
+<script type="text/babel" src="mobile-chat.jsx"></script>
+<script type="text/babel" src="email.jsx"></script>
+<script type="text/babel" src="desktop-calendar.jsx"></script>
+<script type="text/babel" src="page-builder.jsx"></script>
+<script type="text/babel" src="page-builder-v2.jsx"></script>
+<script type="text/babel" src="plans.jsx"></script>
+<script type="text/babel" src="positioning.jsx"></script>
+<script type="text/babel" src="feedback.jsx"></script>
+<script type="text/babel" src="newsletter.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "marketingPalette": "bold",
+  "troopPalette": "bold",
+  "adminPalette": "bold"
+}/*EDITMODE-END*/;
+
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const P = window.SH_PALETTES;
+
+  return (
+    <>
+      <DesignCanvas>
+        <DCSection
+          id="marketing"
+          title="Marketing site"
+          subtitle="compass.app — the page that sells the platform to volunteer troop leaders. Forest & ember palette, pushed bolder: massive serif type, ember used as solid color blocks (not just italic accents), dark-forest stats and testimonial bands, color-coded features."
+        >
+          <DCArtboard id="m-balanced" label="Marketing · Forest & Ember (bolder)" width={1200} height={2400}>
+            <MarketingBalanced palette={P.balanced}/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="troop"
+          title="Public troop page"
+          subtitle="What families and visitors land on. Mocked with Troop 12 Anytown. Dark-forest hero with massive 567 watermark, color-coded events and news, ember as the calling-card color."
+        >
+          <DCArtboard id="t-balanced" label="Troop page · Forest & Ember (bolder)" width={1200} height={1800}>
+            <TroopBalanced palette={P.balanced}/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="admin"
+          title="Admin dashboard"
+          subtitle="The committee chair / scoutmaster's home base. Dark-forest title block, color-coded stat cards and events, color-coded activity feed."
+        >
+          <DCArtboard id="a-balanced" label="Admin · Forest & Ember (bolder)" width={1400} height={900}>
+            <AdminBalanced palette={P.balanced}/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="security"
+          title="Security & trust"
+          subtitle="Volunteer leaders are stewards of minors' data — names, ages, medical info, photos. This page addresses the question every committee chair should ask: how is this protected?"
+        >
+          <DCArtboard id="sec-balanced" label="Security · Forest & Ember" width={1200} height={1800}>
+            <SecurityCard palette={P.balanced}/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="mobile"
+          title="Parent mobile app"
+          subtitle="Twelve screens of the Compass parent companion. New: Facebook-style Feed replaces Home (mixed post types, moderated comments, leader composer); Calendar gets Outlook-style month / 3-month / agenda views; Event detail picks up a weather forecast strip as soon as we're inside the 10-day window. Slate & sky palette with the warm amber accent. iOS 26 device frames."
+        >
+          <DCArtboard id="mob-feed" label="01 Feed (home)" width={402} height={874}>
+            <MobileFeed/>
+          </DCArtboard>
+          <DCArtboard id="mob-feed-detail" label="02 Post detail · comments" width={402} height={874}>
+            <MobileFeedDetail/>
+          </DCArtboard>
+          <DCArtboard id="mob-feed-compose" label="03 Leader composer" width={402} height={874}>
+            <MobileFeedCompose/>
+          </DCArtboard>
+          <DCArtboard id="mob-cal-month" label="04 Calendar · month" width={402} height={874}>
+            <MobileCalendarMonth/>
+          </DCArtboard>
+          <DCArtboard id="mob-cal-3mo" label="05 Calendar · 3-month" width={402} height={874}>
+            <MobileCalendar3Mo/>
+          </DCArtboard>
+          <DCArtboard id="mob-cal-list" label="06 Calendar · agenda list" width={402} height={874}>
+            <MobileCalendar/>
+          </DCArtboard>
+          <DCArtboard id="mob-event" label="07 Event detail · RSVP + weather" width={402} height={874}>
+            <MobileEvent/>
+          </DCArtboard>
+          <DCArtboard id="mob-pay" label="08 Payment" width={402} height={874}>
+            <MobilePayment/>
+          </DCArtboard>
+          <DCArtboard id="mob-msg" label="09 Messages" width={402} height={874}>
+            <MobileMessages/>
+          </DCArtboard>
+          <DCArtboard id="mob-thread" label="10 Thread · two-deep" width={402} height={874}>
+            <MobileThread/>
+          </DCArtboard>
+          <DCArtboard id="mob-photos" label="11 Photos" width={402} height={874}>
+            <MobilePhotos/>
+          </DCArtboard>
+          <DCArtboard id="mob-perms" label="12 Photo permissions" width={402} height={874}>
+            <MobilePhotoPerms/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="chat"
+          title="Team chat"
+          subtitle="SportsEngine-style group chat for dens, patrols, packs, troops. Auto-created channels per den/patrol with two-deep leader inclusion. Event channels auto-archive when the event ends. Polls, RSVPs, and pinned posts native to the thread. Leader-only oversight view shows what stays YPT-compliant by design."
+        >
+          <DCArtboard id="chat-channels" label="01 Channels list" width={402} height={874}>
+            <ChatChannels/>
+          </DCArtboard>
+          <DCArtboard id="chat-patrol" label="02 Patrol thread · two-deep" width={402} height={874}>
+            <ChatPatrol/>
+          </DCArtboard>
+          <DCArtboard id="chat-event" label="03 Event channel + RSVP" width={402} height={874}>
+            <ChatEventRSVP/>
+          </DCArtboard>
+          <DCArtboard id="chat-poll" label="04 Poll" width={402} height={874}>
+            <ChatPoll/>
+          </DCArtboard>
+          <DCArtboard id="chat-leader" label="05 Leader oversight" width={402} height={874}>
+            <ChatLeaderView/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="email"
+          title="Email — designed announcement"
+          subtitle="The actual May email from Troop 567 (camporee + flag placement) redesigned in Compass. Structured event blocks with one-tap RSVP, no Bcc dump of 70 family addresses, mobile-first body. Plus the leader's composer view with send checks and predicted open rate.">
+          <DCArtboard id="email-gmail" label="In Gmail (desktop)" width={1200} height={1700}>
+            <EmailGmail/>
+          </DCArtboard>
+          <DCArtboard id="email-mobile" label="In iOS Mail" width={402} height={874}>
+            <EmailMobile/>
+          </DCArtboard>
+          <DCArtboard id="email-composer" label="Compass composer (leader view)" width={1200} height={900}>
+            <EmailComposer/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="desktop-cal"
+          title="Desktop calendar — events at a glance"
+          subtitle="The cross-month event control. Color-coded categories, multi-day spans, mini-month picker, calendar subscriptions. Notion-Calendar / Cron level of polish — for leaders managing 30+ events a year.">
+          <DCArtboard id="cal-month" label="Month view · with detail rail" width={1440} height={900}>
+            <DesktopCalendarMonth/>
+          </DCArtboard>
+          <DCArtboard id="cal-week" label="Week view · timeline" width={1440} height={900}>
+            <DesktopCalendarWeek/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="builder-v2"
+          title="Page builder v2 — designed FOR volunteer parents"
+          subtitle="The TroopWebHost / Troop 8888 problem: give a volunteer a blank canvas and a color picker, you get chaotic typography, polaroids on busy backgrounds, three uneven columns. Compass v2 inverts that: 8 curated themes (a vibe, not a hex code), 42 specific blocks (not 'hero / text / image'), AI assist that uses real troop data, smart layouts. Result: a finished page in 22 minutes that doesn't look homemade."
+        >
+          <DCArtboard id="pbv2-themes" label="01 Pick a theme — 8 curated looks" width={1440} height={900}>
+            <PageBuilderThemes/>
+          </DCArtboard>
+          <DCArtboard id="pbv2-blocks" label="02 Block library — 42 specific blocks, half pull live data" width={1440} height={900}>
+            <PageBuilderBlocks/>
+          </DCArtboard>
+          <DCArtboard id="pbv2-ai" label="03 AI assist (premium tier) — 'build me a section'" width={1440} height={900}>
+            <PageBuilderAI/>
+          </DCArtboard>
+          <DCArtboard id="pbv2-result" label="04 The finished page (Heritage Patch theme)" width={1200} height={2400}>
+            <PageBuilderResult/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="builder"
+          title="Front page builder"
+          subtitle="The drag-and-drop tool a parent volunteer uses to build their troop's public homepage. Section library, live preview, no-code styling — finished in 20 minutes, not 20 hours.">
+          <DCArtboard id="builder-canvas" label="Builder · section library + live preview" width={1440} height={900}>
+            <FrontPageBuilder/>
+          </DCArtboard>
+          <DCArtboard id="builder-section-edit" label="Editing a hero section" width={1440} height={900}>
+            <FrontPageBuilderEditing/>
+          </DCArtboard>
+          <DCArtboard id="builder-templates" label="Pick a template to start" width={1440} height={900}>
+            <FrontPageBuilderTemplates/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="plans"
+          title="Plans — economics & open questions"
+          subtitle="What does $99 a year buy? Working draft. The base plan is settled ($99/yr · 15 GB photos · BYO custom domain at no markup · 60-day money-back). The AI tier is still an open question — we don't yet know per-troop API cost, which features cut, or willingness-to-pay. This page makes the open questions visible instead of guessing."
+        >
+          <DCArtboard id="plans-positioning" label="00 Positioning · No commodity markups" width={1440} height={1900}>
+            <NoMarkupsPage/>
+          </DCArtboard>
+          <DCArtboard id="plans-page" label="01 Public plans page (with open questions)" width={1440} height={1700}>
+            <PlansPage/>
+          </DCArtboard>
+          <DCArtboard id="plans-storage" label="02 Storage dashboard (admin)" width={1440} height={900}>
+            <StorageDashboard/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="feedback"
+          title="In-app feedback & roadmap — customers shape what ships"
+          subtitle="A public roadmap board built into the admin app. Customers can vote on requests, watch status updates, and submit their own — with troop context auto-attached. Status pills (Submitted / Triaged / Building / Shipped), real status notes from engineering, and a separate flow for private support tickets."
+        >
+          <DCArtboard id="fb-board" label="01 Public roadmap board" width={1440} height={1100}>
+            <FeedbackBoard/>
+          </DCArtboard>
+          <DCArtboard id="fb-compose" label="02 New request composer" width={1440} height={900}>
+            <FeedbackCompose/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="newsletter"
+          title="Auto-newsletter — the 5-minute Sunday email"
+          subtitle="Compass drafts the weekly digest from real troop data — calendar, RSVPs, photos, scoutbook achievements. The leader spends 5 minutes reviewing on Sunday morning, hits send. Goes out automatically every week. Plus rule-based reminders that fire on their own (RSVP nudges, dues, post-campout recaps), and a recipient-side preview of what families actually see in their phone Inbox."
+        >
+          <DCArtboard id="nl-schedule" label="01 Schedule overview" width={1440} height={900}>
+            <NewsletterSchedule/>
+          </DCArtboard>
+          <DCArtboard id="nl-draft" label="02 Draft review (the magic)" width={1440} height={900}>
+            <NewsletterDraftReview/>
+          </DCArtboard>
+          <DCArtboard id="nl-rules" label="03 Reminders & rules" width={1440} height={900}>
+            <NewsletterReminders/>
+          </DCArtboard>
+          <DCArtboard id="nl-inbox" label="04 What families see (iOS Mail)" width={402} height={874}>
+            <NewsletterRecipientView/>
+          </DCArtboard>
+        </DCSection>
+
+        <DCSection
+          id="fonts"
+          title="Type direction"
+          subtitle="The selected pair, shown applied to the same Compass content used everywhere on this canvas."
+        >
+          <DCArtboard id="fonts-all" label="Newsreader + Inter Tight · selected" width={860} height={900}>
+            <FontComparison palette={P.balanced}/>
+          </DCArtboard>
+        </DCSection>
+      </DesignCanvas>
+
+      <TweaksPanel title="Tweaks">
+        <TweakSection title="Notes">
+          <div style={{ fontSize: 12, lineHeight: 1.5, color: 'rgba(0,0,0,0.65)' }}>
+            Forest & Ember direction, dialed bolder. The other two directions (Pine & Brass, Evergreen & Chartreuse) were dropped — ask if you want them back for comparison.
+          </div>
+        </TweakSection>
+      </TweaksPanel>
+    </>
+  );
+}
+
+// Small palette comparison card
+function PaletteCard() {
+  const T = window.SH_TYPE;
+  const P = window.SH_PALETTES;
+  return (
+    <div style={{ width: 1200, height: 420, background: '#fafaf7', padding: 32, fontFamily: T.ui, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+      {['safe', 'balanced', 'bold'].map((k, i) => {
+        const p = P[k];
+        return (
+          <div key={k} style={{ background: p.bg, border: `1px solid ${p.line}`, borderRadius: 12, padding: 24, color: p.ink, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ fontSize: 11, color: p.inkMuted, letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 600 }}>{k}</div>
+            <div style={{ fontFamily: T.display, fontSize: 32, fontWeight: 400, lineHeight: 1.05, margin: '8px 0 6px', letterSpacing: '-0.02em' }}>{p.name}</div>
+            <div style={{ fontFamily: T.display, fontSize: 14, fontStyle: 'italic', color: p.inkSoft, marginBottom: 20 }}>
+              {k === 'safe' && 'Refined heritage. Familiar but elevated.'}
+              {k === 'balanced' && 'Distinctive, warm, editorial energy.'}
+              {k === 'bold' && 'Modern, confident, design-led.'}
+            </div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+              {[p.primary, p.accent, p.ink, p.surfaceAlt, p.bg].map((c, j) => (
+                <div key={j} style={{ flex: 1, height: 36, background: c, borderRadius: 4, border: `1px solid ${p.line}` }}/>
+              ))}
+            </div>
+            <button style={{ background: p.primary, color: '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 500, marginRight: 6 }}>Primary</button>
+            <button style={{ background: p.accent, color: k === 'bold' ? p.ink : '#fff', border: 'none', padding: '8px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600 }}>Accent</button>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

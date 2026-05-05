@@ -49,6 +49,8 @@ prisma/dev.db*
 
 # Mobile + design — not part of the web image
 mobile
+design
+design_handoff_compass
 
 # Test outputs / scratch
 **/test-results
