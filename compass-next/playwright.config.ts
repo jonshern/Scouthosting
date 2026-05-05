@@ -22,11 +22,18 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
     env: {
-      DATABASE_URL: "postgresql://compass:compass@localhost:5432/compass_test?schema=public",
+      // Local Compass postgres runs on 5433 (5432 is occupied by another
+      // container on the dev Mac — see project CLAUDE.md trap #4).
+      DATABASE_URL: "postgresql://compass:compass@localhost:5433/compass_test?schema=public",
       NODE_ENV: "production",
       APEX_HOST: "localhost",
       SESSION_SECRET: "test-only-not-secret-replace-in-prod-0123456789abcdef",
       PORT: "3000",
+      // Tests sign in as a seeded admin (scoutmaster). The policy gate
+      // (lib/auth/policy.ts) blocks admin password login when
+      // NODE_ENV=production unless this bypass is set — same convention
+      // as Compass staging on Fly.
+      ALLOW_ADMIN_PASSWORD_LOGIN: "1",
     },
   },
 });
