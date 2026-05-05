@@ -11,7 +11,7 @@ const TIERS = [
   {
     id: "troop",
     name: "Troop",
-    price: "$19/mo",
+    price: "$99/mo",
     blurb: "For active units with 50+ members.",
     features: [
       "Unlimited members",
