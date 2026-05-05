@@ -3,17 +3,20 @@ import { expect, test } from "@playwright/test";
 test.describe("apex marketing", () => {
   test("home page renders the hero and CTAs", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText("One hub");
-    await expect(page.getByRole("link", { name: "Start a site" }).first()).toBeVisible();
+    // Magazine-cover hero per design — copy includes "look like 2008".
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/look like 2008/i);
+    await expect(page.getByRole("link", { name: /start free trial/i }).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /sign in/i }).first()).toBeVisible();
   });
 
-  test("plans page lists three tiers", async ({ page }) => {
+  test("plans page lists Standard and Premium tiers", async ({ page }) => {
     await page.goto("/plans");
-    await expect(page.getByRole("heading", { name: "Pricing", level: 1 })).toBeVisible();
-    for (const name of ["Patrol", "Troop", "Council"]) {
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/two flavors/i);
+    for (const name of ["Standard", "Premium"]) {
       await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     }
+    // 60-day free trial chip is present.
+    await expect(page.getByText(/60 days free/i).first()).toBeVisible();
   });
 
   test("security page lists trust pillars", async ({ page }) => {

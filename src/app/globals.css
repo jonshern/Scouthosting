@@ -2,36 +2,70 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ------------------------------------------------------------------
+   Compass design tokens — "balanced" / Slate & Sky from
+   design_handoff_compass/designs/tokens.js. The marketing surface uses
+   these directly; admin / per-tenant pages still resolve the same
+   tokens via the legacy aliases in tailwind.config.
+   ------------------------------------------------------------------ */
 :root {
-  --forest: #1d6b39;
-  --ember: #caa54a;
-  --ink: #1a1f1c;
-  --bone: #f7f5ef;
+  --bg: #f7f8fa;
+  --surface: #ffffff;
+  --surface-alt: #eef1f5;
+  --surface-dark: #0f172a;
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --ink-muted: #64748b;
+  --line: #e2e8f0;
+  --line-soft: #eef1f5;
+  --accent: #1d4ed8;     /* sky / royal blue */
+  --accent-soft: #bcd0f4;
+  --ember: #f59e0b;
+  --ember-soft: #fde68a;
+  --teal: #0891b2;
+  --plum: #475569;
+  --success: #059669;
+  --danger: #dc2626;
+
+  /* legacy var aliases used by some older components */
+  --forest: var(--accent);
+  --bone: var(--bg);
 }
 
 html, body {
-  background: var(--bone);
+  background: var(--bg);
   color: var(--ink);
+  font-family: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
-a { color: var(--forest); }
-a:hover { color: var(--ember); }
+a { color: var(--accent); }
+a:hover { color: var(--ink); }
 
 .btn {
   @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors;
 }
 .btn-primary {
-  @apply btn bg-forest text-white hover:bg-forest-dark;
+  background: var(--ink); color: #fff;
+  @apply btn;
 }
+.btn-primary:hover { background: var(--accent); }
 .btn-secondary {
-  @apply btn border border-forest text-forest hover:bg-forest hover:text-white;
+  background: transparent; color: var(--ink); border: 1.5px solid var(--ink);
+  @apply btn;
 }
+.btn-secondary:hover { background: var(--ink); color: #fff; }
+
 .field {
-  @apply block w-full rounded-md border border-ink-muted/30 bg-white px-3 py-2 text-sm focus:border-forest focus:outline-none focus:ring-2 focus:ring-forest/20;
+  @apply block w-full rounded-md border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2;
+  border-color: rgba(15, 23, 42, 0.18);
 }
-.label {
-  @apply block text-sm font-medium text-ink mb-1;
-}
+.field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+
+.label { @apply block text-sm font-medium mb-1; color: var(--ink); }
+
 .card {
-  @apply rounded-xl bg-white border border-ink-muted/15 p-6 shadow-sm;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  @apply rounded-xl p-6 shadow-sm;
 }

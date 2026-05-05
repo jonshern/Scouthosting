@@ -59,9 +59,12 @@ test.describe("page editor", () => {
     await page.goto("http://troop100.localhost:3000/");
     // The seeded test environment may not have any custom pages with
     // showInNav=true, but the previous test created one. Just confirm
-    // the nav renders the standard items at least.
-    await expect(page.getByRole("link", { name: "Calendar" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Photos" })).toBeVisible();
+    // the global tenant nav renders the standard items at least.
+    // Scope to the Site navigation so the "Full calendar →" CTA in
+    // the new editorial home doesn't trigger a strict-mode collision.
+    const nav = page.getByRole("navigation", { name: "Site" });
+    await expect(nav.getByRole("link", { name: "Calendar" })).toBeVisible();
+    await expect(nav.getByRole("link", { name: "Photos" })).toBeVisible();
   });
 
   test("members-only custom page redirects anonymous users to sign-in prompt", async ({ browser, page }) => {
