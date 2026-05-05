@@ -30,6 +30,7 @@
     "react-dom": "^19.0.0",
     "rrule": "^2.8.1",
     "web-push": "^3.6.7",
+    "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
