@@ -1,0 +1,51 @@
+# fly.toml — compass-staging (Next.js).
+#
+# Migrations run on container boot via the Dockerfile CMD:
+#   prisma migrate deploy && npm run start
+#
+# Secrets live in `fly secrets`. APEX_DOMAIN, ALLOW_ADMIN_PASSWORD_LOGIN,
+# DATABASE_URL, AUTH_TOKEN_SECRET, INVITE_SECRET, RSVP_SECRET are all
+# already set on this app — see `fly secrets list -a compass-staging`.
+
+app = 'compass-staging'
+primary_region = 'ord'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  NODE_ENV = 'production'
+  NEXT_TELEMETRY_DISABLED = '1'
+  PUSH_DRIVER = 'console'
+  # Persist uploads across deploys/restarts. The mount below provides a
+  # real disk at /data; lib/storage writes to LOCAL_UPLOADS_DIR.
+  LOCAL_UPLOADS_DIR = '/data/uploads'
+  STORAGE_DRIVER = 'local'
+
+# Persistent volume for user uploads. Without this, every `fly deploy`
+# and every machine restart wipes /app/var/uploads/* and the live demo
+# 404s on every photo until someone re-seeds.
+# Volume created via: fly volumes create compass_uploads --region ord --size 1
+[[mounts]]
+  source = 'compass_uploads'
+  destination = '/data'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    interval = '30s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/health'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
+  cpus = 1
+  memory_mb = 512
