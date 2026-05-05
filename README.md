@@ -14,11 +14,13 @@ Compass deep-links into it instead of competing.
 ## Repo layout
 
 ```
-compass-next/        # The Next.js 16 app — single deploy target.
-                     # Everything that runs in production lives here.
+src/                 # Next.js app — server components, server
+                     # actions, route handlers under app/.
+tests/               # Vitest unit tests (src/**/*.test.ts) and
+                     # Playwright E2E (tests/e2e/).
+prisma/              # Schema + migrations (shared with mobile).
 mobile/              # Expo / React Native client. Talks to /api/v1/*.
-prisma/              # Schema + migrations (compass-next/prisma symlinks here).
-Dockerfile           # Multi-stage build → compass-next on port 3000.
+Dockerfile           # Multi-stage build → port 3000.
 docker-compose.yml   # Local Postgres only.
 ```
 
@@ -31,7 +33,7 @@ remaps so the project doesn't collide with another local Postgres):
 docker compose up -d postgres
 ```
 
-Then in `compass-next/`:
+Then at the repo root:
 
 ```bash
 cp .env.example .env       # edit DATABASE_URL if not 5433
@@ -51,13 +53,10 @@ Demo sign-in: `scoutmaster@example.invalid` / `AdminPasswordTest123!`.
 ## Tests
 
 ```bash
-cd compass-next
 npm test                   # vitest unit tests
 npm run typecheck
 npm run test:e2e           # playwright against a prod build
 ```
-
-CI runs all three; merging requires green.
 
 ## Mobile
 
@@ -108,5 +107,5 @@ Required env at runtime:
 
 ## License
 
-Source-available under terms TBD; the running service is operated by the
-authors at `scoutingcompass.com`.
+Source-available under terms TBD; the running service is operated by
+the authors at `scoutingcompass.com`.
