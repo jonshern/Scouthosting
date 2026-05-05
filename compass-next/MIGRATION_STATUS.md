@@ -64,9 +64,9 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `analytics.js` / `analyticsTag.js` | `src/lib/tracking/*.ts` | ⬜ |
 | `announcementBanner.js` | `src/components/site/AnnouncementBanner.tsx` | ✅ |
 | `markdown.js` | `src/lib/markdown.ts` | ✅ |
-| `seo.js` | per-route `metadata` exports | 🚧 (used in marketing) |
+| `seo.js` | `src/lib/seo.ts` (metaTags + JSON-LD + sitemap + robots) + per-route `metadata` exports | ✅ |
 | `videoEmbed.js` | `src/lib/video/embed.ts` | ✅ |
-| `imageGen.js` | `src/lib/storage/image-gen.ts` | ⬜ |
+| `imageGen.js` | `src/lib/storage/image-gen.ts` | ✅ |
 | `featureFlags.js` | `src/lib/features/index.ts` | ✅ |
 | `plans.js` / `plans.constants.js` / `billingState.js` | `src/lib/billing/*.ts` | ⬜ |
 | `stripe.js` | `src/lib/billing/stripe.ts` | ⬜ |
@@ -84,10 +84,11 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `rosterImport.js` | Server Action + xlsx parser | ⬜ |
 | `scoutbook.js` | `src/lib/scoutbook/links.ts` | ✅ |
 | `positionTerms.js` | `src/lib/program/positions.ts` | ✅ |
-| `postReactions.js` | `src/lib/posts/reactions.ts` | 🚧 (component exists, server action pending) |
-| `trackedMessage.js` | `src/lib/comms/tracked-message.ts` | ⬜ |
+| `postReactions.js` | `src/lib/posts/reactions.ts` | ✅ (lib; mutation server action still ⬜) |
+| `trackingToken.js` | `src/lib/tracking/click-token.ts` | ✅ |
+| `trackedMessage.js` | `src/lib/comms/tracked-message.ts` | ✅ |
 | `yptReminder.js` | `src/lib/youth-protection/ypt-reminder.ts` | ⬜ |
-| `credits.js` | `src/lib/billing/credits.ts` | ⬜ |
+| `credits.js` | `src/lib/billing/credits.ts` | ✅ |
 | `log.js` | structured logger via `pino` (TBD) | ⬜ |
 
 ## Tenancy + supporting libs (new in compass-next)
