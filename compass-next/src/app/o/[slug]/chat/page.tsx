@@ -5,6 +5,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
+import { ChatComposer } from "@/components/chat/ChatComposer";
 
 export default async function ChatPage({
   params,
@@ -97,9 +99,9 @@ export default async function ChatPage({
                   </p>
                 )}
               </header>
-              <ul className="space-y-3">
+              <ul className="space-y-3" data-testid="chat-messages">
                 {messages.map((m) => (
-                  <li key={m.id} className="text-sm">
+                  <li key={m.id} className="text-sm" data-testid="chat-message">
                     {m.authorId ? (
                       <>
                         <span className="font-medium">
@@ -116,6 +118,16 @@ export default async function ChatPage({
                   </li>
                 ))}
               </ul>
+              <ChatComposer
+                channelId={activeChannel.id}
+                csrf={<CsrfTokenInput />}
+                disabled={activeChannel.isSuspended ?? false}
+                disabledReason={
+                  activeChannel.isSuspended
+                    ? `Paused: ${activeChannel.suspendedReason ?? "two-deep failed"}`
+                    : undefined
+                }
+              />
             </>
           )}
         </section>

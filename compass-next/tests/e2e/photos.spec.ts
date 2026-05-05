@@ -56,9 +56,13 @@ test.describe("photos", () => {
     await expect(imgs.first()).toBeVisible();
   });
 
-  test("uploads route 404s for nonexistent photo", async ({ request }) => {
-    const res = await request.get("http://troop100.localhost:3000/uploads/orgs/none/photos/nope.jpg");
-    expect(res.status()).toBe(404);
+  test("uploads route 404s for nonexistent photo", async ({ page }) => {
+    // page.goto resolves *.localhost via Chromium (Node resolver
+    // doesn't auto-route on macOS).
+    const res = await page.goto(
+      "http://troop100.localhost:3000/uploads/orgs/none/photos/nope.jpg",
+    );
+    expect(res?.status()).toBe(404);
   });
 
   test("members-only album is hidden from anonymous public listing", async ({ browser }) => {

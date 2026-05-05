@@ -37,18 +37,28 @@ test.describe("calendar", () => {
     await expect(page.getByRole("link", { name: "Directions" }).first()).toBeVisible();
   });
 
-  test("iCal feed serves text/calendar with the right MIME and content", async ({ request }) => {
-    const res = await request.get("http://troop100.localhost:3000/calendar.ical");
-    expect(res.status()).toBe(200);
-    expect(res.headers()["content-type"]).toContain("text/calendar");
-    const body = await res.text();
-    expect(body).toContain("BEGIN:VCALENDAR");
-    expect(body).toContain("END:VCALENDAR");
+  test("iCal feed serves text/calendar with the right MIME and content", async ({ page }) => {
+    // Fetch from inside the page context — Chromium resolves
+    // *.localhost where Node's resolver doesn't on macOS, and the
+    // text/calendar content-type doesn't trigger a download here.
+    await page.goto("http://troop100.localhost:3000/");
+    const result = await page.evaluate(async () => {
+      const r = await fetch("http://troop100.localhost:3000/calendar.ical");
+      return {
+        status: r.status,
+        contentType: r.headers.get("content-type") ?? "",
+        body: await r.text(),
+      };
+    });
+    expect(result.status).toBe(200);
+    expect(result.contentType).toContain("text/calendar");
+    expect(result.body).toContain("BEGIN:VCALENDAR");
+    expect(result.body).toContain("END:VCALENDAR");
   });
 
-  test("iCal feed 404s for unknown tenant", async ({ request }) => {
-    const res = await request.get("http://troop999.localhost:3000/calendar.ical");
-    expect(res.status()).toBe(404);
+  test("iCal feed 404s for unknown tenant", async ({ page }) => {
+    const res = await page.goto("http://troop999.localhost:3000/calendar.ical");
+    expect(res?.status()).toBe(404);
   });
 
   test("event edit page renders RSVP count and form", async ({ page }) => {

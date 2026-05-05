@@ -1,9 +1,9 @@
-# Multi-stage build. The runtime image is slim (no build tools, no
-# devDependencies) and runs as a non-root user. Works for Cloud Run,
-# Fly, ECS, and a self-hosted docker compose.
+# Multi-stage build for compass-next (Next.js 16). The legacy Express
+# app in server/ is no longer the runtime — compass-next is the
+# single deploy target as of the cutover.
 #
 # Build:  docker build -t compass:latest .
-# Run:    docker run --rm -p 8080:8080 --env-file .env compass:latest
+# Run:    docker run --rm -p 3000:3000 --env-file .env compass:latest
 
 FROM node:22-slim AS deps
 WORKDIR /app
@@ -12,53 +12,77 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     openssl ca-certificates wget \
   && rm -rf /var/lib/apt/lists/*
 
+# Copy the parent repo (for prisma/schema.prisma + migrations that
+# compass-next's prisma/ symlinks to) and the compass-next package.
+# The whole repo lands at /app per .dockerignore. compass-next/prisma
+# is a relative symlink to ../../prisma so the schema resolves once
+# everything's in place.
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
+COPY compass-next/package.json compass-next/package-lock.json ./compass-next/
+COPY compass-next/prisma ./compass-next/prisma
+
+# Install + generate inside compass-next. The Next/Prisma client lands
+# in /app/compass-next/node_modules.
+WORKDIR /app/compass-next
 RUN npm ci --include=optional && npx prisma generate
+
+# ---------------------------------------------------------------------
+
+FROM node:22-slim AS builder
+WORKDIR /app
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+# Bring forward the resolved deps + generated Prisma client.
+COPY --from=deps /app/prisma ./prisma
+COPY --from=deps /app/compass-next/node_modules ./compass-next/node_modules
+
+# Source for the build context.
+COPY compass-next ./compass-next
+
+# Next produces .next/ and (in standalone mode if configured) a
+# server bundle. Default mode emits .next/ which `next start` reads.
+WORKDIR /app/compass-next
+RUN npm run build
 
 # ---------------------------------------------------------------------
 
 FROM node:22-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
-ENV PORT=8080
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PORT=3000
 ENV LOG_LEVEL=info
 
-# wget is used by the HEALTHCHECK below; openssl + ca-certificates are
-# needed for outbound HTTPS (Resend, Twilio, Stripe).
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
     openssl ca-certificates wget \
   && rm -rf /var/lib/apt/lists/*
 
-# Non-root runtime user. /app/var is the writable upload root (point
-# STORAGE_DIR elsewhere to mount a volume).
+# Non-root runtime user. /app/var/uploads is the writable local-storage
+# root when STORAGE_DRIVER=local; mount a Fly volume / S3 / GCS in
+# production via STORAGE_DRIVER.
 RUN useradd --create-home --shell /usr/sbin/nologin --uid 10001 compass \
-  && mkdir -p /app/var/uploads /app/var/tmp
+  && mkdir -p /app/var/uploads /app/var/tmp \
+  && chown -R compass:compass /app/var
 
-# node_modules + the prisma client come from the deps stage (cached
-# across builds because they're versioned by package-lock + schema).
-COPY --from=deps --chown=compass:compass /app/node_modules ./node_modules
-COPY --from=deps --chown=compass:compass /app/prisma ./prisma
-
-# Everything else ships from the build context. .dockerignore is the
-# single source of truth for what's excluded — anything not listed
-# there gets copied in, so adding a new top-level file or directory
-# (admin/, demo/, a new marketing.html, etc.) is automatically picked
-# up. Replaces the previous explicit per-file COPY list that kept
-# biting us as trap #1 in CLAUDE.md (each new asset silently 404'd
-# in prod until someone re-edited this file).
-COPY --chown=compass:compass . .
+# Bring in the parent prisma schema + migrations (used by `prisma
+# migrate deploy` at boot) and the built Next app.
+COPY --from=builder --chown=compass:compass /app/prisma ./prisma
+COPY --from=builder --chown=compass:compass /app/compass-next ./compass-next
 
 USER compass
+WORKDIR /app/compass-next
 
-EXPOSE 8080
+EXPOSE 3000
 
-# Cheap liveness probe — does NOT touch the DB so a Postgres blip
-# doesn't restart the node. Use /readyz from your orchestrator for
-# traffic-shedding (it does check Postgres).
+# Cheap liveness probe (no DB touch).
 HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
-  CMD wget -qO- http://localhost:8080/healthz || exit 1
+  CMD wget -qO- http://localhost:3000/health || exit 1
 
-# Run pending migrations on boot, then start the server. `prisma
-# migrate deploy` is idempotent — multi-instance roll-outs converge.
-CMD ["sh", "-c", "npx prisma migrate deploy && node server/index.js"]
+# Run pending migrations on boot, then start Next. prisma migrate
+# deploy is idempotent — safe under multi-instance rollouts.
+CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]

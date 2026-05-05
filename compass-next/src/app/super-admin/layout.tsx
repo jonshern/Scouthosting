@@ -1,4 +1,4 @@
-// /__super — apex-only operator surface. Every route under this
+// /super-admin — apex-only operator surface. Every route under this
 // segment requires a User with isSuperAdmin=true.
 
 import Link from "next/link";
@@ -17,7 +17,7 @@ export default async function SuperLayout({ children }: { children: React.ReactN
 
   const { user } = await getSession();
   if (!user || !user.isSuperAdmin) {
-    redirect("/login?next=/__super");
+    redirect("/login?next=/super-admin");
   }
 
   return (
@@ -25,9 +25,9 @@ export default async function SuperLayout({ children }: { children: React.ReactN
       <header className="mb-8">
         <h1 className="font-display text-3xl font-semibold">Super-admin</h1>
         <nav className="mt-3 flex gap-4 text-sm">
-          <Link href="/__super">Orgs</Link>
-          <Link href="/__super/errors">Errors</Link>
-          <Link href="/__super/analytics">Analytics</Link>
+          <Link href="/super-admin">Orgs</Link>
+          <Link href="/super-admin/errors">Errors</Link>
+          <Link href="/super-admin/analytics">Analytics</Link>
         </nav>
       </header>
       {children}

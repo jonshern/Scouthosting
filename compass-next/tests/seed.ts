@@ -90,6 +90,15 @@ async function main() {
     }
   }
 
+  // Standing chat channels (troop / parents / leaders / per-patrol).
+  // The chat delivery tests need at least one postable channel for
+  // the scoutmaster.
+  const { provisionStandingChannels } = await import("../src/lib/chat");
+  await provisionStandingChannels({
+    org: { id: org.id, displayName: org.displayName },
+    prismaClient: prisma,
+  });
+
   // eslint-disable-next-line no-console
   console.log("Seeded:", { user: user.email, org: org.slug, members: memberSeeds.length });
 }

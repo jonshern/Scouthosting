@@ -35,6 +35,7 @@ type PgBossLike = {
     name: string,
     fn: (jobs: Array<{ id: string; data: unknown }>) => Promise<void>,
   ) => Promise<unknown>;
+  createQueue?: (name: string) => Promise<unknown>;
   on: (event: string, fn: (err: Error) => void) => void;
   start: () => Promise<unknown>;
   stop: (opts: { graceful: boolean }) => Promise<unknown>;
@@ -122,6 +123,17 @@ export async function startJobsRuntime(opts: { databaseUrl?: string } = {}): Pro
   await boss.start();
 
   for (const [name, fn] of handlers.entries()) {
+    // pg-boss v12 requires explicit queue creation before work().
+    // Older versions ignore this call; the optional chain keeps both
+    // paths happy.
+    if (boss.createQueue) {
+      try {
+        await boss.createQueue(name);
+      } catch (err) {
+        // Idempotent: ignore "already exists" failures.
+        log.debug("createQueue", { name, err: err instanceof Error ? err.message : String(err) });
+      }
+    }
     await boss.work(name, async (jobs) => {
       for (const job of jobs) {
         try {
