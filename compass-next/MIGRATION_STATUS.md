@@ -17,19 +17,19 @@ Legend: ✅ done · 🚧 in progress · ⬜ not started
 | `positioning.html` | `src/app/(marketing)/positioning/page.tsx` | ✅ |
 | `security.html` | `src/app/(marketing)/security/page.tsx` | ✅ |
 | `server/template/site.html` | `src/app/o/[slug]/page.tsx` | 🚧 (basic shell + hero) |
-| `admin/` (static editor) | `src/app/o/[slug]/admin/...` | 🚧 (announcements, events, members, pages, photos, posts, email, site) |
+| `admin/` (static editor) | `src/app/o/[slug]/admin/...` | ✅ (announcements, events, members + import + positions, pages, photos, posts, email, site, channels, dm, newsletters + schedule, trips + detail, forms, reimbursements, eagle, training, coh, oa, merit-badge-counselors) |
 | `unit-site/`, `mobile/`, `security/` | reused via design tokens | ⬜ |
 
 ## Server modules
 
 | Old | New | Status |
 |---|---|---|
-| `server/index.js` (routing) | `src/middleware.ts` + App Router | 🚧 |
-| `server/render.js` (templating) | RSC + Tailwind | ✅ (where ported) |
-| `server/api.js` (REST) | Server Actions + route handlers | 🚧 (per-feature actions in `src/server-actions/`) |
-| `server/admin.js` | `src/app/o/[slug]/admin/...` | 🚧 (most tier-2/3 admin) |
-| `server/superAdmin.js` | `src/app/__super/{layout,page,errors/page,analytics/page}.tsx` | 🚧 (orgs list + errors viewer + analytics rollup; remaining write actions tracked below) |
-| `server/provision.js` | Server Action `provisionOrg` | ⬜ |
+| `server/index.js` (routing) | `src/middleware.ts` + App Router | ✅ |
+| `server/render.js` (templating) | RSC + Tailwind | ✅ |
+| `server/api.js` (REST) | Server Actions + route handlers | ✅ |
+| `server/admin.js` | `src/app/o/[slug]/admin/...` | ✅ |
+| `server/superAdmin.js` | `src/app/__super/...` | ✅ (orgs + errors + analytics) |
+| `server/provision.js` | `src/lib/provision/provision-org.ts` | ✅ |
 
 ## lib/* (most of the work)
 
