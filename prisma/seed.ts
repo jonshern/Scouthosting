@@ -11,6 +11,92 @@ const ADMIN_EMAIL = "scoutmaster@example.invalid";
 const ADMIN_PASSWORD = "AdminPasswordTest123!";
 const SUPER_EMAIL = "super@example.invalid";
 
+async function provisionStandingChannelsInline(orgId: string, displayName: string) {
+  type ChannelDef = {
+    kind: "troop" | "parents" | "leaders" | "patrol";
+    name: string;
+    patrolName: string | null;
+  };
+
+  const channelDefs: ChannelDef[] = [
+    { kind: "troop", name: `${displayName} — All members`, patrolName: null },
+    { kind: "parents", name: "Parents", patrolName: null },
+    { kind: "leaders", name: "Leaders only", patrolName: null },
+  ];
+
+  const patrols = await prisma.member.findMany({
+    where: { orgId, patrol: { not: null } },
+    distinct: ["patrol"],
+    select: { patrol: true },
+  });
+  for (const p of patrols) {
+    if (!p.patrol) continue;
+    channelDefs.push({ kind: "patrol", name: `${p.patrol} patrol`, patrolName: p.patrol });
+  }
+
+  for (const def of channelDefs) {
+    const existing = await prisma.channel.findFirst({
+      where: { orgId, kind: def.kind, patrolName: def.patrolName },
+      select: { id: true },
+    });
+    const channel =
+      existing ??
+      (await prisma.channel.create({
+        data: { orgId, kind: def.kind, name: def.name, patrolName: def.patrolName },
+        select: { id: true },
+      }));
+
+    let desired: string[];
+    if (def.kind === "leaders") {
+      const rows = await prisma.orgMembership.findMany({
+        where: { orgId, role: { in: ["leader", "admin"] } },
+        select: { userId: true },
+      });
+      desired = rows.map((r) => r.userId);
+    } else if (def.kind === "parents") {
+      const rows = await prisma.orgMembership.findMany({
+        where: { orgId, role: { in: ["parent", "leader", "admin"] } },
+        select: { userId: true },
+      });
+      desired = rows.map((r) => r.userId);
+    } else if (def.kind === "patrol") {
+      // Scout members in this patrol who have a matching User by email,
+      // plus all org leaders/admins so the channel meets two-deep.
+      const [scoutMembers, leaderRows] = await Promise.all([
+        prisma.member.findMany({
+          where: { orgId, patrol: def.patrolName ?? undefined, email: { not: null } },
+          select: { email: true },
+        }),
+        prisma.orgMembership.findMany({
+          where: { orgId, role: { in: ["leader", "admin"] } },
+          select: { userId: true },
+        }),
+      ]);
+      const scoutEmails = scoutMembers.map((m) => m.email).filter((e): e is string => !!e);
+      const scoutUsers = scoutEmails.length
+        ? await prisma.user.findMany({
+            where: { email: { in: scoutEmails } },
+            select: { id: true },
+          })
+        : [];
+      desired = [...scoutUsers.map((u) => u.id), ...leaderRows.map((r) => r.userId)];
+    } else {
+      const rows = await prisma.orgMembership.findMany({
+        where: { orgId },
+        select: { userId: true },
+      });
+      desired = rows.map((r) => r.userId);
+    }
+
+    if (desired.length) {
+      await prisma.channelMember.createMany({
+        data: desired.map((userId) => ({ channelId: channel.id, userId, addedAutomatically: true })),
+        skipDuplicates: true,
+      });
+    }
+  }
+}
+
 async function main() {
   const passwordHash = await hash(ADMIN_PASSWORD, ARGON_PARAMS);
 
@@ -105,13 +191,12 @@ async function main() {
   }
 
   // Standing chat channels (troop / parents / leaders / per-patrol).
-  // The chat delivery tests need at least one postable channel for
-  // the scoutmaster.
-  const { provisionStandingChannels } = await import("../src/lib/chat");
-  await provisionStandingChannels({
-    org: { id: org.id, displayName: org.displayName },
-    prismaClient: prisma,
-  });
+  // Inlined so this seed runs in the Fly runtime image, which only
+  // copies prisma/ — not src/. Mirrors provisionStandingChannels in
+  // src/lib/chat without the YPT post-check (the runtime guard
+  // enforces two-deep on every write, so seed-time validation is
+  // redundant).
+  await provisionStandingChannelsInline(org.id, org.displayName);
 
   // eslint-disable-next-line no-console
   console.log("Seeded:", { user: user.email, org: org.slug, members: memberSeeds.length });
