@@ -1,7 +1,6 @@
 // Generate small solid-color PNGs procedurally — no native deps.
-// Used by tests/seed.ts (and the parent repo's prisma/seed.js) to
-// populate the demo gallery + activity feed without bundling stock
-// photos.
+// Used by prisma/seed.ts to populate the demo gallery + activity feed
+// without bundling stock photos.
 
 import zlib from "node:zlib";
 

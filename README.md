@@ -40,7 +40,7 @@ cp .env.example .env       # edit DATABASE_URL if not 5433
 npm install
 npx prisma generate
 npm run db:deploy          # apply migrations to the dev DB
-npx tsx tests/seed.ts      # seed scoutmaster + troop100
+npm run db:seed            # seed scoutmaster + troop100
 npm run dev                # localhost:3000
 ```
 

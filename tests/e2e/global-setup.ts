@@ -8,5 +8,5 @@ export default async function globalSetup() {
   };
   const cwd = path.resolve(__dirname, "../..");
   execSync("npx prisma migrate deploy", { cwd, env, stdio: "inherit" });
-  execSync("npx tsx tests/seed.ts", { cwd, env, stdio: "inherit" });
+  execSync("npx tsx prisma/seed.ts", { cwd, env, stdio: "inherit" });
 }
