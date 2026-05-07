@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { EventForm } from "@/components/admin/EventForm";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function EditEventPage({
   params,
@@ -24,18 +25,17 @@ export default async function EditEventPage({
   const yeses = event.rsvps.filter((r) => r.response === "yes").length;
 
   return (
-    <section className="space-y-8">
-      <div>
-        <h1 className="font-display text-3xl font-semibold">{event.title}</h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          {total} RSVPs · {yeses} yes
-        </p>
-        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-          <Link href={`/o/${slug}/admin/events`}>← All events</Link>
-          <Link href={`/o/${slug}/admin/events/${event.id}/slots`}>
-            Manage signup slots →
-          </Link>
-        </div>
+    <section className="space-y-10">
+      <AdminPageHeader
+        kicker="Calendar"
+        title={event.title}
+        description={`${total} RSVPs · ${yeses} yes`}
+      />
+      <div className="flex flex-wrap items-center gap-3 text-sm">
+        <Link href={`/o/${slug}/admin/events`}>← All events</Link>
+        <Link href={`/o/${slug}/admin/events/${event.id}/slots`}>
+          Manage signup slots →
+        </Link>
       </div>
       <EventForm
         orgSlug={slug}
@@ -63,9 +63,9 @@ export default async function EditEventPage({
 
       {total > 0 && (
         <div>
-          <h2 className="font-display text-xl font-semibold mb-3">RSVPs</h2>
+          <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">RSVPs</h2>
           <table className="w-full text-sm">
-            <thead className="text-left text-ink-muted">
+            <thead className="text-left text-slate-muted">
               <tr>
                 <th className="py-1">Name</th>
                 <th className="py-1">Email</th>

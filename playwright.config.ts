@@ -40,6 +40,13 @@ export default defineConfig({
       // E2E suite predates the apex Coming Soon gate; bypass it so the
       // existing marketing tests don't have to enter an invite code.
       DISABLE_INVITE_GATE: "1",
+      // Per-org PII encryption (lib/encryption/master-key.ts) refuses to
+      // boot under NODE_ENV=production without MASTER_KEY. The seed
+      // script generates fresh org DEKs against this key on each `npm
+      // run db:seed`, so a fixed test value is fine — it never wraps
+      // real customer data.
+      MASTER_KEY:
+        "0000000000000000000000000000000000000000000000000000000000000001",
     },
   },
 });

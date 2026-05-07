@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function MemberPositionsPage({
   params,
@@ -52,20 +53,19 @@ export default async function MemberPositionsPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-1">
-        {member.firstName} {member.lastName}
-      </h1>
-      <p className="text-ink-muted mb-6 text-sm">
-        Current position: {member.position ?? "—"}
-      </p>
+      <AdminPageHeader
+        kicker="Roster"
+        title={`${member.firstName} ${member.lastName}`}
+        description={`Current position: ${member.position ?? "—"}`}
+      />
       {terms.length === 0 ? (
-        <p className="text-ink-muted">No position history.</p>
+        <p className="text-slate-soft">No position history.</p>
       ) : (
         <ul className="space-y-2">
           {terms.map((t) => (
             <li key={t.id} className="card text-sm">
               <strong>{t.position}</strong>
-              <div className="text-xs text-ink-muted">
+              <div className="text-xs text-slate-muted">
                 {t.startedAt.toLocaleDateString()} —{" "}
                 {t.endedAt ? t.endedAt.toLocaleDateString() : "present"}
               </div>

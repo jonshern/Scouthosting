@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { setCustomDomain, clearCustomDomain } from "@/server-actions/domain";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function CustomDomainPage({
   params,
@@ -31,18 +32,23 @@ export default async function CustomDomainPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-2">Custom domain</h1>
-      <p className="text-ink-muted text-sm mb-6">
-        Point your own domain at this site instead of (or in addition to){" "}
-        <span className="font-mono">{subdomainHost}</span>.
-      </p>
+      <AdminPageHeader
+        kicker="Settings"
+        title="Custom domain"
+        description={
+          <>
+            Point your own domain at this site instead of (or in addition to){" "}
+            <span className="font-mono">{subdomainHost}</span>.
+          </>
+        }
+      />
 
       {org.customDomain ? (
         <section className="card mb-6">
           <h2 className="font-medium">
             Current: <span className="font-mono">{org.customDomain}</span>
           </h2>
-          <p className="text-xs text-ink-muted mt-1">
+          <p className="text-xs text-slate-muted mt-1">
             DNS check: visit{" "}
             <a
               href={`https://${org.customDomain}`}

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { createForm } from "@/server-actions/forms";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function NewFormPage({
   params,
@@ -26,7 +27,7 @@ export default async function NewFormPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">New form</h1>
+      <AdminPageHeader kicker="Forms" title="New form" />
       <form
         action={createForm}
         encType="multipart/form-data"

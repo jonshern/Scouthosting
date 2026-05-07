@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { createSurvey } from "@/server-actions/surveys";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function NewSurveyPage({
   params,
@@ -28,7 +29,7 @@ export default async function NewSurveyPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">New survey</h1>
+      <AdminPageHeader kicker="Forms" title="New survey" />
       <form action={createSurvey} className="space-y-4 max-w-xl">
         <CsrfTokenInput />
         <input type="hidden" name="orgSlug" value={slug} />
@@ -63,7 +64,7 @@ export default async function NewSurveyPage({
         </label>
         <label className="block">
           <span className="block text-sm">Questions</span>
-          <p className="text-xs text-ink-muted mt-1 mb-1">
+          <p className="text-xs text-slate-muted mt-1 mb-1">
             One per line, format: <code>type|label|opt1,opt2</code>. Types:
             text · long · yesno · select · multi · scale.
           </p>

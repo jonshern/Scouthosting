@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { updateForm } from "@/server-actions/forms";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function EditFormPage({
   params,
@@ -31,7 +32,7 @@ export default async function EditFormPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Edit form</h1>
+      <AdminPageHeader kicker="Forms" title={form.title} />
       <form
         action={updateForm}
         encType="multipart/form-data"
@@ -70,7 +71,7 @@ export default async function EditFormPage({
             className="mt-1"
           />
           {form.filename && (
-            <p className="text-xs text-ink-muted mt-1">
+            <p className="text-xs text-slate-muted mt-1">
               Current: {form.originalName ?? form.filename}
             </p>
           )}

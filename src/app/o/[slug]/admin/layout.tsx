@@ -1,9 +1,23 @@
+// Admin chrome. Replaces the old sidebar with the AdminBalanced
+// top-nav from design_handoff_compass — Compass wordmark left, primary
+// section links + sky-blue underline for the active section, settings
+// links on the right. The page body is constrained to max-w-[1400px]
+// at 32–40px gutters per the design.
+
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
+import { AdminTopNav } from "@/components/admin/AdminTopNav";
+
+function initials(email: string, displayName: string | null | undefined): string {
+  const src = (displayName ?? email).trim();
+  if (!src) return "·";
+  const parts = src.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
+  return src.slice(0, 2).toUpperCase();
+}
 
 export default async function AdminLayout({
   children,
@@ -22,29 +36,19 @@ export default async function AdminLayout({
     return (
       <section className="mx-auto max-w-content px-6 py-16">
         <h1 className="font-display text-2xl font-semibold">Not authorized</h1>
-        <p className="mt-2 text-ink-muted">Ask a leader to grant you admin access.</p>
+        <p className="mt-2 text-slate-muted">Ask a leader to grant you admin access.</p>
       </section>
     );
   }
+  const unitLabel = `${org.unitType ?? ""} ${org.unitNumber ?? ""}`.trim() || org.displayName;
   return (
-    <div className="bg-bone-dark/40 min-h-screen">
-      <div className="mx-auto max-w-content px-6 py-8 grid gap-8 md:grid-cols-[200px_1fr]">
-        <aside aria-label="Admin">
-          <div className="font-display font-semibold mb-4">Admin</div>
-          <nav className="flex flex-col gap-2 text-sm">
-            <Link href={`/o/${slug}/admin`}>Overview</Link>
-            <Link href={`/o/${slug}/admin/announcements`}>Announcements</Link>
-            <Link href={`/o/${slug}/admin/site`}>Site hero</Link>
-            <Link href={`/o/${slug}/admin/pages`}>Pages</Link>
-            <Link href={`/o/${slug}/admin/events`}>Events</Link>
-            <Link href={`/o/${slug}/admin/photos`}>Photos</Link>
-            <Link href={`/o/${slug}/admin/posts`}>Posts</Link>
-            <Link href={`/o/${slug}/admin/email`}>Group email</Link>
-            <Link href={`/o/${slug}/admin/members`}>Members</Link>
-          </nav>
-        </aside>
-        <main>{children}</main>
-      </div>
+    <div className="min-h-screen bg-bg">
+      <AdminTopNav
+        slug={slug}
+        initials={initials(user.email, null)}
+        unitLabel={unitLabel}
+      />
+      <main className="mx-auto max-w-[1400px] px-8 py-10">{children}</main>
     </div>
   );
 }

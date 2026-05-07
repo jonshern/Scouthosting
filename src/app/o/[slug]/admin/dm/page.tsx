@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function DmAdminPage({
   params,
@@ -45,9 +46,9 @@ export default async function DmAdminPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Direct messages</h1>
+      <AdminPageHeader kicker="Messages" title="Direct messages" />
       {threads.length === 0 ? (
-        <p className="text-ink-muted">
+        <p className="text-slate-soft">
           No DM threads yet. Start one from a member's profile.
         </p>
       ) : (
@@ -59,7 +60,7 @@ export default async function DmAdminPage({
                 <Link href={`/o/${slug}/chat?channel=${t.id}`} className="font-medium">
                   {other?.displayName ?? "Unknown"}
                 </Link>
-                <div className="text-xs text-ink-muted">
+                <div className="text-xs text-slate-muted">
                   {other?.email}
                   {" · "}
                   {t._count.messages} messages

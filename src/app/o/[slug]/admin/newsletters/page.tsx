@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function NewslettersPage({
   params,
@@ -49,26 +50,29 @@ export default async function NewslettersPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <div className="flex items-end justify-between mb-6">
-        <h1 className="font-display text-3xl">Newsletters</h1>
-        <Link href={`/o/${slug}/admin/newsletters/schedule`} className="btn-secondary">
-          Schedule
-        </Link>
-      </div>
+      <AdminPageHeader
+        kicker="Messages"
+        title="Newsletters"
+        actions={
+          <Link href={`/o/${slug}/admin/newsletters/schedule`} className="btn-secondary">
+            Schedule
+          </Link>
+        }
+      />
 
       {schedule ? (
-        <p className="mb-6 text-sm text-ink-muted">
+        <p className="mb-6 text-sm text-slate-soft">
           Auto-draft is{" "}
           <strong>{schedule.paused ? "paused" : "on"}</strong> for{" "}
           {weekdayLabel(schedule.weekday)} at {schedule.localTime ?? "07:00"} (
           {schedule.timezone ?? "UTC"}). Min stories: {schedule.minStories ?? 2}.
         </p>
       ) : (
-        <p className="mb-6 text-sm text-ink-muted">No auto-draft schedule set.</p>
+        <p className="mb-6 text-sm text-slate-soft">No auto-draft schedule set.</p>
       )}
 
       {newsletters.length === 0 ? (
-        <p className="text-ink-muted">No newsletters yet.</p>
+        <p className="text-slate-soft">No newsletters yet.</p>
       ) : (
         <ul className="space-y-2">
           {newsletters.map((n) => (
@@ -80,7 +84,7 @@ export default async function NewslettersPage({
                 >
                   {n.title}
                 </Link>
-                <div className="text-xs text-ink-muted">
+                <div className="text-xs text-slate-muted">
                   {n.status} · created {n.createdAt.toLocaleDateString()}
                   {n.publishedAt ? ` · sent ${n.publishedAt.toLocaleDateString()}` : ""}
                 </div>

@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { HeroForm } from "@/components/admin/HeroForm";
 import { CanvasEditor } from "@/components/admin/CanvasEditor";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function AdminSite({
   params,
@@ -26,12 +27,11 @@ export default async function AdminSite({
 
   return (
     <section className="space-y-10">
-      <div>
-        <h1 className="font-display text-3xl font-semibold">Site hero</h1>
-        <p className="mt-2 text-ink-muted">
-          The headline + subhead at the top of your unit&apos;s public site.
-        </p>
-      </div>
+      <AdminPageHeader
+        kicker="Site"
+        title="Site hero"
+        description="The headline + subhead at the top of your unit's public site."
+      />
       <HeroForm
         orgSlug={slug}
         initial={{
@@ -44,8 +44,8 @@ export default async function AdminSite({
       <div>
         <div className="flex items-end justify-between mb-2">
           <div>
-            <h2 className="font-display text-2xl font-semibold">Page canvas</h2>
-            <p className="text-sm text-ink-muted">
+            <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Page canvas</h2>
+            <p className="text-sm text-slate-soft">
               Blocks rendered below the hero. Add text, images, or CTAs;
               reorder or delete inline.
             </p>

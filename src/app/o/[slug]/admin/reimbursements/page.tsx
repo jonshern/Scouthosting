@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { setReimbursementStatus } from "@/server-actions/reimbursements";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 const STATUSES = ["pending", "approved", "denied", "paid"] as const;
 
@@ -34,9 +35,9 @@ export default async function ReimbursementsPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Reimbursements</h1>
+      <AdminPageHeader kicker="Money" title="Reimbursements" />
       {rows.length === 0 ? (
-        <p className="text-ink-muted">No reimbursement requests yet.</p>
+        <p className="text-slate-soft">No reimbursement requests yet.</p>
       ) : (
         <ul className="space-y-3">
           {rows.map((r) => (
@@ -44,7 +45,7 @@ export default async function ReimbursementsPage({
               <div className="flex items-baseline justify-between">
                 <div>
                   <div className="font-medium">{r.requesterName}</div>
-                  <div className="text-xs text-ink-muted">
+                  <div className="text-xs text-slate-muted">
                     ${(r.amountCents / 100).toFixed(2)} · {r.purpose}
                     {" · submitted "}
                     {r.submittedAt.toLocaleDateString()}

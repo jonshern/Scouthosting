@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { deleteForm } from "@/server-actions/forms";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function FormsPage({
   params,
@@ -33,21 +34,24 @@ export default async function FormsPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <div className="flex items-end justify-between mb-6">
-        <h1 className="font-display text-3xl">Forms</h1>
-        <Link href={`/o/${slug}/admin/forms/new`} className="btn-primary">
-          New form
-        </Link>
-      </div>
+      <AdminPageHeader
+        kicker="Forms"
+        title="Forms"
+        actions={
+          <Link href={`/o/${slug}/admin/forms/new`} className="btn-primary">
+            New form
+          </Link>
+        }
+      />
       {forms.length === 0 ? (
-        <p className="text-ink-muted">No forms yet.</p>
+        <p className="text-slate-soft">No forms yet.</p>
       ) : (
         <ul className="space-y-2">
           {forms.map((f) => (
             <li key={f.id} className="card flex items-baseline justify-between">
               <div>
                 <div className="font-medium">{f.title}</div>
-                <div className="text-xs text-ink-muted">
+                <div className="text-xs text-slate-muted">
                   {f.url ? (
                     <a href={f.url} target="_blank" rel="noreferrer" className="underline">
                       External link

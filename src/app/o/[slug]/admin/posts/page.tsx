@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { PostForm } from "@/components/admin/PostForm";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function AdminPostsIndex({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -19,41 +20,55 @@ export default async function AdminPostsIndex({ params }: { params: Promise<{ sl
   if (!org) notFound();
 
   return (
-    <section className="space-y-8">
-      <div>
-        <h1 className="font-display text-3xl font-semibold">Posts</h1>
-        <p className="mt-2 text-ink-muted">
-          Public-site updates. Use Announcements for short timely notices,
-          Posts for longer content with comments + reactions.
-        </p>
-      </div>
+    <section className="space-y-10">
+      <AdminPageHeader
+        kicker="Messages"
+        title="Posts"
+        description="Public-site updates with comments + reactions. Use Announcements for short timely notices."
+      />
 
-      <div>
-        <h2 className="font-display text-xl font-semibold mb-3">New post</h2>
+      <div className="space-y-3">
+        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
+          New post
+        </h2>
         <PostForm orgSlug={slug} csrf={<CsrfTokenInput />} />
       </div>
 
-      <div>
-        <h2 className="font-display text-xl font-semibold mb-3">Recent</h2>
-        {org.posts.length === 0 && <p className="text-ink-muted">Nothing published yet.</p>}
-        <ul className="space-y-3">
-          {org.posts.map((p) => (
-            <li key={p.id} className="card flex items-start justify-between gap-4">
-              <div>
-                <Link href={`/o/${slug}/admin/posts/${p.id}`} className="font-medium">
-                  {p.title ?? p.body.slice(0, 80)}
-                </Link>
-                <div className="mt-1 text-sm text-ink-muted">
-                  {p.pinned ? "📌 Pinned · " : ""}
-                  {p.visibility === "members" ? "Members only" : "Public"} ·{" "}
-                  {p._count.comments} comments · {p._count.reactions} reactions ·{" "}
-                  {new Date(p.publishedAt).toLocaleDateString()}
+      <div className="space-y-3">
+        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Recent</h2>
+        {org.posts.length === 0 ? (
+          <p className="text-sm text-slate-muted">Nothing published yet.</p>
+        ) : (
+          <ul className="space-y-3">
+            {org.posts.map((p) => (
+              <li
+                key={p.id}
+                className="card flex items-start justify-between gap-4"
+              >
+                <div>
+                  <Link
+                    href={`/o/${slug}/admin/posts/${p.id}`}
+                    className="font-semibold text-slate-ink hover:text-sky"
+                  >
+                    {p.title ?? p.body.slice(0, 80)}
+                  </Link>
+                  <div className="mt-1 text-sm text-slate-soft">
+                    {p.pinned ? "📌 Pinned · " : ""}
+                    {p.visibility === "members" ? "Members only" : "Public"} ·{" "}
+                    {p._count.comments} comments · {p._count.reactions} reactions ·{" "}
+                    {new Date(p.publishedAt).toLocaleDateString()}
+                  </div>
                 </div>
-              </div>
-              <Link href={`/o/${slug}/posts/${p.id}`} className="text-sm">View public →</Link>
-            </li>
-          ))}
-        </ul>
+                <Link
+                  href={`/o/${slug}/posts/${p.id}`}
+                  className="text-sm text-sky hover:text-slate-ink"
+                >
+                  View public →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );

@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { unsuspendChannelAction, archiveChannelAction } from "@/server-actions/channels";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function ChannelsAdminPage({
   params,
@@ -45,7 +46,7 @@ export default async function ChannelsAdminPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Channels</h1>
+      <AdminPageHeader kicker="Messages" title="Channels" />
       <ul className="space-y-2">
         {channels.map((c) => (
           <li key={c.id} className="card">
@@ -54,7 +55,7 @@ export default async function ChannelsAdminPage({
                 <Link href={`/o/${slug}/chat?channel=${c.id}`} className="font-medium">
                   {c.name}
                 </Link>
-                <span className="ml-2 text-xs text-ink-muted">
+                <span className="ml-2 text-xs text-slate-muted">
                   {c.kind} · {c.postPolicy} · {c._count.members} members
                 </span>
               </div>
@@ -87,7 +88,7 @@ export default async function ChannelsAdminPage({
               </p>
             )}
             {c.archivedAt && (
-              <p className="text-xs text-ink-muted mt-2">
+              <p className="text-xs text-slate-muted mt-2">
                 Archived {c.archivedAt.toLocaleDateString()}
               </p>
             )}

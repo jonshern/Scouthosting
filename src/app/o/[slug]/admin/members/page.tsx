@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { MemberForm } from "@/components/admin/MemberForm";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 
@@ -36,9 +37,9 @@ export default async function AdminMembersIndex({
   if (!org) notFound();
   if (!org.encryptedDek) {
     return (
-      <section className="space-y-4">
-        <h1 className="font-display text-3xl font-semibold">Members</h1>
-        <div className="card text-sm text-red-700 bg-red-50 border border-red-200">
+      <section className="space-y-6">
+        <AdminPageHeader kicker="Roster" title="Members" />
+        <div className="card border-red-200 bg-red-50 text-sm text-red-700">
           This site doesn&apos;t have an encryption vault yet. Re-create the org or
           restore from a recovery code to view roster data.
         </div>
@@ -83,64 +84,86 @@ export default async function AdminMembersIndex({
   const members = q ? applyTextSearch(decrypted, q).slice(0, 100) : decrypted.slice(0, 100);
 
   return (
-    <section className="space-y-8">
-      <div className="flex items-center justify-between">
-        <h1 className="font-display text-3xl font-semibold">Members</h1>
-        <div className="flex items-center gap-3">
+    <section className="space-y-10">
+      <AdminPageHeader
+        kicker="Roster"
+        title={showTrash ? "Members · trash" : "Members"}
+        description={
+          showTrash
+            ? "Soft-deleted entries. Restore or purge from here."
+            : "Adults and youth in your unit. Names are encrypted at rest."
+        }
+        actions={
           <Link
             href={`/o/${slug}/admin/members${showTrash ? "" : "?trash=1"}`}
-            className="text-sm"
+            className="btn-secondary"
           >
-            {showTrash ? "Active" : "Trash"}
+            {showTrash ? "Active roster" : "View trash"}
           </Link>
-        </div>
-      </div>
+        }
+      />
 
-      <form action={`/o/${slug}/admin/members`} method="GET" className="flex gap-2">
-        <input
-          name="q"
-          defaultValue={q ?? ""}
-          placeholder="Search by name or email"
-          className="field flex-1"
-        />
-        {showTrash && <input type="hidden" name="trash" value="1" />}
-        <button type="submit" className="btn-secondary">Search</button>
+      <form action={`/o/${slug}/admin/members`} method="GET" className="space-y-2">
+        <div className="flex gap-2">
+          <input
+            name="q"
+            defaultValue={q ?? ""}
+            placeholder="Search by name or email"
+            className="field flex-1"
+          />
+          {showTrash && <input type="hidden" name="trash" value="1" />}
+          <button type="submit" className="btn-secondary">Search</button>
+        </div>
+        <p className="text-xs text-slate-muted">
+          Names are encrypted at rest — name searches match within the visible page.
+          For broader matches, search by email.
+        </p>
       </form>
-      <p className="text-xs text-ink-muted -mt-6">
-        Names are encrypted at rest — name searches match within the visible page.
-        For broader matches, search by email.
-      </p>
 
       {!showTrash && (
-        <div>
-          <h2 className="font-display text-xl font-semibold mb-3">Add a member</h2>
+        <div className="space-y-3">
+          <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
+            Add a member
+          </h2>
           <MemberForm orgSlug={slug} csrf={<CsrfTokenInput />} />
         </div>
       )}
 
-      <div>
-        <h2 className="font-display text-xl font-semibold mb-3">
-          {showTrash ? "Trashed" : "Roster"} ({members.length})
+      <div className="space-y-3">
+        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
+          {showTrash ? "Trashed" : "Roster"}{" "}
+          <span className="text-base text-slate-muted">· {members.length}</span>
         </h2>
-        {members.length === 0 && <p className="text-ink-muted">{showTrash ? "Nothing in the trash." : "No members yet."}</p>}
-        <ul className="divide-y divide-ink-muted/15">
-          {members.map((m) => (
-            <li key={m.id} className="py-3 flex items-center justify-between gap-4">
-              <div>
-                <Link href={`/o/${slug}/admin/members/${m.id}`} className="font-medium">
-                  {m.firstName} {m.lastName}
-                </Link>
-                <div className="text-sm text-ink-muted">
-                  {m.isYouth ? "Youth" : "Adult"}
-                  {m.patrol ? ` · ${m.patrol}` : ""}
-                  {m.position ? ` · ${m.position}` : ""}
-                  {m.email ? ` · ${m.email}` : ""}
-                  {m.status !== "active" ? ` · ${m.status}` : ""}
+        {members.length === 0 ? (
+          <p className="text-sm text-slate-muted">
+            {showTrash ? "Nothing in the trash." : "No members yet."}
+          </p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {members.map((m) => (
+              <li
+                key={m.id}
+                className="flex items-center justify-between gap-4 py-3"
+              >
+                <div>
+                  <Link
+                    href={`/o/${slug}/admin/members/${m.id}`}
+                    className="font-semibold text-slate-ink hover:text-sky"
+                  >
+                    {m.firstName} {m.lastName}
+                  </Link>
+                  <div className="text-sm text-slate-soft">
+                    {m.isYouth ? "Youth" : "Adult"}
+                    {m.patrol ? ` · ${m.patrol}` : ""}
+                    {m.position ? ` · ${m.position}` : ""}
+                    {m.email ? ` · ${m.email}` : ""}
+                    {m.status !== "active" ? ` · ${m.status}` : ""}
+                  </div>
                 </div>
-              </div>
-            </li>
-          ))}
-        </ul>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </section>
   );

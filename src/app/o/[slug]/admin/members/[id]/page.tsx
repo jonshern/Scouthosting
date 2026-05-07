@@ -6,6 +6,7 @@ import { MemberForm } from "@/components/admin/MemberForm";
 import { MemberLifecycleButtons } from "@/components/admin/MemberLifecycleButtons";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function AdminMemberEdit({
   params,
@@ -17,8 +18,8 @@ export default async function AdminMemberEdit({
   if (!org) notFound();
   if (!org.encryptedDek) {
     return (
-      <section className="space-y-4">
-        <h1 className="font-display text-3xl font-semibold">Member</h1>
+      <section className="space-y-10">
+        <AdminPageHeader kicker="Roster" title="Member" />
         <div className="card text-sm text-red-700 bg-red-50 border border-red-200">
           This site doesn&apos;t have an encryption vault yet.
         </div>
@@ -31,12 +32,15 @@ export default async function AdminMemberEdit({
   const pii = decryptMemberPii(member, dek, org.id);
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-10">
       <div>
         <Link href={`/o/${slug}/admin/members`} className="text-sm">← All members</Link>
-        <h1 className="font-display text-3xl font-semibold mt-1">
-          {pii.firstName} {pii.lastName}
-        </h1>
+        <div className="mt-1">
+          <AdminPageHeader
+            kicker="Roster"
+            title={`${pii.firstName} ${pii.lastName}`}
+          />
+        </div>
         {member.deletedAt && (
           <div className="mt-2 inline-block text-sm bg-amber-50 border border-amber-200 rounded p-2">
             Removed on {new Date(member.deletedAt).toLocaleDateString()}.

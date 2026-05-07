@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { issueRefund } from "@/server-actions/refunds";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function NewRefundPage({
   params,
@@ -27,7 +28,7 @@ export default async function NewRefundPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Issue refund</h1>
+      <AdminPageHeader kicker="Money" title="Issue refund" />
       <form action={issueRefund} className="space-y-4 max-w-md">
         <CsrfTokenInput />
         <input type="hidden" name="orgSlug" value={slug} />

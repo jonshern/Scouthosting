@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { EmailComposer } from "@/components/admin/EmailComposer";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function AdminEmail({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -34,19 +35,26 @@ export default async function AdminEmail({ params }: { params: Promise<{ slug: s
   });
 
   return (
-    <section className="space-y-8">
-      <div>
-        <h1 className="font-display text-3xl font-semibold">Group email</h1>
-        <p className="mt-2 text-ink-muted">
-          Sends from the configured driver. In dev that&apos;s the console (logs to stdout).
-          In production set <code>MAIL_DRIVER=resend</code> + <code>RESEND_API_KEY</code>.
-        </p>
-      </div>
+    <section className="space-y-10">
+      <AdminPageHeader
+        kicker="Messages"
+        title="Group email"
+        description={
+          <>
+            Sends from the configured driver. In dev that&apos;s the console
+            (logs to stdout). In production set{" "}
+            <code className="font-mono text-xs">MAIL_DRIVER=resend</code> +{" "}
+            <code className="font-mono text-xs">RESEND_API_KEY</code>.
+          </>
+        }
+      />
 
       <EmailComposer orgSlug={slug} patrols={patrols} csrf={<CsrfTokenInput />} />
 
-      <div>
-        <h2 className="font-display text-xl font-semibold mb-3">Recent broadcasts</h2>
+      <div className="space-y-3">
+        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
+          Recent broadcasts
+        </h2>
         {recent.length === 0 ? (
           <p className="text-ink-muted">No broadcasts yet.</p>
         ) : (

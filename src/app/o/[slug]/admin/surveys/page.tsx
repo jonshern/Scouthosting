@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function SurveysPage({
   params,
@@ -32,14 +33,17 @@ export default async function SurveysPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <div className="flex items-end justify-between mb-6">
-        <h1 className="font-display text-3xl">Surveys</h1>
-        <Link href={`/o/${slug}/admin/surveys/new`} className="btn-primary">
-          New survey
-        </Link>
-      </div>
+      <AdminPageHeader
+        kicker="Forms"
+        title="Surveys"
+        actions={
+          <Link href={`/o/${slug}/admin/surveys/new`} className="btn-primary">
+            New survey
+          </Link>
+        }
+      />
       {surveys.length === 0 ? (
-        <p className="text-ink-muted">No surveys yet.</p>
+        <p className="text-slate-soft">No surveys yet.</p>
       ) : (
         <ul className="space-y-2">
           {surveys.map((s) => (
@@ -51,14 +55,14 @@ export default async function SurveysPage({
                 >
                   {s.title}
                 </Link>
-                <div className="text-xs text-ink-muted">
+                <div className="text-xs text-slate-muted">
                   /survey/{s.slug} · {s.audience}
                   {s.closesAt
                     ? ` · closes ${s.closesAt.toLocaleDateString()}`
                     : ""}
                 </div>
               </div>
-              <span className="text-xs text-ink-muted">
+              <span className="text-xs text-slate-muted">
                 {s._count.responses} responses
               </span>
             </li>

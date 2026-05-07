@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { saveNewsletterSchedule } from "@/server-actions/newsletters";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function NewsletterSchedulePage({
   params,
@@ -36,7 +37,7 @@ export default async function NewsletterSchedulePage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Newsletter schedule</h1>
+      <AdminPageHeader kicker="Messages" title="Newsletter schedule" />
       <form action={saveNewsletterSchedule} className="space-y-4 max-w-md">
         <CsrfTokenInput />
         <input type="hidden" name="orgSlug" value={slug} />

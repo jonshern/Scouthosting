@@ -5,6 +5,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function TripsPage({
   params,
@@ -38,9 +39,9 @@ export default async function TripsPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Trip planner</h1>
+      <AdminPageHeader kicker="Calendar" title="Trip planner" />
       {trips.length === 0 ? (
-        <p className="text-ink-muted">
+        <p className="text-slate-soft">
           No trips yet. Open an event and click "Add trip plan" to start.
         </p>
       ) : (
@@ -53,7 +54,7 @@ export default async function TripsPage({
               >
                 {t.event.title}
               </Link>
-              <div className="text-xs text-ink-muted">
+              <div className="text-xs text-slate-muted">
                 {t.event.startsAt.toLocaleDateString()}
                 {t.event.location ? ` · ${t.event.location}` : ""}
                 {" · "}

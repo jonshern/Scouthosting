@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function RefundsPage({
   params,
@@ -31,14 +32,17 @@ export default async function RefundsPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <div className="flex items-end justify-between mb-6">
-        <h1 className="font-display text-3xl">Refunds</h1>
-        <Link href={`/o/${slug}/admin/refunds/new`} className="btn-primary">
-          Issue refund
-        </Link>
-      </div>
+      <AdminPageHeader
+        kicker="Money"
+        title="Refunds"
+        actions={
+          <Link href={`/o/${slug}/admin/refunds/new`} className="btn-primary">
+            Issue refund
+          </Link>
+        }
+      />
       {refunds.length === 0 ? (
-        <p className="text-ink-muted">No refunds issued.</p>
+        <p className="text-slate-soft">No refunds issued.</p>
       ) : (
         <ul className="space-y-2">
           {refunds.map((r) => (
@@ -57,11 +61,11 @@ export default async function RefundsPage({
               </div>
               <p className="text-sm">{r.reason}</p>
               {r.paymentRef && (
-                <p className="text-xs text-ink-muted">
+                <p className="text-xs text-slate-muted">
                   ref: <span className="font-mono">{r.paymentRef}</span>
                 </p>
               )}
-              <p className="text-xs text-ink-muted">
+              <p className="text-xs text-slate-muted">
                 {r.createdAt.toLocaleDateString()}
               </p>
             </li>

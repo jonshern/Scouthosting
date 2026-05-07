@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { RosterImportForm } from "@/components/admin/RosterImportForm";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function RosterImportPage({
   params,
@@ -28,7 +29,7 @@ export default async function RosterImportPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Roster import</h1>
+      <AdminPageHeader kicker="Roster" title="Roster import" />
       <RosterImportForm orgSlug={slug} csrf={<CsrfTokenInput />} />
     </main>
   );

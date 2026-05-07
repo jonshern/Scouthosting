@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { unwrapDekWithMaster, decryptField } from "@/lib/encryption";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function TrainingPage({
   params,
@@ -49,12 +50,12 @@ export default async function TrainingPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Training</h1>
+      <AdminPageHeader kicker="Roster" title="Training" />
       {rows.length === 0 ? (
-        <p className="text-ink-muted">No training rows yet.</p>
+        <p className="text-slate-soft">No training rows yet.</p>
       ) : (
         <table className="w-full text-sm">
-          <thead className="text-left text-xs uppercase tracking-wide text-ink-muted border-b border-ink-muted/15">
+          <thead className="text-left text-xs uppercase tracking-wide text-slate-muted border-b border-ink-muted/15">
             <tr>
               <th className="py-2">Member</th>
               <th>Course</th>
@@ -73,7 +74,7 @@ export default async function TrainingPage({
                     {t.member.firstName} {t.member.lastName}
                   </td>
                   <td>{t.courseName}</td>
-                  <td className="text-xs text-ink-muted">
+                  <td className="text-xs text-slate-muted">
                     {t.completedAt.toLocaleDateString()}
                   </td>
                   <td
@@ -82,7 +83,7 @@ export default async function TrainingPage({
                         ? "text-red-600"
                         : expiringSoon
                         ? "text-amber-700"
-                        : "text-ink-muted"
+                        : "text-slate-muted"
                     }`}
                   >
                     {exp ? exp.toLocaleDateString() : "—"}

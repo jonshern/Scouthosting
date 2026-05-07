@@ -5,6 +5,7 @@
 
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export const dynamic = "force-dynamic";
 
@@ -41,13 +42,12 @@ export default async function OrgSecurityPage({
   const vaultOk = !!org.encryptedDek;
 
   return (
-    <section className="space-y-8">
-      <header>
-        <h1 className="font-display text-3xl font-semibold">Security</h1>
-        <p className="text-ink-muted text-sm mt-1">
-          How {org.displayName}&apos;s roster and photo data is protected.
-        </p>
-      </header>
+    <section className="space-y-10">
+      <AdminPageHeader
+        kicker="Settings"
+        title="Security"
+        description={`How ${org.displayName}'s roster and photo data is protected.`}
+      />
 
       <div className="card space-y-2">
         <div className="flex items-center justify-between">
@@ -62,11 +62,11 @@ export default async function OrgSecurityPage({
           </span>
         </div>
         <dl className="text-sm grid grid-cols-2 gap-y-1">
-          <dt className="text-ink-muted">Key version</dt>
+          <dt className="text-slate-muted">Key version</dt>
           <dd>{org.keyVersion}</dd>
-          <dt className="text-ink-muted">Last rotated</dt>
+          <dt className="text-slate-muted">Last rotated</dt>
           <dd>{org.keyRotatedAt ? new Date(org.keyRotatedAt).toLocaleString() : "—"}</dd>
-          <dt className="text-ink-muted">Recovery code fingerprint</dt>
+          <dt className="text-slate-muted">Recovery code fingerprint</dt>
           <dd>
             {org.recoveryVerifier ? (
               <code className="text-xs">{org.recoveryVerifier.slice(0, 8)}…</code>
@@ -74,7 +74,7 @@ export default async function OrgSecurityPage({
               "—"
             )}
           </dd>
-          <dt className="text-ink-muted">Recovery code stored?</dt>
+          <dt className="text-slate-muted">Recovery code stored?</dt>
           <dd>
             {org.recoveryAcknowledgedAt
               ? `Confirmed ${new Date(org.recoveryAcknowledgedAt).toLocaleDateString()}`
@@ -127,7 +127,7 @@ export default async function OrgSecurityPage({
           need to re-key the vault (for example, if your hosting provider rotates the master key
           unexpectedly). It is shown <strong>once</strong> and never stored on our servers.
         </p>
-        <p className="text-ink-muted">
+        <p className="text-slate-soft">
           Lost yours? File a support request and we&apos;ll generate a new one. The current code
           stops working when a new one is issued.
         </p>

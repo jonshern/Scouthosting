@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function MeritBadgeCounselorsPage({
   params,
@@ -29,15 +30,15 @@ export default async function MeritBadgeCounselorsPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Merit Badge Counselors</h1>
+      <AdminPageHeader kicker="Roster" title="Merit badge counselors" />
       {counselors.length === 0 ? (
-        <p className="text-ink-muted">No counselors yet.</p>
+        <p className="text-slate-soft">No counselors yet.</p>
       ) : (
         <ul className="space-y-2">
           {counselors.map((c) => (
             <li key={c.id} className="card">
               <div className="font-medium">{c.name}</div>
-              <div className="text-xs text-ink-muted">
+              <div className="text-xs text-slate-muted">
                 {[c.email, c.phone].filter(Boolean).join(" · ")}
               </div>
               {c.badges.length > 0 && (
@@ -46,7 +47,7 @@ export default async function MeritBadgeCounselorsPage({
                 </div>
               )}
               {c.notes && (
-                <p className="text-xs text-ink-muted mt-1">{c.notes}</p>
+                <p className="text-xs text-slate-muted mt-1">{c.notes}</p>
               )}
             </li>
           ))}

@@ -4,6 +4,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function CohPage({
   params,
@@ -41,17 +42,17 @@ export default async function CohPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Courts of Honor</h1>
+      <AdminPageHeader kicker="Calendar" title="Court of Honor" />
       {grouped.size === 0 ? (
-        <p className="text-ink-muted">No awards recorded.</p>
+        <p className="text-slate-soft">No awards recorded.</p>
       ) : (
         <div className="space-y-6">
           {[...grouped.values()].map((g) => (
             <section key={g.event?.id ?? "none"}>
-              <h2 className="font-display text-xl">
+              <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
                 {g.event?.title ?? "(no event)"}
               </h2>
-              <p className="text-xs text-ink-muted mb-2">
+              <p className="text-xs text-slate-muted mb-2">
                 {g.event?.startsAt.toLocaleDateString()}
               </p>
               <ul className="text-sm space-y-1">

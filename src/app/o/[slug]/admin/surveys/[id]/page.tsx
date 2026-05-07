@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 type Question = {
   id: string;
@@ -43,27 +44,30 @@ export default async function SurveyDetailPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <header className="mb-6">
-        <h1 className="font-display text-3xl">{survey.title}</h1>
-        <p className="text-sm text-ink-muted mt-1">
-          Public link:{" "}
-          <Link
-            href={`/o/${slug}/survey/${survey.slug}`}
-            className="font-mono underline"
-          >
-            /survey/{survey.slug}
-          </Link>
-          {" · "}
-          {survey.audience}
-        </p>
-      </header>
+      <AdminPageHeader
+        kicker="Forms"
+        title={survey.title}
+        description={
+          <>
+            Public link:{" "}
+            <Link
+              href={`/o/${slug}/survey/${survey.slug}`}
+              className="font-mono underline"
+            >
+              /survey/{survey.slug}
+            </Link>
+            {" · "}
+            {survey.audience}
+          </>
+        }
+      />
 
       <section className="mb-8">
-        <h2 className="font-display text-xl mb-3">
+        <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
           Responses ({survey.responses.length})
         </h2>
         {survey.responses.length === 0 ? (
-          <p className="text-ink-muted">No responses yet.</p>
+          <p className="text-slate-soft">No responses yet.</p>
         ) : (
           <ul className="space-y-3">
             {survey.responses.map((r) => {
@@ -72,17 +76,17 @@ export default async function SurveyDetailPage({
                 <li key={r.id} className="card text-sm">
                   <div className="flex items-baseline justify-between">
                     <strong>{r.name}</strong>
-                    <span className="text-xs text-ink-muted">
+                    <span className="text-xs text-slate-muted">
                       {r.createdAt.toLocaleString()}
                     </span>
                   </div>
                   {r.email && (
-                    <p className="text-xs text-ink-muted">{r.email}</p>
+                    <p className="text-xs text-slate-muted">{r.email}</p>
                   )}
                   <dl className="mt-2 grid grid-cols-[160px_1fr] gap-x-3 gap-y-1">
                     {questions.map((q) => (
                       <div key={q.id} className="contents">
-                        <dt className="text-ink-muted text-xs">{q.label}</dt>
+                        <dt className="text-slate-muted text-xs">{q.label}</dt>
                         <dd className="text-xs">
                           {formatAnswer(answers[q.id])}
                         </dd>
@@ -97,12 +101,12 @@ export default async function SurveyDetailPage({
       </section>
 
       <section>
-        <h2 className="font-display text-xl mb-3">Questions</h2>
+        <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">Questions</h2>
         <ul className="text-sm space-y-1">
           {questions.map((q) => (
             <li key={q.id}>
               <strong>{q.label}</strong>{" "}
-              <span className="text-xs text-ink-muted">({q.type})</span>
+              <span className="text-xs text-slate-muted">({q.type})</span>
             </li>
           ))}
         </ul>

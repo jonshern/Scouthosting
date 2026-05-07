@@ -1,14 +1,35 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { classifyHost } from "@/lib/tenancy/resolve";
+import { prisma } from "@/lib/db";
 import { INVITE_COOKIE, readInviteCookie } from "@/lib/invite";
 
 // Skip Next internals and known static extensions, but DO process paths
 // like /calendar.ical that should be tenant-rewritten.
 export const config = {
+  // Node runtime: we need Prisma here to translate custom-domain hits
+  // into the real org slug. Edge can't run our Prisma client.
+  runtime: "nodejs",
   matcher: [
     "/((?!_next/|favicon\\.ico|robots\\.txt|sitemap\\.xml|api/internal/|.*\\.(?:js|css|map|png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf)$).*)",
   ],
 };
+
+// Tiny in-process cache so we don't hit the DB on every custom-domain
+// request. Custom domains change rarely; a 60s TTL is plenty.
+const CUSTOM_DOMAIN_TTL_MS = 60_000;
+const customDomainCache = new Map<string, { slug: string | null; at: number }>();
+
+async function resolveCustomDomainSlug(domain: string): Promise<string | null> {
+  const cached = customDomainCache.get(domain);
+  const now = Date.now();
+  if (cached && now - cached.at < CUSTOM_DOMAIN_TTL_MS) return cached.slug;
+  const org = await prisma.org.findUnique({
+    where: { customDomain: domain },
+    select: { slug: true },
+  });
+  customDomainCache.set(domain, { slug: org?.slug ?? null, at: now });
+  return org?.slug ?? null;
+}
 
 // Paths that should NOT be rewritten under a tenant subdomain.
 // /o/ — already org-scoped (avoid double-rewrite).
@@ -87,15 +108,26 @@ export async function middleware(req: NextRequest) {
       res = NextResponse.next();
     }
   } else if (c.kind === "tenant" || c.kind === "custom") {
-    const slug = c.kind === "tenant" ? c.slug : `__custom__`;
-    const alreadyRewritten = TENANT_PASSTHROUGH_PREFIXES.some((p) => url.pathname.startsWith(p));
-    if (alreadyRewritten) {
+    const slug =
+      c.kind === "tenant"
+        ? c.slug
+        : await resolveCustomDomainSlug(c.customDomain);
+    // Unknown custom domain — fall through with no rewrite so Next
+    // renders the not-found page ("That subdomain isn't a Compass site
+    // yet"). We still set the CSRF cookie at the bottom.
+    if (!slug) {
       res = NextResponse.next();
     } else {
-      const rewritten = req.nextUrl.clone();
-      rewritten.pathname = `/o/${slug}${url.pathname === "/" ? "" : url.pathname}`;
-      if (c.kind === "custom") rewritten.searchParams.set("__customDomain", c.customDomain);
-      res = NextResponse.rewrite(rewritten);
+      const alreadyRewritten = TENANT_PASSTHROUGH_PREFIXES.some((p) =>
+        url.pathname.startsWith(p),
+      );
+      if (alreadyRewritten) {
+        res = NextResponse.next();
+      } else {
+        const rewritten = req.nextUrl.clone();
+        rewritten.pathname = `/o/${slug}${url.pathname === "/" ? "" : url.pathname}`;
+        res = NextResponse.rewrite(rewritten);
+      }
     }
   } else {
     res = NextResponse.next();

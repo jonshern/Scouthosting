@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { PhotoUploadForm } from "@/components/admin/PhotoUploadForm";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function AdminAlbumDetail({
   params,
@@ -21,16 +22,18 @@ export default async function AdminAlbumDetail({
   if (!album) notFound();
 
   return (
-    <section className="space-y-8">
+    <section className="space-y-10">
       <div>
-        <h1 className="font-display text-3xl font-semibold">{album.title}</h1>
         <Link href={`/o/${slug}/admin/photos`} className="text-sm">← All albums</Link>
+        <div className="mt-1">
+          <AdminPageHeader kicker="Photos" title={album.title} />
+        </div>
       </div>
 
       <PhotoUploadForm orgSlug={slug} albumId={album.id} csrf={<CsrfTokenInput />} />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {album.photos.length === 0 && <p className="text-ink-muted col-span-full">No photos yet.</p>}
+        {album.photos.length === 0 && <p className="text-slate-soft col-span-full">No photos yet.</p>}
         {album.photos.map((p) => (
           // eslint-disable-next-line @next/next/no-img-element
           <img

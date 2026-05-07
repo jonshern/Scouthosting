@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function OaPage({
   params,
@@ -30,9 +31,9 @@ export default async function OaPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Order of the Arrow</h1>
+      <AdminPageHeader kicker="Roster" title="Order of the Arrow" />
       {elections.length === 0 ? (
-        <p className="text-ink-muted">No elections recorded.</p>
+        <p className="text-slate-soft">No elections recorded.</p>
       ) : (
         <ul className="space-y-4">
           {elections.map((e) => (
@@ -42,12 +43,12 @@ export default async function OaPage({
                   {e.electionDate.toLocaleDateString()}
                   {e.lodgeName ? ` · ${e.lodgeName}` : ""}
                 </h2>
-                <span className="text-xs uppercase tracking-wide text-ink-muted">
+                <span className="text-xs uppercase tracking-wide text-slate-muted">
                   {e.status}
                 </span>
               </div>
               {e.votingMembersCount != null && (
-                <p className="text-xs text-ink-muted">
+                <p className="text-xs text-slate-muted">
                   Voting unit: {e.votingMembersCount}
                   {e.votingThreshold != null
                     ? ` · threshold: ${e.votingThreshold}`
@@ -58,7 +59,7 @@ export default async function OaPage({
                 {e.candidates.map((c) => (
                   <li key={c.id}>
                     {c.candidateName}{" "}
-                    <span className="text-xs text-ink-muted">
+                    <span className="text-xs text-slate-muted">
                       — {c.status}
                       {c.votesFor != null
                         ? ` · ${c.votesFor} for / ${c.votesAgainst ?? 0} against`

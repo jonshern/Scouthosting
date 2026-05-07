@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function CarRidesPage({
   params,
@@ -35,9 +36,9 @@ export default async function CarRidesPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Car rides</h1>
+      <AdminPageHeader kicker="Calendar" title="Car rides" />
       {rides.length === 0 ? (
-        <p className="text-ink-muted">
+        <p className="text-slate-soft">
           No rides yet. Drivers register from the public event page.
         </p>
       ) : (
@@ -52,11 +53,11 @@ export default async function CarRidesPage({
                   >
                     {r.event.title}
                   </Link>
-                  <div className="text-xs text-ink-muted">
+                  <div className="text-xs text-slate-muted">
                     {r.event.startsAt.toLocaleDateString()}
                   </div>
                 </div>
-                <span className="text-xs text-ink-muted">
+                <span className="text-xs text-slate-muted">
                   {r._count.riders}/{r.seats} riders
                 </span>
               </div>
@@ -68,7 +69,7 @@ export default async function CarRidesPage({
                   : ""}
                 {r.departureLocation ? ` from ${r.departureLocation}` : ""}
               </div>
-              {r.notes && <p className="text-xs mt-1 text-ink-muted">{r.notes}</p>}
+              {r.notes && <p className="text-xs mt-1 text-slate-muted">{r.notes}</p>}
             </li>
           ))}
         </ul>

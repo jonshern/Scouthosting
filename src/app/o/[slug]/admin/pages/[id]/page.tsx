@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { CustomPageForm } from "@/components/admin/CustomPageForm";
+import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function EditCustomPage({
   params,
@@ -15,9 +16,9 @@ export default async function EditCustomPage({
   const page = await prisma.customPage.findUnique({ where: { id } });
   if (!page || page.orgId !== org.id) notFound();
   return (
-    <section className="space-y-6">
+    <section className="space-y-10">
       <Link href={`/o/${slug}/admin/pages`} className="text-sm">← All pages</Link>
-      <h1 className="font-display text-3xl font-semibold">{page.title}</h1>
+      <AdminPageHeader kicker="Site" title="Edit page" description={page.title} />
       <CustomPageForm
         orgSlug={slug}
         initial={{
