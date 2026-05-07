@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { roleInOrg } from "@/lib/auth/role";
 import { renderMarkdownLite } from "@/lib/markdown";
+import { PublicPageHeader } from "@/components/site/PublicPageHeader";
 
 export default async function PublicCustomPage({
   params,
@@ -25,8 +26,14 @@ export default async function PublicCustomPage({
       return (
         <section className="mx-auto max-w-content px-6 py-16 text-center">
           <h1 className="font-display text-2xl font-semibold">Members only</h1>
-          <p className="mt-2 text-ink-muted">
-            <Link href={`/login?next=/o/${slug}/p/${pageSlug}`}>Sign in</Link> to view.
+          <p className="mt-2 text-slate-muted">
+            <Link
+              href={`/login?next=/o/${slug}/p/${pageSlug}`}
+              className="text-sky hover:text-slate-ink"
+            >
+              Sign in
+            </Link>{" "}
+            to view.
           </p>
         </section>
       );
@@ -36,13 +43,15 @@ export default async function PublicCustomPage({
   const html = renderMarkdownLite(page.body);
 
   return (
-    <article className="mx-auto max-w-3xl px-6 py-12">
-      <h1 className="font-display text-4xl font-semibold">{page.title}</h1>
-      <div
-        className="prose prose-stone mt-6"
-        // eslint-disable-next-line react/no-danger
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
-    </article>
+    <>
+      <PublicPageHeader kicker="§ Page" title={page.title} />
+      <article className="mx-auto max-w-3xl px-6 pb-16">
+        <div
+          className="prose prose-stone"
+          // eslint-disable-next-line react/no-danger
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      </article>
+    </>
   );
 }

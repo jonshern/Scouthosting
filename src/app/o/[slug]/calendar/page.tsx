@@ -6,6 +6,7 @@ import { getSession } from "@/lib/auth/lucia";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { RsvpForm } from "@/components/calendar/RsvpForm";
 import { SlotSignupForm } from "@/components/calendar/SlotSignupForm";
+import { PublicPageHeader } from "@/components/site/PublicPageHeader";
 
 export default async function PublicCalendar({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -38,20 +39,24 @@ export default async function PublicCalendar({ params }: { params: Promise<{ slu
   });
 
   return (
-    <section className="mx-auto max-w-content px-6 py-12">
-      <div className="flex items-end justify-between mb-6">
-        <h1 className="font-display text-3xl font-semibold">Calendar</h1>
-        <Link
-          href={`/o/${slug}/calendar.ical`}
-          className="btn-secondary"
-          aria-label="Subscribe via iCal"
-        >
-          Subscribe (iCal)
-        </Link>
-      </div>
-
+    <>
+      <PublicPageHeader
+        kicker="§ Calendar"
+        title="What's coming up."
+        description="Outings, meetings, and trips. RSVPs and slot signups are at the bottom of each card."
+        actions={
+          <Link
+            href={`/o/${slug}/calendar.ical`}
+            className="btn-secondary"
+            aria-label="Subscribe via iCal"
+          >
+            Subscribe (iCal)
+          </Link>
+        }
+      />
+      <section className="mx-auto max-w-content px-6 pb-16">
       {events.length === 0 ? (
-        <p className="text-ink-muted">No upcoming events.</p>
+        <p className="text-sm text-slate-muted">No upcoming events.</p>
       ) : (
         <ul className="space-y-4">
           {events.map((ev) => {
@@ -156,6 +161,7 @@ export default async function PublicCalendar({ params }: { params: Promise<{ slu
           })}
         </ul>
       )}
-    </section>
+      </section>
+    </>
   );
 }
