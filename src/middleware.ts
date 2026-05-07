@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { classifyHost } from "@/lib/tenancy/resolve";
+import { INVITE_COOKIE, readInviteCookie } from "@/lib/invite";
 
 // Skip Next internals and known static extensions, but DO process paths
 // like /calendar.ical that should be tenant-rewritten.
@@ -14,6 +15,32 @@ export const config = {
 // /login, /signup, /logout — apex marketing pages; reuse them for tenant sign-in.
 const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup"];
 const CSRF_COOKIE = "compass_csrf";
+
+// Pre-launch apex gate. Visitors without a valid `compass_invite`
+// cookie are bounced to /coming-soon. Set DISABLE_INVITE_GATE=1 in
+// .env to bypass the gate (used in dev + e2e tests).
+const APEX_INVITE_ALLOWLIST = new Set<string>([
+  "/coming-soon",
+  "/health",
+  "/robots.txt",
+  "/favicon.ico",
+]);
+const APEX_INVITE_PREFIXES = [
+  "/api/",        // server actions / route handlers (the form needs this)
+  "/uploads/",    // org-served files (apex-relative when using local storage)
+  "/super-admin", // operator surface — independently auth-gated
+  "/_next/",
+];
+
+function inviteGateEnabled(): boolean {
+  if (process.env.DISABLE_INVITE_GATE === "1") return false;
+  return true;
+}
+
+function pathBypassesInviteGate(pathname: string): boolean {
+  if (APEX_INVITE_ALLOWLIST.has(pathname)) return true;
+  return APEX_INVITE_PREFIXES.some((p) => pathname.startsWith(p));
+}
 
 function ensureCsrfCookie(req: NextRequest, res: NextResponse): void {
   const existing = req.cookies.get(CSRF_COOKIE)?.value;
@@ -37,7 +64,18 @@ export function middleware(req: NextRequest) {
   let res: NextResponse;
 
   if (c.kind === "apex" || c.kind === "unknown") {
-    res = NextResponse.next();
+    if (
+      inviteGateEnabled() &&
+      !pathBypassesInviteGate(url.pathname) &&
+      !readInviteCookie(req.cookies.get(INVITE_COOKIE)?.value)
+    ) {
+      const dest = req.nextUrl.clone();
+      dest.pathname = "/coming-soon";
+      dest.search = "";
+      res = NextResponse.rewrite(dest);
+    } else {
+      res = NextResponse.next();
+    }
   } else if (c.kind === "tenant" || c.kind === "custom") {
     const slug = c.kind === "tenant" ? c.slug : `__custom__`;
     const alreadyRewritten = TENANT_PASSTHROUGH_PREFIXES.some((p) => url.pathname.startsWith(p));

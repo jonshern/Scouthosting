@@ -3,7 +3,8 @@ import { hash } from "@node-rs/argon2";
 import {
   encryptField,
   provisionOrgVault,
-} from "../src/lib/encryption";
+  unwrapDekWithPassphrase,
+} from "./_encryption";
 
 const prisma = new PrismaClient({
   datasources: { db: { url: process.env.DATABASE_URL } },
@@ -170,12 +171,10 @@ async function main() {
     existingOrg.recoveryVerifier
   ) {
     // Re-unlock with the demo passphrase so we can re-encrypt members.
-    const { unwrapDekWithPassphrase } = await import("../src/lib/encryption");
     dek = await unwrapDekWithPassphrase(
       {
         passphraseWrappedDek: existingOrg.passphraseWrappedDek,
         passphraseSalt: existingOrg.passphraseSalt,
-        passphraseVerifier: existingOrg.passphraseVerifier,
       },
       DEMO_PASSPHRASE,
     );
@@ -270,8 +269,28 @@ async function main() {
   // redundant).
   await provisionStandingChannelsInline(org.id, org.displayName);
 
+  // Pre-launch invite codes. Apex marketing site is gated until a
+  // visitor enters one of these. Idempotent — re-runs upsert.
+  const inviteSeeds = [
+    { code: "EAGLE-EXPLORE-2026", label: "founders-batch-1", maxUses: 50 },
+    { code: "TRAILBLAZER-VIP", label: "press-and-investors", maxUses: 0 },
+    { code: "PATROL-PREVIEW",  label: "design-partners", maxUses: 25 },
+  ];
+  for (const inv of inviteSeeds) {
+    await prisma.inviteCode.upsert({
+      where: { code: inv.code },
+      update: { label: inv.label, maxUses: inv.maxUses, disabledAt: null },
+      create: { code: inv.code, label: inv.label, maxUses: inv.maxUses },
+    });
+  }
+
   // eslint-disable-next-line no-console
-  console.log("Seeded:", { user: user.email, org: org.slug, members: memberSeeds.length });
+  console.log("Seeded:", {
+    user: user.email,
+    org: org.slug,
+    members: memberSeeds.length,
+    inviteCodes: inviteSeeds.map((c) => c.code),
+  });
 }
 
 main()

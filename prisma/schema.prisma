@@ -1934,3 +1934,23 @@ model NewsletterRule {
   @@index([orgId, enabled])
   @@index([kind])
 }
+
+// Pre-launch invite codes. Apex (https://scoutingcompass.com) is gated
+// behind a "Coming Soon" page until the visitor types a valid code,
+// at which point we set a signed cookie and let them browse marketing.
+// Tenant subdomains are not gated by this — they belong to live orgs.
+//
+// Codes are seeded by hand for now (see prisma/seed.ts). `maxUses = 0`
+// means unlimited; `usedCount` tracks how many times the code has
+// successfully unlocked, mostly for analytics.
+model InviteCode {
+  id         String    @id @default(cuid())
+  code       String    @unique
+  label      String?
+  maxUses    Int       @default(0)
+  usedCount  Int       @default(0)
+  expiresAt  DateTime?
+  disabledAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+}

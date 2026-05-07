@@ -37,6 +37,9 @@ export default defineConfig({
       // Don't run the pg-boss worker in tests — keeps the queue
       // create/work spam out of the test logs.
       JOBS_DISABLED: "1",
+      // E2E suite predates the apex Coming Soon gate; bypass it so the
+      // existing marketing tests don't have to enter an invite code.
+      DISABLE_INVITE_GATE: "1",
     },
   },
 });
