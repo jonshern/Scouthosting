@@ -1,6 +1,14 @@
+// Public tenant chrome. Reads the org shell from the same disk-backed
+// snapshot the homepage uses (lib/publish/snapshot.ts) so the header
+// nav stays online during a database blip.
+//
+// Admin pages live under this layout too. /admin/* re-queries Prisma
+// directly (admins need live data and tolerate DB errors), so the
+// snapshot fallback only protects the public surface here.
+
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { prisma } from "@/lib/db";
+import { loadHomeSnapshot } from "@/lib/publish/snapshot";
 
 export default async function OrgLayout({
   children,
@@ -10,39 +18,44 @@ export default async function OrgLayout({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const org = await prisma.org.findUnique({
-    where: { slug },
-    include: {
-      customPages: {
-        where: { showInNav: true, visibility: "public" },
-        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        select: { slug: true, title: true },
-      },
-    },
-  });
-  if (!org) notFound();
+  const shell = await loadHomeSnapshot(slug);
+  if (!shell) notFound();
+  const { org, customPages } = shell;
   if (org.suspendedAt) {
     return (
       <main className="mx-auto max-w-content px-6 py-16">
-        <div className="rounded-xl bg-amber-50 border border-amber-200 p-6">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6">
           <h1 className="font-display text-2xl font-semibold">This site is paused.</h1>
-          <p className="mt-2 text-ink-muted">{org.suspendedReason ?? "Contact the unit's leaders."}</p>
+          <p className="mt-2 text-slate-muted">
+            {org.suspendedReason ?? "Contact the unit's leaders."}
+          </p>
         </div>
       </main>
     );
   }
-  const brand = { primary: org.primaryColor, accent: org.accentColor };
   return (
-    <div style={{ ["--forest" as string]: brand.primary, ["--ember" as string]: brand.accent }}>
-      <header className="border-b border-ink-muted/15 bg-white">
+    <div
+      style={{
+        ["--forest" as string]: org.primaryColor ?? undefined,
+        ["--ember" as string]: org.accentColor ?? undefined,
+      }}
+    >
+      <header className="border-b border-line bg-white">
         <div className="mx-auto flex max-w-content items-center justify-between px-6 py-4">
-          <Link href="/" className="font-display text-xl font-semibold">{org.displayName}</Link>
-          <nav aria-label="Site" className="flex flex-wrap items-center gap-6 text-sm">
+          <Link href="/" className="font-display text-xl font-semibold">
+            {org.displayName}
+          </Link>
+          <nav
+            aria-label="Site"
+            className="flex flex-wrap items-center gap-6 text-sm"
+          >
             <Link href="/calendar">Calendar</Link>
             <Link href="/photos">Photos</Link>
             <Link href="/posts">Posts</Link>
-            {org.customPages.map((p) => (
-              <Link key={p.slug} href={`/p/${p.slug}`}>{p.title}</Link>
+            {customPages.map((p) => (
+              <Link key={p.slug} href={`/p/${p.slug}`}>
+                {p.title}
+              </Link>
             ))}
             <Link href="/admin">Admin</Link>
           </nav>

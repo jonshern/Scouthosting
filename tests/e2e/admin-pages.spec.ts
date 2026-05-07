@@ -10,13 +10,15 @@ const PASSWORD = "AdminPasswordTest123!";
 const TENANT = "http://troop100.localhost:3000";
 
 const ADMIN_PAGES: Array<[string, RegExp]> = [
-  ["/admin", /troop|pack|crew|ship|post|admin|overview/i],
+  // The redesigned overview h1 is the day-of-week greeting; anchor on
+  // the always-present "What's coming up." h2 instead.
+  ["/admin", /troop|pack|crew|ship|post|admin|overview|coming up/i],
   ["/admin/announcements", /announcements/i],
   ["/admin/events", /events/i],
   ["/admin/members", /members/i],
   ["/admin/members/import", /roster import/i],
   ["/admin/pages", /pages/i],
-  ["/admin/photos", /photos/i],
+  ["/admin/photos", /photo/i],
   ["/admin/posts", /posts/i],
   ["/admin/email", /email|broadcast/i],
   ["/admin/site", /site/i],

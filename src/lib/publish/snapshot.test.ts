@@ -45,12 +45,17 @@ describe("publish/snapshot", () => {
         meetingDay: "Tuesday",
         meetingTime: "7:00 PM",
         meetingLocation: "Scout Hall",
+        primaryColor: null,
+        accentColor: null,
+        suspendedAt: null,
+        suspendedReason: null,
       },
       page: {
         heroHeadline: "Troop 100",
         heroLede: "Modern scouting since 1925.",
         customBlocks: [],
       },
+      customPages: [],
       memberCount: 32,
       heroPhoto: { filename: "abc.jpg", caption: null },
     };

@@ -13,95 +13,19 @@
 //    don't touch the DB at all.
 
 import Link from "next/link";
-import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
-import { unstable_cache } from "next/cache";
 import { renderMarkdownLite } from "@/lib/markdown";
 import { readCustomBlocks } from "@/lib/homepage/sections";
 import { UpcomingEventsWidget } from "@/components/widgets/UpcomingEventsWidget";
 import { RecentPhotosWidget } from "@/components/widgets/RecentPhotosWidget";
 import { AnnouncementsWidget } from "@/components/widgets/AnnouncementsWidget";
-import {
-  readHomeSnapshot,
-  writeHomeSnapshot,
-  type HomeSnapshot,
-} from "@/lib/publish/snapshot";
+import { loadHomeSnapshot } from "@/lib/publish/snapshot";
 
 // Render the homepage as ISR — Next caches the response for 60s and
 // background-revalidates. With the widgets fetching live data
 // client-side, this means the rendered HTML can sit in the cache for
 // minutes without going stale.
 export const revalidate = 60;
-
-// Live fetch from Prisma. Wrapped in unstable_cache so concurrent
-// requests within the revalidate window share the same DB roundtrip.
-const fetchOrgShellFromDb = unstable_cache(
-  async (slug: string): Promise<HomeSnapshot | null> => {
-    const org = await prisma.org.findUnique({
-      where: { slug },
-      include: { page: true },
-    });
-    if (!org) return null;
-    const memberCount = await prisma.member.count({
-      where: { orgId: org.id, deletedAt: null },
-    });
-    const heroPhoto = await prisma.photo
-      .findFirst({
-        where: { album: { orgId: org.id, visibility: "public" } },
-        orderBy: { takenAt: "desc" },
-        select: { filename: true, caption: true },
-      })
-      .catch(() => null);
-    return {
-      capturedAt: new Date().toISOString(),
-      org: {
-        slug: org.slug,
-        displayName: org.displayName,
-        unitType: org.unitType,
-        unitNumber: org.unitNumber,
-        council: org.council,
-        tagline: org.tagline,
-        charterOrg: org.charterOrg,
-        city: org.city,
-        state: org.state,
-        founded: org.founded,
-        meetingDay: org.meetingDay,
-        meetingTime: org.meetingTime,
-        meetingLocation: org.meetingLocation,
-      },
-      page: org.page
-        ? {
-            heroHeadline: org.page.heroHeadline,
-            heroLede: org.page.heroLede,
-            customBlocks: org.page.customBlocks,
-          }
-        : null,
-      memberCount,
-      heroPhoto,
-    };
-  },
-  ["public", "org-home-shell"],
-  { revalidate: 60, tags: ["org-home-shell"] },
-);
-
-// DB-down resilient loader. Tries the cached DB query first; on
-// failure (DB unreachable, schema mismatch, etc.) falls back to the
-// last successful snapshot written to disk. On success, persists a
-// fresh snapshot for future fallbacks.
-async function fetchOrgShell(slug: string): Promise<HomeSnapshot | null> {
-  try {
-    const fresh = await fetchOrgShellFromDb(slug);
-    if (fresh) {
-      // Write-behind: don't await, don't crash the render if disk fails.
-      writeHomeSnapshot(slug, fresh).catch(() => {});
-    }
-    return fresh;
-  } catch (err) {
-    const stale = await readHomeSnapshot(slug).catch(() => null);
-    if (stale) return stale;
-    throw err;
-  }
-}
 
 function PhotoTile({
   filename,
@@ -136,7 +60,7 @@ function PhotoTile({
 
 export default async function OrgHome({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const shell = await fetchOrgShell(slug);
+  const shell = await loadHomeSnapshot(slug);
   if (!shell) notFound();
   const { org, page, memberCount, heroPhoto } = shell;
 

@@ -28,7 +28,11 @@ test.describe("tenant routing (subdomain)", () => {
     await page.getByRole("button", { name: /sign in/i }).click();
     await page.waitForURL("**/");
     await page.goto("http://troop100.localhost:3000/admin");
-    await expect(page.getByRole("heading", { name: /Sample Troop 100/ })).toBeVisible();
+    // The redesigned overview h1 is the day-of-week greeting; the
+    // always-present h2 is more stable to anchor on.
+    await expect(
+      page.getByRole("heading", { name: /coming up/i }),
+    ).toBeVisible();
   });
 
   test("admin announcements form posts an announcement", async ({ page }) => {
