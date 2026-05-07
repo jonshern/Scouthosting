@@ -19,16 +19,26 @@ const CSRF_COOKIE = "compass_csrf";
 // Pre-launch apex gate. Visitors without a valid `compass_invite`
 // cookie are bounced to /coming-soon. Set DISABLE_INVITE_GATE=1 in
 // .env to bypass the gate (used in dev + e2e tests).
+//
+// Auth surfaces (/login, /logout, /signup, /auth/*) and the
+// /super-admin console stay reachable even without an invite — they
+// have their own auth gates and existing users (or operators) need
+// to be able to sign in regardless of the marketing-site lock.
 const APEX_INVITE_ALLOWLIST = new Set<string>([
   "/coming-soon",
   "/health",
   "/robots.txt",
   "/favicon.ico",
+  "/login",
+  "/logout",
+  "/signup",
 ]);
 const APEX_INVITE_PREFIXES = [
   "/api/",        // server actions / route handlers (the form needs this)
+  "/auth/",       // SSO / magic-link callbacks
   "/uploads/",    // org-served files (apex-relative when using local storage)
   "/super-admin", // operator surface — independently auth-gated
+  "/account",     // signed-in user account pages
   "/_next/",
 ];
 

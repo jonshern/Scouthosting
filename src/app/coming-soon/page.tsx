@@ -64,6 +64,13 @@ export default function ComingSoonPage() {
             Request an invite code
           </a>
         </div>
+
+        <div className="text-xs text-ink-muted">
+          Already have an account?{" "}
+          <a href="/login" className="underline hover:text-ink">
+            Sign in
+          </a>
+        </div>
       </div>
     </main>
   );
