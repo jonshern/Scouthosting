@@ -56,7 +56,7 @@ function ensureCsrfCookie(req: NextRequest, res: NextResponse): void {
   });
 }
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const host = req.headers.get("host");
   const c = classifyHost(host);
   const url = req.nextUrl;
@@ -64,11 +64,11 @@ export function middleware(req: NextRequest) {
   let res: NextResponse;
 
   if (c.kind === "apex" || c.kind === "unknown") {
-    if (
-      inviteGateEnabled() &&
-      !pathBypassesInviteGate(url.pathname) &&
-      !readInviteCookie(req.cookies.get(INVITE_COOKIE)?.value)
-    ) {
+    const inviteOk =
+      !inviteGateEnabled() ||
+      pathBypassesInviteGate(url.pathname) ||
+      !!(await readInviteCookie(req.cookies.get(INVITE_COOKIE)?.value));
+    if (!inviteOk) {
       const dest = req.nextUrl.clone();
       dest.pathname = "/coming-soon";
       dest.search = "";

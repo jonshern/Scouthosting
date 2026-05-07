@@ -18,7 +18,7 @@ export async function submitInviteCode(
   const code = String(formData.get("code") ?? "");
   const result = await consumeInviteCode(code);
   if (!result.ok) return { error: result.reason };
-  const value = makeInviteCookie(result.codeId);
+  const value = await makeInviteCookie(result.codeId);
   const jar = await cookies();
   jar.set(INVITE_COOKIE, value, {
     httpOnly: true,

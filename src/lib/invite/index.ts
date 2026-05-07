@@ -3,51 +3,19 @@
 // at which point we set a signed `compass_invite` cookie that the
 // middleware allows through.
 //
-// Cookie payload is `{codeId, exp}` signed with the existing
-// SESSION_SECRET (already used by lib/security/signed-token.ts).
-// We never put the raw code in the cookie — only the InviteCode.id
-// — so revoking a code (via `disabledAt` or `usedCount >= maxUses`)
-// kills future cookies, but issued ones stay valid until expiry.
-// Bumping SESSION_SECRET invalidates everyone in one move.
+// The cookie HMAC primitives live in `./cookie` (Web Crypto, edge-safe)
+// so they're usable from both the middleware (Edge runtime, no
+// node:crypto) and server actions (Node runtime). DB lookups are
+// Node-only and live below.
 
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { prisma } from "@/lib/db";
 
-export const INVITE_COOKIE = "compass_invite";
-export const INVITE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
-
-const SECRET = () => process.env.SESSION_SECRET || "dev-only-not-secret-replace-in-prod-0123456789abcdef";
-
-function sign(payload: string): string {
-  return createHmac("sha256", SECRET()).update(payload).digest("base64url");
-}
-
-export function makeInviteCookie(codeId: string, now = Math.floor(Date.now() / 1000)): string {
-  const exp = now + INVITE_TTL_SECONDS;
-  const body = `${codeId}.${exp}`;
-  return `${body}.${sign(body)}`;
-}
-
-export function readInviteCookie(raw: string | undefined | null): { codeId: string; exp: number } | null {
-  if (!raw) return null;
-  const parts = raw.split(".");
-  if (parts.length !== 3) return null;
-  const [codeId, expStr, sigB64] = parts;
-  const expectedSig = sign(`${codeId}.${expStr}`);
-  let sigBuf: Buffer;
-  let expBuf: Buffer;
-  try {
-    sigBuf = Buffer.from(sigB64, "base64url");
-    expBuf = Buffer.from(expectedSig, "base64url");
-  } catch {
-    return null;
-  }
-  if (sigBuf.length !== expBuf.length) return null;
-  if (!timingSafeEqual(sigBuf, expBuf)) return null;
-  const exp = parseInt(expStr, 10);
-  if (!Number.isFinite(exp) || exp * 1000 < Date.now()) return null;
-  return { codeId, exp };
-}
+export {
+  INVITE_COOKIE,
+  INVITE_TTL_SECONDS,
+  makeInviteCookie,
+  readInviteCookie,
+} from "./cookie";
 
 export type InviteValidation =
   | { ok: true; codeId: string }
