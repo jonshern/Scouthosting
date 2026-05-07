@@ -36,14 +36,14 @@ const MarketingBalanced = ({ palette: p }) => {
           <div>
             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: p.ink, color: p.bg, borderRadius: 999, fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', marginBottom: 18 }}>
               <span style={{ width: 6, height: 6, background: p.accent, borderRadius: '50%' }}/>
-              SECURITY-FIRST · BUILT FOR MINORS' DATA
+              MODERN INFRASTRUCTURE · ENCRYPTED · BACKED UP DAILY
             </div>
             <p style={{ fontSize: 17, lineHeight: 1.55, color: p.inkSoft, margin: '0 0 24px' }}>
-              Most volunteer units are stuck on hosting platforms designed before the iPhone. Compass is the modern, mobile-first, security-engineered alternative — the calendar, public site, photo library, and parent inbox your families actually want to use.
+              Most volunteer units are stuck on hosting platforms designed before the iPhone. Compass is the modern, mobile-first alternative — the calendar, public site, photo library, and parent inbox your families actually want to use, on infrastructure that won't lose your data.
             </p>
             <div style={{ display: 'flex', gap: 12 }}>
               <button style={{ background: p.ink, color: p.bg, border: 'none', padding: '14px 22px', borderRadius: 8, fontSize: 14, fontWeight: 600 }}>Start free trial →</button>
-              <button style={{ background: 'transparent', color: p.ink, border: `1.5px solid ${p.ink}`, padding: '14px 22px', borderRadius: 8, fontSize: 14, fontWeight: 500 }}>See the security model</button>
+              <button style={{ background: 'transparent', color: p.ink, border: `1.5px solid ${p.ink}`, padding: '14px 22px', borderRadius: 8, fontSize: 14, fontWeight: 500 }}>How we host your data</button>
             </div>
           </div>
         </div>
@@ -59,10 +59,10 @@ const MarketingBalanced = ({ palette: p }) => {
       {/* Stats strip — trade vague metrics for a security/values band */}
       <div style={{ background: dark, color: '#fff', padding: '48px 56px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 24, position: 'relative' }}>
         {[
-          { n: 'AES-256', l: 'encryption at rest', c: p.accent },
-          { n: 'SSO', l: 'SAML · OIDC · WebAuthn', c: p.sky },
-          { n: 'Two-deep', l: 'YPT-aligned messaging audit', c: p.butter },
-          { n: '$12', l: 'flat per unit, per month', c: p.teal },
+          { n: 'AES-256', l: 'encryption at rest & in transit', c: p.accent },
+          { n: '99.9%', l: 'uptime, US data residency', c: p.sky },
+          { n: 'Daily', l: 'encrypted off-site backups', c: p.butter },
+          { n: '$99', l: 'flat per troop, per year', c: p.teal },
         ].map((s, i) => (
           <div key={i} style={{ borderTop: `3px solid ${s.c}`, paddingTop: 20 }}>
             <div style={{ fontFamily: T.display, fontSize: 56, fontWeight: 400, color: '#fff', lineHeight: 1, letterSpacing: '-0.025em' }}>{s.n}</div>
@@ -85,7 +85,7 @@ const MarketingBalanced = ({ palette: p }) => {
         {[
           { num: '01', kw: 'Calendar', title: 'A calendar that handles RSVPs, money, and rides.', body: 'Publish a campout, attach the permission slip, accept payment, and assign carpools — without a single PDF email.', img: 'forest', c: p.sky },
           { num: '02', kw: 'Website', title: 'A public homepage that recruits new families.', body: 'Pick from six templates, drop in your troop number, and you\'re live on a custom subdomain. Scouts can edit it during a Tuesday meeting.', img: 'troop', c: p.accent },
-          { num: '03', kw: 'Messages', title: 'Email & text that families actually read.', body: 'Send a Sunday update or a 7am cancellation. Threaded replies. SMS for urgent. No more "did you get the flier?"', img: 'campfire', c: p.raspberry },
+          { num: '03', kw: 'Messages', title: 'Email & push that families actually read.', body: 'Send a Sunday update or a 7am cancellation. Threaded replies. Push notifications for time-sensitive alerts. No more "did you get the flier?"', img: 'campfire', c: p.raspberry },
           { num: '04', kw: 'Memories', title: 'A photo library worth scrolling through.', body: 'Drop 200 phone photos in after Friday\'s campout. Auto-organized by event. Families can request blurs on faces.', img: 'canoe', c: p.plum },
         ].map((f, i) => (
           <div key={i} style={{
@@ -264,7 +264,7 @@ const MarketingBalanced = ({ palette: p }) => {
               </div>
             </div>
             <div style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.7)', lineHeight: 1.5 }}>
-              <span style={{ color: '#ef4444', fontWeight: 700 }}>\u25cf</span> Broken on phones. No HTTPS-only enforcement. No SSO. No two-deep audit. Tables for layout. Member roster behind a single shared password.
+              <span style={{ color: '#ef4444', fontWeight: 700 }}>\u25cf</span> Broken on phones. No HTTPS-only enforcement. Tables for layout. Member roster behind a single shared password. Photos uploaded to a public Google Drive folder.
             </div>
           </div>
 
@@ -316,7 +316,7 @@ const MarketingBalanced = ({ palette: p }) => {
               </div>
             </div>
             <div style={{ marginTop: 14, fontSize: 12, color: 'rgba(255,255,255,0.85)', lineHeight: 1.5 }}>
-              <span style={{ color: p.accent, fontWeight: 700 }}>\u25cf</span> Mobile-first. HTTPS-only. SAML / OIDC SSO. Two-deep messaging audit. Per-scout photo privacy. Migrates from your old hosting in an afternoon.
+              <span style={{ color: p.accent, fontWeight: 700 }}>\u25cf</span> Mobile-first. HTTPS-only. Encrypted at rest & in transit. Daily encrypted backups. Role-based access with audit logs. Migrates from your old hosting in an afternoon.
             </div>
           </div>
         </div>

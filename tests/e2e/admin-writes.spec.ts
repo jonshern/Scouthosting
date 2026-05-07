@@ -19,7 +19,10 @@ async function signIn(page: Page) {
 
 test.describe("admin write actions", () => {
   test("refund + domain + form + canvas write paths", async ({ page }) => {
-    test.setTimeout(180_000);
+    // Long flow that touches many admin pages. Bumped from 180s after
+    // the publish/snapshot work added per-render disk writes which
+    // pushed the prior limit just over the edge under the e2e profile.
+    test.setTimeout(300_000);
     await signIn(page);
 
     // ── Refund: create + appears on list ───────────────────────────

@@ -115,7 +115,7 @@ const MarketingBold = ({ palette: p }) => {
             {[
               ['Calendar', 'Drag-drop, RSVPs, payments, carpools', p.sky],
               ['Public website', 'Six templates, custom subdomain', p.ember],
-              ['Email & SMS', 'Threaded replies, family inbox', p.raspberry],
+              ['Email & push', 'Threaded replies, family inbox', p.raspberry],
               ['Photo library', 'Auto-organize, blur on request', p.plum],
               ['Roster', 'Members, parents, contacts, denial-list', p.teal],
               ['Forms', 'Permission slips, medical, signed online', p.butter],

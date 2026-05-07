@@ -285,8 +285,9 @@ These were intentionally left unresolved during design — flag them for product
 1. **AI tier pricing** — per-troop monthly Claude API cost is not yet measured. Need a 30-day usage study with 5 pilot troops to set the price.
 2. **Scoutbook API access** — BSA gates this. Application is in. Plan for both states (with API and without).
 3. **Council tier features** — top-down rollout to multiple troops in a council; SSO; white-label. Designed at a high level only.
-4. **Mobile app shell** — designed as web/PWA in mocks. Decision needed: native (React Native) vs PWA. Mocks work for either.
-5. **Cub Scout pack vs. Troop** — current designs assume Troop. Pack adaptations (den structure, different rank progression) are TBD.
+4. **SMS / text messaging** — not in v1. Twilio A2P 10DLC is ~$0.013/message all-in (~$0.008 Twilio + ~$0.005 carrier fees), plus brand-registration setup. Decision needed on whether to (a) skip v1 (email + push only), (b) ship as a metered add-on (~$5/yr for 500 messages), (c) BYO Twilio, or (d) bundle a small allowance with overage pricing. Marketing copy currently says "email + push" — do not promise SMS.
+5. **Mobile app shell** — designed as web/PWA in mocks. Decision needed: native (React Native) vs PWA. Mocks work for either.
+6. **Cub Scout pack vs. Troop** — current designs assume Troop. Pack adaptations (den structure, different rank progression) are TBD.
 
 ---
 

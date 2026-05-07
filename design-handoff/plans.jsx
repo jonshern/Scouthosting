@@ -42,9 +42,9 @@ const PlansPage = () => {
         ['Public troop site', 'Unlimited pages, all 8 themes'],
         ['Calendar & events', 'Unlimited'],
         ['People & messaging', 'Unlimited members, two-deep enforced'],
-        ['Email digests', 'Weekly to families. Sent from your domain (scoutmaster@troop567.org), not ours.'],
+        ['Email digests', 'Weekly to families. Sent from your domain (scoutmaster@troop100.org), not ours.'],
         ['Photo storage', <><strong style={{ color: p.ink }}>15 GB included</strong> — <span style={{ color: p.ember, fontWeight: 600 }}>50% more than the typical legacy host</span>. Photos auto-resize on upload, so that's roughly 7,500 web-quality images. Overage $1.50/GB/yr.</>],
-        ['Your URL', <>Out of the box: <strong style={{ color: p.ink }}>troop567.compass.app</strong>. Want your own domain like troop567.org? <strong style={{ color: p.ink }}>Bring it, we'll set it up free</strong>. You still pay your registrar ~$15/yr, same as anywhere.</>],
+        ['Your URL', <>Out of the box: <strong style={{ color: p.ink }}>troop100.compass.app</strong>. Want your own domain like troop100.org? <strong style={{ color: p.ink }}>Bring it, we'll set it up free</strong>. You still pay your registrar ~$15/yr, same as anywhere.</>],
         ['Scoutbook sync', 'Roster + advancement, two-way'],
       ],
       notIncluded: ['AI auto-newsletter', 'AI section builder', 'AI photo curation'],
@@ -176,6 +176,7 @@ const PlansPage = () => {
               { s: true, q: '60-day money-back guarantee' },
               { s: false, q: 'AI add-on price' },
               { s: false, q: 'Which AI features make v1' },
+              { s: false, q: 'SMS — Twilio is ~$0.013/msg. Add-on, allowance, or skip v1?' },
               { s: false, q: 'Free tier? (probably not for v1)' },
             ].map((row, i) => (
               <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
@@ -328,7 +329,7 @@ const StorageDashboard = () => {
           <SHMark size={22} color="#fff" accent={p.ember}/>
           <div style={{ fontFamily: T.display, fontSize: 17, fontWeight: 500, letterSpacing: '-0.01em' }}>Compass</div>
         </div>
-        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 10 }}>Troop 567</div>
+        <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', letterSpacing: '0.08em', textTransform: 'uppercase', fontWeight: 700, marginBottom: 10 }}>Troop 100</div>
         {['Dashboard','People','Calendar','Newsletter','Photos','Finance','Settings · Storage'].map((l, i) => (
           <div key={i} style={{
             padding: '8px 12px', borderRadius: 8, marginLeft: -8, marginRight: -8,

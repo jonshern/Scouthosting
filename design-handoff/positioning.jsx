@@ -18,7 +18,7 @@ const NoMarkupsPage = () => {
   const rows = [
     {
       item: 'Custom domain hosting',
-      what: 'Routing your troop567.org to our servers — one DNS record on your end, one row in our DB, an auto-renewing TLS cert.',
+      what: 'Routing your troop100.org to our servers — one DNS record on your end, one row in our DB, an auto-renewing TLS cert.',
       cost: '~2¢ / yr',
       costNote: 'Let\'s Encrypt + a few CPU cycles',
       twh: '+$25 / yr',
@@ -40,7 +40,7 @@ const NoMarkupsPage = () => {
     },
     {
       item: 'Email from your own domain',
-      what: 'The digest, RSVP confirms, password resets sent from scoutmaster@troop567.org — properly authenticated (SPF/DKIM/DMARC aligned to your domain), so it lands in inboxes and looks like it comes from your troop, not from us.',
+      what: 'The digest, RSVP confirms, password resets sent from scoutmaster@troop100.org — properly authenticated (SPF/DKIM/DMARC aligned to your domain), so it lands in inboxes and looks like it comes from your troop, not from us.',
       cost: '~$9 / yr / troop',
       costNote: 'Postmark, ~600 emails/mo on a 50-scout troop',
       twh: 'Sent from a shared domain',
@@ -173,7 +173,7 @@ const NoMarkupsPage = () => {
                 {[
                   ['Engineering', 'Two engineers, full-time. The product gets better every week.'],
                   ['Customer support', 'Real humans. ~30 min on the phone setting up your domain. Inbox triaged daily.'],
-                  ['Security & compliance', 'Two-deep enforcement, audit logs, SOC 2 path, COPPA-aware data handling.'],
+                  ['Security & infrastructure', 'Encrypted at rest and in transit. Daily encrypted backups. US data residency. Role-based access with audit logs.'],
                   ['Roadmap research', 'We talk to scoutmasters every week. Features ship from your problems, not our PM\'s vibes.'],
                 ].map(([t, s], i) => (
                   <div key={i} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, padding: 14 }}>
