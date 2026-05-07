@@ -30,7 +30,7 @@ const FEATURES = [
     num: "04",
     kw: "Communication",
     title: "Email, push, and text — one composer.",
-    body: "Send a Sunday email digest, a mobile push for the 7am cancellation, or an SMS broadcast when a campout reroutes. Threaded replies, two-deep enforced, every message logged. No more \u201Cdid you get the flier?\u201D",
+    body: "Send a Sunday email digest, a mobile push for the 7am cancellation, or an SMS broadcast when a campout reroutes. Threaded replies, two-deep enforced, every message logged. No more “did you get the flier?”",
     accent: "#475569",
   },
 ];
@@ -80,10 +80,10 @@ export default function MarketingHome() {
       {/* Hero — kicker masthead + oversized italic headline */}
       <section className="mx-auto max-w-content px-6 pt-6 pb-14">
         <div className="border-t-2 border-ink pt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-soft mb-8">
-          <span>Volume 1 \u00B7 Issue 04</span>
+          <span>Volume 1 · Issue 04</span>
           <span className="hidden md:block">The Compass Field Notes</span>
           <span className="hidden md:block">Modern Software for Volunteer Units</span>
-          <span className="hidden md:block">Independent \u00B7 Not affiliated with BSA</span>
+          <span className="hidden md:block">Independent · Not affiliated with BSA</span>
         </div>
 
         <div className="grid gap-12 md:grid-cols-[1.3fr_0.7fr] items-end">
@@ -99,7 +99,7 @@ export default function MarketingHome() {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full bg-ink text-white px-3 py-1.5 text-[11px] font-semibold tracking-[0.08em] mb-5">
               <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-sky" />
-              SECURITY \u00B7 EASE OF USE \u00B7 EVERY FEATURE YOU NEED
+              SECURITY · EASE OF USE · EVERY FEATURE YOU NEED
             </span>
             <p className="text-slate-soft text-[17px] leading-[1.55] mb-6">
               A calendar, public site, photo library, and parent app — designed
@@ -109,7 +109,7 @@ export default function MarketingHome() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Link href="/signup" className="btn-primary text-base px-5 py-3">
-                Start 60-day free trial \u2192
+                Start 60-day free trial →
               </Link>
               <Link href="/plans" className="btn-secondary text-base px-5 py-3">
                 See every feature
@@ -156,7 +156,7 @@ export default function MarketingHome() {
       <section className="mx-auto max-w-content px-6 py-20">
         <div className="mb-12">
           <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
-            \u00A7 The Product
+            § The Product
           </div>
           <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-3xl">
             Built around the four things{" "}
@@ -208,7 +208,7 @@ export default function MarketingHome() {
         <div className="mx-auto max-w-content px-6 py-16 grid gap-12 md:grid-cols-[1fr_1.4fr] items-center">
           <div>
             <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
-              \u00A7 Migration
+              § Migration
             </div>
             <h3 className="font-display text-[32px] md:text-[44px] font-normal leading-[1.05] tracking-[-0.025em] mb-4">
               Bring your <em className="text-sky font-normal">18 years</em> of troop
@@ -239,7 +239,7 @@ export default function MarketingHome() {
       <section className="mx-auto max-w-content px-6 py-20">
         <div className="mb-12">
           <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
-            \u00A7 Pricing
+            § Pricing
           </div>
           <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-4xl">
             One price per unit — pack, troop, crew, ship, or post.{" "}
@@ -255,7 +255,7 @@ export default function MarketingHome() {
               $99
             </div>
             <div className="text-xs text-slate-muted mt-1 mb-6">
-              per year, flat \u00B7 60-day free trial
+              per year, flat · 60-day free trial
             </div>
             <p className="text-sm text-slate-soft mb-6 pb-6 border-b border-line">
               Everything most units need: public site, calendar, photos, email
@@ -273,13 +273,13 @@ export default function MarketingHome() {
                 "White-glove migration from your old site",
               ].map((f) => (
                 <li key={f} className="flex gap-2.5 leading-snug">
-                  <span className="text-sky font-bold shrink-0">\u2713</span>
+                  <span className="text-sky font-bold shrink-0">✓</span>
                   {f}
                 </li>
               ))}
             </ul>
             <Link href="/signup" className="btn-secondary w-full justify-center">
-              Start 60-day free trial \u2192
+              Start 60-day free trial →
             </Link>
           </div>
 
@@ -295,7 +295,7 @@ export default function MarketingHome() {
               $119
             </div>
             <div className="text-xs text-white/60 mt-1 mb-6">
-              per year, flat \u00B7 60-day free trial
+              per year, flat · 60-day free trial
             </div>
             <p className="text-sm text-white/85 mb-6 pb-6 border-b border-white/15">
               Everything in Unit, plus group chat, SMS broadcasts, and the
@@ -313,7 +313,7 @@ export default function MarketingHome() {
                 "Leader oversight view",
               ].map((f) => (
                 <li key={f} className="flex gap-2.5 leading-snug text-white/90">
-                  <span className="text-sky font-bold shrink-0">\u2713</span>
+                  <span className="text-sky font-bold shrink-0">✓</span>
                   {f}
                 </li>
               ))}
@@ -322,14 +322,14 @@ export default function MarketingHome() {
               href="/signup"
               className="inline-flex w-full items-center justify-center rounded-md bg-sky px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white hover:text-ink"
             >
-              Start 60-day free trial \u2192
+              Start 60-day free trial →
             </Link>
           </div>
         </div>
 
         <p className="mt-7 text-center text-[13px] text-slate-muted">
-          60-day free trial on every plan \u00B7 No per-scout, per-leader, or
-          setup fees \u00B7 501(c)(3)? Automatic 20% off \u00B7 Stripe fees
+          60-day free trial on every plan · No per-scout, per-leader, or
+          setup fees · 501(c)(3)? Automatic 20% off · Stripe fees
           passed through at cost.
         </p>
       </section>
@@ -339,7 +339,7 @@ export default function MarketingHome() {
         <div className="mx-auto max-w-content px-6 py-20">
           <div className="mb-10">
             <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
-              \u00A7 The status quo
+              § The status quo
             </div>
             <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-3xl">
               The site your families see{" "}
@@ -358,7 +358,7 @@ export default function MarketingHome() {
               <div className="mb-3 flex items-center gap-2">
                 <span aria-hidden className="h-2 w-2 rounded-full bg-red-500" />
                 <span className="text-xs font-semibold uppercase tracking-[0.1em] text-white/55">
-                  Today \u00B7 Old hosting platform
+                  Today · Old hosting platform
                 </span>
               </div>
               <div className="overflow-hidden rounded-lg border border-white/15 bg-white text-ink">
@@ -404,7 +404,7 @@ export default function MarketingHome() {
                           key={l}
                           className="cursor-pointer py-0.5 text-[11px] text-[#0050a0] underline"
                         >
-                          \u00BB {l}
+                          » {l}
                         </div>
                       ))}
                     </div>
@@ -453,13 +453,13 @@ export default function MarketingHome() {
                     </div>
                   </div>
                   <div className="border-t-2 border-[#1a2f10] bg-[#2f4d24] px-3.5 py-1.5 text-center text-[10px] text-[#cdcdb8]">
-                    Powered by OldHostingPlatform.com — \u00A9 2009-2026 \u00B7
+                    Powered by OldHostingPlatform.com — © 2009-2026 ·
                     best viewed in IE7+
                   </div>
                 </div>
               </div>
               <p className="mt-3 text-xs leading-relaxed text-white/70">
-                <span className="font-bold text-red-500">\u25CF</span> Broken on
+                <span className="font-bold text-red-500">●</span> Broken on
                 phones. No HTTPS-only enforcement. Tables for layout. Member
                 roster behind a single shared password. Photos uploaded to a
                 public Google Drive folder.
@@ -471,7 +471,7 @@ export default function MarketingHome() {
               <div className="mb-3 flex items-center gap-2">
                 <span aria-hidden className="h-2 w-2 rounded-full bg-sky" />
                 <span className="text-xs font-semibold uppercase tracking-[0.1em] text-sky">
-                  Compass \u00B7 next Tuesday
+                  Compass · next Tuesday
                 </span>
               </div>
               <div className="overflow-hidden rounded-lg border border-white/15 bg-white text-ink">
@@ -486,7 +486,7 @@ export default function MarketingHome() {
                 <div className="min-h-[280px] bg-bg p-4">
                   <div className="mb-3.5 flex items-center justify-between">
                     <div className="font-display text-[16px] font-medium">
-                      Troop 12 \u00B7{" "}
+                      Troop 12 ·{" "}
                       <span className="italic text-slate-soft">Anytown</span>
                     </div>
                     <div className="flex gap-2.5 text-[10px] text-slate-soft">
@@ -510,11 +510,11 @@ export default function MarketingHome() {
                       Birch Lake State Park
                     </div>
                     <div className="mb-2 text-[10px] text-white/70">
-                      Fri 5:30 PM \u00B7 18 going \u00B7 permission slip + $35
+                      Fri 5:30 PM · 18 going · permission slip + $35
                       due Thursday
                     </div>
                     <div className="inline-block rounded bg-sky px-2.5 py-1 text-[10px] font-semibold text-white">
-                      Sign \u00B7 RSVP \u00B7 Pay \u2192
+                      Sign · RSVP · Pay →
                     </div>
                   </div>
                   <div className="mb-3 grid grid-cols-3 gap-1.5">
@@ -539,12 +539,12 @@ export default function MarketingHome() {
                   </div>
                   <div className="flex items-center justify-between border-t border-line pt-2 text-[10px] text-slate-muted">
                     <span>Hosted with Compass</span>
-                    <span>HTTPS \u00B7 SSO \u00B7 Privacy controls</span>
+                    <span>HTTPS · SSO · Privacy controls</span>
                   </div>
                 </div>
               </div>
               <p className="mt-3 text-xs leading-relaxed text-white/85">
-                <span className="font-bold text-sky">\u25CF</span> Mobile-first.
+                <span className="font-bold text-sky">●</span> Mobile-first.
                 HTTPS-only. Encrypted at rest & in transit. Daily encrypted
                 backups. Role-based access with audit logs. Migrates from your
                 old hosting in an afternoon.
@@ -565,7 +565,7 @@ export default function MarketingHome() {
         </h2>
         <div className="flex flex-wrap gap-3 justify-center mb-6">
           <Link href="/signup" className="btn-primary text-[15px] px-7 py-4 rounded-full">
-            Start free trial \u2192
+            Start free trial →
           </Link>
           <Link
             href="mailto:hello@scoutingcompass.com"
@@ -575,7 +575,7 @@ export default function MarketingHome() {
           </Link>
         </div>
         <p className="text-[13px] text-slate-muted">
-          No credit card \u00B7 cancel anytime \u00B7 we&apos;ll migrate your old site for free
+          No credit card · cancel anytime · we&apos;ll migrate your old site for free
         </p>
       </section>
     </>

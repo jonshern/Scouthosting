@@ -67,7 +67,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
   const heroLede =
     page?.heroLede ??
     org.tagline ??
-    `${org.charterOrg ?? ""} \u2022 ${org.city ?? ""}, ${org.state ?? ""}`;
+    `${org.charterOrg ?? ""} • ${org.city ?? ""}, ${org.state ?? ""}`;
   const blocks = readCustomBlocks(page);
   const unitNumber = org.unitNumber || "";
   const now = new Date();
@@ -87,7 +87,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
             </span>
           )}
           <span className="relative mb-6 inline-flex items-center gap-2 self-start rounded-full bg-sky px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
-            {org.unitType} \u00B7 {org.council ?? "Independent"} Council
+            {org.unitType} · {org.council ?? "Independent"} Council
           </span>
           <h1 className="relative font-display text-[64px] font-normal leading-[0.88] tracking-[-0.035em] md:text-[96px] lg:text-[120px]">
             {page?.heroHeadline ? (
@@ -140,21 +140,21 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
             <p className="text-[15px] leading-[1.7] text-slate-soft">
               {[org.charterOrg, org.city && `${org.city}, ${org.state}`]
                 .filter(Boolean)
-                .join(" \u00B7 ")}
+                .join(" · ")}
               . We meet {org.meetingDay} at {org.meetingTime}
               {org.meetingLocation ? ` at ${org.meetingLocation}` : ""}.
             </p>
             <div className="mt-7 grid grid-cols-2 gap-4 rounded-lg border border-line-soft bg-white p-5 md:grid-cols-4">
               {[
-                { n: String(memberCount || "\u2014"), l: "Members" },
+                { n: String(memberCount || "—"), l: "Members" },
                 {
                   n: org.founded
                     ? String(now.getFullYear() - parseInt(org.founded, 10))
-                    : "\u2014",
+                    : "—",
                   l: "years active",
                 },
-                { n: org.meetingDay ?? "\u2014", l: "Meeting day" },
-                { n: org.meetingTime ?? "\u2014", l: "Meeting time" },
+                { n: org.meetingDay ?? "—", l: "Meeting day" },
+                { n: org.meetingTime ?? "—", l: "Meeting time" },
               ].map((s) => (
                 <div key={s.l}>
                   <div className="font-display text-[24px] font-medium leading-none text-ink md:text-[28px]">
@@ -173,7 +173,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
                 Recent adventures
               </h3>
               <Link href="/photos" className="text-xs font-medium text-sky">
-                View all photos \u2192
+                View all photos →
               </Link>
             </div>
             <RecentPhotosWidget orgSlug={slug} count={6} />
@@ -186,7 +186,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
                 News & announcements
               </h3>
               <Link href="/posts" className="text-xs font-medium text-sky">
-                All posts \u2192
+                All posts →
               </Link>
             </div>
             <AnnouncementsWidget orgSlug={slug} />
@@ -280,7 +280,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
               href="/calendar"
               className="mt-5 block w-full rounded-md bg-ink py-2.5 text-center text-[13px] font-medium text-white transition-colors hover:bg-sky"
             >
-              Full calendar \u2192
+              Full calendar →
             </Link>
           </div>
 
@@ -303,9 +303,9 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
       <footer className="border-t border-line bg-surface-alt text-[11px] text-slate-muted">
         <div className="mx-auto flex max-w-content justify-between px-6 py-5">
           <span>
-            \u00A9 {now.getFullYear()} {org.displayName} \u00B7 Hosted with Compass
+            © {now.getFullYear()} {org.displayName} · Hosted with Compass
           </span>
-          <span>Privacy \u00B7 Terms</span>
+          <span>Privacy · Terms</span>
         </div>
       </footer>
     </main>

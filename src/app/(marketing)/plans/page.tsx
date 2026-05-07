@@ -41,7 +41,7 @@ const PREMIUM: Feature[] = [
   ],
   [
     "Channels",
-    "Patrol, den, parents, leaders. Two-deep audit on every leader\u2194youth thread.",
+    "Patrol, den, parents, leaders. Two-deep audit on every leader↔youth thread.",
   ],
   ["Priority support", "First-line response within one business day."],
 ];
@@ -90,7 +90,7 @@ export default function PlansPage() {
       {/* Header band */}
       <section className="mx-auto max-w-content px-6 pt-10 pb-12">
         <div className="border-t-2 border-ink pt-4 grid md:grid-cols-2 gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-soft mb-10">
-          <span>\u00A7 Plans & pricing</span>
+          <span>§ Plans & pricing</span>
           <span className="md:text-right">
             No per-scout fees. No platform cut. Cancel anytime.
           </span>
@@ -100,7 +100,7 @@ export default function PlansPage() {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full bg-sky text-white px-3 py-1.5 text-[11px] font-bold tracking-[0.14em] uppercase mb-6">
               <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-white" />
-              60 days free \u00B7 no card required
+              60 days free · no card required
             </span>
             <h1 className="font-display text-[44px] md:text-[72px] font-normal leading-[0.95] tracking-[-0.025em]">
               Two flavors,{" "}
@@ -177,7 +177,7 @@ export default function PlansPage() {
               href="/signup?plan=premium"
               className="mt-5 inline-flex items-center justify-center w-full rounded-md bg-amber text-white px-4 py-3 text-[14px] font-semibold hover:opacity-90"
             >
-              Start Premium — 60 days free \u2192
+              Start Premium — 60 days free →
             </Link>
             <ul className="list-none p-0 mt-7 space-y-0">
               {PREMIUM.map((f) => (
@@ -208,7 +208,7 @@ export default function PlansPage() {
               href="/signup?plan=standard"
               className="mt-5 inline-flex items-center justify-center w-full rounded-md border-[1.5px] border-ink text-ink px-4 py-3 text-[14px] font-semibold hover:bg-ink hover:text-white transition-colors"
             >
-              Start Standard — 60 days free \u2192
+              Start Standard — 60 days free →
             </Link>
             <ul className="list-none p-0 mt-7 space-y-0">
               {STANDARD.map((f) => (
@@ -236,7 +236,7 @@ export default function PlansPage() {
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
-                  {n} \u2014 upgrade to Premium for messaging.
+                  {n} — upgrade to Premium for messaging.
                 </div>
               ))}
             </div>
@@ -249,7 +249,7 @@ export default function PlansPage() {
         <div className="mx-auto max-w-content px-6 py-16 grid md:grid-cols-[1fr_1.4fr] gap-12 items-start">
           <div>
             <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
-              \u00A7 What's actually included
+              § What's actually included
             </div>
             <h3 className="font-display text-[32px] md:text-[40px] font-normal leading-[1.05] tracking-[-0.025em] mb-4">
               The legacy hosts charge a markup{" "}
@@ -273,9 +273,9 @@ export default function PlansPage() {
               <tbody className="divide-y divide-line-soft">
                 {[
                   ["Use your own domain", "+$25/yr", "Included"],
-                  ["Email on your domain", "+$9\u201325/yr", "Included"],
+                  ["Email on your domain", "+$9–25/yr", "Included"],
                   ["Photo storage", "10 GB", "15 GB"],
-                  ["Per-scout fees", "$0\u2013$3/yr", "None"],
+                  ["Per-scout fees", "$0–$3/yr", "None"],
                   ["Migration", "DIY", "White-glove"],
                 ].map(([k, l, c]) => (
                   <tr key={k}>
@@ -297,7 +297,7 @@ export default function PlansPage() {
           <a href="mailto:hello@compass.app" className="underline text-ink font-medium">
             Talk to us
           </a>{" "}
-          \u2014 we'll figure out a council deal.
+          — we'll figure out a council deal.
         </p>
       </section>
     </main>
