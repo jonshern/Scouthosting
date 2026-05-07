@@ -13,6 +13,8 @@ import type { PrismaClient } from "@prisma/client";
 import { logger as defaultLogger, type Logger } from "@/lib/log";
 import { composeNewsletter } from "./index";
 import { sendMail, type MailMessage } from "@/lib/mail";
+import { unwrapDekWithMaster } from "@/lib/encryption";
+import { decryptField } from "@/lib/encryption";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -190,10 +192,10 @@ export async function runRsvpNudgeHandler(args: {
   const orgId = rule.orgId;
   const horizon = new Date(now.getTime() + 7 * DAY_MS);
 
-  const [org, events, members] = await Promise.all([
+  const [org, events, rawMembers] = await Promise.all([
     prismaClient.org.findUnique({
       where: { id: orgId },
-      select: { id: true, slug: true, displayName: true },
+      select: { id: true, slug: true, displayName: true, encryptedDek: true },
     }),
     prismaClient.event.findMany({
       where: { orgId, signupRequired: true, startsAt: { gte: now, lte: horizon } },
@@ -208,13 +210,20 @@ export async function runRsvpNudgeHandler(args: {
         bouncedAt: null,
         NOT: { commPreference: "none" },
       },
-      select: { id: true, firstName: true, lastName: true, email: true },
+      select: { id: true, encFirstName: true, encLastName: true, email: true },
     }),
   ]);
 
-  if (!org || events.length === 0 || members.length === 0) {
-    return `0 events × ${members.length} members → 0 nudges`;
+  if (!org || !org.encryptedDek || events.length === 0 || rawMembers.length === 0) {
+    return `0 events × ${rawMembers.length} members → 0 nudges`;
   }
+  const dek = unwrapDekWithMaster(org);
+  const members = rawMembers.map((m) => ({
+    id: m.id,
+    email: m.email,
+    firstName: decryptField(m.encFirstName, dek, orgId, "member.firstName") ?? "",
+    lastName: decryptField(m.encLastName, dek, orgId, "member.lastName") ?? "",
+  }));
 
   const apex = process.env.APEX_DOMAIN || "compass.app";
   const messages: MailMessage[] = [];

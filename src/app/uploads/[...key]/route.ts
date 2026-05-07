@@ -3,6 +3,7 @@ import { get, head } from "@/lib/storage/local";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { roleInOrg } from "@/lib/auth/role";
+import { decryptBytes, unwrapDekWithMaster } from "@/lib/encryption";
 
 export const dynamic = "force-dynamic";
 
@@ -35,13 +36,27 @@ export async function GET(_req: Request, ctx: { params: Promise<{ key: string[] 
 
   const meta = await head(key);
   if (!meta.exists) return new NextResponse("Not found", { status: 404 });
-  const buf = await get(key);
-  // Convert Node Buffer to a fresh Uint8Array so it satisfies BodyInit.
+  let buf = await get(key);
+  if (photo.encrypted) {
+    const org = await prisma.org.findUnique({
+      where: { id: photo.orgId },
+      select: { id: true, encryptedDek: true },
+    });
+    if (!org || !org.encryptedDek) {
+      return new NextResponse("Vault unavailable", { status: 423 });
+    }
+    const dek = unwrapDekWithMaster(org);
+    try {
+      buf = decryptBytes(buf, dek, photo.orgId, "photo.bytes");
+    } catch {
+      return new NextResponse("Decryption failed", { status: 500 });
+    }
+  }
   const body = new Uint8Array(buf);
   return new NextResponse(body, {
     headers: {
       "Content-Type": photo.mimeType,
-      "Content-Length": String(meta.size ?? body.byteLength),
+      "Content-Length": String(body.byteLength),
       "Cache-Control": "private, max-age=600",
     },
   });

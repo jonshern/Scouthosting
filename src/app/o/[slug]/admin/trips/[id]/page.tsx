@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { buildShoppingList } from "@/lib/trips/shopping-list";
 import { mealConflicts } from "@/lib/trips/dietary";
+import { unwrapDekWithMaster, decryptField } from "@/lib/encryption";
 
 export default async function TripDetailPage({
   params,
@@ -73,10 +74,20 @@ export default async function TripDetailPage({
   )
     .map((r) => r.email?.toLowerCase())
     .filter((e): e is string => !!e);
-  const members = yesEmails.length
+  const rawMembers = yesEmails.length && org.encryptedDek
     ? await prisma.member.findMany({
         where: { orgId: org.id, email: { in: yesEmails } },
-        select: { firstName: true, lastName: true, dietaryFlags: true },
+        select: { encFirstName: true, encLastName: true, dietaryFlags: true },
+      })
+    : [];
+  const members = org.encryptedDek
+    ? rawMembers.map((mm) => {
+        const dek = unwrapDekWithMaster(org);
+        return {
+          firstName: decryptField(mm.encFirstName, dek, org.id, "member.firstName") ?? "",
+          lastName: decryptField(mm.encLastName, dek, org.id, "member.lastName") ?? "",
+          dietaryFlags: mm.dietaryFlags,
+        };
       })
     : [];
   const allMealTags = trip.meals.flatMap((m) => m.dietaryTags ?? []);

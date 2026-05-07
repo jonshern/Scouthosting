@@ -15,6 +15,10 @@ export function MemberForm({
     lastName?: string;
     email?: string | null;
     phone?: string | null;
+    street?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zip?: string | null;
     isYouth?: boolean;
     patrol?: string | null;
     position?: string | null;
@@ -52,6 +56,28 @@ export function MemberForm({
           <input id="phone" name="phone" type="tel" maxLength={40} defaultValue={m.phone ?? ""} className="field" />
         </div>
       </div>
+
+      <fieldset className="space-y-3">
+        <legend className="label">Address (encrypted at rest)</legend>
+        <div>
+          <label className="label" htmlFor="street">Street</label>
+          <input id="street" name="street" maxLength={200} defaultValue={m.street ?? ""} className="field" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          <div>
+            <label className="label" htmlFor="city">City</label>
+            <input id="city" name="city" maxLength={100} defaultValue={m.city ?? ""} className="field" />
+          </div>
+          <div>
+            <label className="label" htmlFor="state">State</label>
+            <input id="state" name="state" maxLength={60} defaultValue={m.state ?? ""} className="field" />
+          </div>
+          <div>
+            <label className="label" htmlFor="zip">ZIP</label>
+            <input id="zip" name="zip" maxLength={20} defaultValue={m.zip ?? ""} className="field" />
+          </div>
+        </div>
+      </fieldset>
 
       <div className="grid gap-4 md:grid-cols-3">
         <div className="flex items-end gap-2">

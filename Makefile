@@ -17,19 +17,38 @@ PORT       ?= $(shell . ./.env 2>/dev/null; echo $${PORT:-3000})
 
 .PHONY: help bootstrap dev redeploy seed test e2e clean mobile mobile-build \
         install db-up db-wait migrate wipe pull dev-bg dev-stop down \
-        staging-deploy staging-logs staging-seed staging-shell
+        staging staging-deploy staging-logs staging-seed staging-shell \
+        ensure-master-key ensure-staging-master-key
 
 help: ## Show this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "Compass dev targets\n\nUsage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*##/ { printf "  \033[1m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 
-bootstrap: install db-up db-wait migrate seed ## First-time setup: env + deps + Postgres + migrate + seed.
-	@if [ ! -f .env ]; then cp .env.example .env; echo "wrote .env from .env.example"; fi
+bootstrap: install db-up db-wait ensure-master-key migrate seed ## First-time setup: env + deps + Postgres + master key + migrate + seed.
 	@echo "bootstrap done. next: make dev"
+
+# Ensure .env exists and has a non-empty MASTER_KEY. We generate one
+# the first time so the seed and the dev server agree on the key
+# (otherwise each Node process gets its own ephemeral key and the
+# encrypted seed rows become unreadable on the next boot).
+ensure-master-key:
+	@if [ ! -f .env ]; then cp .env.example .env; echo "wrote .env from .env.example"; fi
+	@if ! grep -q '^MASTER_KEY=' .env; then \
+	  echo 'MASTER_KEY=' >> .env; \
+	fi
+	@if grep -q '^MASTER_KEY=$$' .env || grep -q '^MASTER_KEY=""$$' .env; then \
+	  KEY=$$(openssl rand -hex 32); \
+	  if [ "$$(uname)" = "Darwin" ]; then \
+	    sed -i '' "s|^MASTER_KEY=.*|MASTER_KEY=$$KEY|" .env; \
+	  else \
+	    sed -i "s|^MASTER_KEY=.*|MASTER_KEY=$$KEY|" .env; \
+	  fi; \
+	  echo "generated MASTER_KEY in .env (32 random bytes)"; \
+	fi
 
 dev: ## Start the Next.js dev server in the foreground (Ctrl-C to stop).
 	$(NPM) run dev
 
-redeploy: dev-stop _redeploy_pull wipe dev-bg e2e ## Pull, wipe DB + reseed, restart dev, run e2e. QUICK=1 skips pull/install.
+redeploy: dev-stop _redeploy_pull ensure-master-key wipe dev-bg e2e ## Pull, wipe DB + reseed, restart dev, run e2e. QUICK=1 skips pull/install.
 	@echo
 	@echo "redeploy complete — http://localhost:$(PORT)/"
 	@echo "demo logins (password: AdminPasswordTest123!):"
@@ -65,6 +84,25 @@ mobile-build: ## EAS cloud build. PROFILE=development|preview|production, PLATFO
 # pending migrations automatically. Secrets (DATABASE_URL,
 # AUTH_TOKEN_SECRET, INVITE_SECRET, RSVP_SECRET, APEX_DOMAIN, …) live in
 # `fly secrets`. One-time setup assumes `fly auth login`.
+
+staging: ensure-staging-master-key staging-deploy staging-seed ## Full staging push: ensure MASTER_KEY secret, deploy, re-seed.
+	@echo
+	@echo "staging deploy complete."
+	@echo "  fly logs    → make staging-logs"
+	@echo "  shell       → make staging-shell"
+
+# MASTER_KEY must be set as a Fly secret before first deploy or the
+# app will refuse to boot in production. Idempotent: only sets if
+# the secret isn't already present.
+ensure-staging-master-key:
+	@if ! fly secrets list --json 2>/dev/null | grep -q '"Name":"MASTER_KEY"'; then \
+	  echo "no MASTER_KEY secret on Fly — generating one"; \
+	  KEY=$$(openssl rand -hex 32); \
+	  fly secrets set MASTER_KEY=$$KEY --stage; \
+	  echo "MASTER_KEY staged. Will activate on next deploy."; \
+	else \
+	  echo "MASTER_KEY already set on Fly — leaving it alone."; \
+	fi
 
 staging-deploy: ## Build + deploy current main to Fly staging (compass-staging).
 	fly deploy --remote-only

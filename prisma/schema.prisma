@@ -123,6 +123,24 @@ model Org {
   trialEndsAt          DateTime?
   currentPeriodEnd     DateTime?
   cancelAtPeriodEnd    Boolean            @default(false)
+  // Per-org envelope encryption. The Data Encryption Key (DEK) is a
+  // 32-byte AES-256 key, generated at provisioning. It is wrapped
+  // three independent ways so the same DEK can be unlocked by any of:
+  //   - encryptedDek          → MASTER_KEY env var (server's daily use)
+  //   - passphraseWrappedDek  → admin-chosen passphrase (break-glass + rotation)
+  //   - recoveryWrappedDek    → server-generated recovery code shown ONCE
+  // Verifier hashes let us reject wrong inputs without unwrapping.
+  // See src/lib/encryption/vault.ts.
+  encryptedDek            Bytes?
+  passphraseWrappedDek    Bytes?
+  passphraseSalt          Bytes?
+  passphraseVerifier      String?
+  recoveryWrappedDek      Bytes?
+  recoverySalt            Bytes?
+  recoveryVerifier        String?
+  keyVersion              Int                @default(0)
+  keyRotatedAt            DateTime?
+  recoveryAcknowledgedAt  DateTime?
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
@@ -301,10 +319,28 @@ model Session {
 model Member {
   id                String    @id @default(cuid())
   orgId             String
-  firstName         String
-  lastName          String
+  // PII fields encrypted with the org's DEK (see Org.encryptedDek).
+  // Layout is iv|tag|ciphertext, AES-256-GCM, AAD bound to org+purpose.
+  // Nullable for migration ergonomics; the application layer treats
+  // first/last name as effectively required at write time (seed +
+  // upsertMember always populate them). See
+  // src/lib/encryption/field.ts and src/lib/members/crypto.ts.
+  encFirstName      Bytes?
+  encLastName       Bytes?
+  encPhone          Bytes?
+  encStreet         Bytes?
+  encCity           Bytes?
+  encState          Bytes?
+  encZip            Bytes?
+  // Sort/filter helper. First lowercased character of last name. Indexed
+  // so the roster page can do a stable initial sort + bucket-prefix
+  // search without needing the DEK. Only one character of entropy
+  // leaks; precise alphabetical order is restored in JS after decrypt.
+  lastNameLc1       String    @default("?")
+  // Email stays plaintext on purpose: background email sends, magic
+  // links, and chat-channel membership lookups all need to query by
+  // exact email value without unlocking a vault.
   email             String?
-  phone             String?
   // Drives which channel a broadcast targets this member on.
   // email: send email only
   // sms:   send SMS only (requires phone + smsOptIn)
@@ -378,7 +414,7 @@ model Member {
   oaCandidacies        OaCandidate[]
 
   @@index([orgId])
-  @@index([orgId, lastName])
+  @@index([orgId, lastNameLc1])
   @@index([orgId, status])
   @@index([orgId, deletedAt])
 }
@@ -543,6 +579,12 @@ model Photo {
   height         Int?
   sortOrder      Int       @default(0)
   uploaderUserId String?
+  // Bytes-on-disk are encrypted with the org's DEK (AES-256-GCM)
+  // when `encrypted = true`. encOriginalName replaces the plaintext
+  // originalName field for new uploads (originalName is kept for
+  // any pre-encryption photos until purged).
+  encrypted       Boolean   @default(false)
+  encOriginalName Bytes?
   createdAt      DateTime  @default(now())
 
   org      Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)

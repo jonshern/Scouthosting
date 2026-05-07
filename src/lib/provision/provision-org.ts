@@ -7,6 +7,7 @@
 
 import { prisma } from "@/lib/db";
 import { UNIT_TYPES, buildSeedBroadcastChannels, type UnitType } from "@/lib/auth/org-roles";
+import { provisionOrgVault } from "@/lib/encryption";
 
 const REQUIRED = [
   "unitType",
@@ -56,6 +57,13 @@ export type ProvisionInput = {
   plan?: (typeof VALID_PLANS)[number];
   isDemo?: boolean;
   addOns?: string[];
+  // Org passphrase for the encryption vault. Required for new orgs
+  // so we can wrap the per-org DEK with a key the admin controls (in
+  // addition to the master-key wrap the server uses every day). Must
+  // be at least 12 characters; surfaced to the admin via the signup
+  // form. The recovery code we generate gets returned to the caller
+  // and shown once — see provisionOrg's return shape.
+  passphrase: string;
 };
 
 export function validateProvisionInput(body: Partial<ProvisionInput>): string[] {
@@ -114,7 +122,10 @@ async function persistSeedBroadcastChannels(org: {
   });
 }
 
-export async function provisionOrg(input: ProvisionInput) {
+export async function provisionOrg(input: ProvisionInput): Promise<{
+  org: Awaited<ReturnType<typeof prisma.org.create>>;
+  recoveryCode: string;
+}> {
   const slug = deriveSlug(input.unitType, input.unitNumber);
 
   if (RESERVED_SLUGS.has(slug)) {
@@ -126,6 +137,12 @@ export async function provisionOrg(input: ProvisionInput) {
     const apex = process.env.APEX_DOMAIN || "compass.app";
     throw new Error(`A site already exists at ${slug}.${apex}.`);
   }
+
+  if (!input.passphrase || input.passphrase.length < 12) {
+    throw new Error("Org passphrase must be at least 12 characters.");
+  }
+
+  const { fields: vault, recoveryCode } = await provisionOrgVault(input.passphrase);
 
   const charterOrg = input.charterOrg.trim();
 
@@ -158,10 +175,11 @@ export async function provisionOrg(input: ProvisionInput) {
       plan: input.plan || "patrol",
       isDemo: !!input.isDemo,
       addOns: Array.isArray(input.addOns) ? input.addOns : ["messaging"],
+      ...vault,
     },
   });
 
   await persistSeedBroadcastChannels(org);
 
-  return org;
+  return { org, recoveryCode };
 }

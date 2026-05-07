@@ -8,6 +8,11 @@ import { getSession } from "@/lib/auth/lucia";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { buildKey, put } from "@/lib/storage/local";
+import {
+  encryptBytes,
+  encryptField,
+  unwrapDekWithMaster,
+} from "@/lib/encryption";
 
 const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB per photo
@@ -84,6 +89,17 @@ export async function uploadPhotos(_prev: unknown, formData: FormData) {
 
   const errors: string[] = [];
   let count = 0;
+  // Photos are encrypted with the org's DEK before being written to
+  // storage. The original filename is encrypted into encOriginalName;
+  // the on-disk key (`filename` column) is a random opaque path.
+  const orgRow = await prisma.org.findUnique({
+    where: { id: auth.org.id },
+    select: { id: true, encryptedDek: true },
+  });
+  if (!orgRow || !orgRow.encryptedDek) {
+    return { error: "Org encryption vault is not provisioned." };
+  }
+  const dek = unwrapDekWithMaster(orgRow);
   for (const file of files) {
     if (!ALLOWED_MIME.has(file.type)) {
       errors.push(`${file.name}: unsupported type ${file.type}`);
@@ -94,14 +110,19 @@ export async function uploadPhotos(_prev: unknown, formData: FormData) {
       continue;
     }
     const key = buildKey(auth.org.id, "photos", file.name);
-    const buf = Buffer.from(await file.arrayBuffer());
-    await put(key, buf);
+    const plain = Buffer.from(await file.arrayBuffer());
+    const encrypted = encryptBytes(plain, dek, auth.org.id, "photo.bytes");
+    await put(key, encrypted);
     await prisma.photo.create({
       data: {
         orgId: auth.org.id,
         albumId: album.id,
         filename: key,
-        originalName: file.name,
+        // Plaintext originalName intentionally null on encrypted photos;
+        // encOriginalName carries it in ciphertext form.
+        originalName: null,
+        encOriginalName: encryptField(file.name, dek, auth.org.id, "photo.originalName"),
+        encrypted: true,
         mimeType: file.type,
         sizeBytes: file.size,
         uploaderUserId: auth.user.id,

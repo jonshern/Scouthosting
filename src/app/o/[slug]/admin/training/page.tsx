@@ -5,6 +5,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { unwrapDekWithMaster, decryptField } from "@/lib/encryption";
 
 export default async function TrainingPage({
   params,
@@ -24,12 +25,24 @@ export default async function TrainingPage({
     return <p className="p-12">Not authorized.</p>;
   }
 
-  const rows = await prisma.training.findMany({
+  const rawRows = await prisma.training.findMany({
     where: { orgId: org.id },
     orderBy: [{ completedAt: "desc" }],
     take: 500,
-    include: { member: { select: { firstName: true, lastName: true } } },
+    include: { member: { select: { encFirstName: true, encLastName: true } } },
   });
+  const dek = org.encryptedDek ? unwrapDekWithMaster(org) : null;
+  const rows = rawRows.map((t) => ({
+    ...t,
+    member: {
+      firstName: dek
+        ? decryptField(t.member.encFirstName, dek, org.id, "member.firstName") ?? ""
+        : "",
+      lastName: dek
+        ? decryptField(t.member.encLastName, dek, org.id, "member.lastName") ?? ""
+        : "",
+    },
+  }));
 
   const now = Date.now();
   const ninetyDays = 90 * 24 * 60 * 60 * 1000;

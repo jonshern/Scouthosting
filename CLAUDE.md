@@ -92,7 +92,35 @@ Next treats underscore-prefixed folders as private. The super-admin
 surface lives at `/super-admin` (not `/__super`) — folder is
 `src/app/super-admin/`.
 
-### 8. Stripe SDK is optional
+### 8. Per-org encryption: `MASTER_KEY` env var is required in production
+
+Roster PII (`Member.firstName`, `lastName`, `phone`, `street`, `city`,
+`state`, `zip`) and photo file bytes are encrypted at rest with a
+per-org Data Encryption Key (DEK). The DEK is wrapped three ways:
+
+- by `MASTER_KEY` (32-byte hex env var) — server's daily read/write
+  path. Generate with `openssl rand -hex 32`.
+- by `scrypt(orgPassphrase)` — admin-chosen at provisioning, used to
+  re-key after a master-key rotation.
+- by HKDF of a server-generated **recovery code** shown to the admin
+  once and downloadable.
+
+In dev/test, `MASTER_KEY` falls back to an ephemeral per-process key
+(logged to stderr). In production the app refuses to boot without it.
+
+`src/lib/encryption/{primitives,master-key,vault,field}.ts` is the
+public surface. `src/lib/members/crypto.ts` is the adapter for
+encrypted Member rows. The super-admin **Architecture & Security**
+page at `/super-admin/architecture` lists the encrypted-fields table
+and the verification runbook.
+
+The seeded demo org's passphrase is `compass-demo-passphrase-12`; its
+recovery code is printed once during `npm run db:seed`.
+
+Email is **plaintext on purpose** so background email, magic links,
+and chat membership lookups don't need an unlock ceremony.
+
+### 9. Stripe SDK is optional
 
 `src/lib/billing/stripe.ts` lazy-imports `stripe` and surfaces a 503
 if the SDK isn't installed or `STRIPE_SECRET_KEY` is unset. Builds

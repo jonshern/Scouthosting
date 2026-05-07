@@ -8,6 +8,8 @@ import { getSession } from "@/lib/auth/lucia";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
+import { unwrapDekWithMaster } from "@/lib/encryption";
+import { decryptMemberPii, encryptMemberPii } from "@/lib/members/crypto";
 
 type AuthOk = {
   user: NonNullable<Awaited<ReturnType<typeof getSession>>["user"]>;
@@ -32,6 +34,10 @@ const MemberInput = z.object({
   lastName: z.string().trim().min(1).max(80),
   email: z.string().trim().email().max(320).optional().or(z.literal("")),
   phone: z.string().trim().max(40).optional().or(z.literal("")),
+  street: z.string().trim().max(200).optional().or(z.literal("")),
+  city: z.string().trim().max(100).optional().or(z.literal("")),
+  state: z.string().trim().max(60).optional().or(z.literal("")),
+  zip: z.string().trim().max(20).optional().or(z.literal("")),
   isYouth: z.union([z.literal("on"), z.literal("")]).optional(),
   patrol: z.string().trim().max(50).optional().or(z.literal("")),
   position: z.string().trim().max(80).optional().or(z.literal("")),
@@ -41,6 +47,10 @@ const MemberInput = z.object({
 
 export type MemberState = { error?: string; ok?: true } | null;
 
+function vaultMissing(org: { encryptedDek: Buffer | Uint8Array | null }): boolean {
+  return !org.encryptedDek;
+}
+
 export async function upsertMember(_prev: MemberState, formData: FormData): Promise<MemberState> {
   if (!(await verifyOrigin())) return { error: "Bad origin." };
   if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) return { error: "Bad CSRF." };
@@ -48,13 +58,35 @@ export async function upsertMember(_prev: MemberState, formData: FormData): Prom
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   const auth = await authorizeLeader(parsed.data.orgSlug);
   if ("error" in auth) return { error: auth.error };
+  if (vaultMissing(auth.org)) {
+    return { error: "Org encryption vault is not provisioned. Re-create the org or restore from recovery." };
+  }
+  const dek = unwrapDekWithMaster(auth.org);
   const d = parsed.data;
+  const enc = encryptMemberPii(
+    {
+      firstName: d.firstName,
+      lastName: d.lastName,
+      phone: d.phone?.trim() || null,
+      street: d.street?.trim() || null,
+      city: d.city?.trim() || null,
+      state: d.state?.trim() || null,
+      zip: d.zip?.trim() || null,
+    },
+    dek,
+    auth.org.id,
+  );
   const data = {
     orgId: auth.org.id,
-    firstName: d.firstName,
-    lastName: d.lastName,
+    encFirstName: enc.encFirstName,
+    encLastName: enc.encLastName,
+    encPhone: enc.encPhone,
+    encStreet: enc.encStreet,
+    encCity: enc.encCity,
+    encState: enc.encState,
+    encZip: enc.encZip,
+    lastNameLc1: enc.lastNameLc1,
     email: d.email?.trim() || null,
-    phone: d.phone?.trim() || null,
     isYouth: d.isYouth === "on",
     patrol: d.patrol?.trim() || null,
     position: d.position?.trim() || null,
@@ -92,6 +124,20 @@ export async function upsertMember(_prev: MemberState, formData: FormData): Prom
 
 const RemoveSchema = z.object({ orgSlug: z.string().min(1), id: z.string().min(1) });
 
+async function describeMember(
+  m: Parameters<typeof decryptMemberPii>[0] & { id: string },
+  dek: Buffer,
+  orgId: string,
+): Promise<string> {
+  try {
+    const d = decryptMemberPii(m, dek, orgId);
+    const name = [d.firstName, d.lastName].filter(Boolean).join(" ");
+    return name || m.id;
+  } catch {
+    return m.id;
+  }
+}
+
 export async function softDeleteMember(_prev: unknown, formData: FormData) {
   if (!(await verifyOrigin())) return { error: "Bad origin." };
   if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) return { error: "Bad CSRF." };
@@ -105,6 +151,11 @@ export async function softDeleteMember(_prev: unknown, formData: FormData) {
     where: { id: m.id },
     data: { deletedAt: new Date() },
   });
+  let summary = `Removed ${m.id}`;
+  if (!vaultMissing(auth.org)) {
+    const dek = unwrapDekWithMaster(auth.org);
+    summary = `Removed ${await describeMember(m, dek, auth.org.id)}`;
+  }
   audit({
     orgId: auth.org.id,
     userId: auth.user.id,
@@ -112,7 +163,7 @@ export async function softDeleteMember(_prev: unknown, formData: FormData) {
     entityType: "Member",
     entityId: m.id,
     action: "delete",
-    summary: `Removed ${m.firstName} ${m.lastName}`,
+    summary,
   });
   revalidatePath(`/o/${auth.org.slug}/admin/members`);
   return { ok: true as const };
@@ -131,6 +182,11 @@ export async function restoreMember(_prev: unknown, formData: FormData) {
     where: { id: m.id },
     data: { deletedAt: null },
   });
+  let summary = `Restored ${m.id}`;
+  if (!vaultMissing(auth.org)) {
+    const dek = unwrapDekWithMaster(auth.org);
+    summary = `Restored ${await describeMember(m, dek, auth.org.id)}`;
+  }
   audit({
     orgId: auth.org.id,
     userId: auth.user.id,
@@ -138,7 +194,7 @@ export async function restoreMember(_prev: unknown, formData: FormData) {
     entityType: "Member",
     entityId: m.id,
     action: "update",
-    summary: `Restored ${m.firstName} ${m.lastName}`,
+    summary,
   });
   revalidatePath(`/o/${auth.org.slug}/admin/members`);
   return { ok: true as const };

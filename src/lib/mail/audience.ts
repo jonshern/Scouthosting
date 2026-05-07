@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/db";
+import { unwrapDekWithMaster } from "@/lib/encryption";
+import { decryptMemberPii } from "@/lib/members/crypto";
 
 export type AudienceKind = "everyone" | "adults" | "youth" | "leaders" | "patrol";
 
@@ -67,13 +69,40 @@ export async function buildEmailAudience(
       break;
   }
 
+  const org = await prisma.org.findUnique({
+    where: { id: orgId },
+    select: { id: true, encryptedDek: true },
+  });
+  if (!org || !org.encryptedDek) return [];
+
   const members = await prisma.member.findMany({
     where: where as never,
-    select: { id: true, firstName: true, lastName: true, email: true, phone: true },
-    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+    select: {
+      id: true,
+      email: true,
+      encFirstName: true,
+      encLastName: true,
+      encPhone: true,
+      encStreet: true,
+      encCity: true,
+      encState: true,
+      encZip: true,
+      lastNameLc1: true,
+    },
+    orderBy: [{ lastNameLc1: "asc" }, { id: "asc" }],
   });
 
-  return members
+  const dek = unwrapDekWithMaster(org);
+  const decrypted = members.map((m) => {
+    const pii = decryptMemberPii(m, dek, orgId);
+    return { ...m, ...pii };
+  });
+  decrypted.sort((a, b) => {
+    const cmp = a.lastName.localeCompare(b.lastName);
+    return cmp !== 0 ? cmp : a.firstName.localeCompare(b.firstName);
+  });
+
+  return decrypted
     .filter((m): m is typeof m & { email: string } => Boolean(m.email))
     .map((m) => ({
       memberId: m.id,

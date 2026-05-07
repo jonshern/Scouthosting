@@ -4,6 +4,8 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
+import { unwrapDekWithMaster } from "@/lib/encryption";
+import { decryptMemberPii } from "@/lib/members/crypto";
 
 export default async function MemberPositionsPage({
   params,
@@ -23,11 +25,25 @@ export default async function MemberPositionsPage({
     return <p className="p-12">Not authorized.</p>;
   }
 
-  const member = await prisma.member.findFirst({
+  const memberRow = await prisma.member.findFirst({
     where: { id, orgId: org.id },
-    select: { firstName: true, lastName: true, position: true },
+    select: {
+      encFirstName: true,
+      encLastName: true,
+      encPhone: true,
+      encStreet: true,
+      encCity: true,
+      encState: true,
+      encZip: true,
+      position: true,
+    },
   });
-  if (!member) return <p className="p-12">Member not found.</p>;
+  if (!memberRow) return <p className="p-12">Member not found.</p>;
+  const dek = org.encryptedDek ? unwrapDekWithMaster(org) : null;
+  const pii = dek
+    ? decryptMemberPii(memberRow, dek, org.id)
+    : { firstName: "", lastName: "", phone: null, street: null, city: null, state: null, zip: null };
+  const member = { ...memberRow, ...pii };
 
   const terms = await prisma.positionTerm.findMany({
     where: { orgId: org.id, memberId: id },

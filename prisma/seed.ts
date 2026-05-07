@@ -1,5 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import { hash } from "@node-rs/argon2";
+import {
+  encryptField,
+  provisionOrgVault,
+} from "../src/lib/encryption";
 
 const prisma = new PrismaClient({
   datasources: { db: { url: process.env.DATABASE_URL } },
@@ -10,6 +14,12 @@ const ARGON_PARAMS = { memoryCost: 19456, timeCost: 2, outputLen: 32, parallelis
 const ADMIN_EMAIL = "scoutmaster@example.invalid";
 const ADMIN_PASSWORD = "AdminPasswordTest123!";
 const SUPER_EMAIL = "super@example.invalid";
+
+// Demo passphrase for the seeded demo org. Recovery code is freshly
+// generated on each seed and printed once to stdout — capture it from
+// the seed output if a test needs it. NEVER use a fixed recovery code
+// for a real org.
+const DEMO_PASSPHRASE = "compass-demo-passphrase-12";
 
 async function provisionStandingChannelsInline(orgId: string, displayName: string) {
   type ChannelDef = {
@@ -124,9 +134,61 @@ async function main() {
     },
   });
 
+  // Provision the encryption vault (DEK + 3 wraps + recovery code).
+  // Re-uses any existing vault if the org already has one so re-running
+  // the seed is idempotent and existing encrypted Member rows stay
+  // decryptable. New orgs get a fresh DEK and the recovery code is
+  // logged once to stdout.
+  let existingOrg = await prisma.org.findUnique({
+    where: { slug: "troop100" },
+    select: {
+      id: true,
+      encryptedDek: true,
+      passphraseWrappedDek: true,
+      passphraseSalt: true,
+      passphraseVerifier: true,
+      recoveryWrappedDek: true,
+      recoverySalt: true,
+      recoveryVerifier: true,
+      keyVersion: true,
+      keyRotatedAt: true,
+    },
+  });
+
+  let dek: Buffer;
+  let recoveryCode: string | null = null;
+  let vaultFields: Record<string, unknown> = {};
+
+  if (
+    existingOrg &&
+    existingOrg.encryptedDek &&
+    existingOrg.passphraseWrappedDek &&
+    existingOrg.passphraseSalt &&
+    existingOrg.passphraseVerifier &&
+    existingOrg.recoveryWrappedDek &&
+    existingOrg.recoverySalt &&
+    existingOrg.recoveryVerifier
+  ) {
+    // Re-unlock with the demo passphrase so we can re-encrypt members.
+    const { unwrapDekWithPassphrase } = await import("../src/lib/encryption");
+    dek = await unwrapDekWithPassphrase(
+      {
+        passphraseWrappedDek: existingOrg.passphraseWrappedDek,
+        passphraseSalt: existingOrg.passphraseSalt,
+        passphraseVerifier: existingOrg.passphraseVerifier,
+      },
+      DEMO_PASSPHRASE,
+    );
+  } else {
+    const provisioned = await provisionOrgVault(DEMO_PASSPHRASE);
+    dek = provisioned.dek;
+    recoveryCode = provisioned.recoveryCode;
+    vaultFields = provisioned.fields as unknown as Record<string, unknown>;
+  }
+
   const org = await prisma.org.upsert({
     where: { slug: "troop100" },
-    update: {},
+    update: vaultFields,
     create: {
       slug: "troop100",
       unitType: "Troop",
@@ -145,8 +207,14 @@ async function main() {
       ownerId: user.id,
       plan: "patrol",
       isDemo: true,
+      ...vaultFields,
     },
   });
+
+  if (recoveryCode) {
+    // eslint-disable-next-line no-console
+    console.log(`[seed] org=${org.slug} passphrase=${DEMO_PASSPHRASE} recoveryCode=${recoveryCode}`);
+  }
 
   await prisma.orgMembership.upsert({
     where: { userId_orgId: { userId: user.id, orgId: org.id } },
@@ -164,6 +232,7 @@ async function main() {
     { firstName: "Eden",  lastName: "Optout", email: "eden@example.invalid", isYouth: false, position: null, patrol: null,
       emailUnsubscribed: true, unsubscribedAt: new Date() },
   ];
+  const aad = (purpose: string) => ({ orgId: org.id, purpose });
   for (const m of memberSeeds) {
     const existing = await prisma.member.findFirst({
       where: { orgId: org.id, email: m.email },
@@ -171,8 +240,9 @@ async function main() {
     });
     const data = {
       orgId: org.id,
-      firstName: m.firstName,
-      lastName: m.lastName,
+      encFirstName: encryptField(m.firstName, dek, org.id, "member.firstName"),
+      encLastName: encryptField(m.lastName, dek, org.id, "member.lastName"),
+      lastNameLc1: m.lastName[0]?.toLowerCase() ?? "?",
       email: m.email,
       isYouth: m.isYouth,
       position: m.position,
@@ -188,6 +258,8 @@ async function main() {
     } else {
       await prisma.member.create({ data });
     }
+    // Quiet the unused warning if we later add address fields here.
+    void aad;
   }
 
   // Standing chat channels (troop / parents / leaders / per-patrol).
