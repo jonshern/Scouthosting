@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -108,6 +108,9 @@ export async function upsertEvent(
 
   revalidatePath(`/o/${org.slug}/admin/events`);
   revalidatePath(`/o/${org.slug}/calendar`);
+  // Bust the public events API cache so the homepage upcoming-events
+  // widget shows the new event on its next fetch.
+  updateTag("public-events");
   redirect(`/o/${org.slug}/admin/events`);
 }
 
@@ -125,5 +128,6 @@ export async function deleteEvent(_prev: unknown, formData: FormData) {
   });
   revalidatePath(`/o/${auth.org.slug}/admin/events`);
   revalidatePath(`/o/${auth.org.slug}/calendar`);
+  updateTag("public-events");
   return { ok: true as const };
 }

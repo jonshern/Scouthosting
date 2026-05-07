@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
@@ -96,6 +96,10 @@ export async function publishBlocks(formData: FormData): Promise<void> {
 
   revalidatePath(`/o/${parsed.data.orgSlug}`);
   revalidatePath(`/o/${parsed.data.orgSlug}/admin/site`);
+  // Invalidate the cached homepage shell so the next visit re-renders
+  // with the new blocks. Live widgets (events / photos / announcements)
+  // self-refresh from /api/public.
+  updateTag("org-home-shell");
 }
 
 export async function revertDraftBlocks(formData: FormData): Promise<void> {

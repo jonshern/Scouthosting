@@ -1,16 +1,107 @@
 // Public tenant home — ported from
 // design_handoff_compass/designs/troop-pages.jsx (Balanced treatment).
-// Slim header → split hero (dark slate + watermark numeral on the left,
-// hero photo on the right) → two-column body with About + stats card +
-// recent photos + announcements main, sticky upcoming-events sidebar.
+//
+// Architecture (see docs/publish-architecture.md):
+// 1. Static content (hero, page-builder blocks, sponsor card, meeting
+//    info) is rendered server-side from the cached `Org` + `Page`
+//    records. The cache is tagged so admin saves invalidate it.
+// 2. Live content (upcoming events, recent photos, announcements) is
+//    fetched client-side from /api/public/orgs/<slug>/* — meaning a
+//    DB blip won't 500 the homepage; widgets just render their
+//    "couldn't load" state and the page keeps serving.
+// 3. ISR (`revalidate = 60`) caches the rendered shell so most hits
+//    don't touch the DB at all.
 
 import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { notFound } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import { renderMarkdownLite } from "@/lib/markdown";
 import { readCustomBlocks } from "@/lib/homepage/sections";
+import { UpcomingEventsWidget } from "@/components/widgets/UpcomingEventsWidget";
+import { RecentPhotosWidget } from "@/components/widgets/RecentPhotosWidget";
+import { AnnouncementsWidget } from "@/components/widgets/AnnouncementsWidget";
+import {
+  readHomeSnapshot,
+  writeHomeSnapshot,
+  type HomeSnapshot,
+} from "@/lib/publish/snapshot";
 
-const SPECTRUM = ["#1d4ed8", "#0891b2", "#f59e0b", "#475569", "#bcd0f4", "#0f172a"];
+// Render the homepage as ISR — Next caches the response for 60s and
+// background-revalidates. With the widgets fetching live data
+// client-side, this means the rendered HTML can sit in the cache for
+// minutes without going stale.
+export const revalidate = 60;
+
+// Live fetch from Prisma. Wrapped in unstable_cache so concurrent
+// requests within the revalidate window share the same DB roundtrip.
+const fetchOrgShellFromDb = unstable_cache(
+  async (slug: string): Promise<HomeSnapshot | null> => {
+    const org = await prisma.org.findUnique({
+      where: { slug },
+      include: { page: true },
+    });
+    if (!org) return null;
+    const memberCount = await prisma.member.count({
+      where: { orgId: org.id, deletedAt: null },
+    });
+    const heroPhoto = await prisma.photo
+      .findFirst({
+        where: { album: { orgId: org.id, visibility: "public" } },
+        orderBy: { takenAt: "desc" },
+        select: { filename: true, caption: true },
+      })
+      .catch(() => null);
+    return {
+      capturedAt: new Date().toISOString(),
+      org: {
+        slug: org.slug,
+        displayName: org.displayName,
+        unitType: org.unitType,
+        unitNumber: org.unitNumber,
+        council: org.council,
+        tagline: org.tagline,
+        charterOrg: org.charterOrg,
+        city: org.city,
+        state: org.state,
+        founded: org.founded,
+        meetingDay: org.meetingDay,
+        meetingTime: org.meetingTime,
+        meetingLocation: org.meetingLocation,
+      },
+      page: org.page
+        ? {
+            heroHeadline: org.page.heroHeadline,
+            heroLede: org.page.heroLede,
+            customBlocks: org.page.customBlocks,
+          }
+        : null,
+      memberCount,
+      heroPhoto,
+    };
+  },
+  ["public", "org-home-shell"],
+  { revalidate: 60, tags: ["org-home-shell"] },
+);
+
+// DB-down resilient loader. Tries the cached DB query first; on
+// failure (DB unreachable, schema mismatch, etc.) falls back to the
+// last successful snapshot written to disk. On success, persists a
+// fresh snapshot for future fallbacks.
+async function fetchOrgShell(slug: string): Promise<HomeSnapshot | null> {
+  try {
+    const fresh = await fetchOrgShellFromDb(slug);
+    if (fresh) {
+      // Write-behind: don't await, don't crash the render if disk fails.
+      writeHomeSnapshot(slug, fresh).catch(() => {});
+    }
+    return fresh;
+  } catch (err) {
+    const stale = await readHomeSnapshot(slug).catch(() => null);
+    if (stale) return stale;
+    throw err;
+  }
+}
 
 function PhotoTile({
   filename,
@@ -27,7 +118,6 @@ function PhotoTile({
       <img src={`/uploads/${filename}`} alt={alt} className="h-full w-full object-cover" />
     );
   }
-  // Gradient stand-in for orgs without uploaded photos.
   return (
     <div
       className="relative h-full w-full overflow-hidden"
@@ -46,70 +136,43 @@ function PhotoTile({
 
 export default async function OrgHome({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const org = await prisma.org.findUnique({
-    where: { slug },
-    include: {
-      announcements: { orderBy: { createdAt: "desc" }, take: 3 },
-      page: true,
-    },
-  });
-  if (!org) notFound();
-
-  const now = new Date();
-  const [events, recentPhotos, memberCount, eaglesThisYear] = await Promise.all([
-    prisma.event.findMany({
-      where: { orgId: org.id, startsAt: { gte: now } },
-      orderBy: { startsAt: "asc" },
-      take: 6,
-    }),
-    prisma.photo.findMany({
-      where: {
-        album: { orgId: org.id, visibility: "public" },
-      },
-      orderBy: { takenAt: "desc" },
-      take: 6,
-      select: { id: true, filename: true, caption: true },
-    }).catch(() => [] as Array<{ id: string; filename: string; caption: string | null }>),
-    prisma.member.count({ where: { orgId: org.id, deletedAt: null } }),
-    Promise.resolve(0), // placeholder until we wire Eagle counts to a column
-  ]);
+  const shell = await fetchOrgShell(slug);
+  if (!shell) notFound();
+  const { org, page, memberCount, heroPhoto } = shell;
 
   const heroLede =
-    org.page?.heroLede ??
+    page?.heroLede ??
     org.tagline ??
-    `${org.charterOrg} • ${org.city}, ${org.state}`;
-  const blocks = readCustomBlocks(org.page);
+    `${org.charterOrg ?? ""} \u2022 ${org.city ?? ""}, ${org.state ?? ""}`;
+  const blocks = readCustomBlocks(page);
   const unitNumber = org.unitNumber || "";
+  const now = new Date();
 
   return (
     <main>
-      {/* The tenant layout already renders a header with the Calendar /
-          Photos / Posts nav. We drop straight into the editorial hero. */}
-
       {/* Hero — split: dark slate left + photo right */}
-      <section className="grid md:grid-cols-2 border-b border-line min-h-[420px] md:min-h-[560px]">
-        <div className="relative bg-surface-dark text-white px-6 md:px-12 py-14 flex flex-col justify-center overflow-hidden">
-          {/* Watermark unit number */}
+      <section className="grid min-h-[420px] border-b border-line md:min-h-[560px] md:grid-cols-2">
+        <div className="relative flex flex-col justify-center overflow-hidden bg-surface-dark px-6 py-14 text-white md:px-12">
           {unitNumber && (
             <span
               aria-hidden
-              className="absolute -top-10 -right-10 font-display italic text-[220px] md:text-[360px] leading-none text-sky pointer-events-none select-none"
+              className="pointer-events-none absolute -right-10 -top-10 select-none font-display text-[220px] italic leading-none text-sky md:text-[360px]"
               style={{ opacity: 0.12 }}
             >
               {unitNumber}
             </span>
           )}
-          <span className="relative inline-flex self-start items-center gap-2 px-3 py-1.5 rounded-full bg-sky text-white text-[11px] font-bold uppercase tracking-[0.14em] mb-6">
+          <span className="relative mb-6 inline-flex items-center gap-2 self-start rounded-full bg-sky px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
             {org.unitType} \u00B7 {org.council ?? "Independent"} Council
           </span>
-          <h1 className="relative font-display text-[64px] md:text-[96px] lg:text-[120px] font-normal leading-[0.88] tracking-[-0.035em]">
-            {org.page?.heroHeadline ? (
-              org.page.heroHeadline
+          <h1 className="relative font-display text-[64px] font-normal leading-[0.88] tracking-[-0.035em] md:text-[96px] lg:text-[120px]">
+            {page?.heroHeadline ? (
+              page.heroHeadline
             ) : (
               <>
                 {org.unitType}
                 <br />
-                <em className="text-sky font-normal not-italic md:italic">
+                <em className="font-normal not-italic text-sky md:italic">
                   {unitNumber || org.displayName}.
                 </em>
               </>
@@ -117,131 +180,93 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
           </h1>
           {heroLede && (
             <div
-              className="relative mt-7 max-w-[460px] text-white/75 text-base leading-[1.6]"
+              className="relative mt-7 max-w-[460px] text-base leading-[1.6] text-white/75"
               // eslint-disable-next-line react/no-danger
               dangerouslySetInnerHTML={{ __html: renderMarkdownLite(heroLede) }}
             />
           )}
         </div>
-        <div className="relative overflow-hidden min-h-[260px]">
+        <div className="relative min-h-[260px] overflow-hidden">
           <PhotoTile
-            filename={recentPhotos[0]?.filename}
+            filename={heroPhoto?.filename}
             tone="#1d4ed8"
-            alt={recentPhotos[0]?.caption || `${org.displayName} hero`}
+            alt={heroPhoto?.caption || `${org.displayName} hero`}
           />
-          {recentPhotos[0]?.caption && (
-            <span className="absolute bottom-4 left-4 px-2.5 py-1 bg-ink text-white text-[10px] uppercase tracking-[0.08em]">
-              {recentPhotos[0].caption}
+          {heroPhoto?.caption && (
+            <span className="absolute bottom-4 left-4 bg-ink px-2.5 py-1 text-[10px] uppercase tracking-[0.08em] text-white">
+              {heroPhoto.caption}
             </span>
           )}
         </div>
       </section>
 
       {/* Main two-column */}
-      <div className="mx-auto max-w-content px-6 py-14 grid gap-10 md:grid-cols-[1.5fr_0.85fr]">
+      <div className="mx-auto grid max-w-content gap-10 px-6 py-14 md:grid-cols-[1.5fr_0.85fr]">
         <div>
           {/* About + stats */}
           <section className="mb-12">
-            <div className="text-[11px] font-bold uppercase tracking-[0.14em] text-sky mb-2">
+            <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-sky">
               About our {org.unitType.toLowerCase()}
             </div>
-            <h2 className="font-display text-[28px] md:text-[36px] font-normal leading-[1.15] mb-4">
+            <h2 className="mb-4 font-display text-[28px] font-normal leading-[1.15] md:text-[36px]">
               {org.tagline ?? `Scout-led, community-rooted${
                 org.founded ? `, since ${org.founded}` : "."
               }`}
             </h2>
-            {/* No `about` column on Org yet — surface tagline + meeting info as the
-                lede until we add a long-form description field. */}
-            <p className="text-slate-soft text-[15px] leading-[1.7]">
+            <p className="text-[15px] leading-[1.7] text-slate-soft">
               {[org.charterOrg, org.city && `${org.city}, ${org.state}`]
                 .filter(Boolean)
                 .join(" \u00B7 ")}
               . We meet {org.meetingDay} at {org.meetingTime}
               {org.meetingLocation ? ` at ${org.meetingLocation}` : ""}.
             </p>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-7 p-5 bg-white border border-line-soft rounded-lg">
+            <div className="mt-7 grid grid-cols-2 gap-4 rounded-lg border border-line-soft bg-white p-5 md:grid-cols-4">
               {[
-                { n: String(memberCount || "—"), l: "Members" },
+                { n: String(memberCount || "\u2014"), l: "Members" },
                 {
                   n: org.founded
                     ? String(now.getFullYear() - parseInt(org.founded, 10))
-                    : "—",
+                    : "\u2014",
                   l: "years active",
                 },
-                { n: org.meetingDay ?? "—", l: "Meeting day" },
-                { n: org.meetingTime ?? "—", l: "Meeting time" },
+                { n: org.meetingDay ?? "\u2014", l: "Meeting day" },
+                { n: org.meetingTime ?? "\u2014", l: "Meeting time" },
               ].map((s) => (
                 <div key={s.l}>
-                  <div className="font-display text-[24px] md:text-[28px] font-medium text-ink leading-none">
+                  <div className="font-display text-[24px] font-medium leading-none text-ink md:text-[28px]">
                     {s.n}
                   </div>
-                  <div className="text-xs text-slate-soft mt-1">{s.l}</div>
+                  <div className="mt-1 text-xs text-slate-soft">{s.l}</div>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* Recent photos */}
-          {recentPhotos.length > 0 && (
-            <section className="mb-12">
-              <div className="flex justify-between items-baseline mb-4">
-                <h3 className="font-display text-[22px] md:text-[26px] font-normal">
-                  Recent adventures
-                </h3>
-                <Link href="/photos" className="text-sky text-xs font-medium">
-                  View all photos \u2192
-                </Link>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {recentPhotos.slice(0, 6).map((p, i) => (
-                  <div
-                    key={p.id}
-                    className="aspect-[4/3] rounded-md overflow-hidden bg-surface-alt"
-                  >
-                    <PhotoTile
-                      filename={p.filename}
-                      tone={SPECTRUM[i % SPECTRUM.length]}
-                      alt={p.caption || "Recent photo"}
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+          {/* Recent photos — fetched client-side */}
+          <section className="mb-12">
+            <div className="mb-4 flex items-baseline justify-between">
+              <h3 className="font-display text-[22px] font-normal md:text-[26px]">
+                Recent adventures
+              </h3>
+              <Link href="/photos" className="text-xs font-medium text-sky">
+                View all photos \u2192
+              </Link>
+            </div>
+            <RecentPhotosWidget orgSlug={slug} count={6} />
+          </section>
 
-          {/* News / announcements */}
-          {org.announcements.length > 0 && (
-            <section>
-              <div className="flex justify-between items-baseline mb-4">
-                <h3 className="font-display text-[22px] md:text-[26px] font-normal">
-                  News & announcements
-                </h3>
-                <Link href="/posts" className="text-sky text-xs font-medium">
-                  All posts \u2192
-                </Link>
-              </div>
-              <div>
-                {org.announcements.map((a) => (
-                  <article key={a.id} className="py-5 border-t border-line">
-                    <div className="text-[11px] text-slate-muted uppercase tracking-[0.04em] mb-1">
-                      {new Date(a.createdAt).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </div>
-                    <h4 className="font-display text-[18px] md:text-[20px] font-medium mb-1.5">
-                      {a.title}
-                    </h4>
-                    {a.body && (
-                      <p className="text-[14px] text-slate-soft leading-[1.55] line-clamp-3">
-                        {a.body}
-                      </p>
-                    )}
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
+          {/* News / announcements — fetched client-side */}
+          <section>
+            <div className="mb-4 flex items-baseline justify-between">
+              <h3 className="font-display text-[22px] font-normal md:text-[26px]">
+                News & announcements
+              </h3>
+              <Link href="/posts" className="text-xs font-medium text-sky">
+                All posts \u2192
+              </Link>
+            </div>
+            <AnnouncementsWidget orgSlug={slug} />
+          </section>
 
           {/* Page-builder custom blocks (text/image/cta) below the editorial fold */}
           {blocks.length > 0 && (
@@ -256,7 +281,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
                       )}
                       {b.body && (
                         <div
-                          className="mt-2 prose prose-stone"
+                          className="prose prose-stone mt-2"
                           // eslint-disable-next-line react/no-danger
                           dangerouslySetInnerHTML={{ __html: renderMarkdownLite(b.body) }}
                         />
@@ -304,10 +329,10 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
           )}
         </div>
 
-        {/* Sidebar — Upcoming events + sponsor */}
+        {/* Sidebar — Upcoming events (live) + sponsor (static) */}
         <aside>
-          <div className="sticky top-6 bg-white border border-line rounded-xl p-6">
-            <div className="flex items-center gap-2 mb-4">
+          <div className="sticky top-6 rounded-xl border border-line bg-white p-6">
+            <div className="mb-4 flex items-center gap-2">
               <svg
                 width="18"
                 height="18"
@@ -322,59 +347,27 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
                 <line x1="8" y1="2" x2="8" y2="6" />
                 <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
-              <h3 className="font-display text-[20px] md:text-[22px] font-medium">
+              <h3 className="font-display text-[20px] font-medium md:text-[22px]">
                 Upcoming events
               </h3>
             </div>
-            {events.length === 0 ? (
-              <p className="text-slate-muted text-sm py-2">Nothing on the schedule yet.</p>
-            ) : (
-              <div>
-                {events.map((e, i) => {
-                  const d = new Date(e.startsAt);
-                  return (
-                    <div
-                      key={e.id}
-                      className={`flex gap-3.5 py-3.5 ${
-                        i > 0 ? "border-t border-line-soft" : ""
-                      }`}
-                    >
-                      <div className="w-12 shrink-0 text-center bg-surface-alt rounded-md py-1.5 h-12">
-                        <div className="text-[9px] font-semibold tracking-[0.06em] text-ink uppercase">
-                          {d.toLocaleString(undefined, { month: "short" })}
-                        </div>
-                        <div className="font-display text-[18px] font-medium leading-none">
-                          {d.getDate()}
-                        </div>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[13px] font-medium truncate">{e.title}</div>
-                        <div className="text-[11px] text-slate-soft">
-                          {d.toLocaleString(undefined, { hour: "numeric", minute: "2-digit" })}
-                          {e.location ? ` \u00B7 ${e.location}` : ""}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <UpcomingEventsWidget orgSlug={slug} />
             <Link
               href="/calendar"
-              className="block w-full mt-5 text-center bg-ink text-white rounded-md py-2.5 text-[13px] font-medium hover:bg-sky transition-colors"
+              className="mt-5 block w-full rounded-md bg-ink py-2.5 text-center text-[13px] font-medium text-white transition-colors hover:bg-sky"
             >
               Full calendar \u2192
             </Link>
           </div>
 
           {org.charterOrg && (
-            <div className="mt-4 bg-surface-alt border border-line rounded-xl p-5">
-              <div className="text-xs uppercase tracking-[0.06em] text-slate-muted mb-2">
+            <div className="mt-4 rounded-xl border border-line bg-surface-alt p-5">
+              <div className="mb-2 text-xs uppercase tracking-[0.06em] text-slate-muted">
                 Sponsored by
               </div>
               <div className="font-display text-[18px]">{org.charterOrg}</div>
               {(org.city || org.state) && (
-                <div className="text-xs text-slate-soft leading-[1.5] mt-2">
+                <div className="mt-2 text-xs leading-[1.5] text-slate-soft">
                   {[org.city, org.state].filter(Boolean).join(", ")}
                 </div>
               )}
@@ -383,8 +376,8 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
         </aside>
       </div>
 
-      <footer className="bg-surface-alt border-t border-line text-[11px] text-slate-muted">
-        <div className="mx-auto max-w-content px-6 py-5 flex justify-between">
+      <footer className="border-t border-line bg-surface-alt text-[11px] text-slate-muted">
+        <div className="mx-auto flex max-w-content justify-between px-6 py-5">
           <span>
             \u00A9 {now.getFullYear()} {org.displayName} \u00B7 Hosted with Compass
           </span>

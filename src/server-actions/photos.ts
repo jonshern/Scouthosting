@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -132,6 +132,10 @@ export async function uploadPhotos(_prev: unknown, formData: FormData) {
   }
   revalidatePath(`/o/${auth.org.slug}/photos/${album.slug}`);
   revalidatePath(`/o/${auth.org.slug}/admin/photos`);
+  // Bust the public photos API cache + the homepage shell cache so a
+  // newly-uploaded photo can become the hero image on the next render.
+  updateTag("public-photos");
+  updateTag("org-home-shell");
   return { ok: true as const, count, errors: errors.length ? errors : undefined };
 }
 

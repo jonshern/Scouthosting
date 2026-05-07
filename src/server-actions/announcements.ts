@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, updateTag } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
@@ -39,5 +39,8 @@ export async function createAnnouncement(_prev: unknown, formData: FormData) {
   });
   revalidatePath(`/o/${org.slug}`);
   revalidatePath(`/o/${org.slug}/admin/announcements`);
+  // Bust the public announcements API cache so the homepage widget
+  // picks up the new entry on its next fetch.
+  updateTag("public-announcements");
   return { ok: true as const };
 }
