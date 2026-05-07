@@ -3,9 +3,14 @@ import { expect, test } from "@playwright/test";
 test.describe("apex marketing", () => {
   test("home page renders the hero and CTAs", async ({ page }) => {
     await page.goto("/");
-    // Magazine-cover hero per design — copy includes "look like 2008".
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/look like 2008/i);
-    await expect(page.getByRole("link", { name: /start free trial/i }).first()).toBeVisible();
+    // Magazine-cover hero per design-handoff/marketing-balanced.jsx —
+    // headline is "Modern, secure software for your scouting unit."
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(
+      /modern.*secure software.*scouting unit/i,
+    );
+    await expect(
+      page.getByRole("link", { name: /start.*free trial/i }).first(),
+    ).toBeVisible();
     await expect(page.getByRole("link", { name: /sign in/i }).first()).toBeVisible();
   });
 

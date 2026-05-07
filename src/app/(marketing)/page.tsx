@@ -1,5 +1,6 @@
-// Marketing home — ported from design_handoff_compass/designs/marketing-balanced.jsx
-// (Slate & Sky / "balanced" palette per the design handoff README).
+// Marketing home — port of design-handoff/marketing-balanced.jsx.
+// Slate & Sky / "balanced" palette. Copy is the source of truth in
+// the design file; if the design copy changes, update it here.
 
 import Link from "next/link";
 
@@ -15,30 +16,30 @@ const FEATURES = [
     num: "02",
     kw: "Website",
     title: "A public homepage that recruits new families.",
-    body: "Pick from six templates, drop in your unit number, and you're live on a custom subdomain. Scouts can edit it during a Tuesday meeting.",
+    body: "Pick from six templates, drop in your troop number, and you're live on a custom subdomain. Scouts can edit it during a Tuesday meeting.",
     accent: "#f59e0b",
   },
   {
     num: "03",
-    kw: "Messages",
-    title: "Email & text that families actually read.",
-    body: "Send a Sunday update or a 7am cancellation. Threaded replies. SMS for urgent. No more \u201Cdid you get the flier?\u201D",
-    accent: "#0891b2",
+    kw: "Security",
+    title: "Encryption, audit logs, and serious uptime.",
+    body: "AES-256 field-level encryption, per-org keys, argon2id for passphrases. Tamper-evident audit log on every admin action. Cloud-hosted on Fly.io with daily Postgres snapshots — no server in someone's basement, no Tuesday-night outage.",
+    accent: "#0f172a",
   },
   {
     num: "04",
-    kw: "Memories",
-    title: "A photo library worth scrolling through.",
-    body: "Drop 200 phone photos in after Friday's campout. Auto-organized by event. Families can request blurs on faces.",
+    kw: "Communication",
+    title: "Email, push, and text — one composer.",
+    body: "Send a Sunday email digest, a mobile push for the 7am cancellation, or an SMS broadcast when a campout reroutes. Threaded replies, two-deep enforced, every message logged. No more \u201Cdid you get the flier?\u201D",
     accent: "#475569",
   },
 ];
 
 const STATS = [
-  { n: "AES-256", l: "encryption at rest", c: "#1d4ed8" },
-  { n: "SSO", l: "SAML \u00B7 OIDC \u00B7 WebAuthn", c: "#0891b2" },
-  { n: "Two-deep", l: "YPT-aligned messaging audit", c: "#f59e0b" },
-  { n: "60 days", l: "free trial \u00B7 no card required", c: "#bcd0f4" },
+  { n: "AES-256", l: "encryption at rest & in transit", c: "#1d4ed8" },
+  { n: "99.9%", l: "uptime, US data residency", c: "#0891b2" },
+  { n: "Daily", l: "encrypted off-site backups", c: "#f59e0b" },
+  { n: "$99", l: "flat per troop, per year", c: "#475569" },
 ];
 
 const IMPORT_SOURCES = [
@@ -54,7 +55,6 @@ const IMPORT_SOURCES = [
 ];
 
 function PhotoTile({ tone, label }: { tone: string; label: string }) {
-  // Gradient stand-in. Production swaps in real unit photos.
   return (
     <div
       className="relative h-full w-full overflow-hidden rounded-md"
@@ -88,42 +88,42 @@ export default function MarketingHome() {
 
         <div className="grid gap-12 md:grid-cols-[1.3fr_0.7fr] items-end">
           <h1 className="font-display font-normal leading-[0.92] tracking-[-0.035em] text-[64px] md:text-[96px] lg:text-[116px]">
-            Your unit's
+            Modern,
             <br />
-            website shouldn't
+            secure software
             <br />
             <span className="inline bg-sky text-white italic font-medium px-3 md:px-4 py-1">
-              look like 2008.
+              for your scouting unit.
             </span>
           </h1>
           <div>
             <span className="inline-flex items-center gap-2 rounded-full bg-ink text-white px-3 py-1.5 text-[11px] font-semibold tracking-[0.08em] mb-5">
               <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-sky" />
-              SECURITY-FIRST \u00B7 BUILT FOR MINORS' DATA
+              SECURITY \u00B7 EASE OF USE \u00B7 EVERY FEATURE YOU NEED
             </span>
             <p className="text-slate-soft text-[17px] leading-[1.55] mb-6">
-              Most volunteer units are stuck on hosting platforms designed before the iPhone.
-              Compass is the modern, mobile-first, security-engineered alternative — the
-              calendar, public site, photo library, and parent inbox your families actually
-              want to use.
+              A calendar, public site, photo library, and parent app — designed
+              for the volunteer leaders who keep things running. Sign in with
+              Google or Apple, encrypted by default, and built to play nicely
+              with Scouting.org and Scoutbook.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link href="/signup" className="btn-primary text-base px-5 py-3">
-                Start free trial \u2192
+                Start 60-day free trial \u2192
               </Link>
-              <Link href="/security" className="btn-secondary text-base px-5 py-3">
-                See the security model
+              <Link href="/plans" className="btn-secondary text-base px-5 py-3">
+                See every feature
               </Link>
             </div>
           </div>
         </div>
 
-        {/* Hero photo strip — colored top borders */}
+        {/* Hero photo strip — colored top borders matching the design */}
         <div className="mt-12 grid gap-2 md:grid-cols-[2fr_1fr_1fr] h-[260px] md:h-[360px]">
           <div className="border-t-[5px] border-sky overflow-hidden rounded-md">
             <PhotoTile tone="#0891b2" label="Canoe trip" />
           </div>
-          <div className="border-t-[5px] border-amber overflow-hidden rounded-md">
+          <div className="border-t-[5px] border-sky overflow-hidden rounded-md">
             <PhotoTile tone="#1d4ed8" label="Troop meeting" />
           </div>
           <div className="border-t-[5px] border-plum overflow-hidden rounded-md">
@@ -211,14 +211,14 @@ export default function MarketingHome() {
               \u00A7 Migration
             </div>
             <h3 className="font-display text-[32px] md:text-[44px] font-normal leading-[1.05] tracking-[-0.025em] mb-4">
-              Bring your <em className="text-sky font-normal">18 years</em> of unit
+              Bring your <em className="text-sky font-normal">18 years</em> of troop
               history with you.
             </h3>
             <p className="text-slate-soft text-[15px] leading-relaxed">
-              We import from TroopWebHost, ScoutLander, TroopTrack, and a folder of CSVs
-              you found on the old committee chair's laptop. White-glove migration is
-              included on every plan — book a 30-minute call and we'll have you running
-              by Sunday.
+              We import from TroopWebHost, ScoutLander, TroopTrack, and a folder
+              of CSVs you found on the old committee chair&apos;s laptop.
+              White-glove migration is included on every plan — book a 30-minute
+              call and we&apos;ll have you running by Sunday.
             </p>
           </div>
           <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
@@ -235,42 +235,82 @@ export default function MarketingHome() {
         </div>
       </section>
 
-      {/* Pricing teaser — Standard + Premium, 60-day free */}
+      {/* Pricing — Unit + Unit-with-Messaging, both per year */}
       <section className="mx-auto max-w-content px-6 py-20">
         <div className="mb-12">
           <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
             \u00A7 Pricing
           </div>
           <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-4xl">
-            One price per unit.{" "}
+            One price per unit — pack, troop, crew, ship, or post.{" "}
             <em className="text-sky font-normal">No per-scout</em> fees, ever.
           </h2>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-[1.4fr_1fr]">
-          <div className="relative rounded-xl border-2 border-ink bg-surface-dark text-white p-8">
-            <span className="absolute -top-3 left-7 bg-sky text-white text-[10px] font-bold tracking-[0.12em] uppercase px-2.5 py-1 rounded">
-              Most units
-            </span>
-            <div className="font-display italic text-[24px] text-sky mb-2">Premium</div>
+        <div className="grid gap-4 md:grid-cols-[1fr_1.4fr]">
+          {/* Unit — base tier */}
+          <div className="rounded-xl border-2 border-line bg-bone p-8">
+            <div className="font-display italic text-[24px] text-sky mb-2">Unit</div>
             <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
-              $119
+              $99
             </div>
-            <div className="text-xs text-white/60 mt-1 mb-6">/ month</div>
-            <p className="text-sm text-white/85 mb-6 pb-6 border-b border-white/15">
-              Everything in Standard, plus the messaging stack — SMS broadcasts, push,
-              DMs, channels with two-deep YPT compliance.
+            <div className="text-xs text-slate-muted mt-1 mb-6">
+              per year, flat \u00B7 60-day free trial
+            </div>
+            <p className="text-sm text-slate-soft mb-6 pb-6 border-b border-line">
+              Everything most units need: public site, calendar, photos, email
+              digests, payments, forms, mobile app.
             </p>
             <ul className="space-y-2.5 text-sm mb-7">
               {[
-                "Unlimited members \u00B7 calendar \u00B7 RSVPs \u00B7 photos",
-                "Group email (Resend-backed sender)",
-                "Trip + meal planner",
-                "Custom forms + custom domain",
-                "Group SMS broadcasts (Twilio)",
-                "Push + DMs + patrol/parents channels",
-                "Two-deep YPT compliance gate",
-                "Priority support",
+                "Public website + custom subdomain",
+                "Calendar with RSVPs, permission slips, and Stripe payments",
+                "Email digests sent from your domain",
+                "Photo library (15 GB) with per-scout privacy",
+                "Carpool & ride coordination",
+                "Forms, surveys & online dues",
+                "Scoutbook deep-links",
+                "White-glove migration from your old site",
+              ].map((f) => (
+                <li key={f} className="flex gap-2.5 leading-snug">
+                  <span className="text-sky font-bold shrink-0">\u2713</span>
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <Link href="/signup" className="btn-secondary w-full justify-center">
+              Start 60-day free trial \u2192
+            </Link>
+          </div>
+
+          {/* Unit + Messaging — featured tier */}
+          <div className="relative rounded-xl border-2 border-ink bg-surface-dark text-white p-8">
+            <span className="absolute -top-3 left-7 bg-sky text-white text-[10px] font-bold tracking-[0.12em] uppercase px-2.5 py-1 rounded">
+              Most troops
+            </span>
+            <div className="font-display italic text-[24px] text-sky mb-2">
+              Unit + Messaging
+            </div>
+            <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
+              $119
+            </div>
+            <div className="text-xs text-white/60 mt-1 mb-6">
+              per year, flat \u00B7 60-day free trial
+            </div>
+            <p className="text-sm text-white/85 mb-6 pb-6 border-b border-white/15">
+              Everything in Unit, plus group chat, SMS broadcasts, and the
+              moderated parent feed. The full communications stack.
+            </p>
+            <ul className="space-y-2.5 text-sm mb-7">
+              {[
+                "Everything in Unit",
+                "Group chat for dens, patrols, and committees",
+                "Two-deep enforced on every message",
+                "SMS broadcasts for time-sensitive alerts",
+                "Moderated parent feed (photos, polls, news)",
+                "Push notifications",
+                "Tamper-evident audit log of every message",
+                "Leader oversight view",
               ].map((f) => (
                 <li key={f} className="flex gap-2.5 leading-snug text-white/90">
                   <span className="text-sky font-bold shrink-0">\u2713</span>
@@ -280,50 +320,238 @@ export default function MarketingHome() {
             </ul>
             <Link
               href="/signup"
-              className="inline-flex items-center justify-center w-full rounded-md bg-sky text-white px-4 py-3 text-sm font-semibold hover:bg-white hover:text-ink transition-colors"
+              className="inline-flex w-full items-center justify-center rounded-md bg-sky px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white hover:text-ink"
             >
-              Start Premium — 60 days free \u2192
-            </Link>
-          </div>
-
-          <div className="rounded-xl border-2 border-line bg-bone p-8">
-            <div className="font-display italic text-[24px] text-sky mb-2">Standard</div>
-            <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
-              $99
-            </div>
-            <div className="text-xs text-slate-muted mt-1 mb-6">/ month</div>
-            <p className="text-sm text-slate-soft mb-6 pb-6 border-b border-line">
-              Everything most units need — public site, calendar, photos, group email,
-              page editor.
-            </p>
-            <ul className="space-y-2.5 text-sm mb-7">
-              {[
-                "Unlimited members",
-                "Calendar + RSVP",
-                "Photo albums",
-                "Group email",
-                "Trip + meal planner",
-                "Custom forms",
-                "Custom domain",
-              ].map((f) => (
-                <li key={f} className="flex gap-2.5 leading-snug">
-                  <span className="text-sky font-bold shrink-0">\u2713</span>
-                  {f}
-                </li>
-              ))}
-            </ul>
-            <Link href="/signup" className="btn-secondary w-full justify-center">
-              Start Standard — 60 days free \u2192
+              Start 60-day free trial \u2192
             </Link>
           </div>
         </div>
 
         <p className="mt-7 text-center text-[13px] text-slate-muted">
-          501(c)(3)? You get 20% off, automatically. \u00B7{" "}
-          <Link href="/plans" className="underline">
-            Compare full plans
-          </Link>
+          60-day free trial on every plan \u00B7 No per-scout, per-leader, or
+          setup fees \u00B7 501(c)(3)? Automatic 20% off \u00B7 Stripe fees
+          passed through at cost.
         </p>
+      </section>
+
+      {/* Old vs new — comparison band on dark forest */}
+      <section className="bg-surface-dark text-white">
+        <div className="mx-auto max-w-content px-6 py-20">
+          <div className="mb-10">
+            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
+              \u00A7 The status quo
+            </div>
+            <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-3xl">
+              The site your families see{" "}
+              <em className="text-sky font-normal">is your front door.</em>
+            </h2>
+            <p className="mt-5 max-w-2xl text-base leading-[1.6] text-white/75">
+              Recruiting families compare your unit to the soccer club, the Y, the
+              music school. If your homepage looks like a 2008 phpBB install,
+              you&apos;re losing scouts before the first parent night.
+            </p>
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* OLD — TroopWebHost-style */}
+            <div>
+              <div className="mb-3 flex items-center gap-2">
+                <span aria-hidden className="h-2 w-2 rounded-full bg-red-500" />
+                <span className="text-xs font-semibold uppercase tracking-[0.1em] text-white/55">
+                  Today \u00B7 Old hosting platform
+                </span>
+              </div>
+              <div className="overflow-hidden rounded-lg border border-white/15 bg-white text-ink">
+                <div className="flex items-center gap-1.5 border-b border-[#b0b5b9] bg-[#dcdfe2] px-3 py-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#fb6964]" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#fdc14b]" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#34c64c]" />
+                  <span className="ml-2 flex-1 truncate rounded bg-white px-2 py-0.5 font-mono text-[10px] text-[#666]">
+                    https://www.oldhostingplatform.com/Troop12/Index.htm
+                  </span>
+                </div>
+                <div className="bg-white font-[Arial,Helvetica,sans-serif] text-[12px] text-black">
+                  <div
+                    className="flex items-center justify-between border-b-2 border-[#1a2f10] px-4 py-2 text-[#ffe]"
+                    style={{ background: "linear-gradient(180deg,#4a6e3a,#2f4d24)" }}
+                  >
+                    <span
+                      className="font-[Times,serif] text-[20px] font-bold italic"
+                      style={{ textShadow: "1px 1px 2px rgba(0,0,0,0.4)" }}
+                    >
+                      Troop 12 — Anytown, USA
+                    </span>
+                    <span className="text-[10px]">Login | Help</span>
+                  </div>
+                  <div className="border-b border-[#c0c0a8] bg-[#e8e8d8] px-3 py-1 text-[11px] text-[#444]">
+                    Home &gt; Welcome
+                  </div>
+                  <div className="grid grid-cols-[150px_1fr] min-h-[280px]">
+                    <div className="border-r border-[#c8c8b0] bg-[#f0eed8] p-2.5 text-[11px]">
+                      <div className="mb-2 font-bold text-[#234]">MAIN MENU</div>
+                      {[
+                        "Home",
+                        "About Our Troop",
+                        "Calendar",
+                        "Photo Gallery",
+                        "Eagle Scouts",
+                        "Documents",
+                        "Forms",
+                        "Contact Us",
+                        "Members Only",
+                      ].map((l) => (
+                        <div
+                          key={l}
+                          className="cursor-pointer py-0.5 text-[11px] text-[#0050a0] underline"
+                        >
+                          \u00BB {l}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="p-3.5">
+                      <div className="mb-2 border-b-2 border-[#2f4d24] pb-1 font-[Times,serif] text-[16px] font-bold text-[#2f4d24]">
+                        Welcome to Troop 12!
+                      </div>
+                      <p className="my-1.5 text-[11px] leading-[1.5]">
+                        Troop 12 has been serving Anytown since 1972. We meet
+                        every Tuesday at 7:00 PM at St. Mark&apos;s Community
+                        Church. New scouts are always welcome — please contact
+                        our Scoutmaster for more information.
+                      </p>
+                      <div className="my-2 border border-[#d4b850] bg-[#fffacc] px-2 py-1 text-[11px]">
+                        <strong className="text-[#a05010]">NEW!</strong> Spring
+                        Campout signup is now open. Permission slip{" "}
+                        <span className="text-[#0050a0] underline">
+                          (click here)
+                        </span>{" "}
+                        must be returned by Friday.
+                      </div>
+                      <div className="mt-3 mb-1 border-b border-[#2f4d24] font-[Times,serif] text-[13px] font-bold text-[#2f4d24]">
+                        Upcoming Events
+                      </div>
+                      <table className="w-full border-collapse text-[11px]">
+                        <tbody>
+                          {[
+                            ["03/21/26", "Spring Campout — Birch Lake"],
+                            ["03/25/26", "Troop Meeting"],
+                            ["04/04/26", "Eagle Project — Jamie"],
+                          ].map(([d, n], i) => (
+                            <tr
+                              key={d}
+                              className={i % 2 ? "bg-[#f8f8e8]" : "bg-white"}
+                            >
+                              <td className="border-b border-dotted border-[#aaa] px-1.5 py-0.5 font-mono">
+                                {d}
+                              </td>
+                              <td className="border-b border-dotted border-[#aaa] px-1.5 py-0.5 text-[#0050a0] underline">
+                                {n}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div className="border-t-2 border-[#1a2f10] bg-[#2f4d24] px-3.5 py-1.5 text-center text-[10px] text-[#cdcdb8]">
+                    Powered by OldHostingPlatform.com — \u00A9 2009-2026 \u00B7
+                    best viewed in IE7+
+                  </div>
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-white/70">
+                <span className="font-bold text-red-500">\u25CF</span> Broken on
+                phones. No HTTPS-only enforcement. Tables for layout. Member
+                roster behind a single shared password. Photos uploaded to a
+                public Google Drive folder.
+              </p>
+            </div>
+
+            {/* NEW — Compass */}
+            <div>
+              <div className="mb-3 flex items-center gap-2">
+                <span aria-hidden className="h-2 w-2 rounded-full bg-sky" />
+                <span className="text-xs font-semibold uppercase tracking-[0.1em] text-sky">
+                  Compass \u00B7 next Tuesday
+                </span>
+              </div>
+              <div className="overflow-hidden rounded-lg border border-white/15 bg-white text-ink">
+                <div className="flex items-center gap-1.5 border-b border-line bg-surface-alt px-3 py-2">
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#fb6964]" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#fdc14b]" />
+                  <span className="h-2.5 w-2.5 rounded-full bg-[#34c64c]" />
+                  <span className="ml-2 flex-1 rounded-full bg-white px-2 py-0.5 text-[10px] text-slate-muted">
+                    troop12.compass.app
+                  </span>
+                </div>
+                <div className="min-h-[280px] bg-bg p-4">
+                  <div className="mb-3.5 flex items-center justify-between">
+                    <div className="font-display text-[16px] font-medium">
+                      Troop 12 \u00B7{" "}
+                      <span className="italic text-slate-soft">Anytown</span>
+                    </div>
+                    <div className="flex gap-2.5 text-[10px] text-slate-soft">
+                      <span>About</span>
+                      <span>Calendar</span>
+                      <span>Photos</span>
+                      <span>Join</span>
+                    </div>
+                  </div>
+                  <div className="relative mb-3 overflow-hidden rounded-lg bg-surface-dark p-4 text-white">
+                    <span
+                      aria-hidden
+                      className="absolute -right-2 -top-2 h-20 w-20 rounded-full bg-sky opacity-25"
+                    />
+                    <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.14em] text-sky">
+                      This Friday
+                    </div>
+                    <div className="mb-1.5 font-display text-[20px] font-normal leading-tight">
+                      Spring Campout —
+                      <br />
+                      Birch Lake State Park
+                    </div>
+                    <div className="mb-2 text-[10px] text-white/70">
+                      Fri 5:30 PM \u00B7 18 going \u00B7 permission slip + $35
+                      due Thursday
+                    </div>
+                    <div className="inline-block rounded bg-sky px-2.5 py-1 text-[10px] font-semibold text-white">
+                      Sign \u00B7 RSVP \u00B7 Pay \u2192
+                    </div>
+                  </div>
+                  <div className="mb-3 grid grid-cols-3 gap-1.5">
+                    {["#1d4ed8", "#0891b2", "#f59e0b"].map((c, i) => (
+                      <div
+                        key={c}
+                        className="relative aspect-[4/3] overflow-hidden rounded"
+                        style={{ background: `linear-gradient(135deg, ${c}, ${c}99)` }}
+                      >
+                        <svg
+                          viewBox="0 0 100 75"
+                          preserveAspectRatio="xMidYMid slice"
+                          className="absolute inset-0 h-full w-full opacity-40"
+                        >
+                          <polygon
+                            points={`0,${50 + i * 4} 30,${30 + i * 3} 60,${45 - i * 2} 100,${35 + i * 4} 100,75 0,75`}
+                            fill="#0f172a"
+                          />
+                        </svg>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between border-t border-line pt-2 text-[10px] text-slate-muted">
+                    <span>Hosted with Compass</span>
+                    <span>HTTPS \u00B7 SSO \u00B7 Privacy controls</span>
+                  </div>
+                </div>
+              </div>
+              <p className="mt-3 text-xs leading-relaxed text-white/85">
+                <span className="font-bold text-sky">\u25CF</span> Mobile-first.
+                HTTPS-only. Encrypted at rest & in transit. Daily encrypted
+                backups. Role-based access with audit logs. Migrates from your
+                old hosting in an afternoon.
+              </p>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* CTA */}
@@ -332,22 +560,22 @@ export default function MarketingHome() {
           Free for 60 days
         </span>
         <h2 className="font-display text-[44px] md:text-[72px] font-normal leading-[0.98] tracking-[-0.03em] max-w-3xl mx-auto mb-8">
-          Set up your unit's home base{" "}
-          <em className="text-sky font-normal">before next week's meeting.</em>
+          Set up your troop&apos;s home base{" "}
+          <em className="text-sky font-normal">before next week&apos;s meeting.</em>
         </h2>
         <div className="flex flex-wrap gap-3 justify-center mb-6">
           <Link href="/signup" className="btn-primary text-[15px] px-7 py-4 rounded-full">
             Start free trial \u2192
           </Link>
           <Link
-            href="mailto:hello@compass.app"
+            href="mailto:hello@scoutingcompass.com"
             className="btn-secondary text-[15px] px-7 py-4 rounded-full"
           >
             Talk to a person
           </Link>
         </div>
         <p className="text-[13px] text-slate-muted">
-          No credit card \u00B7 cancel anytime \u00B7 we'll migrate your old site for free
+          No credit card \u00B7 cancel anytime \u00B7 we&apos;ll migrate your old site for free
         </p>
       </section>
     </>
