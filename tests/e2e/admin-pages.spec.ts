@@ -52,7 +52,8 @@ test.describe("admin smoke coverage", () => {
     await page.getByLabel("Password").fill(PASSWORD);
     await page.waitForTimeout(1700);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL(`${TENANT}/`);
+    // Seeded scoutmaster is a leader in one org → lands on /admin.
+    await page.waitForURL(/\/admin/);
 
     for (const [path, headingRe] of ADMIN_PAGES) {
       await page.goto(`${TENANT}${path}`);

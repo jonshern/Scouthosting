@@ -3,11 +3,18 @@
 import { useActionState } from "react";
 import { loginAction, type ActionState } from "@/server-actions/auth";
 
-export function LoginForm({ csrf }: { csrf: React.ReactNode }) {
+export function LoginForm({
+  csrf,
+  next,
+}: {
+  csrf: React.ReactNode;
+  next?: string;
+}) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(loginAction, null);
   return (
     <form action={formAction} className="space-y-4" noValidate>
       {csrf}
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       <div>
         <label className="label" htmlFor="email">Email</label>
         <input id="email" name="email" type="email" required className="field" autoComplete="email" />

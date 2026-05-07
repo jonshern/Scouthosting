@@ -14,7 +14,8 @@ async function signIn(page: Page) {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.waitForTimeout(1700);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(`${TENANT}/`);
+  // Seeded scoutmaster is a leader in one org → lands on /admin.
+  await page.waitForURL(/\/admin/);
 }
 
 test.describe("admin write actions", () => {

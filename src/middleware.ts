@@ -60,6 +60,7 @@ const APEX_INVITE_PREFIXES = [
   "/uploads/",    // org-served files (apex-relative when using local storage)
   "/super-admin", // operator surface — independently auth-gated
   "/account",     // signed-in user account pages
+  "/select-org",  // post-login org picker for multi-org users
   "/_next/",
 ];
 

@@ -18,7 +18,7 @@ async function signInAs(page: Page, email: string, password: string) {
   await page.getByLabel("Password").fill(password);
   await page.waitForTimeout(1700);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(`${TENANT}/`);
+  await page.waitForURL(/\/admin/);
 }
 
 test.describe("chat message delivery", () => {

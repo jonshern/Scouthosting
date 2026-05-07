@@ -120,5 +120,7 @@ export async function POST(req: NextRequest) {
   }
 
   await createSession(userId);
-  return NextResponse.redirect(new URL("/", req.url));
+  const { postLoginRedirectUrl } = await import("@/lib/auth/post-login");
+  const dest = await postLoginRedirectUrl(userId);
+  return NextResponse.redirect(new URL(dest, req.url));
 }

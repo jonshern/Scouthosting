@@ -12,7 +12,7 @@ async function signInTenant(page: Page) {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.waitForTimeout(1700);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(`${TENANT}/`);
+  await page.waitForURL(/\/admin/);
 }
 
 const SAMPLE_CSV = `firstName,lastName,email,patrol,position,isYouth

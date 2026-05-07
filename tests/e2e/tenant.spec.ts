@@ -26,7 +26,7 @@ test.describe("tenant routing (subdomain)", () => {
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.waitForTimeout(1700);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL("**/");
+    await page.waitForURL(/\/admin/);
     await page.goto("http://troop100.localhost:3000/admin");
     // The redesigned overview h1 is the day-of-week greeting; the
     // always-present h2 is more stable to anchor on.
@@ -41,7 +41,7 @@ test.describe("tenant routing (subdomain)", () => {
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.waitForTimeout(1700);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL("**/");
+    await page.waitForURL(/\/admin/);
     await page.goto("http://troop100.localhost:3000/admin/announcements");
     const title = `E2E announcement ${Date.now()}`;
     await page.getByLabel("Title").fill(title);

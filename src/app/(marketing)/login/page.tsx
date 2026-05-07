@@ -43,7 +43,12 @@ function AppleIcon() {
   );
 }
 
-export default function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  const { next } = await searchParams;
   return (
     <main className="min-h-screen bg-bg md:grid md:grid-cols-[1fr_560px]">
       {/* Brand panel */}
@@ -131,7 +136,7 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-6">
-            <LoginForm csrf={<CsrfTokenInput />} />
+            <LoginForm csrf={<CsrfTokenInput />} next={next} />
           </div>
 
           <p className="mt-6 text-xs leading-[1.55] text-slate-muted">

@@ -7,6 +7,7 @@ import { LoginSchema, SignupSchema } from "@/lib/validation/schemas";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { passwordLoginAllowedForRole } from "@/lib/auth/policy";
 import { isPrivilegedUser } from "@/lib/auth/role";
+import { postLoginRedirectUrl } from "@/lib/auth/post-login";
 import { createSession, endSession } from "@/lib/auth/sessions";
 import { consume } from "@/lib/security/rate-limit";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
@@ -64,7 +65,7 @@ export async function signupAction(_prev: ActionState, formData: FormData): Prom
   }
 
   await createSession(user.id);
-  redirect("/");
+  redirect(await postLoginRedirectUrl(user.id, String(formData.get("next") ?? "")));
 }
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -102,7 +103,7 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   }
 
   await createSession(user.id);
-  redirect("/");
+  redirect(await postLoginRedirectUrl(user.id, String(formData.get("next") ?? "")));
 }
 
 export async function readPendingMfaUserId(): Promise<string | null> {
@@ -152,7 +153,7 @@ export async function completeMfaLoginAction(
 
   cookieStore.set(MFA_PENDING_COOKIE, "", { path: "/", maxAge: 0 });
   await createSession(user.id);
-  redirect("/");
+  redirect(await postLoginRedirectUrl(user.id, String(formData.get("next") ?? "")));
 }
 
 export async function logoutAction(): Promise<void> {

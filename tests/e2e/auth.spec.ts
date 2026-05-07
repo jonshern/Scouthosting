@@ -29,8 +29,9 @@ test.describe("auth flows", () => {
     await page.getByLabel("Password").fill("CorrectHorseBatteryStaple!");
     await page.waitForTimeout(1700);
     await page.getByRole("button", { name: /create account/i }).click();
-    await page.waitForURL("/");
-    // Cookie should be set
+    // New account with no org memberships lands on /account/profile per
+    // post-login redirect logic.
+    await page.waitForURL(/\/account\/profile/);
     const cookies = await page.context().cookies();
     expect(cookies.some((c) => c.name === "compass_session")).toBe(true);
   });
@@ -41,7 +42,8 @@ test.describe("auth flows", () => {
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.waitForTimeout(1700);
     await page.getByRole("button", { name: /sign in/i }).click();
-    await page.waitForURL("/");
+    // Seeded scoutmaster is a leader in exactly one org → lands on its admin.
+    await page.waitForURL(/\/o\/[^/]+\/admin/);
     const cookies = await page.context().cookies();
     expect(cookies.some((c) => c.name === "compass_session")).toBe(true);
   });
