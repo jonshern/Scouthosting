@@ -22,7 +22,11 @@ test.describe("signup slots", () => {
     await page.goto(`${TENANT}/calendar`);
     // The page should render even if no slots exist yet — we're
     // smoke-testing that the calendar/page.tsx wiring with the
-    // SlotSignupForm + RsvpForm components doesn't throw.
-    await expect(page.getByRole("heading", { level: 1, name: /calendar/i })).toBeVisible();
+    // SlotSignupForm + RsvpForm components doesn't throw. The
+    // current public-page header renders the kicker "§ Calendar"
+    // and an h1 of "What's coming up." (per design_handoff_compass_cms),
+    // so the kicker is the most stable signal that we're on the
+    // calendar page.
+    await expect(page.getByText("§ Calendar").first()).toBeVisible();
   });
 });

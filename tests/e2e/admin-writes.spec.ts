@@ -1,6 +1,9 @@
 // Happy-path coverage for admin write actions that previously only had
-// render smoke (refunds, domain, forms, canvas). One sign-in for all so
-// we don't trip the per-IP login rate limit.
+// render smoke (refunds, domain, forms, canvas). Previously combined
+// into a single 5-minute test that timed out under accumulated test
+// data; now split per-surface so each gets its own time budget. The
+// login rate-limit is 30/min/IP (src/server-actions/auth.ts) so four
+// sign-ins in a row is well under cap.
 
 import { expect, test, type Page } from "@playwright/test";
 
@@ -14,68 +17,72 @@ async function signIn(page: Page) {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.waitForTimeout(1700);
   await page.getByRole("button", { name: /sign in/i }).click();
-  // Seeded scoutmaster is a leader in one org → lands on /admin.
   await page.waitForURL(/\/admin/);
 }
 
 test.describe("admin write actions", () => {
-  test("refund + domain + form + canvas write paths", async ({ page }) => {
-    // Long flow that touches many admin pages. Bumped from 180s after
-    // the publish/snapshot work added per-render disk writes which
-    // pushed the prior limit just over the edge under the e2e profile.
-    test.setTimeout(300_000);
+  test("refund: issue + appears on list", async ({ page }) => {
+    test.setTimeout(60_000);
     await signIn(page);
-
-    // ── Refund: create + appears on list ───────────────────────────
     const refundReason = `E2E refund ${Date.now()}`;
     await page.goto(`${TENANT}/admin/refunds/new`);
     await page.locator("input[name=amount]").fill("12.34");
     await page.locator("textarea[name=reason]").fill(refundReason);
     await page.locator("input[name=paymentRef]").fill("e2e-ref-1");
     await page.getByRole("button", { name: /issue refund/i }).click();
-    await page.waitForURL(/\/admin\/refunds(\?.*)?$/);
+    await page.waitForURL(/\/admin\/refunds(\?.*)?$/, { timeout: 30_000 });
     await expect(page.getByText(refundReason)).toBeVisible();
+  });
 
-    // ── Domain: set + clear ────────────────────────────────────────
+  test("domain: set + disconnect", async ({ page }) => {
+    test.setTimeout(90_000);
+    await signIn(page);
     const domain = `e2e-${Date.now()}.example.invalid`;
     await page.goto(`${TENANT}/admin/domain`);
     await page.locator("input[name=domain]").fill(domain);
     await page.getByRole("button", { name: /^save$/i }).click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForTimeout(1_500);
     await page.goto(`${TENANT}/admin/domain`);
     await expect(page.getByText(domain).first()).toBeVisible();
     await page.getByRole("button", { name: /disconnect domain/i }).click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForTimeout(1_500);
     await page.goto(`${TENANT}/admin/domain`);
-    await expect(page.getByText(/no custom domain attached/i)).toBeVisible();
+    await expect(
+      page.getByText(/no custom domain attached/i),
+    ).toBeVisible();
+  });
 
-    // ── Form: create with URL + edit title + delete ────────────────
+  test("form: create + edit + delete", async ({ page }) => {
+    test.setTimeout(90_000);
+    await signIn(page);
     const formTitle = `E2E Form ${Date.now()}`;
     const formTitleEdited = `${formTitle} (edited)`;
+
     await page.goto(`${TENANT}/admin/forms/new`);
     await page.locator("input[name=title]").fill(formTitle);
     await page.locator("input[name=url]").fill("https://example.invalid/f");
     await page.getByRole("button", { name: /create form/i }).click();
-    await page.waitForURL(/\/admin\/forms(\?.*)?$/);
+    await page.waitForURL(/\/admin\/forms(\?.*)?$/, { timeout: 30_000 });
     await expect(page.getByText(formTitle).first()).toBeVisible();
 
-    // Click the Edit link in the row that has our form title.
     const formRow = page.locator("li", { hasText: formTitle }).first();
     await formRow.getByRole("link", { name: /edit/i }).click();
     await page.waitForURL(/\/admin\/forms\/[^/]+$/);
     await page.locator("input[name=title]").fill(formTitleEdited);
     await page.getByRole("button", { name: /save/i }).first().click();
-    await page.waitForURL(/\/admin\/forms(\?.*)?$/);
+    await page.waitForURL(/\/admin\/forms(\?.*)?$/, { timeout: 30_000 });
     await expect(page.getByText(formTitleEdited)).toBeVisible();
 
-    // Delete it.
     const editedRow = page.locator("li", { hasText: formTitleEdited }).first();
     await editedRow.getByRole("button", { name: /delete/i }).click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForTimeout(1_500);
     await page.goto(`${TENANT}/admin/forms`);
     await expect(page.getByText(formTitleEdited)).toHaveCount(0);
+  });
 
-    // ── Canvas: add text block + save draft ────────────────────────
+  test("site canvas: add block + save draft + publish", async ({ page }) => {
+    test.setTimeout(120_000);
+    await signIn(page);
     await page.goto(`${TENANT}/admin/site`);
     await page.getByRole("button", { name: /\+ text/i }).click();
     const blockTitle = `E2E block ${Date.now()}`;
@@ -85,15 +92,13 @@ test.describe("admin write actions", () => {
       .first()
       .fill("Hello world.");
     await page.getByRole("button", { name: /save draft/i }).click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForTimeout(1_500);
     await page.goto(`${TENANT}/admin/site`);
-    // Draft re-renders with our value populated.
     await expect(page.locator(`input[value="${blockTitle}"]`)).toBeVisible();
     await expect(page.getByText(/unpublished draft/i)).toBeVisible();
 
-    // Publish + verify the public site renders the block.
     await page.getByRole("button", { name: /^publish$/i }).click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForTimeout(1_500);
     await page.goto(`${TENANT}/`);
     await expect(page.getByText(blockTitle)).toBeVisible();
   });
