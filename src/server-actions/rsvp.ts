@@ -5,6 +5,10 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
+import {
+  memberForUserInOrg,
+  settleEventChargeForRsvp,
+} from "@/lib/treasury/event-charge";
 
 const RsvpSchema = z.object({
   orgSlug: z.string().min(1),
@@ -32,15 +36,22 @@ export async function submitRsvp(_prev: unknown, formData: FormData) {
   const { user } = await getSession();
   const guests = parseInt(d.guests ?? "0", 10) || 0;
 
+  let memberId: string | null = null;
   if (user) {
+    memberId = await memberForUserInOrg({ orgId: org.id, userEmail: user.email });
     const existing = await prisma.rsvp.findFirst({
       where: { eventId: d.eventId, userId: user.id },
-      select: { id: true },
+      select: { id: true, memberId: true },
     });
     if (existing) {
       await prisma.rsvp.update({
         where: { id: existing.id },
-        data: { response: d.response, guests, notes: d.notes || null },
+        data: {
+          response: d.response,
+          guests,
+          notes: d.notes || null,
+          memberId: existing.memberId ?? memberId ?? null,
+        },
       });
     } else {
       await prisma.rsvp.create({
@@ -48,6 +59,7 @@ export async function submitRsvp(_prev: unknown, formData: FormData) {
           orgId: org.id,
           eventId: d.eventId,
           userId: user.id,
+          memberId,
           name: user.displayName,
           email: user.email,
           response: d.response,
@@ -58,10 +70,12 @@ export async function submitRsvp(_prev: unknown, formData: FormData) {
     }
   } else {
     if (!d.name || !d.email) return { error: "Name and email are required when not signed in." };
+    memberId = await memberForUserInOrg({ orgId: org.id, userEmail: d.email });
     await prisma.rsvp.create({
       data: {
         orgId: org.id,
         eventId: d.eventId,
+        memberId,
         name: d.name,
         email: d.email,
         response: d.response,
@@ -69,6 +83,20 @@ export async function submitRsvp(_prev: unknown, formData: FormData) {
         notes: d.notes || null,
       },
     });
+  }
+
+  if (memberId) {
+    try {
+      await settleEventChargeForRsvp({
+        orgId: org.id,
+        eventId: d.eventId,
+        memberId,
+        response: d.response,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("event-charge settlement failed", err);
+    }
   }
 
   revalidatePath(`/o/${org.slug}/calendar`);
