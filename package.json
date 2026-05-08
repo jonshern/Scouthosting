@@ -20,6 +20,7 @@
     "@lucia-auth/adapter-prisma": "^4.0.1",
     "@node-rs/argon2": "^1.8.3",
     "@prisma/client": "^5.22.0",
+    "@tanstack/react-table": "^8.21.3",
     "arctic": "^1.9.2",
     "lucia": "^3.2.2",
     "next": "^16.2.4",

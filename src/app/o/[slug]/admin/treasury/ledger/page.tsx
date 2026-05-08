@@ -6,12 +6,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
-import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
-import { ReverseButton } from "@/components/admin/TreasuryForms";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
-import { centsToDollars, TX_TYPE_LABELS, type TxType } from "@/lib/treasury/money";
-import { Pill } from "@/components/ui";
+import { TX_TYPE_LABELS } from "@/lib/treasury/money";
+import { LedgerGrid, type LedgerRow } from "@/components/admin/LedgerGrid";
+import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 
 type Search = {
   fund?: string;
@@ -153,82 +152,21 @@ export default async function TreasuryLedgerPage({
         </Link>
       </form>
 
-      <div className="overflow-hidden rounded-xl border border-line bg-surface">
-        <table className="w-full text-sm">
-          <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
-            <tr>
-              <th className="px-4 py-2 font-semibold">Posted</th>
-              <th className="px-4 py-2 font-semibold">Fund</th>
-              <th className="px-4 py-2 font-semibold">Type</th>
-              <th className="px-4 py-2 font-semibold">Member</th>
-              <th className="px-4 py-2 font-semibold">Description</th>
-              <th className="px-4 py-2 font-semibold text-right">Amount</th>
-              <th className="px-4 py-2 font-semibold"></th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-line">
-            {display.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-sm text-slate-muted">
-                  No transactions match.
-                </td>
-              </tr>
-            ) : (
-              display.map((r) => (
-                <tr key={r.id}>
-                  <td className="px-4 py-3 text-slate-soft whitespace-nowrap">
-                    {r.postedAt.toLocaleString()}
-                  </td>
-                  <td className="px-4 py-3 text-slate-soft">{r.fund.name}</td>
-                  <td className="px-4 py-3">
-                    <Pill tone={r.amountCents >= 0 ? "success" : "danger"}>
-                      {TX_TYPE_LABELS[r.type as TxType] ?? r.type}
-                    </Pill>
-                  </td>
-                  <td className="px-4 py-3 text-slate-soft">
-                    {r.memberId ? (
-                      <Link
-                        href={`/o/${slug}/admin/treasury/members/${r.memberId}`}
-                        className="hover:text-sky"
-                      >
-                        {memberLabels.get(r.memberId) ?? r.memberId.slice(0, 8)}
-                      </Link>
-                    ) : (
-                      "—"
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-slate-soft">
-                    {r.description}
-                    {r.reverses ? (
-                      <span className="ml-2 text-xs text-slate-muted">
-                        (reverses {r.reversesId?.slice(0, 8)})
-                      </span>
-                    ) : null}
-                  </td>
-                  <td
-                    className={`px-4 py-3 text-right font-mono ${
-                      r.amountCents < 0 ? "text-danger" : "text-success"
-                    }`}
-                  >
-                    {centsToDollars(r.amountCents)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {r.reversesId ? (
-                      <span className="text-xs text-slate-muted">reversal</span>
-                    ) : (
-                      <ReverseButton
-                        orgSlug={slug}
-                        txnId={r.id}
-                        csrf={<CsrfTokenInput />}
-                      />
-                    )}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <LedgerGrid
+        orgSlug={slug}
+        csrfNode={<CsrfTokenInput />}
+        rows={display.map<LedgerRow>((r) => ({
+          id: r.id,
+          postedAtIso: r.postedAt.toISOString(),
+          fundName: r.fund.name,
+          type: r.type,
+          memberId: r.memberId,
+          memberLabel: r.memberId ? memberLabels.get(r.memberId) ?? null : null,
+          description: r.description,
+          reversesId: r.reversesId,
+          amountCents: r.amountCents,
+        }))}
+      />
 
       <div className="flex items-center justify-between text-sm text-slate-muted">
         <span>{display.length} entries</span>
