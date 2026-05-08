@@ -8,6 +8,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { colorForCategory } from "@/lib/calendar/month-grid";
 
 type EventSummary = {
   id: string;
@@ -81,20 +82,29 @@ export function UpcomingEventsWidget({ orgSlug }: { orgSlug: string }) {
   }
   return (
     <ul className="divide-y divide-line-soft">
-      {state.events.map((e) => (
-        <li key={e.id} className="flex items-baseline gap-4 py-3">
-          <div className="w-20 font-display text-sm italic text-sky">
-            {formatDate(e.startsAt)}
-          </div>
-          <div className="flex-1">
-            <div className="text-sm font-semibold text-slate-ink">{e.title}</div>
-            <div className="text-xs text-slate-soft">
-              {formatTime(e.startsAt, e.allDay)}
-              {e.location ? ` · ${e.location}` : ""}
+      {state.events.map((e) => {
+        const c = colorForCategory(e.category);
+        return (
+          <li key={e.id} className="flex items-baseline gap-4 py-3">
+            <div className="w-20 font-display text-sm italic text-sky">
+              {formatDate(e.startsAt)}
             </div>
-          </div>
-        </li>
-      ))}
+            <span
+              className="mt-1.5 inline-block h-3 w-3 rounded-sm flex-shrink-0"
+              style={{ background: c.bg, border: `1px solid ${c.line}` }}
+              aria-hidden
+            />
+            <div className="flex-1">
+              <div className="text-sm font-semibold text-slate-ink">{e.title}</div>
+              <div className="text-xs text-slate-soft">
+                {formatTime(e.startsAt, e.allDay)}
+                {e.location ? ` · ${e.location}` : ""}
+                {e.category ? ` · ${e.category}` : ""}
+              </div>
+            </div>
+          </li>
+        );
+      })}
     </ul>
   );
 }
