@@ -2356,6 +2356,11 @@ model SalesOrderItem {
   orderId           String
   productId         String
   quantity          Int
+  // Running count of how many of this line have been physically
+  // handed to the buyer. Treasurers update this as they hand off
+  // popcorn / camp-cards. The order surfaces partial-delivery state
+  // when 0 < quantityDelivered < quantity.
+  quantityDelivered Int    @default(0)
   priceCentsAtOrder Int
 
   order   SalesOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)

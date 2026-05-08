@@ -310,6 +310,67 @@ export async function generateScoutLinks(
   return { ok: true };
 }
 
+const DeliverySchema = z.object({
+  orgSlug: z.string().min(1),
+  orderId: z.string().min(1),
+  itemId: z.string().min(1),
+  quantityDelivered: z.string().min(1),
+});
+
+export async function setItemDelivered(
+  _prev: SalesState,
+  formData: FormData,
+): Promise<SalesState> {
+  if (!(await verifyOrigin())) return { error: "Bad origin." };
+  if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) return { error: "Bad CSRF." };
+  const parsed = DeliverySchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const auth = await authorizeLeader(parsed.data.orgSlug);
+  if ("error" in auth) return { error: auth.error };
+
+  const item = await prisma.salesOrderItem.findUnique({
+    where: { id: parsed.data.itemId },
+    include: { order: true },
+  });
+  if (!item || item.order.orgId !== auth.org.id || item.orderId !== parsed.data.orderId) {
+    return { error: "Item not found." };
+  }
+  const target = Math.max(
+    0,
+    Math.min(item.quantity, parseInt(parsed.data.quantityDelivered, 10) || 0),
+  );
+  await prisma.salesOrderItem.update({
+    where: { id: item.id },
+    data: { quantityDelivered: target },
+  });
+
+  // If every line item is fully delivered and the order is paid,
+  // bump the order status to delivered.
+  const sibs = await prisma.salesOrderItem.findMany({
+    where: { orderId: item.orderId },
+  });
+  const allDelivered =
+    sibs.length > 0 && sibs.every((s) => s.quantityDelivered >= s.quantity);
+  if (allDelivered && item.order.status === "paid") {
+    await prisma.salesOrder.update({
+      where: { id: item.order.id },
+      data: { status: "delivered", deliveredAt: new Date() },
+    });
+  }
+
+  audit({
+    orgId: auth.org.id,
+    userId: auth.user.id,
+    userDisplay: auth.user.displayName,
+    entityType: "SalesOrderItem",
+    entityId: item.id,
+    action: "update",
+    summary: `Delivered ${target}/${item.quantity}`,
+  });
+  revalidatePath(`/o/${auth.org.slug}/admin/sales/${item.order.campaignId}`);
+  return { ok: true };
+}
+
 const StatusSchema = z.object({
   orgSlug: z.string().min(1),
   orderId: z.string().min(1),

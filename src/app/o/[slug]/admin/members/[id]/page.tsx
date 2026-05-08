@@ -55,20 +55,55 @@ export default async function AdminMemberEdit({
   if (!member || member.orgId !== org.id) notFound();
   const dek = unwrapDekWithMaster(org);
   const pii = decryptMemberPii(member, dek, org.id);
-  const [subaccount, scoutbook, parents, audit] = await Promise.all([
-    prisma.memberSubaccount.findUnique({ where: { memberId: member.id } }),
-    prisma.scoutbookProfile.findUnique({ where: { memberId: member.id } }),
-    member.parentIds.length > 0
-      ? prisma.member.findMany({
-          where: { orgId: org.id, id: { in: member.parentIds } },
-        })
-      : Promise.resolve([]),
-    prisma.auditLog.findMany({
-      where: { orgId: org.id, entityType: "Member", entityId: member.id },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    }),
-  ]);
+  const [subaccount, scoutbook, parents, audit, allAdults, allYouthsForCount] =
+    await Promise.all([
+      prisma.memberSubaccount.findUnique({ where: { memberId: member.id } }),
+      prisma.scoutbookProfile.findUnique({
+        where: { memberId: member.id },
+        include: {
+          meritBadges: { orderBy: [{ status: "asc" }, { badgeName: "asc" }] },
+          awards: { orderBy: { awardedAt: "desc" } },
+        },
+      }),
+      member.parentIds.length > 0
+        ? prisma.member.findMany({
+            where: { orgId: org.id, id: { in: member.parentIds } },
+          })
+        : Promise.resolve([]),
+      prisma.auditLog.findMany({
+        where: { orgId: org.id, entityType: "Member", entityId: member.id },
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      }),
+      prisma.member.findMany({
+        where: { orgId: org.id, deletedAt: null, isYouth: false, status: "active" },
+        orderBy: [{ lastNameLc1: "asc" }, { createdAt: "asc" }],
+        take: 200,
+      }),
+      prisma.member.findMany({
+        where: { orgId: org.id, deletedAt: null, isYouth: true },
+        select: { parentIds: true },
+      }),
+    ]);
+
+  const adultChildCount = new Map<string, number>();
+  for (const y of allYouthsForCount) {
+    for (const pid of y.parentIds) {
+      adultChildCount.set(pid, (adultChildCount.get(pid) ?? 0) + 1);
+    }
+  }
+  const availableAdults = allAdults
+    .filter((a) => a.id !== member.id) // can't be your own parent
+    .map((a) => {
+      const apii = decryptMemberPii(a, dek, org.id);
+      return {
+        id: a.id,
+        name: `${apii.firstName} ${apii.lastName}`.trim() || a.id,
+        email: a.email,
+        childCount: adultChildCount.get(a.id) ?? 0,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
 
   const parentCards = parents.map((p) => {
     const pp = decryptMemberPii(p, dek, org.id);
@@ -182,8 +217,10 @@ export default async function AdminMemberEdit({
               status: member.status,
               shirtSize: member.shirtSize,
               dietaryFlags: member.dietaryFlags,
+              parentIds: member.parentIds,
             }}
             csrf={<CsrfTokenInput />}
+            availableAdults={availableAdults}
           />
           {subaccount ? (
             <div className="rounded-xl border border-line bg-surface p-5">
@@ -259,6 +296,55 @@ export default async function AdminMemberEdit({
                   </div>
                 </div>
               </div>
+
+              {scoutbook.meritBadges.length > 0 ? (
+                <div className="rounded-xl border border-line bg-surface p-5">
+                  <h3 className="font-display text-lg text-ink mb-3">
+                    Merit badges ({scoutbook.meritBadges.length})
+                  </h3>
+                  <ul className="grid gap-1 sm:grid-cols-2 text-sm">
+                    {scoutbook.meritBadges.map((b) => (
+                      <li
+                        key={b.id}
+                        className="flex items-baseline justify-between gap-2 py-1"
+                      >
+                        <span className="text-ink">{b.badgeName}</span>
+                        <Pill
+                          tone={
+                            b.status === "completed" || b.status === "approved"
+                              ? "success"
+                              : b.status === "in-progress"
+                                ? "amber"
+                                : "neutral"
+                          }
+                        >
+                          {b.status}
+                        </Pill>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {scoutbook.awards.length > 0 ? (
+                <div className="rounded-xl border border-line bg-surface p-5">
+                  <h3 className="font-display text-lg text-ink mb-3">
+                    Awards ({scoutbook.awards.length})
+                  </h3>
+                  <ul className="grid gap-1 sm:grid-cols-2 text-sm">
+                    {scoutbook.awards.map((a) => (
+                      <li key={a.id} className="py-1 text-ink">
+                        {a.awardName}
+                        {a.awardedAt ? (
+                          <span className="text-xs text-slate-muted ml-2">
+                            · {a.awardedAt.toLocaleDateString()}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
 
               <p className="text-xs text-slate-muted">
                 Source: Scoutbook (BSA member id{" "}

@@ -6,7 +6,9 @@
 import Link from "next/link";
 import { getRecentReleases, shortTag } from "@/lib/github/releases";
 
-function relativeWhen(d: Date): string {
+function relativeWhen(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return iso;
   const diffMs = Date.now() - d.getTime();
   const day = 86_400_000;
   if (diffMs < day) return "today";

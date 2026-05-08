@@ -21,6 +21,8 @@ export type ScoutbookImportState =
       runId: string;
       rowsSeen: number;
       rowsApplied: number;
+      meritBadgesUpserted: number;
+      awardsUpserted: number;
       unmatched: { scoutbookUserId: string; firstName?: string; lastName?: string }[];
       warnings: string[];
     }
@@ -82,7 +84,7 @@ export async function importScoutbookCsv(
     entityType: "ScoutbookSync",
     entityId: run.id,
     action: "create",
-    summary: `CSV import: ${result.rowsApplied}/${result.rowsSeen} applied; ${result.unmatched.length} unmatched`,
+    summary: `CSV import: ${result.rowsApplied}/${result.rowsSeen} profiles · ${result.meritBadgesUpserted} merit badges · ${result.awardsUpserted} awards · ${result.unmatched.length} unmatched`,
   });
 
   revalidatePath(`/o/${org.slug}/admin/scoutbook`);
@@ -91,6 +93,8 @@ export async function importScoutbookCsv(
     runId: run.id,
     rowsSeen: result.rowsSeen,
     rowsApplied: result.rowsApplied,
+    meritBadgesUpserted: result.meritBadgesUpserted,
+    awardsUpserted: result.awardsUpserted,
     unmatched: result.unmatched,
     warnings: [...warnings, ...result.warnings],
   };

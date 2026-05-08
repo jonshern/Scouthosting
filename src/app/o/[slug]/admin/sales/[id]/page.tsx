@@ -16,6 +16,7 @@ import {
   OrderStatusForm,
   BoothSaleForm,
   GenerateScoutLinksButton,
+  ItemDeliveryForm,
 } from "@/components/admin/SalesForms";
 import { Pill, Stat, StatRow } from "@/components/ui";
 import { centsToDollars } from "@/lib/treasury/money";
@@ -273,31 +274,66 @@ export default async function CampaignDetailPage({
                   <th className="px-4 py-2 font-semibold">Source</th>
                   <th className="px-4 py-2 font-semibold">Scout</th>
                   <th className="px-4 py-2 font-semibold text-right">Total</th>
+                  <th className="px-4 py-2 font-semibold">Items / delivered</th>
                   <th className="px-4 py-2 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {orders.map((o) => (
-                  <tr key={o.id}>
-                    <td className="px-4 py-3 text-slate-soft whitespace-nowrap">
-                      {o.createdAt.toLocaleDateString()}
-                    </td>
-                    <td className="px-4 py-3 text-ink">{o.buyerName}</td>
-                    <td className="px-4 py-3 text-slate-soft text-xs">{o.source}</td>
-                    <td className="px-4 py-3 text-slate-soft text-xs">
-                      {o.scoutMemberId ? memberLabels.get(o.scoutMemberId) ?? "(removed)" : "—"}
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono">{centsToDollars(o.totalCents)}</td>
-                    <td className="px-4 py-3">
-                      <OrderStatusForm
-                        orgSlug={slug}
-                        orderId={o.id}
-                        current={o.status}
-                        csrf={<CsrfTokenInput />}
-                      />
-                    </td>
-                  </tr>
-                ))}
+                {orders.map((o) => {
+                  const totalQty = o.items.reduce((s, i) => s + i.quantity, 0);
+                  const totalDelivered = o.items.reduce(
+                    (s, i) => s + i.quantityDelivered,
+                    0,
+                  );
+                  return (
+                    <tr key={o.id}>
+                      <td className="px-4 py-3 text-slate-soft whitespace-nowrap">
+                        {o.createdAt.toLocaleDateString()}
+                      </td>
+                      <td className="px-4 py-3 text-ink">{o.buyerName}</td>
+                      <td className="px-4 py-3 text-slate-soft text-xs">{o.source}</td>
+                      <td className="px-4 py-3 text-slate-soft text-xs">
+                        {o.scoutMemberId ? memberLabels.get(o.scoutMemberId) ?? "(removed)" : "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono">
+                        {centsToDollars(o.totalCents)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <details className="text-xs">
+                          <summary className="cursor-pointer text-slate-soft">
+                            {totalDelivered}/{totalQty} delivered
+                          </summary>
+                          <div className="mt-2 space-y-1">
+                            {o.items.map((it) => (
+                              <div
+                                key={it.id}
+                                className="flex flex-wrap items-center justify-between gap-2"
+                              >
+                                <span className="text-ink">{it.product.name}</span>
+                                <ItemDeliveryForm
+                                  orgSlug={slug}
+                                  orderId={o.id}
+                                  itemId={it.id}
+                                  quantity={it.quantity}
+                                  delivered={it.quantityDelivered}
+                                  csrf={<CsrfTokenInput />}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        </details>
+                      </td>
+                      <td className="px-4 py-3">
+                        <OrderStatusForm
+                          orgSlug={slug}
+                          orderId={o.id}
+                          current={o.status}
+                          csrf={<CsrfTokenInput />}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

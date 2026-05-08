@@ -63,6 +63,7 @@ export default async function TreasuryHome({
             <Link href={`/o/${slug}/admin/treasury/ledger`} className="btn-secondary">Ledger</Link>
             <Link href={`/o/${slug}/admin/treasury/posting`} className="btn-secondary">Posting</Link>
             <Link href={`/o/${slug}/admin/treasury/reports`} className="btn-secondary">Reports</Link>
+            <Link href={`/o/${slug}/admin/treasury/fiscal-years`} className="btn-secondary">Fiscal years</Link>
             <Link href={`/o/${slug}/admin/treasury/balances`} className="btn-secondary">Balance email</Link>
             <Link href={`/o/${slug}/admin/treasury/reconcile`} className="btn-secondary">Reconcile</Link>
             <Link href={`/o/${slug}/admin/treasury/settings`} className="btn-secondary">Settings</Link>

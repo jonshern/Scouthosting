@@ -51,7 +51,8 @@ export function ScoutbookCsvForm({
       {state && "error" in state ? <p className="text-sm text-danger">{state.error}</p> : null}
       {state && "ok" in state ? (
         <div className="rounded-md border border-success/30 bg-success-soft p-3 text-sm text-slate-soft">
-          Applied {state.rowsApplied}/{state.rowsSeen} rows.
+          Applied {state.rowsApplied}/{state.rowsSeen} profiles ·{" "}
+          {state.meritBadgesUpserted} merit badges · {state.awardsUpserted} awards.
           {state.unmatched.length > 0 ? (
             <details className="mt-2">
               <summary className="cursor-pointer">

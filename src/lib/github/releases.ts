@@ -13,7 +13,10 @@ export type ReleaseSummary = {
   id: number;
   tagName: string;
   name: string;
-  publishedAt: Date;
+  // ISO 8601 string. Serialized for `unstable_cache` so a Date object
+  // doesn't get coerced to a string at hydration time and break
+  // downstream `.getTime()` calls.
+  publishedAt: string;
   body: string;
   htmlUrl: string;
 };
@@ -50,11 +53,14 @@ async function fetchReleasesUncached(): Promise<ReleaseSummary[]> {
       id: r.id,
       tagName: r.tag_name,
       name: (r.name ?? r.tag_name).trim(),
-      publishedAt: new Date(r.published_at!),
+      publishedAt: r.published_at!,
       body: r.body ?? "",
       htmlUrl: r.html_url,
     }))
-    .sort((a, b) => b.publishedAt.getTime() - a.publishedAt.getTime())
+    .sort(
+      (a, b) =>
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+    )
     .slice(0, 5);
 }
 

@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { upsertMember, type MemberState } from "@/server-actions/members";
 
 export function MemberForm({
   orgSlug,
   initial,
   csrf,
+  availableAdults = [],
 }: {
   orgSlug: string;
   initial?: {
@@ -26,11 +27,21 @@ export function MemberForm({
     status?: string;
     shirtSize?: string | null;
     dietaryFlags?: string[] | null;
+    parentIds?: string[];
   };
+  /** Adults already on the roster — picker source for parent linking. */
+  availableAdults?: { id: string; name: string; email: string | null; childCount: number }[];
   csrf: React.ReactNode;
 }) {
   const [state, formAction, pending] = useActionState<MemberState, FormData>(upsertMember, null);
   const m = initial ?? {};
+  const [linkedIds, setLinkedIds] = useState<string[]>(m.parentIds ?? []);
+  const [picker, setPicker] = useState("");
+  const filteredAdults = availableAdults.filter((a) => {
+    if (!picker.trim()) return true;
+    const q = picker.toLowerCase();
+    return a.name.toLowerCase().includes(q) || (a.email ?? "").toLowerCase().includes(q);
+  });
   return (
     <form action={formAction} className="card space-y-4">
       {csrf}
@@ -140,6 +151,68 @@ export function MemberForm({
           </select>
         </div>
       </div>
+
+      {/* Parent / guardian picker — link existing adult Member rows
+          so siblings share the same record (per design_handoff_compass_cms
+          §9, the most product-distinctive interaction). */}
+      {availableAdults.length > 0 ? (
+        <fieldset className="space-y-2">
+          <legend className="label">Parents / guardians</legend>
+          <input type="hidden" name="parentIds" value={linkedIds.join(",")} />
+          <input
+            type="search"
+            value={picker}
+            onChange={(e) => setPicker(e.target.value)}
+            placeholder="Search adults by name or email…"
+            className="field"
+          />
+          <div className="max-h-56 overflow-auto rounded-md border border-line">
+            {filteredAdults.length === 0 ? (
+              <p className="p-3 text-xs text-slate-muted">
+                No adults match your search.
+              </p>
+            ) : (
+              <ul className="divide-y divide-line-soft">
+                {filteredAdults.map((a) => {
+                  const linked = linkedIds.includes(a.id);
+                  return (
+                    <li key={a.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                      <label className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={linked}
+                          onChange={(e) => {
+                            setLinkedIds((cur) =>
+                              e.target.checked
+                                ? [...cur, a.id]
+                                : cur.filter((id) => id !== a.id),
+                            );
+                          }}
+                        />
+                        <span className="font-medium text-ink">{a.name}</span>
+                        {a.email ? (
+                          <span className="text-xs text-slate-muted">{a.email}</span>
+                        ) : null}
+                      </label>
+                      {a.childCount > 0 ? (
+                        <span className="text-xs text-slate-muted">
+                          parent of {a.childCount}
+                        </span>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+          {linkedIds.length > 0 ? (
+            <p className="text-xs text-slate-muted">
+              {linkedIds.length} parent{linkedIds.length === 1 ? "" : "s"} linked from
+              the existing roster — no duplicates.
+            </p>
+          ) : null}
+        </fieldset>
+      ) : null}
 
       {state?.error && (
         <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">{state.error}</div>
