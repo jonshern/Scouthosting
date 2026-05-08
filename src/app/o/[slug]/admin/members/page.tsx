@@ -16,6 +16,7 @@ import {
   type MemberTab,
 } from "@/components/admin/MemberDetailBody";
 import { MemberDrawerOverlay } from "@/components/admin/MemberDrawerOverlay";
+import { MembersGrid, type MemberGridRow } from "@/components/admin/MembersGrid";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
@@ -336,12 +337,19 @@ export default async function AdminMembersIndex({
 
       {/* Tab body */}
       {tab === "scouts" || tab === "adults" ? (
-        <MemberList
-          rows={memberRows}
-          slug={slug}
-          showTrash={showTrash}
-          rosterTab={tab}
-          q={q}
+        <MembersGrid
+          rows={memberRows as MemberGridRow[]}
+          drawerHref={(memberId: string) => {
+            const sp = new URLSearchParams();
+            sp.set("tab", tab);
+            if (q) sp.set("q", q);
+            if (showTrash) sp.set("trash", "1");
+            sp.set("member", memberId);
+            return `/o/${slug}/admin/members?${sp.toString()}`;
+          }}
+          emptyMessage={
+            showTrash ? "Nothing in the trash." : "No members yet."
+          }
         />
       ) : null}
       {tab === "patrols" ? <PatrolList rows={patrolRows} slug={slug} /> : null}
@@ -463,77 +471,6 @@ function StatTile({
       </div>
       {sub ? <div className="mt-1 text-xs text-slate-muted">{sub}</div> : null}
     </div>
-  );
-}
-
-type MemberRow = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  patrol: string | null;
-  position: string | null;
-  email: string | null;
-  isYouth: boolean;
-  status: string;
-};
-
-function MemberList({
-  rows,
-  slug,
-  showTrash,
-  rosterTab,
-  q,
-}: {
-  rows: MemberRow[];
-  slug: string;
-  showTrash: boolean;
-  rosterTab: string;
-  q: string | undefined;
-}) {
-  if (rows.length === 0) {
-    return (
-      <p className="text-sm text-slate-muted">
-        {showTrash ? "Nothing in the trash." : "No members yet."}
-      </p>
-    );
-  }
-  // Row click opens the drawer overlay via ?member=<id>. Preserve
-  // the current roster tab + search + trash flag so closing the
-  // drawer leaves the user exactly where they were.
-  const drawerHref = (memberId: string) => {
-    const sp = new URLSearchParams();
-    sp.set("tab", rosterTab);
-    if (q) sp.set("q", q);
-    if (showTrash) sp.set("trash", "1");
-    sp.set("member", memberId);
-    return `/o/${slug}/admin/members?${sp.toString()}`;
-  };
-  return (
-    <ul className="divide-y divide-line">
-      {rows.map((m) => (
-        <li
-          key={m.id}
-          className="flex items-center justify-between gap-4 py-3"
-        >
-          <div>
-            <Link
-              href={drawerHref(m.id)}
-              scroll={false}
-              className="font-semibold text-ink hover:text-accent"
-            >
-              {m.firstName} {m.lastName}
-            </Link>
-            <div className="text-sm text-slate-soft">
-              {m.isYouth ? "Youth" : "Adult"}
-              {m.patrol ? ` · ${m.patrol}` : ""}
-              {m.position ? ` · ${m.position}` : ""}
-              {m.email ? ` · ${m.email}` : ""}
-              {m.status !== "active" ? ` · ${m.status}` : ""}
-            </div>
-          </div>
-        </li>
-      ))}
-    </ul>
   );
 }
 
