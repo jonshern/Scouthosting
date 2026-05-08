@@ -80,8 +80,12 @@ let _modCache: { default: new (key: string, opts: { apiVersion: string }) => Str
 
 async function loadStripeMod() {
   if (_modCache) return _modCache;
-  // @ts-expect-error optional dep
-  const mod = (await import("stripe")) as {
+  // Indirect specifier so Turbopack/webpack don't try to resolve
+  // "stripe" at build time — the package is an optionalDependency.
+  const specifier = ["str", "ipe"].join("");
+  const mod = (await (Function("s", "return import(s)") as (s: string) => Promise<unknown>)(
+    specifier,
+  )) as {
     default: new (key: string, opts: { apiVersion: string }) => StripeLike;
   };
   _modCache = mod;
