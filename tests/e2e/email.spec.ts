@@ -9,7 +9,7 @@ async function login(page: import("@playwright/test").Page) {
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.waitForTimeout(1700);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL("**/");
+  await page.waitForURL(/\/admin/);
 }
 
 test.describe("group email", () => {
@@ -69,7 +69,7 @@ test.describe("group email", () => {
     await page.getByLabel("Password").fill("CorrectHorseBatteryStaple!");
     await page.waitForTimeout(1700);
     await page.getByRole("button", { name: /create account/i }).click();
-    await page.waitForURL("**/");
+    await page.waitForURL(/\/admin/);
     // Now visit the tenant admin — signed in but no membership
     await page.goto("http://troop100.localhost:3000/admin/email");
     await expect(page.getByRole("heading", { level: 1, name: /not authorized/i })).toBeVisible();
