@@ -43,6 +43,8 @@ const MemberInput = z.object({
   position: z.string().trim().max(80).optional().or(z.literal("")),
   commPreference: z.enum(["email", "sms", "both", "none"]).default("email"),
   status: z.enum(["prospect", "active", "alumni"]).default("active"),
+  shirtSize: z.string().trim().max(20).optional().or(z.literal("")),
+  dietaryFlags: z.string().trim().max(400).optional().or(z.literal("")),
 });
 
 export type MemberState = { error?: string; ok?: true } | null;
@@ -92,6 +94,11 @@ export async function upsertMember(_prev: MemberState, formData: FormData): Prom
     position: d.position?.trim() || null,
     commPreference: d.commPreference,
     status: d.status,
+    shirtSize: d.shirtSize?.trim() || null,
+    dietaryFlags: (d.dietaryFlags ?? "")
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
   };
   if (d.id) {
     const existing = await prisma.member.findUnique({ where: { id: d.id } });

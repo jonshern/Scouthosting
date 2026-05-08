@@ -32,6 +32,8 @@ const EventInput = z.object({
   serviceHours: z.string().optional().or(z.literal("")),
   campingNights: z.string().optional().or(z.literal("")),
   hikingMiles: z.string().optional().or(z.literal("")),
+  requiresPermissionSlip: z.union([z.literal("on"), z.literal("")]).optional(),
+  permissionSlipText: z.string().trim().max(5000).optional().or(z.literal("")),
 });
 
 export type EventActionState = { error?: string; ok?: true } | null;
@@ -98,6 +100,8 @@ export async function upsertEvent(
     serviceHours: toFloat(d.serviceHours) ?? null,
     campingNights: toInt(d.campingNights) ?? null,
     hikingMiles: toFloat(d.hikingMiles) ?? null,
+    requiresPermissionSlip: d.requiresPermissionSlip === "on",
+    permissionSlipText: nz(d.permissionSlipText) ?? null,
   };
 
   if (d.id) {

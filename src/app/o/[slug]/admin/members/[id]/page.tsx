@@ -30,6 +30,10 @@ export default async function AdminMemberEdit({
   if (!member || member.orgId !== org.id) notFound();
   const dek = unwrapDekWithMaster(org);
   const pii = decryptMemberPii(member, dek, org.id);
+  const [subaccount, scoutbook] = await Promise.all([
+    prisma.memberSubaccount.findUnique({ where: { memberId: member.id } }),
+    prisma.scoutbookProfile.findUnique({ where: { memberId: member.id } }),
+  ]);
 
   return (
     <section className="space-y-10">
@@ -65,9 +69,65 @@ export default async function AdminMemberEdit({
           position: member.position,
           commPreference: member.commPreference,
           status: member.status,
+          shirtSize: member.shirtSize,
+          dietaryFlags: member.dietaryFlags,
         }}
         csrf={<CsrfTokenInput />}
       />
+
+      {subaccount ? (
+        <div className="rounded-xl border border-line bg-surface p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-display text-lg text-ink">Treasury subaccount</h3>
+            <Link
+              href={`/o/${slug}/admin/treasury/members/${member.id}`}
+              className="text-sm text-sky hover:text-ink"
+            >
+              Open ledger →
+            </Link>
+          </div>
+          <p
+            className={`mt-2 font-mono text-xl ${
+              subaccount.balanceCents < 0 ? "text-danger" : "text-success"
+            }`}
+          >
+            {subaccount.balanceCents > 0 ? "+" : ""}
+            ${(subaccount.balanceCents / 100).toFixed(2)}
+          </p>
+        </div>
+      ) : null}
+
+      {scoutbook ? (
+        <div className="rounded-xl border border-line bg-surface p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="font-display text-lg text-ink">Scoutbook (read-only)</h3>
+            <span className="text-xs text-slate-muted">
+              Synced {scoutbook.syncedAt.toLocaleDateString()}
+            </span>
+          </div>
+          <div className="mt-2 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">Rank</div>
+              <div className="text-ink font-medium">{scoutbook.rank ?? "—"}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">Service hr</div>
+              <div className="font-mono">{scoutbook.serviceHours}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">Camping nt</div>
+              <div className="font-mono">{scoutbook.campingNights}</div>
+            </div>
+            <div>
+              <div className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">Hiking mi</div>
+              <div className="font-mono">{scoutbook.hikingMiles}</div>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-slate-muted">
+            BSA member id: <span className="font-mono">{scoutbook.scoutbookUserId}</span>. Edits go through Scoutbook directly.
+          </p>
+        </div>
+      ) : null}
 
       <MemberLifecycleButtons
         orgSlug={slug}

@@ -24,6 +24,8 @@ export function MemberForm({
     position?: string | null;
     commPreference?: string;
     status?: string;
+    shirtSize?: string | null;
+    dietaryFlags?: string[] | null;
   };
   csrf: React.ReactNode;
 }) {
@@ -91,6 +93,31 @@ export function MemberForm({
         <div>
           <label className="label" htmlFor="position">Position</label>
           <input id="position" name="position" maxLength={80} defaultValue={m.position ?? ""} className="field" />
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <label className="label" htmlFor="shirtSize">Shirt size</label>
+          <input
+            id="shirtSize"
+            name="shirtSize"
+            maxLength={20}
+            defaultValue={m.shirtSize ?? ""}
+            placeholder="YM, AL, AXL…"
+            className="field"
+          />
+        </div>
+        <div>
+          <label className="label" htmlFor="dietaryFlags">Allergies / dietary (comma-separated)</label>
+          <input
+            id="dietaryFlags"
+            name="dietaryFlags"
+            maxLength={400}
+            defaultValue={(m.dietaryFlags ?? []).join(", ")}
+            placeholder="peanut, vegetarian, gluten-free"
+            className="field"
+          />
         </div>
       </div>
 

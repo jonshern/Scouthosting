@@ -61,6 +61,10 @@ const APEX_INVITE_PREFIXES = [
   "/super-admin", // operator surface — independently auth-gated
   "/account",     // signed-in user account pages
   "/select-org",  // post-login org picker for multi-org users
+  "/o/",          // tenant pages reachable via apex host (post-login lands here);
+                  // the org/admin layouts have their own auth + role gates.
+  "/sell/",       // public fundraising / sales landing pages
+  "/permission-slip/", // public e-signature flow
   "/_next/",
 ];
 
