@@ -1,7 +1,4 @@
 // CRUD coverage for content surfaces: events, posts, announcements.
-//
-// Announcements have no delete server action yet, so on that surface
-// we only verify create.
 
 import { expect, test, type Page } from "@playwright/test";
 
@@ -120,5 +117,16 @@ test.describe("crud coverage – content", () => {
     await expect(page.getByText(annTitle).first()).toBeVisible({
       timeout: 15_000,
     });
+
+    // Delete the announcement using the inline button on its card.
+    const annCard = page
+      .locator("li")
+      .filter({ has: page.getByText(annTitle) })
+      .first();
+    await annCard.getByRole("button", { name: /^delete$/i }).click();
+    await annCard.getByRole("button", { name: /yes, delete/i }).click();
+    await page.waitForTimeout(1_500);
+    await page.goto(`${TENANT}/admin/announcements`);
+    await expect(page.getByText(annTitle)).toHaveCount(0);
   });
 });

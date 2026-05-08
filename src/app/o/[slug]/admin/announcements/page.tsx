@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { AnnouncementForm } from "@/components/admin/AnnouncementForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { DeleteAnnouncementButton } from "@/components/admin/DeleteContentButtons";
 
 export default async function AdminAnnouncements({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -29,13 +30,22 @@ export default async function AdminAnnouncements({ params }: { params: Promise<{
         <ul className="space-y-3">
           {org.announcements.map((a) => (
             <li key={a.id} className="card">
-              <div className="font-semibold text-slate-ink">{a.title}</div>
-              <div className="mt-1 text-xs text-slate-muted">
-                {new Date(a.createdAt).toLocaleString()}
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <div className="font-semibold text-slate-ink">{a.title}</div>
+                  <div className="mt-1 text-xs text-slate-muted">
+                    {new Date(a.createdAt).toLocaleString()}
+                  </div>
+                  <p className="mt-3 whitespace-pre-wrap text-sm text-slate-soft">
+                    {a.body}
+                  </p>
+                </div>
+                <DeleteAnnouncementButton
+                  orgSlug={slug}
+                  id={a.id}
+                  csrf={<CsrfTokenInput />}
+                />
               </div>
-              <p className="mt-3 whitespace-pre-wrap text-sm text-slate-soft">
-                {a.body}
-              </p>
             </li>
           ))}
         </ul>

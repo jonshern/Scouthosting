@@ -11,6 +11,7 @@
 import { useActionState, useState } from "react";
 import { deleteEvent } from "@/server-actions/events";
 import { deletePost } from "@/server-actions/posts";
+import { deleteAnnouncement } from "@/server-actions/announcements";
 
 type State = { error?: string } | null | undefined;
 type ActionFn = (
@@ -97,5 +98,24 @@ export function DeletePostButton({
 }) {
   return (
     <ConfirmDelete orgSlug={orgSlug} id={id} csrf={csrf} action={deletePost} />
+  );
+}
+
+export function DeleteAnnouncementButton({
+  orgSlug,
+  id,
+  csrf,
+}: {
+  orgSlug: string;
+  id: string;
+  csrf: React.ReactNode;
+}) {
+  return (
+    <ConfirmDelete
+      orgSlug={orgSlug}
+      id={id}
+      csrf={csrf}
+      action={deleteAnnouncement}
+    />
   );
 }
