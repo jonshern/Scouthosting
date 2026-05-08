@@ -9,7 +9,7 @@ async function login(page: import("@playwright/test").Page) {
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.waitForTimeout(1700);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL("**/");
+  await page.waitForURL(/\/admin/);
 }
 
 test.describe("calendar", () => {
