@@ -3,10 +3,12 @@
 // DataGrid wrapper for the roster Scouts/Adults tabs. The parent
 // server page does the encrypted-PII decrypt + isYouth/status
 // filtering; this client component layers sort + global filter on
-// top of the already-decrypted result set. Row click pushes the
-// member-drawer URL.
+// top of the already-decrypted result set. The name cell renders a
+// real <Link> (so middle-click and getByRole("link") both work) and
+// the whole row is also clickable as a UX nicety.
 
 import { useMemo } from "react";
+import Link from "next/link";
 import { DataGrid } from "@/components/admin/DataGrid";
 import { Pill } from "@/components/ui";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -22,15 +24,28 @@ export type MemberGridRow = {
   status: string;
 };
 
+// Server pages can't pass functions across the RSC boundary, so we
+// take primitives and build the drawer URL inside the client.
+// drawerBaseHref is the canonical /o/<slug>/admin/members URL;
+// drawerBaseQuery is the existing roster querystring (tab, q, trash)
+// without leading "?" or "&" — may be empty.
 export function MembersGrid({
   rows,
-  drawerHref,
+  drawerBaseHref,
+  drawerBaseQuery,
   emptyMessage,
 }: {
   rows: MemberGridRow[];
-  drawerHref: (memberId: string) => string;
+  drawerBaseHref: string;
+  drawerBaseQuery: string;
   emptyMessage?: string;
 }) {
+  const drawerHref = (memberId: string) => {
+    const params = drawerBaseQuery
+      ? `${drawerBaseQuery}&member=${encodeURIComponent(memberId)}`
+      : `member=${encodeURIComponent(memberId)}`;
+    return `${drawerBaseHref}?${params}`;
+  };
   const columns = useMemo<ColumnDef<MemberGridRow, unknown>[]>(() => {
     return [
       {
@@ -40,9 +55,14 @@ export function MembersGrid({
         cell: (info) => {
           const r = info.row.original;
           return (
-            <span className="font-semibold text-ink">
+            <Link
+              href={drawerHref(r.id)}
+              scroll={false}
+              className="font-semibold text-ink hover:text-accent"
+              onClick={(e) => e.stopPropagation()}
+            >
               {r.firstName} {r.lastName}
-            </span>
+            </Link>
           );
         },
       },
@@ -109,7 +129,7 @@ export function MembersGrid({
         },
       },
     ];
-  }, []);
+  }, [drawerHref]);
 
   return (
     <DataGrid
