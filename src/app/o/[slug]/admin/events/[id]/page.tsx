@@ -36,6 +36,12 @@ export default async function EditEventPage({
         <Link href={`/o/${slug}/admin/events/${event.id}/slots`}>
           Manage signup slots →
         </Link>
+        <Link href={`/o/${slug}/admin/events/${event.id}/emergency-contacts`}>
+          Emergency contacts →
+        </Link>
+        <Link href={`/o/${slug}/admin/events/${event.id}/permission-slips`}>
+          Permission slips →
+        </Link>
       </div>
       <EventForm
         orgSlug={slug}
@@ -57,6 +63,8 @@ export default async function EditEventPage({
           serviceHours: event.serviceHours,
           campingNights: event.campingNights,
           hikingMiles: event.hikingMiles,
+          requiresPermissionSlip: event.requiresPermissionSlip,
+          permissionSlipText: event.permissionSlipText,
         }}
         csrf={<CsrfTokenInput />}
       />

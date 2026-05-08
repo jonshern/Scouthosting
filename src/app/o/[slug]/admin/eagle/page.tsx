@@ -1,9 +1,14 @@
 // /o/[slug]/admin/eagle — Eagle Scouts roll + active EagleProjects.
+// Now also surfaces Scoutbook-sourced Eagle rank rows so leaders see
+// who Scoutbook believes is an Eagle but isn't on the manual roll yet.
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { unwrapDekWithMaster } from "@/lib/encryption";
+import { decryptMemberPii } from "@/lib/members/crypto";
+import { Pill } from "@/components/ui";
 
 export default async function EaglePage({
   params,
@@ -23,7 +28,7 @@ export default async function EaglePage({
     return <p className="p-12">Not authorized.</p>;
   }
 
-  const [scouts, projects] = await Promise.all([
+  const [scouts, projects, scoutbookEagles] = await Promise.all([
     prisma.eagleScout.findMany({
       where: { orgId: org.id },
       orderBy: [{ earnedAt: "desc" }, { sortOrder: "asc" }],
@@ -32,7 +37,39 @@ export default async function EaglePage({
       where: { orgId: org.id, status: { not: "complete" } },
       orderBy: { updatedAt: "desc" },
     }),
+    prisma.scoutbookProfile.findMany({
+      where: {
+        orgId: org.id,
+        rank: { equals: "Eagle", mode: "insensitive" },
+      },
+      include: { member: true },
+      orderBy: { rankAchievedAt: "desc" },
+    }),
   ]);
+
+  const dek = org.encryptedDek ? unwrapDekWithMaster(org) : null;
+  const scoutbookEagleRows = scoutbookEagles.map((p) => {
+    let name = p.scoutbookUserId;
+    if (dek) {
+      const pii = decryptMemberPii(p.member, dek, org.id);
+      name = `${pii.firstName} ${pii.lastName}`.trim() || name;
+    }
+    return {
+      memberId: p.memberId,
+      name,
+      rankAchievedAt: p.rankAchievedAt,
+      onManualRoll: false, // computed below
+    };
+  });
+  // Mark which Scoutbook Eagles are already on the manual roll. Match
+  // by display name + earnedAt as best-effort; manual roll predates
+  // the sync so the data shapes don't line up perfectly.
+  const manualRollKey = new Set(
+    scouts.map((s) => `${s.firstName} ${s.lastName}`.toLowerCase()),
+  );
+  for (const r of scoutbookEagleRows) {
+    if (manualRollKey.has(r.name.toLowerCase())) r.onManualRoll = true;
+  }
 
   return (
     <main className="mx-auto max-w-content px-6 py-12 space-y-10">
@@ -54,6 +91,34 @@ export default async function EaglePage({
           </ul>
         )}
       </section>
+      {scoutbookEagleRows.length > 0 ? (
+        <section>
+          <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
+            From Scoutbook
+          </h2>
+          <p className="text-xs text-slate-muted mb-3">
+            Synced from Scoutbook. Add missing entries to the manual roll above to record project details.
+          </p>
+          <ul className="space-y-1 text-sm">
+            {scoutbookEagleRows.map((r) => (
+              <li key={r.memberId} className="flex flex-wrap items-baseline gap-2">
+                <strong>{r.name}</strong>
+                {r.rankAchievedAt ? (
+                  <span className="text-slate-muted">
+                    · {r.rankAchievedAt.toLocaleDateString()}
+                  </span>
+                ) : null}
+                {r.onManualRoll ? (
+                  <Pill tone="success">On roll</Pill>
+                ) : (
+                  <Pill tone="amber">Not on roll</Pill>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <section>
         <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">Active Eagle projects</h2>
         {projects.length === 0 ? (

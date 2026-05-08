@@ -21,6 +21,8 @@ type EventInitial = {
   serviceHours?: number | null;
   campingNights?: number | null;
   hikingMiles?: number | null;
+  requiresPermissionSlip?: boolean | null;
+  permissionSlipText?: string | null;
 };
 
 function toLocalDateTime(v: Date | string | null | undefined): string {
@@ -143,6 +145,35 @@ export function EventForm({
           />
         </div>
       </div>
+
+      <fieldset className="space-y-3">
+        <legend className="label">Permission slip</legend>
+        <div className="flex items-center gap-2">
+          <input
+            id="requiresPermissionSlip"
+            name="requiresPermissionSlip"
+            type="checkbox"
+            defaultChecked={!!e.requiresPermissionSlip}
+          />
+          <label htmlFor="requiresPermissionSlip">
+            Require an electronic permission slip for this event
+          </label>
+        </div>
+        <div>
+          <label className="label" htmlFor="permissionSlipText">
+            Custom consent text (optional)
+          </label>
+          <textarea
+            id="permissionSlipText"
+            name="permissionSlipText"
+            rows={4}
+            maxLength={5000}
+            defaultValue={e.permissionSlipText ?? ""}
+            placeholder="Leave blank to use the default consent language."
+            className="field"
+          />
+        </div>
+      </fieldset>
 
       <fieldset className="grid gap-4 md:grid-cols-3">
         <legend className="label col-span-3">Per-attendee credits</legend>

@@ -225,7 +225,7 @@ export default function MarketingHome() {
             {IMPORT_SOURCES.map((src) => (
               <div
                 key={src}
-                className="bg-bone border border-line rounded-md px-4 py-3 text-[13px] font-medium flex items-center gap-2.5"
+                className="bg-surface-alt border border-line rounded-md px-4 py-3 text-[13px] font-medium flex items-center gap-2.5"
               >
                 <span aria-hidden className="h-2 w-2 rounded-full bg-sky shrink-0" />
                 {src}
@@ -249,7 +249,7 @@ export default function MarketingHome() {
 
         <div className="grid gap-4 md:grid-cols-[1fr_1.4fr]">
           {/* Unit — base tier */}
-          <div className="rounded-xl border-2 border-line bg-bone p-8">
+          <div className="rounded-xl border-2 border-line bg-surface-alt p-8">
             <div className="font-display italic text-[24px] text-sky mb-2">Unit</div>
             <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
               $99

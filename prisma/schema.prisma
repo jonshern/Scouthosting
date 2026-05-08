@@ -123,6 +123,13 @@ model Org {
   trialEndsAt          DateTime?
   currentPeriodEnd     DateTime?
   cancelAtPeriodEnd    Boolean            @default(false)
+  // Treasury Stripe (per-org member-payment account, distinct from
+  // the platform billing fields above). Both ciphertexts are wrapped
+  // with the org's DEK so the master key alone can't decrypt them.
+  treasuryStripeKeyCt           Bytes?
+  treasuryStripeWebhookSecretCt Bytes?
+  treasuryStripeKeyPrefix       String?
+  treasuryStripeAccountLabel    String?
   // Per-org envelope encryption. The Data Encryption Key (DEK) is a
   // 32-byte AES-256 key, generated at provisioning. It is wrapped
   // three independent ways so the same DEK can be unlocked by any of:
@@ -187,6 +194,20 @@ model Org {
   newsletterSchedule   NewsletterSchedule?
   newsletterRules      NewsletterRule[]
   errorLogs            ErrorLog[]
+  permissionSlips      PermissionSlip[]
+  equipmentLoans       EquipmentLoan[]
+  funds                Fund[]
+  fiscalYears          FiscalYear[]
+  fundBudgets          FundBudget[]
+  transactions         Transaction[]
+  bankImports          BankImport[]
+  memberSubaccounts    MemberSubaccount[]
+  scoutbookConnection  ScoutbookConnection?
+  scoutbookProfiles    ScoutbookProfile[]
+  scoutbookSyncRuns    ScoutbookSyncRun[]
+  salesCampaigns       SalesCampaign[]
+  salesOrders          SalesOrder[]
+  boothSales           BoothSale[]
   owner                User?                 @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([plan])
@@ -354,6 +375,10 @@ model Member {
   birthdate         DateTime?
   isYouth           Boolean   @default(true)
   dietaryFlags      String[]  @default([]) // e.g. ["vegetarian", "gluten-free"]
+  // Optional roster fields surfaced by the /admin/reports views.
+  // shirtSize is a free-form string ("YL", "AM", "AXL") so we don't
+  // have to hard-code every BSA/Scouts vendor sizing chart.
+  shirtSize         String?
   notes             String?
   // Scoutbook link — Scoutbook user id lets admins jump from the
   // member directory to that Scout's Scoutbook record. We don't store
@@ -412,6 +437,13 @@ model Member {
   trainings            Training[]
   meritBadgeCounselors MeritBadgeCounselor[]
   oaCandidacies        OaCandidate[]
+  permissionSlips      PermissionSlip[]
+  equipmentLoans       EquipmentLoan[]
+  subaccount           MemberSubaccount?
+  transactions         Transaction[]
+  scoutbookProfile     ScoutbookProfile?
+  salesOrders          SalesOrder[]
+  scoutSalesLinks      ScoutSalesLink[]
 
   @@index([orgId])
   @@index([orgId, lastNameLc1])
@@ -447,17 +479,28 @@ model Event {
   serviceHours    Float?
   campingNights   Int?
   hikingMiles     Float?
+  // When true, every yes-RSVP youth needs an electronic permission
+  // slip on file before the event. The text below is the consent
+  // language a parent agrees to when they sign; defaults to a generic
+  // BSA-style statement at render time. A signed slip is captured by
+  // the PermissionSlip model with the parent's typed name, IP, and
+  // a snapshot of slipText so future edits don't retroactively
+  // change what the parent agreed to.
+  requiresPermissionSlip Boolean @default(false)
+  permissionSlipText     String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  org            Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  rsvps          Rsvp[]
-  slots          SignupSlot[]
-  plan           TripPlan?
-  cohAwards      CohAward[]
-  rides          CarRide[]
-  reimbursements Reimbursement[]
-  channel        Channel?
+  org             Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rsvps           Rsvp[]
+  slots           SignupSlot[]
+  plan            TripPlan?
+  cohAwards       CohAward[]
+  rides           CarRide[]
+  reimbursements  Reimbursement[]
+  channel         Channel?
+  permissionSlips PermissionSlip[]
+  transactions    Transaction[]
 
   @@index([orgId, startsAt])
 }
@@ -952,6 +995,7 @@ model Equipment {
 
   org       Org        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   gearItems GearItem[]
+  loans     EquipmentLoan[]
 
   @@index([orgId, category])
   @@index([orgId, location])
@@ -1376,8 +1420,9 @@ model Reimbursement {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  org   Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  org          Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event        Event?        @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  transactions Transaction[]
 
   @@index([orgId, status, submittedAt])
   @@index([orgId, requesterUserId])
@@ -1954,3 +1999,462 @@ model InviteCode {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 }
+
+// Electronic permission slip — captured when a parent clicks the
+// signed token in an email and types their name as a signature on
+// /permission-slip/[token]. One row per (event, member); a re-sign
+// overwrites via the @@unique constraint. We store the slipText
+// snapshot so a leader editing the event's text after the fact
+// doesn't retroactively change what the parent agreed to. signedIp
+// is captured for audit; emails go through Resend webhooks already
+// so this is a complementary record.
+model PermissionSlip {
+  id               String   @id @default(cuid())
+  orgId            String
+  eventId          String
+  memberId         String
+  // Typed signature — parent's name as they entered it. Free text;
+  // we don't try to validate against the linked Member name because
+  // it may not be encrypted-comparable from a public route.
+  signedByName     String
+  signedByEmail    String?
+  signedAt         DateTime @default(now())
+  signedIp         String?
+  slipTextSnapshot String
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  org    Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event  Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, memberId])
+  @@index([orgId, eventId])
+  @@index([orgId, memberId])
+}
+
+// Equipment loan ledger. The Equipment model already exists for
+// trip-only assignments; EquipmentLoan promotes it into a real
+// member-borrowing log. Members borrow tents, dutch ovens, etc.;
+// the loan is open until returnedAt is set. A piece of equipment
+// can have multiple historical loans, only one of which is active
+// at a time (returnedAt = null).
+model EquipmentLoan {
+  id           String    @id @default(cuid())
+  orgId        String
+  equipmentId  String
+  memberId     String
+  loanedAt     DateTime  @default(now())
+  // Soft due date for "should be returned by"; surfaced as overdue
+  // when now() > dueAt and returnedAt is null.
+  dueAt        DateTime?
+  returnedAt   DateTime?
+  // Free-form on the way out (condition, count, accessories) and on
+  // the way back (damage, missing pieces).
+  loanNotes    String?
+  returnNotes  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  org       Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, equipmentId, returnedAt])
+  @@index([orgId, memberId, returnedAt])
+}
+
+// =====================================================================
+// Treasury — see docs/treasury-design.md.
+// Single-entry ledger with reversal-only edits; per-Member subaccounts;
+// per-fund rollups. Money columns are plaintext on purpose so the
+// treasurer can SUM/sort across members without unwrapping a vault.
+// =====================================================================
+
+model Fund {
+  id        String   @id @default(cuid())
+  orgId     String
+  // Stable code for system funds (`general`, `scout-accounts`,
+  // `stripe-fees`); free-form for custom funds.
+  code      String
+  name      String
+  isSystem  Boolean  @default(false)
+  archived  Boolean  @default(false)
+  // Cached running balance, recomputed in the same transaction as
+  // every Transaction insert. Validated nightly.
+  balanceCents Int   @default(0)
+  // Optional Stripe configuration: when a fund opts into receiving
+  // online payments we record the destination account here. Null on
+  // most funds; only `general` typically wires.
+  stripeDestinationAccountId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org          Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+  budgets      FundBudget[]
+  campaigns    SalesCampaign[]
+
+  @@unique([orgId, code])
+  @@index([orgId, archived])
+}
+
+model MemberSubaccount {
+  id           String   @id @default(cuid())
+  orgId        String
+  memberId     String   @unique
+  // Cached running balance against the scout-accounts fund.
+  // Positive = unit owes the family (credit); negative = family owes
+  // the unit. Inverse of TWH's convention so leaders can read
+  // balances like a bank statement.
+  balanceCents Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  org    Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+}
+
+model Transaction {
+  id              String   @id @default(cuid())
+  orgId           String
+  fundId          String
+  memberId        String?
+  eventId         String?
+  reimbursementId String?
+  // type drives the posting UI grouping. Values:
+  //   dues | event-charge | deposit | expense |
+  //   transfer-out | transfer-in | refund |
+  //   fundraiser-credit | sale | manual
+  type            String
+  // Signed cents. Positive = money in (or charge added to a member
+  // subaccount); negative = money out / credit applied. Reversals
+  // are inserted as opposite-sign rows that point at the original.
+  amountCents     Int
+  description     String
+  postedAt        DateTime @default(now())
+  // Reversal pointer — set on the *new* opposite-sign row that
+  // cancels an earlier transaction. The original row is never
+  // mutated; the read path collapses pairs.
+  reversesId      String?
+  // Stripe / bank reconciliation pointers.
+  stripePaymentIntentId String?
+  bankImportRowId       String?
+  // Optional sales linkage for fundraising flows.
+  salesOrderId    String?
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  org           Org            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  fund          Fund           @relation(fields: [fundId], references: [id], onDelete: Restrict)
+  member        Member?        @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  event         Event?         @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  reimbursement Reimbursement? @relation(fields: [reimbursementId], references: [id], onDelete: SetNull)
+  reverses      Transaction?   @relation("TransactionReversal", fields: [reversesId], references: [id], onDelete: SetNull)
+  reversedBy    Transaction[]  @relation("TransactionReversal")
+  bankImportRow BankImportRow? @relation(fields: [bankImportRowId], references: [id], onDelete: SetNull)
+  salesOrder    SalesOrder?    @relation(fields: [salesOrderId], references: [id], onDelete: SetNull)
+
+  @@index([orgId, postedAt])
+  @@index([orgId, fundId, postedAt])
+  @@index([orgId, memberId, postedAt])
+  @@index([orgId, eventId])
+  @@index([stripePaymentIntentId])
+}
+
+model FiscalYear {
+  id        String    @id @default(cuid())
+  orgId     String
+  label     String
+  startsOn  DateTime
+  endsOn    DateTime
+  closedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  org     Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  budgets FundBudget[]
+
+  @@unique([orgId, label])
+  @@index([orgId, startsOn])
+}
+
+model FundBudget {
+  id            String   @id @default(cuid())
+  orgId         String
+  fiscalYearId  String
+  fundId        String
+  expectedCents Int
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  org        Org        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  fund       Fund       @relation(fields: [fundId], references: [id], onDelete: Cascade)
+  fiscalYear FiscalYear @relation(fields: [fiscalYearId], references: [id], onDelete: Cascade)
+
+  @@unique([fiscalYearId, fundId])
+  @@index([orgId, fiscalYearId])
+}
+
+model BankImport {
+  id           String   @id @default(cuid())
+  orgId        String
+  filename     String
+  format       String
+  uploadedById String?
+  uploadedAt   DateTime @default(now())
+
+  org  Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  rows BankImportRow[]
+
+  @@index([orgId, uploadedAt])
+}
+
+model BankImportRow {
+  id            String    @id @default(cuid())
+  importId      String
+  postedAt      DateTime
+  amountCents   Int
+  description   String
+  matchedAt     DateTime?
+  createdAt     DateTime  @default(now())
+
+  import       BankImport     @relation(fields: [importId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([importId, matchedAt])
+}
+
+// =====================================================================
+// Sales / fundraising — see docs/sales-fundraising-design.md.
+// Settles into the Treasury ledger via SalesOrder.depositTransaction*.
+// =====================================================================
+
+model SalesCampaign {
+  id            String   @id @default(cuid())
+  orgId         String
+  name          String
+  startsOn      DateTime
+  endsOn        DateTime
+  closedAt      DateTime?
+  fundId        String
+  // "per-scout" splits proceeds to scout-accounts at scoutSplitPct.
+  // "whole-unit" keeps everything in the campaign fund.
+  proceedsSplit String   @default("per-scout")
+  scoutSplitPct Int      @default(70)
+  publicSlug    String?  @unique
+  description   String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  org        Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  fund       Fund             @relation(fields: [fundId], references: [id], onDelete: Restrict)
+  products   SalesProduct[]
+  prizes     PrizeTier[]
+  orders     SalesOrder[]
+  scoutLinks ScoutSalesLink[]
+  booths     BoothSale[]
+
+  @@unique([orgId, name])
+  @@index([orgId, endsOn])
+}
+
+model SalesProduct {
+  id          String  @id @default(cuid())
+  campaignId  String
+  sku         String
+  name        String
+  priceCents  Int
+  unitCostCents Int    @default(0)
+  imageUrl    String?
+  sortOrder   Int     @default(0)
+  archived    Boolean @default(false)
+
+  campaign   SalesCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  orderItems SalesOrderItem[]
+
+  @@unique([campaignId, sku])
+}
+
+model PrizeTier {
+  id              String  @id @default(cuid())
+  campaignId      String
+  thresholdCents  Int
+  name            String
+  description     String?
+  sortOrder       Int     @default(0)
+
+  campaign SalesCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+}
+
+model ScoutSalesLink {
+  id         String   @id @default(cuid())
+  campaignId String
+  memberId   String
+  publicSlug String
+  shortUrl   String?
+  createdAt  DateTime @default(now())
+
+  campaign SalesCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  member   Member        @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, memberId])
+  @@unique([campaignId, publicSlug])
+}
+
+model SalesOrder {
+  id                    String   @id @default(cuid())
+  orgId                 String
+  campaignId            String
+  // "scout-personal" | "booth" | "leader-manual" | "public-page"
+  source                String
+  scoutMemberId         String?
+  buyerName             String
+  buyerEmail            String?
+  buyerPhone            String?
+  buyerAddress          String?
+  notes                 String?
+  // "placed" | "paid" | "delivered" | "cancelled"
+  status                String   @default("placed")
+  paidAt                DateTime?
+  deliveredAt           DateTime?
+  totalCents            Int
+  stripePaymentIntentId String?
+  depositTransactionId  String?  @unique
+  refundTransactionId   String?  @unique
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  org      Org                @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaign SalesCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  scout    Member?            @relation(fields: [scoutMemberId], references: [id], onDelete: SetNull)
+  items    SalesOrderItem[]
+  postings Transaction[]
+
+  @@index([orgId, campaignId, createdAt])
+  @@index([orgId, scoutMemberId])
+  @@index([stripePaymentIntentId])
+}
+
+model SalesOrderItem {
+  id                String @id @default(cuid())
+  orderId           String
+  productId         String
+  quantity          Int
+  priceCentsAtOrder Int
+
+  order   SalesOrder   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product SalesProduct @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+}
+
+model BoothSale {
+  id              String   @id @default(cuid())
+  orgId           String
+  campaignId      String
+  location        String
+  scheduledAt     DateTime
+  staffMemberIds  String[] @default([])
+  totalCents      Int      @default(0)
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  org      Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaign SalesCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, campaignId, scheduledAt])
+}
+
+// =====================================================================
+// Scoutbook read-only sync — see docs/scoutbook-sync-design.md.
+// We never write to Scoutbook; this is a derived cache.
+// =====================================================================
+
+model ScoutbookConnection {
+  id             String    @id @default(cuid())
+  orgId          String    @unique
+  refreshTokenCt Bytes?
+  unitNumber     String?
+  councilNumber  String?
+  lastSyncedAt   DateTime?
+  lastSyncStatus String?
+  lastSyncError  String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model ScoutbookProfile {
+  id              String    @id @default(cuid())
+  orgId           String
+  memberId        String    @unique
+  scoutbookUserId String
+  rank            String?
+  rankAchievedAt  DateTime?
+  serviceHours    Float     @default(0)
+  campingNights   Int       @default(0)
+  hikingMiles     Float     @default(0)
+  // Free-form bag for fields we haven't modelled yet.
+  extras          Json      @default("{}")
+  syncedAt        DateTime
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  org         Org                  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  member      Member               @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  meritBadges ScoutbookMeritBadge[]
+  awards      ScoutbookAward[]
+
+  @@index([orgId, syncedAt])
+}
+
+model ScoutbookMeritBadge {
+  id           String    @id @default(cuid())
+  profileId    String
+  badgeName    String
+  status       String
+  startedAt    DateTime?
+  completedAt  DateTime?
+  counselorRef String?
+
+  profile ScoutbookProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, badgeName])
+  @@index([profileId, status])
+}
+
+model ScoutbookAward {
+  id        String    @id @default(cuid())
+  profileId String
+  awardName String
+  awardedAt DateTime?
+
+  profile ScoutbookProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+}
+
+model ScoutbookSyncRun {
+  id           String    @id @default(cuid())
+  orgId        String
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+  source       String
+  rowsSeen     Int       @default(0)
+  rowsApplied  Int       @default(0)
+  warnings     String[]  @default([])
+  errorMessage String?
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, startedAt])
+}
+

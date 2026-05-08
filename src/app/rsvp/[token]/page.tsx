@@ -6,6 +6,10 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { verifyRsvpToken } from "@/lib/security/rsvp-token";
+import {
+  memberForUserInOrg,
+  settleEventChargeForRsvp,
+} from "@/lib/treasury/event-charge";
 
 type Search = { r?: string; guests?: string };
 
@@ -45,14 +49,23 @@ export default async function OneClickRsvp({
   const response = (sp.r === "no" || sp.r === "maybe" ? sp.r : "yes") as "yes" | "no" | "maybe";
   const guests = Math.max(0, Math.floor(Number(sp.guests ?? 0)) || 0);
 
+  const memberId = await memberForUserInOrg({
+    orgId: event.orgId,
+    userEmail: claims.email,
+  });
+
   const existing = await prisma.rsvp.findFirst({
     where: { eventId: event.id, email: claims.email.toLowerCase() },
-    select: { id: true },
+    select: { id: true, memberId: true },
   });
   if (existing) {
     await prisma.rsvp.update({
       where: { id: existing.id },
-      data: { response, guests },
+      data: {
+        response,
+        guests,
+        memberId: existing.memberId ?? memberId ?? null,
+      },
     });
   } else {
     await prisma.rsvp.create({
@@ -61,10 +74,25 @@ export default async function OneClickRsvp({
         eventId: event.id,
         name: claims.name,
         email: claims.email.toLowerCase(),
+        memberId,
         response,
         guests,
       },
     });
+  }
+
+  if (memberId) {
+    try {
+      await settleEventChargeForRsvp({
+        orgId: event.orgId,
+        eventId: event.id,
+        memberId,
+        response,
+      });
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error("event-charge settlement failed", err);
+    }
   }
 
   return (
