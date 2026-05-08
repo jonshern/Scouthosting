@@ -45,6 +45,10 @@ const MemberInput = z.object({
   status: z.enum(["prospect", "active", "alumni"]).default("active"),
   shirtSize: z.string().trim().max(20).optional().or(z.literal("")),
   dietaryFlags: z.string().trim().max(400).optional().or(z.literal("")),
+  // Comma-separated list of Member IDs to link as parents/guardians.
+  // The UI sends these from a checkbox group on the form so sibling
+  // registrations don't retype the same parents.
+  parentIds: z.string().trim().max(2000).optional().or(z.literal("")),
 });
 
 export type MemberState = { error?: string; ok?: true } | null;
@@ -99,6 +103,11 @@ export async function upsertMember(_prev: MemberState, formData: FormData): Prom
       .split(",")
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean),
+    parentIds: (d.parentIds ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .slice(0, 8),
   };
   if (d.id) {
     const existing = await prisma.member.findUnique({ where: { id: d.id } });

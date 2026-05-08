@@ -335,16 +335,70 @@ export default async function AdminMembersIndex({
       {tab === "counselors" ? <CounselorList rows={counselorRows} slug={slug} /> : null}
       {tab === "pending" ? <PendingList rows={pendingRows} slug={slug} /> : null}
 
-      {/* Add-a-member form on the Scouts tab when not in trash. */}
+      {/* Add-a-member form on the Scouts tab when not in trash.
+          Includes the link-existing-adult picker. */}
       {tab === "scouts" && !showTrash ? (
         <div className="space-y-3 border-t border-line pt-8">
           <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
             Add a member
           </h2>
-          <MemberForm orgSlug={slug} csrf={<CsrfTokenInput />} />
+          <AddMemberForm orgSlug={slug} orgId={org.id} dek={dek} />
         </div>
       ) : null}
     </section>
+  );
+}
+
+async function AddMemberForm({
+  orgSlug,
+  orgId,
+  dek,
+}: {
+  orgSlug: string;
+  orgId: string;
+  dek: Buffer;
+}) {
+  const adults = await prisma.member.findMany({
+    where: { orgId, deletedAt: null, isYouth: false, status: "active" },
+    orderBy: [{ lastNameLc1: "asc" }, { createdAt: "asc" }],
+    take: 200,
+  });
+  const adultIds = adults.map((a) => a.id);
+  const youths =
+    adultIds.length === 0
+      ? []
+      : await prisma.member.findMany({
+          where: {
+            orgId,
+            deletedAt: null,
+            isYouth: true,
+            parentIds: { hasSome: adultIds },
+          },
+          select: { parentIds: true },
+        });
+  const childCounts = new Map<string, number>();
+  for (const y of youths) {
+    for (const pid of y.parentIds) {
+      childCounts.set(pid, (childCounts.get(pid) ?? 0) + 1);
+    }
+  }
+  const available = adults
+    .map((a) => {
+      const pii = decryptMemberPii(a, dek, orgId);
+      return {
+        id: a.id,
+        name: `${pii.firstName} ${pii.lastName}`.trim() || a.id,
+        email: a.email,
+        childCount: childCounts.get(a.id) ?? 0,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return (
+    <MemberForm
+      orgSlug={orgSlug}
+      csrf={<CsrfTokenInput />}
+      availableAdults={available}
+    />
   );
 }
 

@@ -9,6 +9,7 @@ import {
   updateOrderStatus,
   recordBoothSale,
   generateScoutLinks,
+  setItemDelivered,
   type SalesState,
 } from "@/server-actions/sales";
 
@@ -304,6 +305,54 @@ export function OrderStatusForm({
         {pending ? "…" : "Update"}
       </button>
       {state && "error" in state ? <p className="w-full text-xs text-danger">{state.error}</p> : null}
+    </form>
+  );
+}
+
+export function ItemDeliveryForm({
+  orgSlug,
+  orderId,
+  itemId,
+  quantity,
+  delivered,
+  csrf,
+}: {
+  orgSlug: string;
+  orderId: string;
+  itemId: string;
+  quantity: number;
+  delivered: number;
+  csrf: React.ReactNode;
+}) {
+  const [state, action, pending] = useActionState<SalesState, FormData>(
+    setItemDelivered,
+    null,
+  );
+  return (
+    <form action={action} className="flex items-center gap-1">
+      {csrf}
+      <input type="hidden" name="orgSlug" value={orgSlug} />
+      <input type="hidden" name="orderId" value={orderId} />
+      <input type="hidden" name="itemId" value={itemId} />
+      <input
+        type="number"
+        name="quantityDelivered"
+        defaultValue={delivered}
+        min={0}
+        max={quantity}
+        className="field w-16 text-right text-xs"
+      />
+      <span className="text-xs text-slate-muted">/ {quantity}</span>
+      <button
+        type="submit"
+        disabled={pending}
+        className="text-xs text-accent hover:text-ink ml-1"
+      >
+        {pending ? "…" : "Save"}
+      </button>
+      {state && "error" in state ? (
+        <p className="text-xs text-danger ml-1">{state.error}</p>
+      ) : null}
     </form>
   );
 }

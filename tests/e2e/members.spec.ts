@@ -28,7 +28,7 @@ test.describe("members admin", () => {
 
   test("search filters the roster", async ({ page }) => {
     await login(page);
-    await page.goto("http://troop100.localhost:3000/admin/members?q=Avery");
+    await page.goto("http://troop100.localhost:3000/admin/members?tab=adults&q=Avery");
     await expect(page.getByText("Avery Adult")).toBeVisible();
     // Briar is not "Avery" — should be filtered out
     await expect(page.getByText("Briar Adult")).toHaveCount(0);
@@ -37,7 +37,7 @@ test.describe("members admin", () => {
   test("soft-delete moves a member to trash and restore brings them back", async ({ page }) => {
     await login(page);
     // Pick the seeded "Briar Adult" to bounce in/out of trash
-    await page.goto("http://troop100.localhost:3000/admin/members?q=Briar");
+    await page.goto("http://troop100.localhost:3000/admin/members?tab=adults&q=Briar");
     await page.getByRole("link", { name: "Briar Adult" }).click();
     await page.getByRole("button", { name: /^remove$/i }).click();
     // The lifecycle button re-renders with the "Restore" label after the
@@ -45,14 +45,14 @@ test.describe("members admin", () => {
     await expect(page.getByRole("button", { name: /^restore$/i })).toBeVisible();
 
     // Trash listing now contains Briar
-    await page.goto("http://troop100.localhost:3000/admin/members?trash=1");
+    await page.goto("http://troop100.localhost:3000/admin/members?tab=adults&trash=1");
     await expect(page.getByRole("link", { name: "Briar Adult" })).toBeVisible();
 
     // Restore from the edit page; back to active roster
     await page.getByRole("link", { name: "Briar Adult" }).click();
     await page.getByRole("button", { name: /^restore$/i }).click();
     await expect(page.getByRole("button", { name: /^remove$/i })).toBeVisible();
-    await page.goto("http://troop100.localhost:3000/admin/members?q=Briar");
+    await page.goto("http://troop100.localhost:3000/admin/members?tab=adults&q=Briar");
     await expect(page.getByText("Briar Adult")).toBeVisible();
   });
 });
