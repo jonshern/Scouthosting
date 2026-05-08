@@ -85,14 +85,6 @@ export default function ComingSoonPage() {
             on weekends. Calendar, dues, comms, public site — one tool, built
             for units, hosted in the US, COPPA-conscious.
           </p>
-
-          <div className="mt-10 flex gap-8 text-[13px] text-white/55">
-            <Stat n="Founding" l="batch onboarding" />
-            <Sep />
-            <Stat n="$0" l="for your first year" />
-            <Sep />
-            <Stat n="US-hosted" l="encrypted at rest" />
-          </div>
         </div>
 
         {/* Invite-code card */}
@@ -139,19 +131,4 @@ export default function ComingSoonPage() {
       </footer>
     </main>
   );
-}
-
-function Stat({ n, l }: { n: string; l: string }) {
-  return (
-    <div>
-      <div className="font-display text-2xl font-normal tracking-[-0.01em] text-white">
-        {n}
-      </div>
-      <div>{l}</div>
-    </div>
-  );
-}
-
-function Sep() {
-  return <div className="w-px self-stretch bg-white/15" aria-hidden />;
 }
