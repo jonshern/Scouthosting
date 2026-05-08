@@ -10,6 +10,12 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { MemberForm } from "@/components/admin/MemberForm";
 import { ApproveButton, DeclineButton } from "@/components/admin/PendingActions";
+import {
+  MemberDetailBody,
+  isMemberTab,
+  type MemberTab,
+} from "@/components/admin/MemberDetailBody";
+import { MemberDrawerOverlay } from "@/components/admin/MemberDrawerOverlay";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
@@ -41,10 +47,10 @@ export default async function AdminMembersIndex({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ trash?: string; q?: string; tab?: string }>;
+  searchParams: Promise<{ trash?: string; q?: string; tab?: string; member?: string }>;
 }) {
   const { slug } = await params;
-  const { trash, q, tab: rawTab } = await searchParams;
+  const { trash, q, tab: rawTab, member: drawerMemberId } = await searchParams;
   const showTrash = trash === "1";
   const tab: Tab = (
     ["scouts", "adults", "counselors", "patrols", "pending"] as const
@@ -330,7 +336,13 @@ export default async function AdminMembersIndex({
 
       {/* Tab body */}
       {tab === "scouts" || tab === "adults" ? (
-        <MemberList rows={memberRows} slug={slug} showTrash={showTrash} />
+        <MemberList
+          rows={memberRows}
+          slug={slug}
+          showTrash={showTrash}
+          rosterTab={tab}
+          q={q}
+        />
       ) : null}
       {tab === "patrols" ? <PatrolList rows={patrolRows} slug={slug} /> : null}
       {tab === "counselors" ? <CounselorList rows={counselorRows} slug={slug} /> : null}
@@ -345,6 +357,28 @@ export default async function AdminMembersIndex({
           </h2>
           <AddMemberForm orgSlug={slug} orgId={org.id} dek={dek} />
         </div>
+      ) : null}
+
+      {/* Drawer overlay: rendered when ?member=<id> is in the URL.
+          Reuses the same MemberDetailBody as the standalone page so
+          the content stays in sync between the two routes. */}
+      {drawerMemberId ? (
+        <MemberDrawerOverlay closeHref={`/o/${slug}/admin/members`}>
+          <MemberDetailBody
+            slug={slug}
+            memberId={drawerMemberId}
+            tab={isMemberTab(rawTab) ? (rawTab as MemberTab) : "profile"}
+            buildTabHref={(t) => {
+              const sp = new URLSearchParams();
+              sp.set("tab", t);
+              if (q) sp.set("q", q);
+              if (showTrash) sp.set("trash", "1");
+              sp.set("member", drawerMemberId);
+              return `/o/${slug}/admin/members?${sp.toString()}`;
+            }}
+            variant="drawer"
+          />
+        </MemberDrawerOverlay>
       ) : null}
     </section>
   );
@@ -443,7 +477,19 @@ type MemberRow = {
   status: string;
 };
 
-function MemberList({ rows, slug, showTrash }: { rows: MemberRow[]; slug: string; showTrash: boolean }) {
+function MemberList({
+  rows,
+  slug,
+  showTrash,
+  rosterTab,
+  q,
+}: {
+  rows: MemberRow[];
+  slug: string;
+  showTrash: boolean;
+  rosterTab: string;
+  q: string | undefined;
+}) {
   if (rows.length === 0) {
     return (
       <p className="text-sm text-slate-muted">
@@ -451,6 +497,17 @@ function MemberList({ rows, slug, showTrash }: { rows: MemberRow[]; slug: string
       </p>
     );
   }
+  // Row click opens the drawer overlay via ?member=<id>. Preserve
+  // the current roster tab + search + trash flag so closing the
+  // drawer leaves the user exactly where they were.
+  const drawerHref = (memberId: string) => {
+    const sp = new URLSearchParams();
+    sp.set("tab", rosterTab);
+    if (q) sp.set("q", q);
+    if (showTrash) sp.set("trash", "1");
+    sp.set("member", memberId);
+    return `/o/${slug}/admin/members?${sp.toString()}`;
+  };
   return (
     <ul className="divide-y divide-line">
       {rows.map((m) => (
@@ -460,7 +517,8 @@ function MemberList({ rows, slug, showTrash }: { rows: MemberRow[]; slug: string
         >
           <div>
             <Link
-              href={`/o/${slug}/admin/members/${m.id}`}
+              href={drawerHref(m.id)}
+              scroll={false}
               className="font-semibold text-ink hover:text-accent"
             >
               {m.firstName} {m.lastName}
