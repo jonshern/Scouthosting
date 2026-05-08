@@ -41,6 +41,21 @@ const ADMIN_PAGES: Array<[string, RegExp]> = [
   ["/admin/refunds/new", /issue refund/i],
   ["/admin/surveys", /surveys/i],
   ["/admin/surveys/new", /new survey/i],
+  // Roadmap quick-wins
+  ["/admin/permission-slips", /permission slips/i],
+  ["/admin/reports", /roster reports/i],
+  ["/admin/equipment", /loan ledger|equipment/i],
+  ["/admin/equipment/loans", /loan history/i],
+  ["/admin/audit", /activity log/i],
+  // Treasury
+  ["/admin/treasury", /treasury|set up treasury|overview/i],
+  // Sales / fundraising
+  ["/admin/sales", /fundraising campaigns|set up treasury/i],
+  // Scoutbook sync
+  ["/admin/scoutbook", /read-only sync|scoutbook/i],
+  // CMS handoff first-class entities
+  ["/admin/locations", /event locations/i],
+  ["/admin/patrols", /patrols/i],
 ];
 
 test.describe("admin smoke coverage", () => {
