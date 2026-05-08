@@ -21,7 +21,10 @@ async function mintToken(page: Page): Promise<string> {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.waitForTimeout(1700);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL("http://localhost:3000/");
+  // Apex login redirects leaders straight to their org's /admin
+  // (or to /select-org if they're in many). The seeded scoutmaster
+  // is only in troop100 so they land on /o/troop100/admin.
+  await page.waitForURL(/\/(admin|select-org)/);
   const res = await page.request.post("http://localhost:3000/api/v1/auth/token", {
     data: { name: "RSVP-flow test" },
   });

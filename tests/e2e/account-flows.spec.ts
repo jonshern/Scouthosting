@@ -22,7 +22,11 @@ test.describe("account flows", () => {
     const newName = `Sample Scoutmaster ${Date.now()}`;
     await page.getByLabel("Display name").fill(newName);
     await page.getByRole("button", { name: /save/i }).click();
-    await page.waitForURL(/\/account\/profile/);
+    // The save action returns state without navigating (useActionState
+    // pattern). Give the server-side write time to commit before
+    // reloading, otherwise we race the action and re-fetch the
+    // pre-save row.
+    await page.waitForTimeout(2_000);
     await page.reload();
     await expect(page.getByLabel("Display name")).toHaveValue(newName);
   });

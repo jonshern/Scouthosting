@@ -12,7 +12,8 @@ async function signInApex(page: Page) {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.waitForTimeout(1700);
   await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL(/\/admin/);
+  // Super-admin lands on /super-admin — not /admin — after login.
+  await page.waitForURL(/\/super-admin/);
 }
 
 test.describe("super-admin write actions", () => {
@@ -27,7 +28,7 @@ test.describe("super-admin write actions", () => {
       .locator("form", { has: page.locator('select[name="plan"]') })
       .getByRole("button", { name: /change plan/i })
       .click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForTimeout(1_500);
     await page.goto("/super-admin/orgs/troop100");
     await expect(page.locator('select[name="plan"]')).toHaveValue("troop");
 
@@ -36,21 +37,21 @@ test.describe("super-admin write actions", () => {
       .locator("form", { has: page.locator('select[name="plan"]') })
       .getByRole("button", { name: /change plan/i })
       .click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForTimeout(1_500);
 
     // Suspend.
     await page.goto("/super-admin/orgs/troop100");
     const suspendReason = `e2e suspend ${Date.now()}`;
     await page.locator('input[name="reason"]').fill(suspendReason);
     await page.getByRole("button", { name: /suspend org/i }).click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForTimeout(1_500);
     await page.goto("/super-admin/orgs/troop100");
     await expect(page.getByText(suspendReason)).toBeVisible();
     await expect(page.getByRole("button", { name: /restore/i })).toBeVisible();
 
     // Restore.
     await page.getByRole("button", { name: /restore/i }).click();
-    await page.waitForLoadState("networkidle").catch(() => {});
+    await page.waitForTimeout(1_500);
     await page.goto("/super-admin/orgs/troop100");
     await expect(page.getByRole("button", { name: /suspend org/i })).toBeVisible();
   });
