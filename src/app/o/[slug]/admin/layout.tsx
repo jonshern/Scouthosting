@@ -10,6 +10,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
+import { ReleasesStrip } from "@/components/site/ReleasesStrip";
 
 function initials(email: string, displayName: string | null | undefined): string {
   const src = (displayName ?? email).trim();
@@ -49,6 +50,7 @@ export default async function AdminLayout({
         unitLabel={unitLabel}
       />
       <main className="mx-auto max-w-[1400px] px-8 py-10">{children}</main>
+      <ReleasesStrip variant="admin" />
     </div>
   );
 }
