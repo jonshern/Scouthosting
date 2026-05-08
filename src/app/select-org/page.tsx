@@ -88,7 +88,7 @@ export default async function SelectOrgPage() {
               <Link
                 key={m.org.id}
                 href={href}
-                className="group flex items-center gap-5 rounded-xl border border-line bg-white p-5 transition-colors hover:border-slate-ink/40 hover:bg-bone"
+                className="group flex items-center gap-5 rounded-xl border border-line bg-white p-5 transition-colors hover:border-slate-ink/40 hover:bg-surface-alt"
               >
                 <div
                   className="grid h-14 w-14 shrink-0 place-items-center rounded-lg font-display text-base font-medium text-white"

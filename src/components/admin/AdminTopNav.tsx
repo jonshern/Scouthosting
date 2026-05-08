@@ -43,6 +43,11 @@ function buildPrimary(slug: string): NavItem[] {
         `${o}/admin/eagle`,
         `${o}/admin/oa`,
         `${o}/admin/merit-badge-counselors`,
+        `${o}/admin/reports`,
+        `${o}/admin/permission-slips`,
+        `${o}/admin/equipment`,
+        `${o}/admin/audit`,
+        `${o}/admin/scoutbook`,
       ],
     },
     {
@@ -64,9 +69,14 @@ function buildPrimary(slug: string): NavItem[] {
       match: [`${o}/admin/forms`, `${o}/admin/surveys`],
     },
     {
-      href: `${o}/admin/refunds`,
+      href: `${o}/admin/treasury`,
       label: "Money",
-      match: [`${o}/admin/refunds`, `${o}/admin/reimbursements`],
+      match: [
+        `${o}/admin/treasury`,
+        `${o}/admin/refunds`,
+        `${o}/admin/reimbursements`,
+        `${o}/admin/sales`,
+      ],
     },
   ];
 }

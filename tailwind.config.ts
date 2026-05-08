@@ -21,6 +21,12 @@ const config: Config = {
         },
         sky: { DEFAULT: "#1d4ed8", soft: "#bcd0f4" },
 
+        // Semantic aliases — use these in new code instead of reaching for
+        // CSS vars or hex literals.
+        accent: { DEFAULT: "#1d4ed8", soft: "#bcd0f4" },
+        success: { DEFAULT: "#059669", soft: "#a7f3d0" },
+        danger: { DEFAULT: "#dc2626", soft: "#fecaca" },
+
         // Spectrum for stat strips / category accents.
         amber: { DEFAULT: "#f59e0b", soft: "#fde68a" },
         teal: { DEFAULT: "#0891b2", soft: "#bee5ef" },

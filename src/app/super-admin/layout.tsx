@@ -26,6 +26,7 @@ export default async function SuperLayout({ children }: { children: React.ReactN
         <h1 className="font-display text-3xl font-semibold">Super-admin</h1>
         <nav className="mt-3 flex gap-4 text-sm">
           <Link href="/super-admin">Orgs</Link>
+          <Link href="/super-admin/audit">Audit</Link>
           <Link href="/super-admin/errors">Errors</Link>
           <Link href="/super-admin/analytics">Analytics</Link>
           <Link href="/super-admin/architecture">Architecture</Link>

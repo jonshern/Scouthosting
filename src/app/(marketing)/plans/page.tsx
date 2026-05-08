@@ -264,7 +264,7 @@ export default function PlansPage() {
           <div className="bg-white border border-line rounded-xl overflow-hidden">
             <table className="w-full text-[13px]">
               <thead>
-                <tr className="bg-bone text-slate-muted text-[11px] uppercase tracking-[0.06em]">
+                <tr className="bg-surface-alt text-slate-muted text-[11px] uppercase tracking-[0.06em]">
                   <th className="px-4 py-3 text-left font-bold">Item</th>
                   <th className="px-4 py-3 text-right font-bold">Legacy host</th>
                   <th className="px-4 py-3 text-right font-bold">Compass</th>
