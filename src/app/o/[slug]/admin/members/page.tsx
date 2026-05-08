@@ -9,6 +9,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { MemberForm } from "@/components/admin/MemberForm";
+import { ApproveButton, DeclineButton } from "@/components/admin/PendingActions";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
@@ -618,12 +619,16 @@ function PendingList({
                 {p.firstContactedAt ? p.firstContactedAt.toLocaleDateString() : "—"}
               </td>
               <td className="px-4 py-3">
-                <Link
-                  href={`/o/${slug}/admin/members/${p.id}`}
-                  className="text-xs text-accent hover:text-ink"
-                >
-                  Open →
-                </Link>
+                <div className="flex items-center gap-3 text-xs">
+                  <ApproveButton orgSlug={slug} memberId={p.id} csrf={<CsrfTokenInput />} />
+                  <DeclineButton orgSlug={slug} memberId={p.id} csrf={<CsrfTokenInput />} />
+                  <Link
+                    href={`/o/${slug}/admin/members/${p.id}`}
+                    className="text-accent hover:text-ink"
+                  >
+                    Open →
+                  </Link>
+                </div>
               </td>
             </tr>
           ))}
