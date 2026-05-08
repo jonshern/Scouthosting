@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { EventForm } from "@/components/admin/EventForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { DeleteEventButton } from "@/components/admin/DeleteContentButtons";
 
 export default async function EditEventPage({
   params,
@@ -77,6 +78,10 @@ export default async function EditEventPage({
         csrf={<CsrfTokenInput />}
         locations={locations}
       />
+
+      <div className="border-t border-line pt-6">
+        <DeleteEventButton orgSlug={slug} id={event.id} csrf={<CsrfTokenInput />} />
+      </div>
 
       {total > 0 && (
         <div>

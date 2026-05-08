@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { PostForm } from "@/components/admin/PostForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { DeletePostButton } from "@/components/admin/DeleteContentButtons";
 
 export default async function AdminPostEdit({
   params,
@@ -40,6 +41,9 @@ export default async function AdminPostEdit({
         }}
         csrf={<CsrfTokenInput />}
       />
+      <div className="border-t border-line pt-6">
+        <DeletePostButton orgSlug={slug} id={post.id} csrf={<CsrfTokenInput />} />
+      </div>
       {post.comments.length > 0 && (
         <div>
           <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-2">Comments</h2>

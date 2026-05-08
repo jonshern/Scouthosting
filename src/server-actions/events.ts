@@ -135,5 +135,7 @@ export async function deleteEvent(_prev: unknown, formData: FormData) {
   revalidatePath(`/o/${auth.org.slug}/admin/events`);
   revalidatePath(`/o/${auth.org.slug}/calendar`);
   updateTag("public-events");
-  return { ok: true as const };
+  // Redirect server-side so the client doesn't have to coordinate
+  // navigation after success.
+  redirect(`/o/${auth.org.slug}/admin/events`);
 }
