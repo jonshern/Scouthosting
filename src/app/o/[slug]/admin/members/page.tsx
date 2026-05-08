@@ -337,20 +337,22 @@ export default async function AdminMembersIndex({
 
       {/* Tab body */}
       {tab === "scouts" || tab === "adults" ? (
-        <MembersGrid
-          rows={memberRows as MemberGridRow[]}
-          drawerHref={(memberId: string) => {
-            const sp = new URLSearchParams();
-            sp.set("tab", tab);
-            if (q) sp.set("q", q);
-            if (showTrash) sp.set("trash", "1");
-            sp.set("member", memberId);
-            return `/o/${slug}/admin/members?${sp.toString()}`;
-          }}
-          emptyMessage={
-            showTrash ? "Nothing in the trash." : "No members yet."
-          }
-        />
+        (() => {
+          const baseSp = new URLSearchParams();
+          baseSp.set("tab", tab);
+          if (q) baseSp.set("q", q);
+          if (showTrash) baseSp.set("trash", "1");
+          return (
+            <MembersGrid
+              rows={memberRows as MemberGridRow[]}
+              drawerBaseHref={`/o/${slug}/admin/members`}
+              drawerBaseQuery={baseSp.toString()}
+              emptyMessage={
+                showTrash ? "Nothing in the trash." : "No members yet."
+              }
+            />
+          );
+        })()
       ) : null}
       {tab === "patrols" ? <PatrolList rows={patrolRows} slug={slug} /> : null}
       {tab === "counselors" ? <CounselorList rows={counselorRows} slug={slug} /> : null}
