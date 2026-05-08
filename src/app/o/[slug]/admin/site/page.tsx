@@ -12,15 +12,20 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { HeroForm } from "@/components/admin/HeroForm";
 import { CanvasEditor } from "@/components/admin/CanvasEditor";
+import { AdvancedCanvasEditor } from "@/components/admin/AdvancedCanvasEditor";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { PreviewPane } from "@/components/admin/PreviewPane";
 
 export default async function AdminSite({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ mode?: string }>;
 }) {
   const { slug } = await params;
+  const { mode } = await searchParams;
+  const advanced = mode === "advanced";
   const org = await prisma.org.findUnique({
     where: { slug },
     include: { page: true },
@@ -46,6 +51,16 @@ export default async function AdminSite({
         description="Hero + page-canvas blocks. Edit the form on the left; the preview on the right reloads on demand."
         actions={
           <>
+            <Link
+              href={
+                advanced
+                  ? `/o/${slug}/admin/site`
+                  : `/o/${slug}/admin/site?mode=advanced`
+              }
+              className="btn-secondary"
+            >
+              {advanced ? "Simple editor" : "Advanced editor"}
+            </Link>
             <Link href={`/o/${slug}`} className="btn-secondary">
               View public page
             </Link>
@@ -59,8 +74,8 @@ export default async function AdminSite({
         </p>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
-        <div className="space-y-8 min-w-0">
+      {advanced ? (
+        <div className="space-y-8">
           <div>
             <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
               Hero
@@ -80,21 +95,61 @@ export default async function AdminSite({
               Page canvas
             </h2>
             <p className="text-sm text-slate-soft mb-3">
-              Blocks rendered below the hero. Add text, images, or CTAs;
-              reorder or delete inline.
+              Three-column editor: palette on the left, canvas in the middle,
+              inspector on the right. Click a block in the canvas to edit it.
             </p>
-            <CanvasEditor
+            <AdvancedCanvasEditor
               orgSlug={slug}
               blocks={draftBlocks as never}
               csrf={<CsrfTokenInput />}
             />
           </div>
-        </div>
 
-        <div className="lg:sticky lg:top-4 self-start min-w-0">
-          <PreviewPane src={previewSrc} />
+          <div className="border-t border-line pt-6">
+            <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
+              Live preview
+            </h2>
+            <PreviewPane src={previewSrc} />
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
+          <div className="space-y-8 min-w-0">
+            <div>
+              <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
+                Hero
+              </h2>
+              <HeroForm
+                orgSlug={slug}
+                initial={{
+                  heroHeadline: page?.heroHeadline,
+                  heroLede: page?.heroLede,
+                }}
+                csrf={<CsrfTokenInput />}
+              />
+            </div>
+
+            <div>
+              <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
+                Page canvas
+              </h2>
+              <p className="text-sm text-slate-soft mb-3">
+                Blocks rendered below the hero. Add text, images, or CTAs;
+                reorder or delete inline.
+              </p>
+              <CanvasEditor
+                orgSlug={slug}
+                blocks={draftBlocks as never}
+                csrf={<CsrfTokenInput />}
+              />
+            </div>
+          </div>
+
+          <div className="lg:sticky lg:top-4 self-start min-w-0">
+            <PreviewPane src={previewSrc} />
+          </div>
+        </div>
+      )}
     </section>
   );
 }
