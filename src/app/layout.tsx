@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import { Inter_Tight, Newsreader, JetBrains_Mono } from "next/font/google";
+import { Inter_Tight, Source_Serif_4, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-// Type stack from design_handoff_compass/designs/tokens.js
+// Type stack per design_handoff_compass_cms — Source Serif 4 for
+// display, Inter Tight for chrome, JetBrains Mono for IDs / dates.
 const interTight = Inter_Tight({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-ui",
   display: "swap",
 });
-const newsreader = Newsreader({
+const sourceSerif = Source_Serif_4({
   subsets: ["latin"],
   weight: ["400", "500", "600"],
   style: ["normal", "italic"],
@@ -34,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${interTight.variable} ${newsreader.variable} ${jetbrainsMono.variable}`}
+      className={`${interTight.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
       <body className="font-sans">{children}</body>
     </html>

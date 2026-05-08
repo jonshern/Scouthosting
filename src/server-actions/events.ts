@@ -34,6 +34,7 @@ const EventInput = z.object({
   hikingMiles: z.string().optional().or(z.literal("")),
   requiresPermissionSlip: z.union([z.literal("on"), z.literal("")]).optional(),
   permissionSlipText: z.string().trim().max(5000).optional().or(z.literal("")),
+  locationId: z.string().optional().or(z.literal("")),
 });
 
 export type EventActionState = { error?: string; ok?: true } | null;
@@ -102,6 +103,7 @@ export async function upsertEvent(
     hikingMiles: toFloat(d.hikingMiles) ?? null,
     requiresPermissionSlip: d.requiresPermissionSlip === "on",
     permissionSlipText: nz(d.permissionSlipText) ?? null,
+    locationId: d.locationId || null,
   };
 
   if (d.id) {

@@ -13,12 +13,19 @@ export default async function EditEventPage({
   const { slug, id } = await params;
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
-  const event = await prisma.event.findUnique({
-    where: { id, orgId: org.id },
-    include: {
-      rsvps: { orderBy: { createdAt: "desc" } },
-    },
-  });
+  const [event, locations] = await Promise.all([
+    prisma.event.findUnique({
+      where: { id, orgId: org.id },
+      include: {
+        rsvps: { orderBy: { createdAt: "desc" } },
+      },
+    }),
+    prisma.location.findMany({
+      where: { orgId: org.id, archived: false },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, type: true, address: true },
+    }),
+  ]);
   if (!event) notFound();
 
   const total = event.rsvps.length;
@@ -65,8 +72,10 @@ export default async function EditEventPage({
           hikingMiles: event.hikingMiles,
           requiresPermissionSlip: event.requiresPermissionSlip,
           permissionSlipText: event.permissionSlipText,
+          locationId: event.locationId,
         }}
         csrf={<CsrfTokenInput />}
+        locations={locations}
       />
 
       {total > 0 && (

@@ -201,6 +201,8 @@ model Org {
   fundBudgets          FundBudget[]
   transactions         Transaction[]
   bankImports          BankImport[]
+  locations            Location[]
+  patrols              Patrol[]
   memberSubaccounts    MemberSubaccount[]
   scoutbookConnection  ScoutbookConnection?
   scoutbookProfiles    ScoutbookProfile[]
@@ -444,6 +446,7 @@ model Member {
   scoutbookProfile     ScoutbookProfile?
   salesOrders          SalesOrder[]
   scoutSalesLinks      ScoutSalesLink[]
+  patrolsLed           Patrol[] @relation("PatrolLeader")
 
   @@index([orgId])
   @@index([orgId, lastNameLc1])
@@ -461,8 +464,13 @@ model Event {
   allDay          Boolean   @default(false)
   location        String?
   // For map links: stored verbatim and used to build Google/Apple/Waze URLs
-  // at render time.
+  // at render time. Free-form fallback when locationId is null.
   locationAddress String?
+  // Optional first-class link to a saved Location entry. When set,
+  // the leader's quick map / location autocomplete uses the saved
+  // entry; the free-form `location` + `locationAddress` fields above
+  // remain populated for back-compat / public ICS feeds.
+  locationId      String?
   cost            Int? // dollars
   capacity        Int?
   signupRequired  Boolean   @default(false)
@@ -501,8 +509,10 @@ model Event {
   channel         Channel?
   permissionSlips PermissionSlip[]
   transactions    Transaction[]
+  locationRef     Location?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
 
   @@index([orgId, startsAt])
+  @@index([orgId, locationId])
 }
 
 // A sign-up "slot" is a discrete thing for an event that needs a person
@@ -2456,5 +2466,68 @@ model ScoutbookSyncRun {
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@index([orgId, startedAt])
+}
+
+// =====================================================================
+// First-class Locations + Patrols (per design_handoff_compass_cms).
+// Locations: meeting halls / camps / outdoor / service / trailhead /
+// high adventure. Events optionally reference one (Event.locationId)
+// while keeping the free-form `location` + `locationAddress` fields
+// for back-compat and ICS feeds.
+// Patrols: a row per patrol with a color + leader. Members continue
+// to reference patrols by name via the existing `Member.patrol`
+// string column for back-compat; this model adds metadata leaders
+// can edit without re-keying every Member row.
+// =====================================================================
+
+model Location {
+  id            String   @id @default(cuid())
+  orgId         String
+  name          String
+  // "Meeting" | "Camp" | "Outdoor" | "Service" | "Trailhead" | "High Adv."
+  type          String   @default("Meeting")
+  address       String?
+  description   String?
+  phone         String?
+  website       String?
+  // Stored as strings to dodge Decimal complexity until we actually
+  // need lat/lng math; the leader's input goes straight to the map
+  // URL builder.
+  lat           String?
+  lng           String?
+  distanceMiles Float?
+  imageUrl      String?
+  tags          String[] @default([])
+  archived      Boolean  @default(false)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  org    Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  events Event[]
+
+  @@unique([orgId, name])
+  @@index([orgId, archived])
+  @@index([orgId, type])
+}
+
+model Patrol {
+  id              String   @id @default(cuid())
+  orgId           String
+  name            String
+  // Hex (e.g. "#1d3a8a"). Defaults to the editorial accent.
+  color           String   @default("#1d3a8a")
+  leaderMemberId  String?
+  description     String?
+  archived        Boolean  @default(false)
+  sortOrder       Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  org    Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  leader Member? @relation("PatrolLeader", fields: [leaderMemberId], references: [id], onDelete: SetNull)
+
+  @@unique([orgId, name])
+  @@index([orgId, archived])
 }
 
