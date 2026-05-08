@@ -1,50 +1,71 @@
 import type { Config } from "tailwindcss";
 
-// Palette + typography from design_handoff_compass/designs/tokens.js —
-// "balanced" / Slate & Sky is the lead direction.
+// Palette + typography aligned with the design_handoff_compass_cms
+// "editorial admin" handoff — warm off-white + taupe lines + a single
+// deep-navy accent. Replaces the prior "Slate & Sky" tokens; old keys
+// stay as aliases so existing pages keep compiling.
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
-        // Lead palette — slate near-black + cool grays + sky-blue accent.
-        slate: {
-          ink: "#0f172a",
-          soft: "#334155",
-          muted: "#64748b",
-        },
-        line: { DEFAULT: "#e2e8f0", soft: "#eef1f5" },
+        // Editorial palette.
+        ink: { DEFAULT: "#14171c", soft: "#2a2f38", muted: "#6b7280" },
+        line: { DEFAULT: "#e6e3da", soft: "#efece4", strong: "#d8d2c2" },
         surface: {
           DEFAULT: "#ffffff",
-          alt: "#eef1f5",
-          dark: "#0f172a",
+          alt: "#efece4",
+          dark: "#14171c",
         },
-        sky: { DEFAULT: "#1d4ed8", soft: "#bcd0f4" },
+        // Single deep-navy accent.
+        accent: { DEFAULT: "#1d3a8a", soft: "#e6ecff" },
+        // Semantic status (per handoff).
+        success: { DEFAULT: "#15803d", soft: "#d1fae5" },
+        warn:    { DEFAULT: "#92400e", soft: "#fef3c7" },
+        danger:  { DEFAULT: "#b91c1c", soft: "#fecaca" },
 
-        // Semantic aliases — use these in new code instead of reaching for
-        // CSS vars or hex literals.
-        accent: { DEFAULT: "#1d4ed8", soft: "#bcd0f4" },
-        success: { DEFAULT: "#059669", soft: "#a7f3d0" },
-        danger: { DEFAULT: "#dc2626", soft: "#fecaca" },
+        // Rank colors (advancement) per handoff.
+        rank: {
+          scoutBg:      "#f5f3ee", scoutInk:      "#6b6760", scoutLine:      "#e8e3d6",
+          tenderfootBg: "#fef3c7", tenderfootInk: "#92400e", tenderfootLine: "#fde68a",
+          secondBg:     "#dbeafe", secondInk:     "#1e40af", secondLine:     "#bfdbfe",
+          firstBg:      "#d1fae5", firstInk:      "#065f46", firstLine:      "#a7f3d0",
+          starBg:       "#fef3c7", starInk:       "#854d0e", starLine:       "#facc15",
+          lifeBg:       "#fee2e2", lifeInk:       "#991b1b", lifeLine:       "#fecaca",
+          eagleBg:      "#fef9c3", eagleInk:      "#713f12", eagleLine:      "#ca8a04",
+        },
 
-        // Spectrum for stat strips / category accents.
-        amber: { DEFAULT: "#f59e0b", soft: "#fde68a" },
-        teal: { DEFAULT: "#0891b2", soft: "#bee5ef" },
+        // Patrol colors (per handoff).
+        patrolEagle:  "#7a1e1e",
+        patrolHawk:   "#1d3a8a",
+        patrolWolf:   "#15803d",
+        patrolOtter:  "#0e7490",
+        patrolBear:   "#92400e",
+
+        // Aliases retained from the previous palette so we don't have
+        // to sweep every existing page in this PR.
+        slate: {
+          ink: "#14171c",
+          soft: "#2a2f38",
+          muted: "#6b7280",
+        },
+        sky: { DEFAULT: "#1d3a8a", soft: "#e6ecff" },
+        amber: { DEFAULT: "#92400e", soft: "#fef3c7" },
+        teal: { DEFAULT: "#0e7490", soft: "#cffafe" },
         plum: { DEFAULT: "#475569", soft: "#cbd5e1" },
-
-        // Legacy aliases so existing app/admin pages keep compiling
-        // until we sweep them onto the new palette.
-        forest: { DEFAULT: "#1d4ed8", dark: "#1e40af", light: "#3b82f6" },
-        ember: { DEFAULT: "#f59e0b", dark: "#b45309", light: "#fcd34d" },
-        ink: { DEFAULT: "#0f172a", muted: "#64748b" },
-        bone: { DEFAULT: "#f7f8fa", dark: "#eef1f5" },
+        forest: { DEFAULT: "#1d3a8a", dark: "#152a66", light: "#3b6cd8" },
+        ember: { DEFAULT: "#92400e", dark: "#7c2d10", light: "#fcd34d" },
+        bone: { DEFAULT: "#f6f5f1", dark: "#efece4" },
       },
       backgroundColor: {
-        bg: "#f7f8fa",
+        bg: "#f6f5f1",
+        bg2: "#efece4",
       },
       fontFamily: {
+        // Sans for chrome/buttons/inputs. Serif for display/eyebrows/
+        // member names. Mono for IDs / slugs / dates / phone.
         sans: ["var(--font-ui)", '"Inter Tight"', '"Inter"', "system-ui", "sans-serif"],
-        display: ["var(--font-display)", '"Newsreader"', "Georgia", "serif"],
+        display: ["var(--font-display)", '"Source Serif 4"', '"Newsreader"', "Georgia", "serif"],
         mono: ["var(--font-mono)", '"JetBrains Mono"', "ui-monospace", "monospace"],
       },
       maxWidth: { content: "72rem" },

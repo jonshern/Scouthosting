@@ -32,6 +32,7 @@ function buildPrimary(slug: string): NavItem[] {
         `${o}/admin/trips`,
         `${o}/admin/coh`,
         `${o}/admin/car-rides`,
+        `${o}/admin/locations`,
       ],
     },
     {
@@ -48,6 +49,8 @@ function buildPrimary(slug: string): NavItem[] {
         `${o}/admin/equipment`,
         `${o}/admin/audit`,
         `${o}/admin/scoutbook`,
+        `${o}/admin/patrols`,
+        `${o}/admin/pending`,
       ],
     },
     {

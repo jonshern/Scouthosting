@@ -23,6 +23,7 @@ type EventInitial = {
   hikingMiles?: number | null;
   requiresPermissionSlip?: boolean | null;
   permissionSlipText?: string | null;
+  locationId?: string | null;
 };
 
 function toLocalDateTime(v: Date | string | null | undefined): string {
@@ -36,10 +37,12 @@ export function EventForm({
   orgSlug,
   initial,
   csrf,
+  locations = [],
 }: {
   orgSlug: string;
   initial?: EventInitial;
   csrf: React.ReactNode;
+  locations?: { id: string; name: string; type: string; address: string | null }[];
 }) {
   const [state, formAction, pending] = useActionState<EventActionState, FormData>(upsertEvent, null);
   const e = initial ?? {};
@@ -87,6 +90,29 @@ export function EventForm({
         <input id="allDay" name="allDay" type="checkbox" defaultChecked={!!e.allDay} />
         <label htmlFor="allDay">All-day event</label>
       </div>
+
+      {locations.length > 0 ? (
+        <div>
+          <label className="label" htmlFor="locationId">Saved location (optional)</label>
+          <select
+            id="locationId"
+            name="locationId"
+            defaultValue={e.locationId ?? ""}
+            className="field"
+          >
+            <option value="">— pick a saved location, or use the free-form fields below —</option>
+            {locations.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name} · {l.type}
+                {l.address ? ` · ${l.address}` : ""}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-xs text-slate-muted">
+            Saved locations are managed under <strong>Roster → Locations</strong>.
+          </p>
+        </div>
+      ) : null}
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>
