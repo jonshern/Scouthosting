@@ -115,7 +115,7 @@ export async function deletePost(_prev: unknown, formData: FormData) {
   });
   revalidatePath(`/o/${auth.org.slug}/posts`);
   revalidatePath(`/o/${auth.org.slug}/admin/posts`);
-  return { ok: true as const };
+  redirect(`/o/${auth.org.slug}/admin/posts`);
 }
 
 const CommentSchema = z.object({

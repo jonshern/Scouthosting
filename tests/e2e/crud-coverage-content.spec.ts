@@ -1,10 +1,7 @@
 // CRUD coverage for content surfaces: events, posts, announcements.
 //
-// Note on what's *not* covered here:
-//   - Event delete: there's no admin UI to delete events (the
-//     `deleteEvent` server action exists but isn't wired to a button)
-//     so we only verify create + edit.
-//   - Post/announcement delete: same — no UI.
+// Announcements have no delete server action yet, so on that surface
+// we only verify create.
 
 import { expect, test, type Page } from "@playwright/test";
 
@@ -48,13 +45,26 @@ test.describe("crud coverage – content", () => {
     // Edit title.
     await page.getByRole("link", { name: eventTitle }).first().click();
     await page.waitForURL(/\/admin\/events\/[^/]+$/);
-    await page.getByLabel("Title").fill(eventTitleEdited);
+    await page.locator("input#title").fill(eventTitleEdited);
     await page.getByRole("button", { name: /save changes/i }).click();
     await page.waitForTimeout(1_500);
     await page.goto(`${TENANT}/admin/events`);
     await expect(
       page.getByRole("link", { name: eventTitleEdited }).first(),
     ).toBeVisible();
+
+    // Delete via the new DeleteEventButton on the detail page.
+    await page
+      .getByRole("link", { name: eventTitleEdited })
+      .first()
+      .click();
+    await page.waitForURL(/\/admin\/events\/[^/]+$/);
+    await page.getByRole("button", { name: /^delete$/i }).click();
+    await page.getByRole("button", { name: /yes, delete/i }).click();
+    await page.waitForURL(/\/admin\/events$/, { timeout: 30_000 });
+    await expect(
+      page.getByRole("link", { name: eventTitleEdited }),
+    ).toHaveCount(0);
 
     // ── Posts: create + edit ─────────────────────────────────────────
     const postTitle = `E2E Post ${Date.now()}`;
@@ -82,6 +92,19 @@ test.describe("crud coverage – content", () => {
     await expect(
       page.getByRole("link", { name: postTitleEdited }).first(),
     ).toBeVisible();
+
+    // Delete via the new DeletePostButton on the detail page.
+    await page
+      .getByRole("link", { name: postTitleEdited })
+      .first()
+      .click();
+    await page.waitForURL(/\/admin\/posts\/[^/]+$/);
+    await page.getByRole("button", { name: /^delete$/i }).click();
+    await page.getByRole("button", { name: /yes, delete/i }).click();
+    await page.waitForURL(/\/admin\/posts$/, { timeout: 30_000 });
+    await expect(
+      page.getByRole("link", { name: postTitleEdited }),
+    ).toHaveCount(0);
 
     // ── Announcements: create + appears on list ──────────────────────
     const annTitle = `E2E Ann ${Date.now()}`;
