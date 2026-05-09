@@ -1,6 +1,8 @@
 // Header treatment for public unit-site sub-pages (Calendar, Photos,
-// Posts, custom Pages). Mirrors AdminPageHeader but lives in the
-// site/ namespace so it can evolve independently.
+// Posts, custom Pages). Mirrors AdminPageHeader's editorial style:
+// italic serif kicker (e.g. "§ Calendar") + serif display title +
+// optional muted lede + optional actions row. Per
+// design_handoff_compass_cms README.
 
 import type { ReactNode } from "react";
 
@@ -17,8 +19,8 @@ export function PublicPageHeader({
 }) {
   return (
     <header className="mx-auto mb-10 max-w-content px-6 pt-12">
-      <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-sky">
-        {kicker}
+      <div className="mb-1.5 font-display text-xs italic text-sky">
+        {kicker.startsWith("§") ? kicker : `§ ${kicker}`}
       </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-2xl">
