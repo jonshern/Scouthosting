@@ -87,6 +87,7 @@ function buildPrimary(slug: string): NavItem[] {
 function buildSecondary(slug: string): NavItem[] {
   const o = `/o/${slug}`;
   return [
+    { href: `${o}/admin/setup`, label: "Setup" },
     { href: `${o}/admin/site`, label: "Site" },
     { href: `${o}/admin/pages`, label: "Pages" },
     { href: `${o}/admin/security`, label: "Security" },
