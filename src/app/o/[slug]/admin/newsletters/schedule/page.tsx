@@ -37,7 +37,11 @@ export default async function NewsletterSchedulePage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <AdminPageHeader kicker="Messages" title="Newsletter schedule" />
+      <AdminPageHeader
+        kicker="Messages"
+        title="Newsletter schedule"
+        description="Auto-drafts a weekly digest from new posts and upcoming events. Pause if you'd rather send manually."
+      />
       <form action={saveNewsletterSchedule} className="space-y-4 max-w-md">
         <CsrfTokenInput />
         <input type="hidden" name="orgSlug" value={slug} />
