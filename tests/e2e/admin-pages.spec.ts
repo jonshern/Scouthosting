@@ -56,6 +56,8 @@ const ADMIN_PAGES: Array<[string, RegExp]> = [
   // CMS handoff first-class entities
   ["/admin/locations", /event locations/i],
   ["/admin/patrols", /patrols/i],
+  // Setup checklist (per design_handoff_compass_cms/setup.jsx)
+  ["/admin/setup", /get your unit set up/i],
 ];
 
 test.describe("admin smoke coverage", () => {
