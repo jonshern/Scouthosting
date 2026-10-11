@@ -1,32 +1,31 @@
 // GET /api/v1/events/[id] — single event detail with RSVP summary.
+// Only aggregate counts leave the server: other families' names and
+// slot sign-ups stay private.
 
-import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { withBearerAuth } from "@/lib/auth/api-bearer";
-import { requireOrgMember } from "@/lib/api/org-resolve";
+import { json, notFound, parseId, requireOrgAccessForResource, v1Route } from "@/lib/api/v1";
 
 export const runtime = "nodejs";
 
-export const GET = withBearerAuth(async (req: NextRequest, { user }) => {
-  const id = req.nextUrl.pathname.split("/").pop() ?? "";
+export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
+  const id = parseId(params.id);
   const event = await prisma.event.findUnique({
     where: { id },
     include: {
       rsvps: {
-        select: { id: true, userId: true, name: true, response: true, guests: true },
+        select: { id: true, userId: true, response: true, guests: true },
       },
       slots: {
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        include: { assignments: { select: { id: true, name: true, waitlisted: true } } },
+        include: { assignments: { select: { waitlisted: true } } },
       },
     },
   });
-  if (!event) return NextResponse.json({ error: "not_found" }, { status: 404 });
-  const member = await requireOrgMember(event.orgId, user.id);
-  if (!member) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!event) throw notFound();
+  await requireOrgAccessForResource(event.orgId, user.id);
 
   const myRsvp = event.rsvps.find((r) => r.userId === user.id);
-  return NextResponse.json({
+  return json({
     event: {
       id: event.id,
       title: event.title,

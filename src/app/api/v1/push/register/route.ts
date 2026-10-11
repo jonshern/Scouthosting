@@ -1,49 +1,37 @@
 // POST /api/v1/push/register — register a device token for push.
 // Body: { token, provider?, deviceLabel?, platform? }.
 
-import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { withBearerAuth } from "@/lib/auth/api-bearer";
+import { LIMITS, json, readJson, v1Route } from "@/lib/api/v1";
 
 export const runtime = "nodejs";
 
-export const POST = withBearerAuth(async (req: NextRequest, { user }) => {
-  let body: {
-    token?: string;
-    provider?: string;
-    deviceLabel?: string;
-    platform?: string;
-  };
-  try {
-    body = (await req.json()) as never;
-  } catch {
-    return NextResponse.json({ error: "bad_json" }, { status: 400 });
-  }
-  const token = String(body.token || "").trim();
-  if (!token) return NextResponse.json({ error: "missing_token" }, { status: 400 });
-  const provider = ["expo", "webpush", "apns", "fcm"].includes(String(body.provider))
-    ? String(body.provider)
-    : "expo";
-
-  // Upsert by unique token. Re-registering the same token from another
-  // user moves it (one device → one user at a time).
-  const row = await prisma.pushDevice.upsert({
-    where: { token },
-    create: {
-      userId: user.id,
-      token,
-      provider,
-      deviceLabel: body.deviceLabel ? String(body.deviceLabel).slice(0, 80) : null,
-      platform: body.platform ? String(body.platform).slice(0, 16) : null,
-    },
-    update: {
-      userId: user.id,
-      provider,
-      deviceLabel: body.deviceLabel ? String(body.deviceLabel).slice(0, 80) : null,
-      platform: body.platform ? String(body.platform).slice(0, 16) : null,
-      retiredAt: null,
-      retiredReason: null,
-    },
-  });
-  return NextResponse.json({ id: row.id });
+const Body = z.object({
+  token: z.string({ required_error: "missing_token" }).trim().min(1, "missing_token").max(512),
+  provider: z.enum(["expo", "webpush", "apns", "fcm"]).catch("expo").default("expo"),
+  deviceLabel: z.string().trim().max(80).optional().nullable(),
+  platform: z.string().trim().max(16).optional().nullable(),
 });
+
+export const POST = v1Route(
+  async (req, { user }) => {
+    const input = await readJson(req, Body);
+    const fields = {
+      provider: input.provider,
+      deviceLabel: input.deviceLabel || null,
+      platform: input.platform || null,
+    };
+
+    // Upsert by unique token. Re-registering the same token from another
+    // user moves it (one device → one user at a time, e.g. a shared
+    // family phone switching accounts).
+    const row = await prisma.pushDevice.upsert({
+      where: { token: input.token },
+      create: { userId: user.id, token: input.token, ...fields },
+      update: { userId: user.id, ...fields, retiredAt: null, retiredReason: null },
+    });
+    return json({ id: row.id });
+  },
+  { limits: [LIMITS.push] },
+);

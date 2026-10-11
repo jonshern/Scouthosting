@@ -2,21 +2,20 @@
 // identity + the orgs they belong to. Mirrors the Express version
 // the production Expo client expects.
 
-import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { withBearerAuth } from "@/lib/auth/api-bearer";
+import { json, v1Route } from "@/lib/api/v1";
 
 export const runtime = "nodejs";
 
-export const GET = withBearerAuth(async (_req, { user }) => {
+export const GET = v1Route(async (_req, { user }) => {
   const memberships = await prisma.orgMembership.findMany({
     where: { userId: user.id },
     select: {
       role: true,
-      org: { select: { id: true, slug: true, displayName: true, plan: true, isDemo: true } },
+      org: { select: { id: true, slug: true, displayName: true } },
     },
   });
-  return NextResponse.json({
+  return json({
     user: {
       id: user.id,
       email: user.email,

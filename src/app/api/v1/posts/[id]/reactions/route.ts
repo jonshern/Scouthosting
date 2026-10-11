@@ -1,51 +1,60 @@
 // POST /api/v1/posts/[id]/reactions { kind } — toggle a like /
-// bookmark on a post. Mirrors the togglePostReaction server action.
+// bookmark on a published post. Mirrors the togglePostReaction server
+// action.
 
-import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { withBearerAuth } from "@/lib/auth/api-bearer";
 import { decideToggle, normaliseReactionKind } from "@/lib/posts/reactions";
+import {
+  LIMITS,
+  badRequest,
+  json,
+  notFound,
+  parseId,
+  readJson,
+  requireOrgAccessForResource,
+  v1Route,
+} from "@/lib/api/v1";
 
 export const runtime = "nodejs";
 
-export const POST = withBearerAuth(async (req: NextRequest, { user }) => {
-  const segments = req.nextUrl.pathname.split("/");
-  const postId = segments[segments.length - 2];
-  let body: { kind?: string };
-  try {
-    body = (await req.json()) as never;
-  } catch {
-    return NextResponse.json({ error: "bad_json" }, { status: 400 });
-  }
-  let kind: string;
-  try {
-    kind = normaliseReactionKind(String(body.kind ?? ""));
-  } catch {
-    return NextResponse.json({ error: "bad_kind" }, { status: 400 });
-  }
-  const post = await prisma.post.findUnique({
-    where: { id: postId },
-    select: { id: true, orgId: true },
-  });
-  if (!post) return NextResponse.json({ error: "not_found" }, { status: 404 });
-  const member = await prisma.orgMembership.findFirst({
-    where: { orgId: post.orgId, userId: user.id },
-    select: { role: true },
-  });
-  if (!member) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+const Body = z.object({ kind: z.string().max(32) });
 
-  const existing = await prisma.postReaction.findUnique({
-    where: { postId_userId_kind: { postId, userId: user.id, kind } },
-  });
-  const op = decideToggle({ existing, kind });
-  if (op === "insert") {
-    await prisma.postReaction.create({
-      data: { postId, userId: user.id, kind },
+export const POST = v1Route<{ id: string }>(
+  async (req, { user, params }) => {
+    const postId = parseId(params.id);
+    const input = await readJson(req, Body).catch((err) => {
+      if (err instanceof z.ZodError) throw badRequest("bad_kind");
+      throw err;
     });
-  } else if (existing) {
-    await prisma.postReaction.delete({
-      where: { postId_userId_kind: { postId, userId: user.id, kind } },
+    let kind: string;
+    try {
+      kind = normaliseReactionKind(input.kind);
+    } catch {
+      throw badRequest("bad_kind");
+    }
+
+    const post = await prisma.post.findUnique({
+      where: { id: postId },
+      select: { id: true, orgId: true, publishedAt: true },
     });
-  }
-  return NextResponse.json({ ok: true, kind, action: op });
-});
+    if (!post || !post.publishedAt || post.publishedAt > new Date()) throw notFound();
+    await requireOrgAccessForResource(post.orgId, user.id, { write: true });
+
+    const where = { postId_userId_kind: { postId, userId: user.id, kind } };
+    const existing = await prisma.postReaction.findUnique({ where });
+    const op = decideToggle({ existing, kind });
+    if (op === "insert") {
+      await prisma.postReaction
+        .create({ data: { postId, userId: user.id, kind } })
+        .catch((err: { code?: string }) => {
+          // A double-tap racing itself: the row is already there.
+          if (err?.code !== "P2002") throw err;
+        });
+    } else {
+      await prisma.postReaction.deleteMany({ where: { postId, userId: user.id, kind } });
+    }
+    return json({ ok: true, kind, action: op });
+  },
+  { limits: [LIMITS.reaction] },
+);

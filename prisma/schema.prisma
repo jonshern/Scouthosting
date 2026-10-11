@@ -2536,3 +2536,15 @@ model Patrol {
   @@index([orgId, archived])
 }
 
+
+// Fixed-window rate-limit counters, shared across every app instance.
+// One row per bucket key ("v1:ip:<addr>", "v1:user:<id>:write", ...).
+// Rows are upserted atomically by src/lib/security/rate-limit.ts and
+// swept opportunistically once their window has passed.
+model RateLimitBucket {
+  key     String   @id
+  count   Int
+  resetAt DateTime
+
+  @@index([resetAt])
+}
