@@ -75,6 +75,14 @@ on the platform's client-IP header only; see `CLIENT_IP_HEADER` in
 Use `requireOrgAccess` / `requireOrgAccessForResource` for membership
 and `readJson` / `readQuery` with a zod schema for input.
 
+One public, unauthenticated JSON route sits outside v1:
+`POST /api/events/<publicSlug>/signups` (Waypoint's badge day sign-ups,
+`src/lib/events/public-signup.ts`). It addresses events by
+`Event.publicSlug` and slots by `SignupSlot.key` (`station:<id>`,
+`role:<id>`); leaders set the slug on the event form and create keyed
+slots by pasting the Waypoint event file on the event's admin page.
+It's passed through un-rewritten on tenant hosts.
+
 `/auth/mobile/begin` is also apex-friendly (works without `req.org`)
 so the mobile in-app browser can sign in at the apex.
 

@@ -10,6 +10,7 @@ type Row = {
   slotId: string;
   userId: string | null;
   email: string | null;
+  scoutName: string;
   waitlisted: boolean;
   createdAt: Date;
 };
@@ -55,6 +56,11 @@ function makeTx(slot: { capacity: number; allowWaitlist: boolean }, rows: Row[] 
       updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Partial<Row> }) => {
         for (const r of rows) if (matches(r, where)) Object.assign(r, data);
       },
+      update: async ({ where, data }: { where: { id: string }; data: Partial<Row> }) => {
+        const r = rows.find((x) => x.id === where.id)!;
+        Object.assign(r, data);
+        return r;
+      },
     },
   };
   return { tx: tx as never, rows, calls };
@@ -65,6 +71,7 @@ const row = (id: string, over: Partial<Row> = {}): Row => ({
   slotId: "s1",
   userId: null,
   email: `${id}@example.invalid`,
+  scoutName: "",
   waitlisted: false,
   createdAt: new Date(Number(id.replace(/\D/g, "")) * 1000),
   ...over,
@@ -108,6 +115,37 @@ describe("claimSlot", () => {
       row("a1", { waitlisted: true }),
     ]);
     await expect(claimSlot(tx, claim("b@x"))).resolves.toEqual({ waitlisted: false });
+  });
+
+  it("one guardian can hold a seat for each of two scouts", async () => {
+    const { tx, rows } = makeTx({ capacity: 5, allowWaitlist: true });
+    await claimSlot(tx, { ...claim("p@x"), scoutName: "Alex P.", idempotent: true });
+    await claimSlot(tx, { ...claim("p@x"), scoutName: "Sam P.", idempotent: true });
+    expect(rows.map((r) => r.scoutName)).toEqual(["Alex P.", "Sam P."]);
+  });
+
+  it("idempotent: the same scout again returns the existing seat", async () => {
+    const { tx, rows } = makeTx({ capacity: 1, allowWaitlist: true });
+    await claimSlot(tx, { ...claim("p@x"), scoutName: "Alex P.", idempotent: true });
+    const again = await claimSlot(tx, { ...claim("p@x"), scoutName: "Alex P.", idempotent: true });
+    expect(again).toEqual({ waitlisted: false, existing: true });
+    expect(rows).toHaveLength(1);
+  });
+
+  it("idempotent: a full no-waitlist slot still answers a repeat claim", async () => {
+    const { tx } = makeTx({ capacity: 1, allowWaitlist: false }, [row("a1", { userId: "u1" })]);
+    await expect(claimSlot(tx, { ...claim("x@x", "u1"), idempotent: true })).resolves.toEqual({
+      waitlisted: false,
+      existing: true,
+    });
+  });
+
+  it("idempotent: a signed-in user adopts their earlier guest claim", async () => {
+    const { tx, rows } = makeTx({ capacity: 1, allowWaitlist: true }, [row("a1")]);
+    const r = await claimSlot(tx, { ...claim("a1@example.invalid", "u1"), idempotent: true });
+    expect(r.existing).toBe(true);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].userId).toBe("u1");
   });
 });
 

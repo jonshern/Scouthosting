@@ -7,6 +7,14 @@ import { json, notFound, parseId, requireOrgAccessForResource, v1Route } from "@
 
 export const runtime = "nodejs";
 
+function seatOf(
+  assignments: { userId: string | null; waitlisted: boolean }[],
+  userId: string,
+): "active" | "waitlisted" | null {
+  const mine = assignments.find((a) => a.userId === userId);
+  return mine ? (mine.waitlisted ? "waitlisted" : "active") : null;
+}
+
 export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
   const id = parseId(params.id);
   const event = await prisma.event.findUnique({
@@ -17,7 +25,7 @@ export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
       },
       slots: {
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-        include: { assignments: { select: { waitlisted: true } } },
+        include: { assignments: { select: { waitlisted: true, userId: true } } },
       },
     },
   });
@@ -55,6 +63,8 @@ export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
         allowWaitlist: s.allowWaitlist,
         active: s.assignments.filter((a) => !a.waitlisted).length,
         waitlisted: s.assignments.filter((a) => a.waitlisted).length,
+        // The caller's own seat, so the app can offer take or release.
+        mine: seatOf(s.assignments, user.id),
       })),
     },
   });
