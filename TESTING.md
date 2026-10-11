@@ -10,6 +10,11 @@ is testing-specific.
   `tests/vitest-setup.ts`. Run with `npm test` (or `npm run test:watch`).
   Pure-functional code (encryption primitives, calendar recurrence,
   markdown, parsers, validation) lives next to the module it tests.
+  `*.db.test.ts` files run against real Postgres and are skipped
+  unless `TEST_DATABASE_URL` points at a migrated, disposable DB:
+  `TEST_DATABASE_URL=postgresql://postgres@localhost:5433/compass_test npm test`.
+  `src/lib/api/v1-routes.db.test.ts` drives every `/api/v1` route
+  handler this way (auth, org access, validation, rate limits).
 - **Playwright + axe E2E** — `tests/e2e/*.spec.ts` (29 specs as of
   2026-05-06). Run with `npx playwright test`. Boots
   `npm run start` against a fresh `compass_test` database.

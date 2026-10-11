@@ -1,60 +1,71 @@
 // POST /api/v1/events/[id]/rsvp — submit an RSVP for the
-// authenticated user. Body: { response, guests?, notes? }.
+// authenticated user. Body: { response?, guests?, notes? }.
 
-import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { withBearerAuth } from "@/lib/auth/api-bearer";
-import { requireOrgMember } from "@/lib/api/org-resolve";
+import {
+  LIMITS,
+  json,
+  notFound,
+  parseId,
+  readJson,
+  requireOrgAccessForResource,
+  v1Route,
+} from "@/lib/api/v1";
 
 export const runtime = "nodejs";
 
-export const POST = withBearerAuth(async (req: NextRequest, { user }) => {
-  const segments = req.nextUrl.pathname.split("/");
-  const id = segments[segments.length - 2] ?? "";
-  const event = await prisma.event.findUnique({
-    where: { id },
-    select: { id: true, orgId: true },
-  });
-  if (!event) return NextResponse.json({ error: "not_found" }, { status: 404 });
-  const member = await requireOrgMember(event.orgId, user.id);
-  if (!member) return NextResponse.json({ error: "forbidden" }, { status: 403 });
-
-  let body: { response?: string; guests?: number; notes?: string };
-  try {
-    body = (await req.json()) as never;
-  } catch {
-    return NextResponse.json({ error: "bad_json" }, { status: 400 });
-  }
-  const response = body.response ?? "yes";
-  if (!["yes", "no", "maybe"].includes(response)) {
-    return NextResponse.json({ error: "bad_response" }, { status: 400 });
-  }
-  const guests = Number.isFinite(body.guests) ? Math.max(0, Math.floor(body.guests!)) : 0;
-  const notes = body.notes ? String(body.notes).slice(0, 1000) : null;
-
-  const existing = await prisma.rsvp.findFirst({
-    where: { eventId: event.id, userId: user.id },
-    select: { id: true },
-  });
-  let rsvp;
-  if (existing) {
-    rsvp = await prisma.rsvp.update({
-      where: { id: existing.id },
-      data: { response, guests, notes },
-    });
-  } else {
-    rsvp = await prisma.rsvp.create({
-      data: {
-        orgId: event.orgId,
-        eventId: event.id,
-        userId: user.id,
-        name: user.displayName,
-        email: user.email,
-        response,
-        guests,
-        notes,
-      },
-    });
-  }
-  return NextResponse.json({ rsvp: { id: rsvp.id, response: rsvp.response, guests: rsvp.guests } });
+const Body = z.object({
+  response: z.enum(["yes", "no", "maybe"], { message: "bad_response" }).default("yes"),
+  guests: z.number().int().min(0).max(20).default(0),
+  notes: z.string().trim().max(1000).optional().nullable(),
 });
+
+export const POST = v1Route<{ id: string }>(
+  async (req, { user, params }) => {
+    const id = parseId(params.id);
+    const event = await prisma.event.findUnique({
+      where: { id },
+      select: { id: true, orgId: true },
+    });
+    if (!event) throw notFound();
+    await requireOrgAccessForResource(event.orgId, user.id, { write: true });
+
+    const input = await readJson(req, Body);
+    const data = { response: input.response, guests: input.guests, notes: input.notes || null };
+
+    // Rsvp is unique on (eventId, userId) and on (eventId, email): an
+    // RSVP made earlier from the public link with this email is the
+    // same person, so adopt it rather than tripping the constraint.
+    const existing =
+      (await prisma.rsvp.findUnique({
+        where: { eventId_userId: { eventId: event.id, userId: user.id } },
+        select: { id: true },
+      })) ??
+      (await prisma.rsvp.findFirst({
+        where: {
+          eventId: event.id,
+          email: { equals: user.email, mode: "insensitive" },
+          userId: null,
+        },
+        select: { id: true },
+      }));
+    const rsvp = existing
+      ? await prisma.rsvp.update({
+          where: { id: existing.id },
+          data: { ...data, userId: user.id },
+        })
+      : await prisma.rsvp.create({
+          data: {
+            orgId: event.orgId,
+            eventId: event.id,
+            userId: user.id,
+            name: user.displayName,
+            email: user.email,
+            ...data,
+          },
+        });
+    return json({ rsvp: { id: rsvp.id, response: rsvp.response, guests: rsvp.guests } });
+  },
+  { limits: [LIMITS.rsvp] },
+);

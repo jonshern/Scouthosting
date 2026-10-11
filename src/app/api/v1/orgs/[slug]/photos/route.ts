@@ -1,20 +1,13 @@
 // GET /api/v1/orgs/[id-or-slug]/photos — albums + previews for the
 // mobile Photos screen.
 
-import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { withBearerAuth } from "@/lib/auth/api-bearer";
-import { findOrgByIdOrSlug, requireOrgMember } from "@/lib/api/org-resolve";
+import { json, requireOrgAccess, v1Route } from "@/lib/api/v1";
 
 export const runtime = "nodejs";
 
-export const GET = withBearerAuth(async (req: NextRequest, { user }) => {
-  const segments = req.nextUrl.pathname.split("/");
-  const idOrSlug = segments[segments.length - 2] ?? "";
-  const org = await findOrgByIdOrSlug(idOrSlug);
-  if (!org) return NextResponse.json({ error: "not_found" }, { status: 404 });
-  const member = await requireOrgMember(org.id, user.id);
-  if (!member) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+export const GET = v1Route<{ slug: string }>(async (_req, { user, params }) => {
+  const { org } = await requireOrgAccess(params.slug, user.id);
 
   const albums = await prisma.album.findMany({
     where: { orgId: org.id },
@@ -29,7 +22,7 @@ export const GET = withBearerAuth(async (req: NextRequest, { user }) => {
       _count: { select: { photos: true } },
     },
   });
-  return NextResponse.json({
+  return json({
     albums: albums.map((a) => ({
       id: a.id,
       title: a.title,

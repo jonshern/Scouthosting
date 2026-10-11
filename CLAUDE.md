@@ -68,6 +68,13 @@ The `/api/v1/*` routes don't care about Host — they take a bearer
 token, look up the user, resolve the org from path params or token
 claim. That's why mobile works against any host with no wildcard DNS.
 
+Every v1 route is built with `v1Route()` from `src/lib/api/v1.ts`: it
+does bearer auth, Postgres-backed rate limits (`RateLimitBucket`, keyed
+on the platform's client-IP header only; see `CLIENT_IP_HEADER` in
+`.env.example`), `{ error: "<code>" }` error shapes and `no-store`.
+Use `requireOrgAccess` / `requireOrgAccessForResource` for membership
+and `readJson` / `readQuery` with a zod schema for input.
+
 `/auth/mobile/begin` is also apex-friendly (works without `req.org`)
 so the mobile in-app browser can sign in at the apex.
 

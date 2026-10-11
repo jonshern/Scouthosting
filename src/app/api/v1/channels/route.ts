@@ -1,26 +1,37 @@
-// GET /api/v1/channels — channels the bearer-auth user is a member
-// of. Mobile chat list view.
+// GET /api/v1/channels?orgId= — channels the bearer-auth user is a
+// member of. Mobile chat list view. Only orgs the user still belongs
+// to are included, so a stale ChannelMember row left behind after
+// someone leaves a unit can't keep its chat visible.
 
-import { NextResponse, type NextRequest } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { withBearerAuth } from "@/lib/auth/api-bearer";
+import { IdSchema, json, readQuery, v1Route } from "@/lib/api/v1";
 
 export const runtime = "nodejs";
 
-export const GET = withBearerAuth(async (req: NextRequest, { user }) => {
-  const orgId = req.nextUrl.searchParams.get("orgId");
-  const where: Record<string, unknown> = {
-    members: { some: { userId: user.id } },
-    archivedAt: null,
-  };
-  if (orgId) where.orgId = orgId;
+const Query = z.object({ orgId: IdSchema.optional() });
+
+export const GET = v1Route(async (req, { user }) => {
+  const { orgId } = readQuery(req, Query);
+
+  const memberships = await prisma.orgMembership.findMany({
+    where: { userId: user.id, ...(orgId ? { orgId } : {}) },
+    select: { orgId: true },
+  });
+  const orgIds = memberships.map((m) => m.orgId);
+  if (!orgIds.length) return json({ channels: [] });
 
   const rows = await prisma.channel.findMany({
-    where: where as never,
+    where: {
+      orgId: { in: orgIds },
+      members: { some: { userId: user.id } },
+      archivedAt: null,
+    },
     orderBy: { updatedAt: "desc" },
     take: 200,
     include: {
       messages: {
+        where: { deletedAt: null },
         orderBy: { createdAt: "desc" },
         take: 1,
         select: {
@@ -36,7 +47,7 @@ export const GET = withBearerAuth(async (req: NextRequest, { user }) => {
     },
   });
 
-  return NextResponse.json({
+  return json({
     channels: rows.map((c) => {
       const lastMessage = c.messages[0];
       const myMembership = c.members[0];
