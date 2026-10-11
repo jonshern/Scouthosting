@@ -243,6 +243,10 @@ model User {
   totpSecret         String?
   totpEnrolledAt     DateTime?
   totpLastUsedAt     DateTime?
+  // When the user confirmed they are 18 or older. Every new sign-up
+  // (password or Google/Apple) must confirm before using the app;
+  // accounts that existed before the policy were backfilled.
+  adultAttestedAt    DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -1559,6 +1563,9 @@ model ApiToken {
   tokenHash  String    @unique
   lastUsedAt DateTime?
   revokedAt  DateTime?
+  // Tokens stop working after this. Null only on rows minted before
+  // expiry existed; the migration that added it backfilled those.
+  expiresAt  DateTime?
   createdAt  DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

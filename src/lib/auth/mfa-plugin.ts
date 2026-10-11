@@ -10,6 +10,11 @@
 //     (auth.api.verifyCompassMfa) checks the code and only then creates
 //     the session.
 //
+// Clicking an email link (/verify-email) never signs anyone in: a
+// session that link would create is deleted again, so the link can't
+// stand in for the password, SSO or MFA steps. A browser that was
+// already signed in keeps its session.
+//
 // Same shape as Better Auth's two-factor plugin, which Compass can't use
 // directly (see ./auth.ts).
 
@@ -45,6 +50,21 @@ export const compassMfa = () =>
     id: "compass-mfa",
     hooks: {
       after: [
+        {
+          matcher: (ctx) => ctx.path === "/verify-email",
+          handler: createAuthMiddleware(async (ctx) => {
+            const data = ctx.context.newSession;
+            if (!data) return;
+            const existing = await ctx.getSignedCookie(
+              ctx.context.authCookies.sessionToken.name,
+              ctx.context.secret,
+            );
+            if (existing && existing === data.session.token) return;
+            deleteSessionCookie(ctx, true);
+            await ctx.context.internalAdapter.deleteSession(data.session.token);
+            ctx.context.setNewSession(null);
+          }),
+        },
         {
           matcher: (ctx) => ctx.path === "/sign-in/email" || isOAuthCallback(ctx.path),
           handler: createAuthMiddleware(async (ctx) => {

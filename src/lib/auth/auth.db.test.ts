@@ -249,4 +249,57 @@ describe.skipIf(!url)("Better Auth sign-in (database)", () => {
       expect((await m.prisma.org.findUnique({ where: { id: o.id } }))?.ownerId).toBe(res.user.id);
     });
   });
+
+  describe("changing email", () => {
+    it("keeps the old address until the link sent to the new one is clicked", async () => {
+      const user = await migratedUser("old@authtest.invalid");
+      const { headers } = await signIn("old@authtest.invalid");
+      const cookie = cookieHeader(headers.getSetCookie());
+      await m.auth.api.changeEmail({
+        body: { newEmail: "new@authtest.invalid" },
+        headers: new Headers({ cookie }),
+      });
+      expect((await m.prisma.user.findUnique({ where: { id: user.id } }))?.email).toBe(
+        "old@authtest.invalid",
+      );
+
+      const { createEmailVerificationToken } = await import("better-auth/api");
+      const ctx = await m.auth.$context;
+      const token = await createEmailVerificationToken(
+        ctx.secret,
+        "old@authtest.invalid",
+        "new@authtest.invalid",
+        undefined,
+        { requestType: "change-email-verification" },
+      );
+      await m.auth.api.verifyEmail({ query: { token }, headers: new Headers({ cookie }) });
+      const after = await m.prisma.user.findUnique({ where: { id: user.id } });
+      expect(after?.email).toBe("new@authtest.invalid");
+      expect(after?.emailVerified).toBe(true);
+    });
+
+    it("doesn't sign in a browser that clicks the link while signed out", async () => {
+      const secret = m.generateSecret();
+      await migratedUser("mfa-change@authtest.invalid", { totpSecret: secret });
+      const before = await sessionCount();
+      const { createEmailVerificationToken } = await import("better-auth/api");
+      const ctx = await m.auth.$context;
+      const token = await createEmailVerificationToken(
+        ctx.secret,
+        "mfa-change@authtest.invalid",
+        "mfa-new@authtest.invalid",
+        undefined,
+        { requestType: "change-email-verification" },
+      );
+      const { headers } = await m.auth.api.verifyEmail({
+        query: { token },
+        headers: new Headers(),
+        returnHeaders: true,
+      });
+      expect(await sessionCount()).toBe(before);
+      expect(
+        headers.getSetCookie().some((c) => /^compass_session=[^;]+/.test(c) && !/Max-Age=0/i.test(c)),
+      ).toBe(false);
+    });
+  });
 });

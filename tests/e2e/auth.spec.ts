@@ -15,6 +15,7 @@ test.describe("auth flows", () => {
       if (el) el.removeAttribute("minlength");
     });
     await page.getByLabel("Password").fill("short");
+    await page.getByLabel(/18 or older/).check();
     // wait past the honeypot dwell time
     await page.waitForTimeout(1700);
     await page.getByRole("button", { name: /create account/i }).click();
@@ -27,6 +28,7 @@ test.describe("auth flows", () => {
     await page.getByLabel("Your name").fill("Pat Tester");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill("CorrectHorseBatteryStaple!");
+    await page.getByLabel(/18 or older/).check();
     await page.waitForTimeout(1700);
     await page.getByRole("button", { name: /create account/i }).click();
     // New account with no org memberships lands on /account/profile per
@@ -34,6 +36,17 @@ test.describe("auth flows", () => {
     await page.waitForURL(/\/account\/profile/);
     const cookies = await page.context().cookies();
     expect(cookies.some((c) => c.name === "compass_session")).toBe(true);
+  });
+
+  test("signup requires confirming the user is an adult", async ({ page }) => {
+    await page.goto("/signup");
+    await page.getByLabel("Your name").fill("Pat Tester");
+    await page.getByLabel("Email").fill(`minor+${Date.now()}@example.invalid`);
+    await page.getByLabel("Password").fill("CorrectHorseBatteryStaple!");
+    await page.waitForTimeout(1700);
+    await page.getByRole("button", { name: /create account/i }).click();
+    await expect(page.getByRole("alert")).toContainText(/18 or older/);
+    await expect(page).toHaveURL(/\/signup/);
   });
 
   test("login with seeded credentials succeeds", async ({ page }) => {

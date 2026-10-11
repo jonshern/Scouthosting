@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getSession } from "@/lib/auth/session";
 import { classifyHost } from "@/lib/tenancy/resolve";
+import { accountStanding, requirementRedirect, withNext } from "@/lib/auth/requirements";
 
 export default async function SuperLayout({ children }: { children: React.ReactNode }) {
   const h = await headers();
@@ -19,6 +20,8 @@ export default async function SuperLayout({ children }: { children: React.ReactN
   if (!user || !user.isSuperAdmin) {
     redirect("/login?next=/super-admin");
   }
+  const gate = requirementRedirect(await accountStanding(user.id), { organizerSurface: true });
+  if (gate) redirect(withNext(gate, "/super-admin"));
 
   return (
     <div className="mx-auto max-w-content px-6 py-12">

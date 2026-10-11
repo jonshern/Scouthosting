@@ -76,6 +76,9 @@ export const auth = betterAuth({
       isSuperAdmin: { type: "boolean", defaultValue: false, input: false },
       totpEnrolledAt: { type: "date", required: false, input: false },
     },
+    // A new address is applied only after the link sent to it is
+    // clicked (server-actions/account.ts#updateProfile).
+    changeEmail: { enabled: true },
   },
 
   session: {

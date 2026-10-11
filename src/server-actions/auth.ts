@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { isAPIError } from "better-auth/api";
 import { auth } from "@/lib/auth/auth";
+import { prisma } from "@/lib/db";
 import { LoginSchema, SignupSchema } from "@/lib/validation/schemas";
 import { postLoginRedirectUrl } from "@/lib/auth/post-login";
 import { MFA_PAGE } from "@/lib/auth/mfa-plugin";
@@ -48,6 +49,10 @@ export async function signupAction(_prev: ActionState, formData: FormData): Prom
   const parsed = SignupSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   const { email, password, displayName } = parsed.data;
+  // Accounts are for adults only (lib/auth/requirements.ts).
+  if (formData.get("adult") !== "yes") {
+    return { error: "Confirm you are 18 or older. Scouts join through a parent's account." };
+  }
 
   let userId: string;
   try {
@@ -59,6 +64,7 @@ export async function signupAction(_prev: ActionState, formData: FormData): Prom
       headers: h,
     });
     userId = res.user.id;
+    await prisma.user.update({ where: { id: userId }, data: { adultAttestedAt: new Date() } });
   } catch (e) {
     const code = errorCode(e);
     if (code && code.startsWith("USER_ALREADY_EXISTS")) {

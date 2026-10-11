@@ -149,11 +149,12 @@ async function main() {
 
   const user = await prisma.user.upsert({
     where: { email: ADMIN_EMAIL },
-    update: { displayName: "Sample Scoutmaster", emailVerified: true },
+    update: { displayName: "Sample Scoutmaster", emailVerified: true, adultAttestedAt: new Date() },
     create: {
       email: ADMIN_EMAIL,
       displayName: "Sample Scoutmaster",
       emailVerified: true,
+      adultAttestedAt: new Date(),
     },
   });
   await upsertPassword(user.id, passwordHash);
@@ -161,12 +162,13 @@ async function main() {
   // Super-admin for /super-admin write-action tests.
   const superUser = await prisma.user.upsert({
     where: { email: SUPER_EMAIL },
-    update: { displayName: "Sample Super", emailVerified: true, isSuperAdmin: true },
+    update: { displayName: "Sample Super", emailVerified: true, isSuperAdmin: true, adultAttestedAt: new Date() },
     create: {
       email: SUPER_EMAIL,
       displayName: "Sample Super",
       emailVerified: true,
       isSuperAdmin: true,
+      adultAttestedAt: new Date(),
     },
   });
   await upsertPassword(superUser.id, passwordHash);

@@ -1,4 +1,5 @@
-// /account/profile — display name + email update.
+// /account/profile — display name + email update. A new email is only
+// applied after the link sent to it is clicked.
 
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
@@ -9,9 +10,9 @@ import { resendVerificationEmail, updateProfile } from "@/server-actions/account
 export default async function ProfilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ verified?: string; sent?: string }>;
+  searchParams: Promise<{ verified?: string; sent?: string; emailSent?: string }>;
 }) {
-  const { verified, sent } = await searchParams;
+  const { verified, sent, emailSent } = await searchParams;
   const { user } = await getSession();
   if (!user) redirect("/login?next=/account/profile");
   const u = await prisma.user.findUnique({
@@ -25,6 +26,11 @@ export default async function ProfilePage({
       {verified === "1" && u?.emailVerified && (
         <p role="status" className="mb-4 max-w-md rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
           Email confirmed.
+        </p>
+      )}
+      {emailSent === "1" && (
+        <p role="status" className="mb-4 max-w-md rounded border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+          We sent a link to your new address. Your email changes once you click it.
         </p>
       )}
       <form action={updateProfile} className="space-y-4 max-w-md">

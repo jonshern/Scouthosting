@@ -111,6 +111,7 @@ const f = {} as {
   draftPost: string;
   album: string;
   revokedToken: string;
+  expiredToken: string;
 };
 
 async function makeUser(label: string) {
@@ -202,6 +203,7 @@ describe.skipIf(!db)("/api/v1 (Postgres)", () => {
     const revoked = await issueToken(f.parent.id, "old phone", prisma);
     await revokeToken(revoked.id, prisma);
     f.revokedToken = revoked.raw;
+    f.expiredToken = (await issueToken(f.parent.id, "stale phone", prisma, -1000)).raw;
   });
 
   afterAll(async () => {
@@ -217,7 +219,7 @@ describe.skipIf(!db)("/api/v1 (Postgres)", () => {
 
   describe("authentication", () => {
     it("rejects missing, malformed, unknown and revoked tokens with 401 unauthorized", async () => {
-      for (const token of [null, "nope", "compass_pat_deadbeef", f.revokedToken]) {
+      for (const token of [null, "nope", "compass_pat_deadbeef", f.revokedToken, f.expiredToken]) {
         const r = await call(me.GET as Handler, { token });
         expect(r.status).toBe(401);
         expect(r.json).toEqual({ error: "unauthorized" });

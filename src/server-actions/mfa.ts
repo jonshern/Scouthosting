@@ -13,6 +13,7 @@ import {
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 import { verifyMfaCodeForUser } from "@/lib/auth/mfa-verify";
+import { accountStanding, mfaLocked } from "@/lib/auth/requirements";
 
 export type MfaState = { error?: string; ok?: true } | null;
 
@@ -160,6 +161,9 @@ export async function disableMfa(_prev: MfaState, formData: FormData): Promise<M
   });
   if (!dbUser) return { error: "Not signed in." };
   if (!dbUser.totpEnrolledAt) return { error: "MFA is not enabled." };
+  if (mfaLocked(await accountStanding(user.id))) {
+    return { error: "Leaders and admins must keep two-step sign-in on." };
+  }
   const ok = await verifyMfaCodeForUser(user.id, code);
   if (!ok) return { error: "That code is invalid." };
   await prisma.$transaction([
