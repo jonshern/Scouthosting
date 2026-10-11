@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth/session";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { ownedIdOrNull, ownedIds } from "@/lib/tenancy/owned";
+import { deleteEventWithSlipTrace } from "@/lib/events/delete";
 
 const Iso = z
   .string()
@@ -134,9 +135,12 @@ export async function deleteEvent(_prev: unknown, formData: FormData) {
   if (!parsed.success) return { error: "Invalid input." };
   const auth = await authorize(parsed.data.orgSlug);
   if ("error" in auth) return { error: auth.error };
-  await prisma.event.delete({
-    where: { id: parsed.data.id, orgId: auth.org.id },
+  const deleted = await deleteEventWithSlipTrace({
+    orgId: auth.org.id,
+    eventId: parsed.data.id,
+    user: auth.user,
   });
+  if (!deleted) return { error: "Event not found." };
   revalidatePath(`/o/${auth.org.slug}/admin/events`);
   revalidatePath(`/o/${auth.org.slug}/calendar`);
   updateTag("public-events");
