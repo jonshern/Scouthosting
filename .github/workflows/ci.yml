@@ -5,9 +5,11 @@ on:
   push:
     branches: [main]
 
+# A new push to a PR cancels its older run; every push to main runs to
+# the end, so each merge gets a full result.
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
