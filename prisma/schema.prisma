@@ -1555,7 +1555,8 @@ model RequirementProgressEvent {
 // A counselor meeting with one or more scouts. Youth protection: the
 // meeting stores who must be notified (CounselorMeetingNotify): every
 // linked parent of every scout, plus any other adults the counselor
-// named. Creating a meeting with nobody to notify is refused. Compass
+// named. Each scout needs a parent contact or another adult on the
+// meeting, or creating it is refused. Compass
 // doesn't send meeting notifications yet; whatever sends them must use
 // this list so parents are always copied, and never email a scout
 // directly.

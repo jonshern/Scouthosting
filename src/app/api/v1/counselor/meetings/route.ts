@@ -7,9 +7,10 @@
 //
 // Youth protection: every meeting stores who gets notified about it:
 // each scout's linked parents (always, automatically) plus any other
-// adult org members named in notifyAdultUserIds. A meeting with nobody
-// to notify (no parent contact and no other adult) is refused with
-// no_adult_notified. Compass doesn't send meeting notifications yet;
+// adult org members named in notifyAdultUserIds. Each scout must have
+// an adult copied: a parent contact of their own, or another adult on
+// the meeting; otherwise 400 { error: "no_adult_notified", scoutId }.
+// Compass doesn't send meeting notifications yet;
 // a sender must use this stored list so parents are always copied,
 // and must never email a scout directly.
 //
@@ -187,7 +188,12 @@ export const POST = v1Route(async (req, { user }) => {
   const parentRows = scouts.flatMap((s) =>
     (contacts.get(s.id) ?? []).map((c) => ({ kind: "parent", memberId: c.memberId, forMemberId: s.id })),
   );
-  if (parentRows.length + adults.length === 0) throw badRequest("no_adult_notified");
+  // Every scout needs an adult copied: one of their own parents, or
+  // another adult on the meeting.
+  if (input.notifyAdultUserIds.length === 0) {
+    const uncovered = input.scoutIds.find((id) => (contacts.get(id) ?? []).length === 0);
+    if (uncovered) throw badRequest("no_adult_notified", { scoutId: uncovered });
+  }
 
   const meeting = await prisma.counselorMeeting.create({
     data: {

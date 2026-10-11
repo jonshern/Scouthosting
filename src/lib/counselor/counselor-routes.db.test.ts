@@ -441,7 +441,11 @@ describe.skipIf(!db)("counselor /api/v1 routes (Postgres)", () => {
       });
       const none = await call(meetings.POST, { token: f.counselor.token, body: meeting({ scoutIds: [f.scoutB] }) });
       expect(none.status).toBe(400);
-      expect(none.json).toEqual({ error: "no_adult_notified" });
+      expect(none.json).toEqual({ error: "no_adult_notified", scoutId: f.scoutB });
+      // Mixed: A has a parent, B has none and no other adult is named.
+      const mixed = await call(meetings.POST, { token: f.counselor.token, body: meeting({ scoutIds: [f.scoutA, f.scoutB] }) });
+      expect(mixed.status).toBe(400);
+      expect(mixed.json).toEqual({ error: "no_adult_notified", scoutId: f.scoutB });
       const youth = await call(meetings.POST, {
         token: f.counselor.token,
         body: meeting({ scoutIds: [f.scoutB], notifyAdultUserIds: [f.scout.id] }),
