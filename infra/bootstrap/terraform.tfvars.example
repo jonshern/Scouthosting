@@ -1,0 +1,3 @@
+project_id         = "scouting-family-123456"
+billing_account_id = "XXXXXX-XXXXXX-XXXXXX"
+monthly_budget_usd = 25

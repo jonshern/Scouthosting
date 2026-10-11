@@ -3,7 +3,7 @@
 # Build:  docker build -t compass:latest .
 # Run:    docker run --rm -p 3000:3000 --env-file .env compass:latest
 
-FROM node:22-slim AS deps
+FROM node:22-trixie-slim AS deps
 WORKDIR /app
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
@@ -16,7 +16,7 @@ RUN npm ci --include=optional && npx prisma generate
 
 # ---------------------------------------------------------------------
 
-FROM node:22-slim AS builder
+FROM node:22-trixie-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -39,7 +39,7 @@ RUN npm run build
 
 # ---------------------------------------------------------------------
 
-FROM node:22-slim AS runtime
+FROM node:22-trixie-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -62,6 +62,8 @@ COPY --from=builder --chown=compass:compass /app/.next ./.next
 COPY --from=builder --chown=compass:compass /app/prisma ./prisma
 COPY --from=builder --chown=compass:compass /app/package.json ./package.json
 COPY --from=builder --chown=compass:compass /app/next.config.ts ./next.config.ts
+# scripts/migrate.sh runs as the GCP migrate job (infra/).
+COPY --from=builder --chown=compass:compass /app/scripts ./scripts
 
 USER compass
 
@@ -73,5 +75,7 @@ HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
   CMD wget -qO- http://localhost:3000/health || exit 1
 
 # Run pending migrations on boot, then start Next. `prisma migrate
-# deploy` is idempotent — multi-instance roll-outs converge.
+# deploy` is idempotent — multi-instance roll-outs converge. (fly.io uses
+# this; on GCP, Cloud Run overrides it to `npm run start` and migrations
+# run as a separate job.)
 CMD ["sh", "-c", "npx prisma migrate deploy && npm run start"]

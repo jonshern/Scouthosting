@@ -42,6 +42,10 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma migrate deploy
+      # Fails when schema.prisma has changes no migration creates (a
+      # missing table, foreign key or index).
+      - name: Migrations match schema
+        run: npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test

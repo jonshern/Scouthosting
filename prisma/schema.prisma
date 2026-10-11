@@ -465,6 +465,10 @@ model Member {
   prospectNote      String? // free-form: what grade is the kid? what unit are they coming from?
   firstContactedAt  DateTime? // set on first /admin/leads "Mark contacted" or send
   lastContactedAt   DateTime? // updated on every contact event
+  // When status last became "alumni" (left the unit). Cleared if they
+  // come back. The youth retention sweep deletes a scout's records 18
+  // months after this (src/lib/retention/scouts.ts).
+  leftAt            DateTime?
   // Soft delete. /admin/members "Remove" sets this; the row stays in
   // place so parent linkages, audit history, and contributed content
   // (posts/comments/photos) keep their attribution. /admin/members/

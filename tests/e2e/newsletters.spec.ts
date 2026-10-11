@@ -26,7 +26,9 @@ test.describe("newsletters", () => {
     await page.getByLabel("Timezone (IANA)").fill("America/Chicago");
     await page.locator("input[name=minStories]").fill("4");
     await page.getByRole("button", { name: /^save$/i }).click();
-    await page.waitForURL(/\/admin\/newsletters/);
+    // The schedule page's own URL already matches /admin/newsletters, so wait
+    // for the redirect the save action sends, or a slow save loses the race.
+    await page.waitForURL(/\/admin\/newsletters\?saved=1/);
 
     await page.goto(`${TENANT}/admin/newsletters/schedule`);
     await expect(page.getByLabel("Weekday (1=Mon … 7=Sun)")).toHaveValue("3");

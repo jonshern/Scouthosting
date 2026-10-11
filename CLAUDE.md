@@ -158,6 +158,10 @@ the test path doesn't need the SDK either.
 folders silently stayed local and `prisma migrate deploy` in production
 never created their tables. It's tracked normally now; check
 `git status` shows your new folder before pushing a schema change.
+CI runs `prisma migrate diff --exit-code` after applying migrations, so
+a schema change without a matching migration fails the build. Back up
+the database before deploying any migration that deletes rows (for
+example `20261011130000_align_constraint_names` clears orphaned rows).
 
 ### 11. CI
 
