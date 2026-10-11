@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { googleCalendarAddUrl } from "@/lib/calendar/ical";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { RsvpForm } from "@/components/calendar/RsvpForm";
 import { SlotSignupForm } from "@/components/calendar/SlotSignupForm";

@@ -2,7 +2,7 @@
 // /api/v1/auth/token (requires the cookie session).
 
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { revokeApiToken } from "@/server-actions/account";

@@ -18,9 +18,12 @@ type EnrollPayload = {
 export function MfaSettings({
   enrolled,
   csrf,
+  next,
 }: {
   enrolled: boolean;
   csrf: React.ReactNode;
+  // Where to go once 2FA is on, when a page sent the user here to set it up.
+  next?: string;
 }) {
   const [enrollment, setEnrollment] = useState<EnrollPayload | null>(null);
   const [enrollError, setEnrollError] = useState<string | null>(null);
@@ -122,7 +125,9 @@ export function MfaSettings({
             <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">{confirmState.error}</div>
           )}
           {confirmState?.ok && (
-            <div role="status" className="text-sm text-green-700 bg-green-50 border border-green-200 rounded p-3">2FA enabled. Reload to see your settings.</div>
+            <div role="status" className="text-sm text-green-700 bg-green-50 border border-green-200 rounded p-3">2FA enabled.{" "}
+              {next ? <a href={next} className="underline">Continue</a> : "Reload to see your settings."}
+            </div>
           )}
           <button type="submit" disabled={confirmPending} className="btn-primary">{confirmPending ? "Confirming…" : "Confirm and enable 2FA"}</button>
         </form>

@@ -9,13 +9,12 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyPermSlipToken } from "@/lib/security/perm-slip-token";
 import { canSignSlip, effectiveSlipText } from "@/lib/permission-slips";
+import { clientIp as trustedClientIp } from "@/lib/security/client-ip";
 
+// The signer's IP goes on the consent record, so read it from the header
+// the platform sets, not the client-supplied front of X-Forwarded-For.
 function clientIp(req: Request): string | null {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) return xff.split(",")[0]!.trim();
-  const real = req.headers.get("x-real-ip");
-  if (real) return real.trim();
-  return null;
+  return trustedClientIp(req.headers);
 }
 
 export async function POST(

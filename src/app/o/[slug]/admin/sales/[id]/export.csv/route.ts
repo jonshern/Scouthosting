@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";

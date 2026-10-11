@@ -1,17 +1,11 @@
-import { cookies } from "next/headers";
-import { lucia } from "./lucia";
+import { headers } from "next/headers";
+import { auth } from "./auth";
 
-export async function createSession(userId: string): Promise<void> {
-  const session = await lucia.createSession(userId, {});
-  const cookie = lucia.createSessionCookie(session.id);
-  const cookieStore = await cookies();
-  cookieStore.set(cookie.name, cookie.value, cookie.attributes);
-}
-
+/** Sign out the current browser: deletes the Session row and clears the cookie. */
 export async function endSession(): Promise<void> {
-  const cookieStore = await cookies();
-  const sessionId = cookieStore.get(lucia.sessionCookieName)?.value;
-  if (sessionId) await lucia.invalidateSession(sessionId);
-  const cookie = lucia.createBlankSessionCookie();
-  cookieStore.set(cookie.name, cookie.value, cookie.attributes);
+  try {
+    await auth.api.signOut({ headers: await headers() });
+  } catch {
+    // No session to end; the cookie is already gone or invalid.
+  }
 }

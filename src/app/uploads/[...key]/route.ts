@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { get, head } from "@/lib/storage/local";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { roleInOrg } from "@/lib/auth/role";
 import { decryptBytes, unwrapDekWithMaster } from "@/lib/encryption";
 

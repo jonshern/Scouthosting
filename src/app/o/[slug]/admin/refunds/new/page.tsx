@@ -3,7 +3,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { issueRefund } from "@/server-actions/refunds";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";

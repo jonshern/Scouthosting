@@ -1,55 +1,68 @@
-// GET /auth/mobile/begin?redirect=compass://auth/callback
+// /auth/mobile/begin?redirect=compass://auth/callback
 //
-// The mobile app opens this URL in an in-app browser. If the user
-// has a Lucia cookie session we mint a fresh API token and redirect
-// to the deep-link with ?token=...&userId=...&displayName=... .
-// Otherwise we send them to /login?next=/auth/mobile/begin?redirect=...
-// so the same in-app browser handles the sign-in round-trip.
+// The mobile app opens this URL in an in-app browser.
+//
+// GET: signed out → /login?next=<this URL>, so the same in-app browser
+// handles the sign-in round-trip. Signed in → /auth/mobile/confirm,
+// which asks "Sign in to the Compass app as <name>?". A plain link to
+// this URL therefore never hands a token to anyone by itself.
+//
+// POST (the confirm page's form, same origin + CSRF): mints an API
+// token that expires (lib/auth/api-token.ts) and redirects to the deep
+// link with ?token=...&userId=...&displayName=... .
 
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { issueToken } from "@/lib/auth/api-token";
+import { isProd } from "@/lib/env";
+import { allowedMobileRedirect } from "@/lib/auth/mobile-redirect";
+import { accountStanding, requirementRedirect, withNext } from "@/lib/auth/requirements";
+import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 
 export const runtime = "nodejs";
 
-const ALLOWED_REDIRECT_SCHEMES = new Set(["compass", "exp", "http", "https"]);
-
 export async function GET(req: NextRequest) {
   const redirectRaw = req.nextUrl.searchParams.get("redirect") ?? "";
-  let redirectUrl: URL;
-  try {
-    redirectUrl = new URL(redirectRaw);
-  } catch {
+  if (!allowedMobileRedirect(redirectRaw, isProd())) {
     return NextResponse.json({ error: "bad_redirect" }, { status: 400 });
   }
-  // Reject schemes we don't expect — guards against open-redirect via
-  // javascript: / data: / file: / etc.
-  const scheme = redirectUrl.protocol.replace(/:$/, "");
-  if (!ALLOWED_REDIRECT_SCHEMES.has(scheme)) {
-    return NextResponse.json({ error: "bad_scheme" }, { status: 400 });
-  }
+  const self = `/auth/mobile/begin?redirect=${encodeURIComponent(redirectRaw)}`;
 
   const { user } = await getSession();
   if (!user) {
-    const next = `/auth/mobile/begin?redirect=${encodeURIComponent(redirectRaw)}`;
-    return NextResponse.redirect(
-      new URL(`/login?next=${encodeURIComponent(next)}`, req.url),
-    );
+    return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(self)}`, req.url));
+  }
+  const gate = requirementRedirect(await accountStanding(user.id), { organizerSurface: true });
+  if (gate) return NextResponse.redirect(new URL(withNext(gate, self), req.url));
+
+  return NextResponse.redirect(
+    new URL(`/auth/mobile/confirm?redirect=${encodeURIComponent(redirectRaw)}`, req.url),
+  );
+}
+
+export async function POST(req: NextRequest) {
+  const form = await req.formData();
+  if (!(await verifyOrigin()) || !(await verifyCsrf(String(form.get("_csrf") ?? "")))) {
+    return NextResponse.json({ error: "bad_request" }, { status: 403 });
+  }
+  const redirectRaw = String(form.get("redirect") ?? "");
+  const redirectUrl = allowedMobileRedirect(redirectRaw, isProd());
+  if (!redirectUrl) {
+    return NextResponse.json({ error: "bad_redirect" }, { status: 400 });
   }
 
-  const userRow = await prisma.user.findUnique({
-    where: { id: user.id },
-    select: { displayName: true },
-  });
+  const { user } = await getSession();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (requirementRedirect(await accountStanding(user.id), { organizerSurface: true })) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
 
-  // Mint a fresh token tagged with the device — we don't get the
-  // device label from the mobile app at this point, so use a generic
-  // name. Users can rename / revoke from /account/api-tokens.
+  // Users can rename / revoke from /account/api-tokens.
   const token = await issueToken(user.id, "Mobile device", prisma);
 
   redirectUrl.searchParams.set("token", token.raw);
   redirectUrl.searchParams.set("userId", user.id);
-  redirectUrl.searchParams.set("displayName", userRow?.displayName ?? "");
-  return NextResponse.redirect(redirectUrl.toString());
+  redirectUrl.searchParams.set("displayName", user.displayName ?? "");
+  return NextResponse.redirect(redirectUrl.toString(), 303);
 }

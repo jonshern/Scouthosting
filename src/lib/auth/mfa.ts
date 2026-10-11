@@ -2,8 +2,11 @@
 // surface: generate secret, build provisioning URI, verify code,
 // mint/verify backup codes.
 //
-// Secret storage: base32 in User.totpSecret (plaintext at rest is the
-// v1 risk; future PR encrypts with an env-var key).
+// Secret storage: User.totpSecret holds the base32 secret sealed with
+// AES-256-GCM under a key derived from MASTER_KEY, bound to the user id
+// ("enc:v1:<base64>"). Rows enrolled before sealing hold plain base32;
+// openTotpSecret reads both and mfa-verify.ts reseals on the next
+// successful code.
 //
 // Replay protection: User.totpLastUsedAt records the last successful
 // verify. A code whose 30s window has been used already is rejected
@@ -16,10 +19,35 @@
 import crypto from "node:crypto";
 import * as OTPAuth from "otpauth";
 import { hashPassword, verifyPassword } from "./password";
+import { aesGcmDecrypt, aesGcmEncrypt, hkdf } from "@/lib/encryption/primitives";
+import { getMasterKey } from "@/lib/encryption/master-key";
 
 const APP_NAME = "Compass";
 const PERIOD_MS = 30_000;
 const WINDOW = 1; // ±1 30s slot tolerance
+
+const SEALED_PREFIX = "enc:v1:";
+
+function totpKey(): Buffer {
+  return hkdf(getMasterKey(), Buffer.from("compass-totp"), "totp-secret-v1", 32);
+}
+
+/** Seal a base32 TOTP secret for storage on User.totpSecret. */
+export function sealTotpSecret(secret: string, userId: string): string {
+  const blob = aesGcmEncrypt(totpKey(), secret, `totp:${userId}`);
+  return SEALED_PREFIX + blob.toString("base64");
+}
+
+/** Read User.totpSecret, sealed or (legacy) plain base32. */
+export function openTotpSecret(stored: string, userId: string): string {
+  if (!stored.startsWith(SEALED_PREFIX)) return stored;
+  const blob = Buffer.from(stored.slice(SEALED_PREFIX.length), "base64");
+  return aesGcmDecrypt(totpKey(), blob, `totp:${userId}`).toString("utf8");
+}
+
+export function isSealedTotpSecret(stored: string): boolean {
+  return stored.startsWith(SEALED_PREFIX);
+}
 
 /** 160-bit (32 base32 char) secret; twice the RFC 6238 minimum. */
 export function generateSecret(): string {

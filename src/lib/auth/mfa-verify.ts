@@ -5,7 +5,13 @@
 
 import { prisma } from "@/lib/db";
 import { audit } from "@/lib/audit";
-import { verifyTotp, verifyBackupCode } from "@/lib/auth/mfa";
+import {
+  isSealedTotpSecret,
+  openTotpSecret,
+  sealTotpSecret,
+  verifyTotp,
+  verifyBackupCode,
+} from "@/lib/auth/mfa";
 
 /**
  * Verify a code against a user's MFA state. Tries TOTP first, then
@@ -32,11 +38,16 @@ export async function verifyMfaCodeForUser(userId: string, code: string): Promis
 
   if (/^\s*\d{6}\s*$/.test(trimmed)) {
     const lastUsedWindow = dbUser.totpLastUsedAt ? dbUser.totpLastUsedAt.getTime() : null;
-    const result = verifyTotp(dbUser.totpSecret, trimmed, new Date(), lastUsedWindow);
+    const secret = openTotpSecret(dbUser.totpSecret, dbUser.id);
+    const result = verifyTotp(secret, trimmed, new Date(), lastUsedWindow);
     if (result.ok) {
       await prisma.user.update({
         where: { id: dbUser.id },
-        data: { totpLastUsedAt: new Date(result.lastUsedWindow!) },
+        data: {
+          totpLastUsedAt: new Date(result.lastUsedWindow!),
+          // Enrolled before secrets were sealed: seal it now.
+          ...(isSealedTotpSecret(dbUser.totpSecret) ? {} : { totpSecret: sealTotpSecret(secret, dbUser.id) }),
+        },
       });
       await audit({
         action: "mfa.verify",

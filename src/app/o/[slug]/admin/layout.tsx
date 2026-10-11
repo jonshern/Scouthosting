@@ -7,8 +7,9 @@
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
+import { accountStanding, requirementRedirect, withNext } from "@/lib/auth/requirements";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 import { ReleasesStrip } from "@/components/site/ReleasesStrip";
 
@@ -41,6 +42,9 @@ export default async function AdminLayout({
       </section>
     );
   }
+  // Admins and organizers must have two-step sign-in on (lib/auth/requirements.ts).
+  const gate = requirementRedirect(await accountStanding(user.id), { organizerSurface: true });
+  if (gate) redirect(withNext(gate, `/o/${slug}/admin`));
   const unitLabel = `${org.unitType ?? ""} ${org.unitNumber ?? ""}`.trim() || org.displayName;
   return (
     <div className="min-h-screen bg-bg">

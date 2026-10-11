@@ -1,13 +1,13 @@
 // POST /api/v1/auth/token — issue a bearer token for the mobile app.
 //
-// Auth: cookie-session via Lucia. The user signs in to the web app
+// Auth: cookie session (Better Auth). The user signs in to the web app
 // first, then the mobile app deep-links here. The route returns the
 // raw token EXACTLY ONCE — the client must persist it before
 // dismissing the response.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { issueToken } from "@/lib/auth/api-token";
 
 export const runtime = "nodejs";
@@ -30,5 +30,6 @@ export async function POST(req: NextRequest) {
     raw: token.raw, // shown ONCE
     name: token.name,
     createdAt: token.createdAt,
+    expiresAt: token.expiresAt,
   });
 }

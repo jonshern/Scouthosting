@@ -6,7 +6,7 @@ this lean.
 
 ## Stack at a glance
 
-- Node 22 · Next.js 16 · React 19 · Prisma 5 · Postgres 16 · Lucia 3 · argon2id · pg-boss · Tailwind
+- Node 22 · Next.js 16 · React 19 · Prisma 5 · Postgres 16 · Better Auth · argon2id · pg-boss · Tailwind
 - Mobile: Expo / React Native (talks to `/api/v1/*` over HTTPS)
 - Local infra: `docker-compose.yml` runs Postgres only; Next runs as a host Node process via `npm run dev`
 - Deploy: `Dockerfile` at the repo root builds and runs `prisma migrate deploy && next start` on port 3000
@@ -78,6 +78,24 @@ and `readJson` / `readQuery` with a zod schema for input.
 `/auth/mobile/begin` is also apex-friendly (works without `req.org`)
 so the mobile in-app browser can sign in at the apex.
 
+Phone sign-in (Compass, Waypoint and Summit apps all use it; keep it
+stable):
+
+1. The app opens `/auth/mobile/begin?redirect=<scheme>://auth/callback`
+   in an in-app browser. Production accepts only the schemes in
+   `src/lib/auth/mobile-redirect.ts` (`compass`, `bluecard`, `waypoint`,
+   `emmettjourney`, `summit`); dev also accepts `exp://` and localhost.
+2. Signed out → `/login?next=…`, then back to step 1. A brand-new
+   Google/Apple account confirms it's an adult first, and a leader or
+   admin without two-step sign-in is sent to set it up
+   (`src/lib/auth/requirements.ts`).
+3. Signed in → `/auth/mobile/confirm`, where the user taps Continue
+   (same-origin POST with CSRF back to `/auth/mobile/begin`).
+4. 303 to `<redirect>?token=compass_pat_…&userId=…&displayName=…`.
+   The app sends `Authorization: Bearer <token>` to `/api/v1/*`.
+   Tokens expire after 90 days, die when the password changes, and
+   `DELETE /api/v1/auth/token/<id>` revokes one.
+
 ### 5. pg-boss v12 needs `createQueue` before `work`
 
 v12 introduced a stricter queue model. `src/lib/jobs/index.ts` calls
@@ -147,6 +165,17 @@ never created their tables. It's tracked normally now; check
 suites (against a Postgres service via `TEST_DATABASE_URL`) and the
 Playwright suite on every PR. `*.db.test.ts` files share one database
 and run in parallel: clean up only rows your test created.
+
+### 12. Sign-in is Better Auth, with Compass's own MFA in front
+
+`src/lib/auth/auth.ts` configures Better Auth (sessions, password,
+Google/Apple, email verification). Passwords live on the `Account` row
+with `providerId = "credential"`, not on `User`. Compass's TOTP + backup
+codes stay in `User`/`BackupCode`; `src/lib/auth/mfa-plugin.ts` swaps a
+new session for a signed challenge cookie until the code is checked.
+Server code reads the user with `getSession()` from
+`src/lib/auth/session.ts`. The DB-backed auth tests in
+`src/lib/auth/auth.db.test.ts` run only when `TEST_DATABASE_URL` is set.
 
 ## Demo accounts (test DB)
 

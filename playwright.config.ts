@@ -34,6 +34,9 @@ export default defineConfig({
       // NODE_ENV=production unless this bypass is set — same convention
       // as Compass staging on Fly.
       ALLOW_ADMIN_PASSWORD_LOGIN: "1",
+      // The seeded admin has no two-step sign-in; production requires it
+      // for organizers (lib/auth/requirements.ts) unless this is set.
+      ALLOW_ADMIN_WITHOUT_MFA: "1",
       // Don't run the pg-boss worker in tests — keeps the queue
       // create/work spam out of the test logs.
       JOBS_DISABLED: "1",

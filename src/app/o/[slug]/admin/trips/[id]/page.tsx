@@ -4,7 +4,7 @@
 
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { buildShoppingList } from "@/lib/trips/shopping-list";
 import { mealConflicts } from "@/lib/trips/dietary";
 import { unwrapDekWithMaster, decryptField } from "@/lib/encryption";
