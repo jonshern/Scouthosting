@@ -18,7 +18,6 @@ const TakeSchema = z.object({
 const ReleaseSchema = z.object({
   orgSlug: z.string().min(1),
   slotId: z.string().min(1),
-  email: z.string().trim().email().max(320).optional().or(z.literal("")),
 });
 
 export type SlotActionState =
@@ -86,9 +85,8 @@ export async function takeSlot(
 }
 
 /**
- * Release a slot assignment. Only the user who claimed it (matching
- * by userId for signed-in or by email for anonymous guest claims) can
- * release. Promotes waitlisters oldest-first in the same transaction.
+ * Release a slot assignment. Only the signed-in user who claimed it
+ * can release. Promotes waitlisters oldest-first in the same transaction.
  */
 export async function releaseSlotAssignment(
   _prev: SlotActionState,
@@ -111,17 +109,12 @@ export async function releaseSlotAssignment(
   });
   if (!slot) return { error: "Slot not found." };
 
+  // Signed-in only. Releasing by a typed email would let anyone who
+  // knows a guest's address drop their claim; guests ask the organizer.
   const { user } = await getSession();
-  let who: { userId: string } | { guestEmail: string };
-  if (user) {
-    who = { userId: user.id };
-  } else {
-    const email = (d.email ?? "").trim().toLowerCase();
-    if (!email) return { error: "Email is required to release as a guest." };
-    who = { guestEmail: email };
-  }
+  if (!user) return { error: "Sign in to release a slot, or ask the event organizer." };
 
-  await prisma.$transaction((tx) => releaseSlot(tx, { slotId: slot.id, who }));
+  await prisma.$transaction((tx) => releaseSlot(tx, { slotId: slot.id, who: { userId: user.id } }));
 
   revalidatePath(`/o/${org.slug}/calendar`);
   return { ok: true, released: true };
