@@ -1,5 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// E2E_DATABASE_URL points the suite at another disposable database, e.g. a
+// second checkout sharing the same Postgres. global-setup.ts reads it too.
+const E2E_DATABASE_URL =
+  process.env.E2E_DATABASE_URL ??
+  "postgresql://compass:compass@localhost:5433/compass_test?schema=public";
+
 export default defineConfig({
   testDir: "./tests/e2e",
   globalSetup: "./tests/e2e/global-setup.ts",
@@ -24,7 +30,7 @@ export default defineConfig({
     env: {
       // Local Compass postgres runs on 5433 (5432 is occupied by another
       // container on the dev Mac — see project CLAUDE.md trap #4).
-      DATABASE_URL: "postgresql://compass:compass@localhost:5433/compass_test?schema=public",
+      DATABASE_URL: E2E_DATABASE_URL,
       NODE_ENV: "production",
       APEX_HOST: "localhost",
       SESSION_SECRET: "test-only-not-secret-replace-in-prod-0123456789abcdef",

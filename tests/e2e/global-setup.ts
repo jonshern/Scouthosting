@@ -10,7 +10,9 @@ const TEST_MASTER_KEY =
 export default async function globalSetup() {
   const env = {
     ...process.env,
-    DATABASE_URL: "postgresql://compass:compass@localhost:5433/compass_test?schema=public",
+    DATABASE_URL:
+      process.env.E2E_DATABASE_URL ??
+      "postgresql://compass:compass@localhost:5433/compass_test?schema=public",
     MASTER_KEY: TEST_MASTER_KEY,
   };
   const cwd = path.resolve(__dirname, "../..");
