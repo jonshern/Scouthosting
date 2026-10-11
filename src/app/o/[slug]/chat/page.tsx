@@ -22,6 +22,14 @@ export default async function ChatPage({
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) return null;
 
+  // Someone who left the unit can keep stale channel rows; they must not
+  // keep reading the unit's chats.
+  const membership = await prisma.orgMembership.findFirst({
+    where: { orgId: org.id, userId: user.id },
+    select: { id: true },
+  });
+  if (!membership) return <p className="p-12">Chat is for members of this unit.</p>;
+
   const channels = await prisma.channel.findMany({
     where: {
       orgId: org.id,
