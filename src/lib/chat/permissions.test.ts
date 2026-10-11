@@ -157,3 +157,21 @@ describe("chat/permissions/normalisePostPolicy", () => {
     expect(() => normalisePostPolicy("everyone-and-grandma")).toThrow(/Unknown postPolicy/);
   });
 });
+
+describe("chat/permissions/canPostToChannel — DMs", () => {
+  it("a leader who isn't in the DM can't post to it", () => {
+    expect(canPostToChannel(channel({ kind: "dm" }), admin)).toEqual({
+      ok: false,
+      reason: "not-in-channel",
+    });
+    expect(canPostToChannel(channel({ kind: "dm" }), leader).ok).toBe(false);
+  });
+
+  it("either DM member can post", () => {
+    const r = canPostToChannel(channel({ kind: "dm" }), {
+      ...parent,
+      channelMembership: { role: "member" },
+    });
+    expect(r.ok).toBe(true);
+  });
+});
