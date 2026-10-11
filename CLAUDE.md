@@ -78,6 +78,24 @@ and `readJson` / `readQuery` with a zod schema for input.
 `/auth/mobile/begin` is also apex-friendly (works without `req.org`)
 so the mobile in-app browser can sign in at the apex.
 
+Phone sign-in (Compass, Waypoint and Summit apps all use it; keep it
+stable):
+
+1. The app opens `/auth/mobile/begin?redirect=<scheme>://auth/callback`
+   in an in-app browser. Production accepts only the schemes in
+   `src/lib/auth/mobile-redirect.ts` (`compass`, `bluecard`, `waypoint`,
+   `emmettjourney`, `summit`); dev also accepts `exp://` and localhost.
+2. Signed out → `/login?next=…`, then back to step 1. A brand-new
+   Google/Apple account confirms it's an adult first, and a leader or
+   admin without two-step sign-in is sent to set it up
+   (`src/lib/auth/requirements.ts`).
+3. Signed in → `/auth/mobile/confirm`, where the user taps Continue
+   (same-origin POST with CSRF back to `/auth/mobile/begin`).
+4. 303 to `<redirect>?token=compass_pat_…&userId=…&displayName=…`.
+   The app sends `Authorization: Bearer <token>` to `/api/v1/*`.
+   Tokens expire after 90 days, die when the password changes, and
+   `DELETE /api/v1/auth/token/<id>` revokes one.
+
 ### 5. pg-boss v12 needs `createQueue` before `work`
 
 v12 introduced a stricter queue model. `src/lib/jobs/index.ts` calls

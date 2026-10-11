@@ -4,6 +4,9 @@ import { allowedMobileRedirect } from "./mobile-redirect";
 describe("allowedMobileRedirect", () => {
   it("accepts the app's deep link everywhere", () => {
     expect(allowedMobileRedirect("compass://auth/callback", true)?.href).toBe("compass://auth/callback");
+    for (const scheme of ["bluecard", "waypoint", "emmettjourney", "summit"]) {
+      expect(allowedMobileRedirect(`${scheme}://auth/callback`, true)?.protocol).toBe(`${scheme}:`);
+    }
   });
 
   it("refuses web sites, which would receive the user's API token", () => {
@@ -21,5 +24,6 @@ describe("allowedMobileRedirect", () => {
   it("refuses other schemes and junk", () => {
     expect(allowedMobileRedirect("javascript:alert(1)", false)).toBeNull();
     expect(allowedMobileRedirect("not a url", false)).toBeNull();
+    expect(allowedMobileRedirect("otherapp://auth/callback", true)).toBeNull();
   });
 });
