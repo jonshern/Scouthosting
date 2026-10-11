@@ -60,6 +60,17 @@ export type EventSlipSummary = {
   signed: number;
 };
 
+/**
+ * Signatures that count toward an event: only scouts who are still
+ * going. A slip for a scout who switched to "no" must not make the
+ * event look fully signed.
+ */
+export function signedAmongNeeded(needed: Set<string>, signed: Set<string>): number {
+  let n = 0;
+  for (const id of signed) if (needed.has(id)) n += 1;
+  return n;
+}
+
 /** All upcoming events that require a slip, with signed/needed counts. */
 export async function upcomingEventsNeedingSlips(
   org: Pick<Org, "id">,
@@ -112,8 +123,9 @@ export async function upcomingEventsNeedingSlips(
   }
 
   return events.map((e) => {
-    const needed = neededByEvent.get(e.id)?.size ?? 0;
-    const signed = signedByEvent.get(e.id)?.size ?? 0;
+    const neededSet = neededByEvent.get(e.id) ?? new Set<string>();
+    const needed = neededSet.size;
+    const signed = signedAmongNeeded(neededSet, signedByEvent.get(e.id) ?? new Set());
     return { eventId: e.id, title: e.title, startsAt: e.startsAt, needed, signed };
   });
 }
