@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
-import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
+import { canManageTreasury, TREASURY_FORBIDDEN } from "@/lib/auth/treasury-access";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 import { dollarsToCents } from "@/lib/treasury/money";
@@ -19,8 +19,7 @@ async function authorizeLeader(orgSlug: string): Promise<AuthOk | AuthErr> {
   if (!user) return { error: "Not signed in." };
   const org = await prisma.org.findUnique({ where: { slug: orgSlug } });
   if (!org) return { error: "Site not found." };
-  const role = await roleInOrg(user.id, org.id);
-  if (!isLeaderRole(role) && !user.isSuperAdmin) return { error: "Not authorized." };
+  if (!(await canManageTreasury(user, org.id))) return { error: TREASURY_FORBIDDEN };
   return { user, org };
 }
 

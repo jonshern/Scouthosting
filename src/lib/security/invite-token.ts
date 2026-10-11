@@ -5,6 +5,7 @@
 // OrgMembership rather than downgrading the role.
 
 import { makeSignedToken, verifySignedToken } from "./signed-token";
+import { linkSecret } from "./link-secret";
 
 const TTL_SECONDS = 14 * 24 * 60 * 60; // 14 days
 
@@ -20,13 +21,7 @@ export const INVITE_ROLE_LABELS: Record<InviteRole, string> = {
 };
 
 export function inviteSecret(): string {
-  return (
-    process.env.INVITE_SECRET ||
-    process.env.AUTH_TOKEN_SECRET ||
-    process.env.RSVP_SECRET ||
-    process.env.SESSION_SECRET ||
-    "dev-invite-secret-do-not-use-in-prod"
-  );
+  return linkSecret(["INVITE_SECRET", "AUTH_TOKEN_SECRET", "RSVP_SECRET"], "dev-invite-secret-do-not-use-in-prod");
 }
 
 export type InviteClaims = {

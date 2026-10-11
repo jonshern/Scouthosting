@@ -5,7 +5,7 @@ import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
-import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
+import { canManageTreasury, TREASURY_FORBIDDEN } from "@/lib/auth/treasury-access";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 import { sendBalancesForOrg } from "@/lib/treasury/send-balances";
@@ -37,8 +37,7 @@ export async function sendAllBalances(
   if (!user) return { error: "Not signed in." };
   const org = await prisma.org.findUnique({ where: { slug: parsed.data.orgSlug } });
   if (!org) return { error: "Org not found." };
-  const role = await roleInOrg(user.id, org.id);
-  if (!isLeaderRole(role) && !user.isSuperAdmin) return { error: "Not authorized." };
+  if (!(await canManageTreasury(user, org.id))) return { error: TREASURY_FORBIDDEN };
 
   const baseUrl = await originForRequest();
   const summary = await sendBalancesForOrg(org, baseUrl);

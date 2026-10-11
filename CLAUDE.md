@@ -190,6 +190,27 @@ Server code reads the user with `getSession()` from
 `src/lib/auth/session.ts`. The DB-backed auth tests in
 `src/lib/auth/auth.db.test.ts` run only when `TEST_DATABASE_URL` is set.
 
+### 13. Treasury is for admins and the treasurer, not every leader
+
+`src/lib/auth/treasury-access.ts#canManageTreasury` gates the treasury
+pages (`admin/treasury/layout.tsx`), its CSV routes, refunds,
+reimbursements and every treasury server action. A `leader` gets in only
+when their roster entry (Member matched by email) has a treasurer
+position (Treasurer, Purser, Cookie Manager, …; see
+`src/lib/auth/permissions.ts`). New money surfaces must call it too;
+layouts don't cover route handlers.
+
+### 14. Signed links never use a key from the source code in production
+
+RSVP, permission-slip, unsubscribe, invite and click-tracking links get
+their HMAC key from `src/lib/security/link-secret.ts`: the link's own
+variable (`RSVP_SECRET`, `PERM_SLIP_SECRET`, `UNSUB_SECRET`,
+`INVITE_SECRET`, `TRACKING_SECRET`), then `SESSION_SECRET`, then
+`BETTER_AUTH_SECRET`. In production a missing or short (< 32 chars) key
+throws instead of falling back; the built-in keys are for dev and tests
+only. The pre-launch invite cookie (`src/lib/invite/cookie.ts`) follows
+the same rule with static reads because it runs in middleware.
+
 ## Demo accounts (test DB)
 
 Password for all seeded accounts: `AdminPasswordTest123!`
