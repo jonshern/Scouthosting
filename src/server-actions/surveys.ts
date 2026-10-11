@@ -6,6 +6,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
+import { roleInOrg } from "@/lib/auth/role";
 
 const VALID_TYPES = new Set(["text", "long", "yesno", "select", "multi", "scale"]);
 
@@ -96,15 +97,20 @@ export async function submitSurvey(formData: FormData): Promise<void> {
   const surveySlug = String(formData.get("surveySlug") ?? "");
   if (!surveyId) throw new Error("Missing survey.");
 
-  const survey = await prisma.survey.findUnique({ where: { id: surveyId } });
+  const survey = await prisma.survey.findFirst({
+    where: { id: surveyId, org: { slug: orgSlug } },
+  });
   if (!survey) throw new Error("Survey not found.");
   if (survey.closesAt && survey.closesAt.getTime() < Date.now()) {
     throw new Error("Survey closed.");
   }
 
   const { user } = await getSession();
-  if (survey.audience === "members" && !user) {
-    throw new Error("Sign in to respond.");
+  if (survey.audience === "members") {
+    if (!user) throw new Error("Sign in to respond.");
+    if (!(await roleInOrg(user.id, survey.orgId)) && !user.isSuperAdmin) {
+      throw new Error("Members only.");
+    }
   }
 
   // Build the answers map by walking the question definitions.

@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth/lucia";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
+import { ownedIdOrNull } from "@/lib/tenancy/owned";
 
 type AuthOk = {
   user: NonNullable<Awaited<ReturnType<typeof getSession>>["user"]>;
@@ -47,11 +48,14 @@ export async function upsertPatrol(
   if ("error" in auth) return { error: auth.error };
   const d = parsed.data;
 
+  const leaderMemberId = await ownedIdOrNull("member", auth.org.id, d.leaderMemberId);
+  if (leaderMemberId === false) return { error: "Leader not found." };
+
   const data = {
     orgId: auth.org.id,
     name: d.name,
     color: d.color,
-    leaderMemberId: d.leaderMemberId || null,
+    leaderMemberId,
     description: d.description?.trim() || null,
     archived: d.archived === "on",
   };

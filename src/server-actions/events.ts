@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
+import { ownedIdOrNull, ownedIds } from "@/lib/tenancy/owned";
 
 const Iso = z
   .string()
@@ -103,11 +104,15 @@ export async function upsertEvent(
     hikingMiles: toFloat(d.hikingMiles) ?? null,
     requiresPermissionSlip: d.requiresPermissionSlip === "on",
     permissionSlipText: nz(d.permissionSlipText) ?? null,
-    locationId: d.locationId || null,
+    locationId: null as string | null,
   };
+  const locationId = await ownedIdOrNull("location", org.id, d.locationId);
+  if (locationId === false) return { error: "Location not found." };
+  data.locationId = locationId;
 
   if (d.id) {
-    await prisma.event.update({ where: { id: d.id }, data });
+    const { count } = await prisma.event.updateMany({ where: { id: d.id, orgId: org.id }, data });
+    if (count === 0) return { error: "Event not found." };
   } else {
     await prisma.event.create({ data });
   }

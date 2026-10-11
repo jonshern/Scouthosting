@@ -5,6 +5,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { decideToggle, normaliseReactionKind } from "@/lib/posts/reactions";
+import { roleInOrg } from "@/lib/auth/role";
 
 export async function togglePostReaction(formData: FormData): Promise<void> {
   if (!(await verifyOrigin())) throw new Error("Bad origin.");
@@ -15,6 +16,14 @@ export async function togglePostReaction(formData: FormData): Promise<void> {
   const kind = normaliseReactionKind(String(formData.get("kind") ?? ""));
   if (!postId) throw new Error("Missing postId.");
   const orgSlug = String(formData.get("orgSlug") ?? "");
+
+  // Only members of the post's unit can react (members-only posts
+  // included).
+  const post = await prisma.post.findUnique({ where: { id: postId }, select: { orgId: true } });
+  if (!post) throw new Error("Post not found.");
+  if (!(await roleInOrg(user.id, post.orgId)) && !user.isSuperAdmin) {
+    throw new Error("Not a member.");
+  }
 
   const existing = await prisma.postReaction.findUnique({
     where: { postId_userId_kind: { postId, userId: user.id, kind } },

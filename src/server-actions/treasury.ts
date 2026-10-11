@@ -23,6 +23,7 @@ import {
   type TxType,
 } from "@/lib/treasury/money";
 import { recomputeOrgBalances } from "@/lib/treasury/recompute";
+import { ownedIdOrNull, ownedIds } from "@/lib/tenancy/owned";
 
 type AuthOk = {
   user: NonNullable<Awaited<ReturnType<typeof getSession>>["user"]>;
@@ -101,14 +102,19 @@ export async function postTransactionAction(
   if (cents <= 0) return { error: "Amount must be positive." };
   const signed = d.sign === "charge" ? -cents : cents;
 
+  const memberId = await ownedIdOrNull("member", auth.org.id, d.memberId);
+  if (memberId === false) return { error: "Member not found." };
+  const eventId = await ownedIdOrNull("event", auth.org.id, d.eventId);
+  if (eventId === false) return { error: "Event not found." };
+
   const created = await postTransaction({
     orgId: auth.org.id,
     fundId: fund.id,
     type: d.type as TxType,
     amountCents: signed,
     description: d.description,
-    memberId: d.memberId || null,
-    eventId: d.eventId || null,
+    memberId,
+    eventId,
     createdById: auth.user.id,
   });
   audit({
@@ -246,6 +252,12 @@ export async function postTransferAction(
   if (parsed.data.fromFundId === parsed.data.toFundId) {
     return { error: "From and to must differ." };
   }
+
+  const owned = await ownedIds("fund", auth.org.id, [
+    parsed.data.fromFundId,
+    parsed.data.toFundId,
+  ]);
+  if (owned.length !== 2) return { error: "Fund not found." };
 
   await postTransfer({
     orgId: auth.org.id,
