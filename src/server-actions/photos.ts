@@ -7,14 +7,14 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
-import { buildKey, put } from "@/lib/storage/local";
+import { buildKey, put } from "@/lib/storage";
+import { EXT_BY_MIME, sniffImageType } from "@/lib/api/image-type";
 import {
   encryptBytes,
   encryptField,
   unwrapDekWithMaster,
 } from "@/lib/encryption";
 
-const ALLOWED_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_BYTES = 10 * 1024 * 1024; // 10 MB per photo
 
 const AlbumInput = z.object({
@@ -105,16 +105,19 @@ export async function uploadPhotos(_prev: unknown, formData: FormData) {
   }
   const dek = unwrapDekWithMaster(orgRow);
   for (const file of files) {
-    if (!ALLOWED_MIME.has(file.type)) {
-      errors.push(`${file.name}: unsupported type ${file.type}`);
-      continue;
-    }
     if (file.size > MAX_BYTES) {
       errors.push(`${file.name}: too large (${(file.size / 1_000_000).toFixed(1)} MB)`);
       continue;
     }
-    const key = buildKey(auth.org.id, "photos", file.name);
     const plain = Buffer.from(await file.arrayBuffer());
+    // Trust the bytes, not the browser's declared type: a renamed
+    // .html file must not be stored (and later served) as an "image".
+    const mimeType = sniffImageType(plain);
+    if (!mimeType) {
+      errors.push(`${file.name}: not a JPEG, PNG, WebP or GIF image`);
+      continue;
+    }
+    const key = buildKey(auth.org.id, "photos", `photo${EXT_BY_MIME[mimeType]}`);
     const encrypted = encryptBytes(plain, dek, auth.org.id, "photo.bytes");
     await put(key, encrypted);
     await prisma.photo.create({
@@ -127,7 +130,7 @@ export async function uploadPhotos(_prev: unknown, formData: FormData) {
         originalName: null,
         encOriginalName: encryptField(file.name, dek, auth.org.id, "photo.originalName"),
         encrypted: true,
-        mimeType: file.type,
+        mimeType,
         sizeBytes: file.size,
         uploaderUserId: auth.user.id,
       },
