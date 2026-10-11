@@ -6,7 +6,7 @@ this lean.
 
 ## Stack at a glance
 
-- Node 22 · Next.js 16 · React 19 · Prisma 5 · Postgres 16 · Lucia 3 · argon2id · pg-boss · Tailwind
+- Node 22 · Next.js 16 · React 19 · Prisma 5 · Postgres 16 · Better Auth · argon2id · pg-boss · Tailwind
 - Mobile: Expo / React Native (talks to `/api/v1/*` over HTTPS)
 - Local infra: `docker-compose.yml` runs Postgres only; Next runs as a host Node process via `npm run dev`
 - Deploy: `Dockerfile` at the repo root builds and runs `prisma migrate deploy && next start` on port 3000
@@ -147,6 +147,17 @@ never created their tables. It's tracked normally now; check
 suites (against a Postgres service via `TEST_DATABASE_URL`) and the
 Playwright suite on every PR. `*.db.test.ts` files share one database
 and run in parallel: clean up only rows your test created.
+
+### 12. Sign-in is Better Auth, with Compass's own MFA in front
+
+`src/lib/auth/auth.ts` configures Better Auth (sessions, password,
+Google/Apple, email verification). Passwords live on the `Account` row
+with `providerId = "credential"`, not on `User`. Compass's TOTP + backup
+codes stay in `User`/`BackupCode`; `src/lib/auth/mfa-plugin.ts` swaps a
+new session for a signed challenge cookie until the code is checked.
+Server code reads the user with `getSession()` from
+`src/lib/auth/session.ts`. The DB-backed auth tests in
+`src/lib/auth/auth.db.test.ts` run only when `TEST_DATABASE_URL` is set.
 
 ## Demo accounts (test DB)
 

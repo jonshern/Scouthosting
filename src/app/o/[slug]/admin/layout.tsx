@@ -7,7 +7,7 @@
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 import { ReleasesStrip } from "@/components/site/ReleasesStrip";

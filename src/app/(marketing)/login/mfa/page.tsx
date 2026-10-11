@@ -1,14 +1,13 @@
 import { redirect } from "next/navigation";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { MfaLoginForm } from "@/components/auth/MfaLoginForm";
-import { readPendingMfaUserId } from "@/server-actions/auth";
+import { hasPendingMfaChallenge } from "@/server-actions/auth";
 
 export const metadata = { title: "Two-factor sign-in" };
 export const dynamic = "force-dynamic";
 
 export default async function MfaLoginPage() {
-  const pendingUserId = await readPendingMfaUserId();
-  if (!pendingUserId) redirect("/login");
+  if (!(await hasPendingMfaChallenge())) redirect("/login");
 
   return (
     <section className="mx-auto max-w-md px-6 py-16">

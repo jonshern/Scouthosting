@@ -134,32 +134,42 @@ async function provisionTreasuryInline(orgId: string) {
   });
 }
 
+// Passwords live on Better Auth's "credential" Account row
+// (src/lib/auth/auth.ts), keyed by the user id.
+async function upsertPassword(userId: string, passwordHash: string) {
+  await prisma.account.upsert({
+    where: { providerId_accountId: { providerId: "credential", accountId: userId } },
+    update: { password: passwordHash },
+    create: { userId, providerId: "credential", accountId: userId, password: passwordHash },
+  });
+}
+
 async function main() {
   const passwordHash = await hash(ADMIN_PASSWORD, ARGON_PARAMS);
 
   const user = await prisma.user.upsert({
     where: { email: ADMIN_EMAIL },
-    update: { passwordHash, displayName: "Sample Scoutmaster", emailVerified: true },
+    update: { displayName: "Sample Scoutmaster", emailVerified: true },
     create: {
       email: ADMIN_EMAIL,
-      passwordHash,
       displayName: "Sample Scoutmaster",
       emailVerified: true,
     },
   });
+  await upsertPassword(user.id, passwordHash);
 
   // Super-admin for /super-admin write-action tests.
-  await prisma.user.upsert({
+  const superUser = await prisma.user.upsert({
     where: { email: SUPER_EMAIL },
-    update: { passwordHash, displayName: "Sample Super", emailVerified: true, isSuperAdmin: true },
+    update: { displayName: "Sample Super", emailVerified: true, isSuperAdmin: true },
     create: {
       email: SUPER_EMAIL,
-      passwordHash,
       displayName: "Sample Super",
       emailVerified: true,
       isSuperAdmin: true,
     },
   });
+  await upsertPassword(superUser.id, passwordHash);
 
   // Provision the encryption vault (DEK + 3 wraps + recovery code).
   // Re-uses any existing vault if the org already has one so re-running

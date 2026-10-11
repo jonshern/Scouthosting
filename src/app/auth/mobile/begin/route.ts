@@ -1,33 +1,25 @@
 // GET /auth/mobile/begin?redirect=compass://auth/callback
 //
 // The mobile app opens this URL in an in-app browser. If the user
-// has a Lucia cookie session we mint a fresh API token and redirect
+// has a cookie session we mint a fresh API token and redirect
 // to the deep-link with ?token=...&userId=...&displayName=... .
 // Otherwise we send them to /login?next=/auth/mobile/begin?redirect=...
 // so the same in-app browser handles the sign-in round-trip.
 
 import { NextResponse, type NextRequest } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { issueToken } from "@/lib/auth/api-token";
+import { isProd } from "@/lib/env";
+import { allowedMobileRedirect } from "@/lib/auth/mobile-redirect";
 
 export const runtime = "nodejs";
 
-const ALLOWED_REDIRECT_SCHEMES = new Set(["compass", "exp", "http", "https"]);
-
 export async function GET(req: NextRequest) {
   const redirectRaw = req.nextUrl.searchParams.get("redirect") ?? "";
-  let redirectUrl: URL;
-  try {
-    redirectUrl = new URL(redirectRaw);
-  } catch {
+  const redirectUrl = allowedMobileRedirect(redirectRaw, isProd());
+  if (!redirectUrl) {
     return NextResponse.json({ error: "bad_redirect" }, { status: 400 });
-  }
-  // Reject schemes we don't expect — guards against open-redirect via
-  // javascript: / data: / file: / etc.
-  const scheme = redirectUrl.protocol.replace(/:$/, "");
-  if (!ALLOWED_REDIRECT_SCHEMES.has(scheme)) {
-    return NextResponse.json({ error: "bad_scheme" }, { status: 400 });
   }
 
   const { user } = await getSession();

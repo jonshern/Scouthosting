@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { classifyHost } from "@/lib/tenancy/resolve";
 
 export default async function SuperLayout({ children }: { children: React.ReactNode }) {
