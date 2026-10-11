@@ -43,12 +43,25 @@ function AppleIcon() {
   );
 }
 
+// Google/Apple sign-in failures come back as /login?error=<code>.
+function ssoErrorMessage(code: string): string {
+  if (code === "account_not_linked") {
+    return "There's already a Compass account with that email. Sign in with your password, confirm your email from your profile page, then Google or Apple sign-in will work too.";
+  }
+  if (code === "email_not_found") {
+    return "Your Google or Apple account didn't share an email address, so we can't sign you in with it.";
+  }
+  return "Google or Apple sign-in didn't finish. Try again.";
+}
+
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; error?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, error } = await searchParams;
+  const ssoQuery = next ? `?next=${encodeURIComponent(next)}` : "";
+  const ssoError = error ? ssoErrorMessage(error) : null;
   return (
     <main className="min-h-screen bg-bg md:grid md:grid-cols-[1fr_560px]">
       {/* Brand panel */}
@@ -112,16 +125,22 @@ export default async function LoginPage({
             .
           </p>
 
+          {ssoError && (
+            <div role="alert" className="mt-6 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+              {ssoError}
+            </div>
+          )}
+
           <div className="mt-8 grid gap-2.5">
             <a
-              href="/api/auth/google/begin"
+              href={`/api/auth/google/begin${ssoQuery}`}
               className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"
             >
               <GoogleIcon />
               Continue with Google
             </a>
             <a
-              href="/api/auth/apple/begin"
+              href={`/api/auth/apple/begin${ssoQuery}`}
               className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"
             >
               <AppleIcon />

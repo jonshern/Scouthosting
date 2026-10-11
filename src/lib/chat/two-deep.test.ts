@@ -167,18 +167,17 @@ describe("chat/checkChannelTwoDeep — youth + adult counting", () => {
     expect(r.currentAdultCount).toBe(0);
   });
 
-  it("orphaned channel members (no membership row) count as youth, not adults", async () => {
+  it("orphaned channel members (no membership row) are ignored", async () => {
     const prisma = makePrismaStub({
       channel: { id: "ch1", orgId: ORG, kind: "custom" },
       channelMembers: [
-        { user: { memberships: [] } }, // orphan: can't confirm they're an adult
+        { user: { memberships: [] } }, // left the unit; can't read or post
         { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
       ],
     });
     const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
-    expect(r.ok).toBe(false);
-    expect(r.hasYouth).toBe(true);
-    expect(r.reason).toBe("only-one-current-adult");
+    expect(r.ok).toBe(true);
+    expect(r.hasYouth).toBe(false);
   });
 
   it("orphans are fine once two YPT-current adults are present", async () => {

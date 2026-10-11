@@ -1,7 +1,7 @@
 // /account/password — change password (current + new + confirm).
 
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { changePassword } from "@/server-actions/account";
 

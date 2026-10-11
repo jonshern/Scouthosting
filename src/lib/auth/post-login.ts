@@ -17,7 +17,11 @@ import { isLeaderRole } from "@/lib/auth/role";
 export function isSafeNextPath(next: string | null | undefined): boolean {
   if (!next) return false;
   // Same-origin only. Reject //evil.example, javascript:, full URLs, etc.
-  return next.startsWith("/") && !next.startsWith("//");
+  // Browsers read "\" as "/", so "/\evil.example" is protocol-relative
+  // too; control characters are stripped before parsing, so reject them.
+  if (!next.startsWith("/") || next.startsWith("//")) return false;
+  if (/[\\\u0000-\u001f\u007f]/.test(next)) return false;
+  return true;
 }
 
 export async function postLoginRedirectUrl(

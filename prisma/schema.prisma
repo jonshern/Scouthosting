@@ -219,9 +219,11 @@ model Org {
 model User {
   id                 String    @id @default(cuid())
   email              String    @unique
-  passwordHash       String?
   displayName        String
   emailVerified      Boolean   @default(false)
+  // Profile picture URL from Google/Apple. Better Auth's user model
+  // expects the column; Compass doesn't render it yet.
+  image              String?
   // Compass operator. Bypasses all per-org auth, sees the super-admin
   // console at /__super on the apex. Set manually in the DB or via the
   // CLI; never granted from any HTTP form.
@@ -241,6 +243,10 @@ model User {
   totpSecret         String?
   totpEnrolledAt     DateTime?
   totpLastUsedAt     DateTime?
+  // When the user confirmed they are 18 or older. Every new sign-up
+  // (password or Google/Apple) must confirm before using the app;
+  // accounts that existed before the policy were backfilled.
+  adultAttestedAt    DateTime?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -249,7 +255,7 @@ model User {
   announcements         Announcement[]
   posts                 Post[]
   comments              Comment[]
-  oauthAccounts         OAuthAccount[]
+  accounts              Account[]
   rsvps                 Rsvp[]
   slotAssignments       SlotAssignment[]
   newsletters           Newsletter[]
@@ -284,22 +290,52 @@ model BackupCode {
   @@index([userId])
 }
 
-// External identity provider linkage. One User can have multiple
-// OAuthAccount rows (Google, Apple, Microsoft, …) but only one per
-// (provider, providerAccountId). Email collisions across providers are
-// resolved by the verified-email link at /auth/<provider>/callback.
-model OAuthAccount {
-  id                String   @id @default(cuid())
-  userId            String
-  provider          String // "google", "apple", ...
-  providerAccountId String // provider's stable user id (e.g. Google `sub`)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+// Sign-in methods for a User, owned by Better Auth (src/lib/auth/auth.ts).
+// providerId "credential" holds the argon2id password hash in `password`
+// with accountId = userId. "google" / "apple" rows carry the provider's
+// stable subject id in accountId; one User can have several, but only
+// one per (providerId, accountId).
+model Account {
+  id                    String    @id @default(cuid())
+  userId                String
+  accountId             String
+  providerId            String
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@unique([provider, providerAccountId])
+  @@unique([providerId, accountId])
   @@index([userId])
+}
+
+// Short-lived Better Auth values: OAuth state, email-verification
+// tokens, MFA sign-in challenges. Rows expire on their own.
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+}
+
+// Better Auth's rate-limit counters. Kept in Postgres so the limits hold
+// across instances and restarts.
+model RateLimit {
+  id          String @id @default(cuid())
+  key         String @unique
+  count       Int
+  lastRequest BigInt
 }
 
 // A user can belong to many orgs (parent with kids in two units, leader
@@ -326,9 +362,15 @@ model OrgMembership {
 }
 
 model Session {
-  id        String   @id
+  id        String   @id @default(cuid())
+  // The value carried (HMAC-signed) in the compass_session cookie.
+  token     String   @unique
   userId    String
   expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1525,6 +1567,9 @@ model ApiToken {
   tokenHash  String    @unique
   lastUsedAt DateTime?
   revokedAt  DateTime?
+  // Tokens stop working after this. Null only on rows minted before
+  // expiry existed; the migration that added it backfilled those.
+  expiresAt  DateTime?
   createdAt  DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)

@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { suspendChannel, unsuspendChannel } from "@/lib/chat";
 import { publishArchived } from "@/lib/realtime/bus";
