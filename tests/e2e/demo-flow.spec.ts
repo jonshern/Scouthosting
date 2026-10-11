@@ -53,7 +53,7 @@ test.describe("demo flow", () => {
     test.setTimeout(60_000);
     await signInApex(page);
     const cookies = await page.context().cookies();
-    expect(cookies.some((c) => c.name === "compass_session")).toBe(true);
+    expect(cookies.some((c) => c.name.endsWith("compass_session"))).toBe(true);
     await expect(
       page.getByRole("heading", { level: 1 }).first(),
     ).toBeVisible();
@@ -78,7 +78,7 @@ test.describe("demo flow", () => {
       timeout: 30_000,
     });
     const cookies = await page.context().cookies();
-    const session = cookies.find((c) => c.name === "compass_session");
+    const session = cookies.find((c) => c.name.endsWith("compass_session"));
     // After logout the cookie is either missing or has empty value /
     // expired Max-Age. Any of those is "cleared".
     if (session) {
@@ -101,6 +101,6 @@ test.describe("demo flow", () => {
     // /account/profile.
     await page.waitForURL(/\/(admin|account)/);
     const cookies = await page.context().cookies();
-    expect(cookies.some((c) => c.name === "compass_session")).toBe(true);
+    expect(cookies.some((c) => c.name.endsWith("compass_session"))).toBe(true);
   });
 });

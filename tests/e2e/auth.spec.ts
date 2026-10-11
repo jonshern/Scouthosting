@@ -37,7 +37,8 @@ test.describe("auth flows", () => {
     // post-login redirect logic.
     await page.waitForURL(/\/account\/profile/);
     const cookies = await page.context().cookies();
-    expect(cookies.some((c) => c.name === "compass_session")).toBe(true);
+    // Named "__Secure-compass_session" when NODE_ENV=production, as here.
+    expect(cookies.some((c) => c.name.endsWith("compass_session"))).toBe(true);
   });
 
   test("signup requires confirming the user is an adult", async ({ page }) => {
@@ -60,7 +61,7 @@ test.describe("auth flows", () => {
     // Seeded scoutmaster is a leader in exactly one org → lands on its admin.
     await page.waitForURL(/\/o\/[^/]+\/admin/);
     const cookies = await page.context().cookies();
-    expect(cookies.some((c) => c.name === "compass_session")).toBe(true);
+    expect(cookies.some((c) => c.name.endsWith("compass_session"))).toBe(true);
   });
 
   test("login with wrong password is rejected", async ({ page }) => {
