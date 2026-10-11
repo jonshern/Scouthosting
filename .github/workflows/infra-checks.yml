@@ -1,0 +1,42 @@
+# Checks for the GCP setup (infra/, the GCP workflows and their scripts).
+# No cloud access: format, lint and validate only.
+name: Infra checks
+
+on:
+  pull_request:
+    paths: ["infra/**", "scripts/*.sh", ".github/workflows/deploy.yml", ".github/workflows/preview.yml", ".github/workflows/infra.yml", ".github/workflows/infra-checks.yml", ".github/actions/**"]
+  push:
+    branches: [main]
+    paths: ["infra/**", "scripts/*.sh", ".github/workflows/deploy.yml", ".github/workflows/preview.yml", ".github/workflows/infra.yml", ".github/workflows/infra-checks.yml", ".github/actions/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+      - run: terraform fmt -check -recursive
+      - uses: terraform-linters/setup-tflint@v6
+      - run: tflint --init && tflint --recursive --config "$PWD/.tflint.hcl"
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: terraform init -backend=false -input=false && terraform validate
+      - run: terraform init -input=false && terraform validate
+        working-directory: infra/bootstrap
+
+  workflows-and-scripts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: actionlint
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
+          ./actionlint -color .github/workflows/deploy.yml .github/workflows/preview.yml .github/workflows/infra.yml .github/workflows/infra-checks.yml
+      - name: shellcheck
+        run: shellcheck scripts/deploy-api.sh scripts/set-github-vars.sh scripts/migrate.sh

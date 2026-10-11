@@ -1,0 +1,20 @@
+name: GCP auth
+description: Keyless sign-in to GCP as the deployer service account (Workload Identity Federation), plus gcloud.
+inputs:
+  workload_identity_provider:
+    required: true
+  service_account:
+    required: true
+  region:
+    required: false
+    default: us-central1
+runs:
+  using: composite
+  steps:
+    - uses: google-github-actions/auth@v3
+      with:
+        workload_identity_provider: ${{ inputs.workload_identity_provider }}
+        service_account: ${{ inputs.service_account }}
+    - uses: google-github-actions/setup-gcloud@v3
+    - shell: bash
+      run: gcloud config set run/region "${{ inputs.region }}"

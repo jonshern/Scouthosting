@@ -1,0 +1,79 @@
+# GCP deploy of the core service (Compass). Does nothing until the
+# GCP_PROJECT_ID repository variable is set, so the fly.io setup keeps
+# working alongside it.
+# main -> build one image -> staging (migrate, roll out, smoke test)
+#      -> prod (same image; waits for approval if the "production"
+#         environment has required reviewers).
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "infra/**", "mobile/**", "design/**", "design-handoff/**", "design_handoff_compass_cms/**", "docs/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # keyless GCP auth
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  PROJECT: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+
+jobs:
+  build:
+    if: vars.GCP_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    outputs:
+      image: ${{ steps.img.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/gcp-auth
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          region: ${{ env.REGION }}
+      - id: img
+        run: echo "image=${REGION}-docker.pkg.dev/${PROJECT}/core/compass:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - run: gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.img.outputs.image }}
+          build-args: GIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  staging:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/gcp-auth
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          region: ${{ env.REGION }}
+      - run: ./scripts/deploy-api.sh staging "${{ needs.build.outputs.image }}"
+
+  prod:
+    needs: [build, staging]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/gcp-auth
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          region: ${{ env.REGION }}
+      - run: ./scripts/deploy-api.sh prod "${{ needs.build.outputs.image }}"
