@@ -30,6 +30,15 @@ async function lockSlot(tx: Tx, slotId: string) {
 /**
  * Claim a seat. Joins the waitlist when full (if the slot allows it),
  * otherwise throws SlotFullError.
+ *
+ * `scoutName` names the scout a guardian is holding the seat for
+ * (public sign-ups); "" / omitted means the signer is the attendee.
+ *
+ * With `idempotent`, a repeat claim by the same person (same userId,
+ * or same guest email + scoutName) returns the existing seat instead
+ * of tripping the unique constraint. A signed-in user also adopts an
+ * earlier guest claim made with their email. The lookup runs after
+ * the row lock, so duplicate requests racing each other serialize.
  */
 export async function claimSlot(
   tx: Tx,
@@ -40,9 +49,30 @@ export async function claimSlot(
     name: string;
     email: string | null;
     notes: string | null;
+    scoutName?: string;
+    phone?: string | null;
+    idempotent?: boolean;
   },
-): Promise<{ waitlisted: boolean }> {
+): Promise<{ waitlisted: boolean; existing?: boolean }> {
   const slot = await lockSlot(tx, args.slotId);
+  const scoutName = args.scoutName ?? "";
+  if (args.idempotent) {
+    const mine = args.userId
+      ? await tx.slotAssignment.findFirst({ where: { slotId: slot.id, userId: args.userId } })
+      : null;
+    if (mine) return { waitlisted: mine.waitlisted, existing: true };
+    const guest = args.email
+      ? await tx.slotAssignment.findFirst({
+          where: { slotId: slot.id, userId: null, email: args.email, scoutName },
+        })
+      : null;
+    if (guest) {
+      if (args.userId) {
+        await tx.slotAssignment.update({ where: { id: guest.id }, data: { userId: args.userId } });
+      }
+      return { waitlisted: guest.waitlisted, existing: true };
+    }
+  }
   const active = await tx.slotAssignment.count({
     where: { slotId: slot.id, waitlisted: false },
   });
@@ -59,6 +89,8 @@ export async function claimSlot(
       name: args.name,
       email: args.email,
       notes: args.notes,
+      scoutName,
+      phone: args.phone ?? null,
       waitlisted,
     },
   });
@@ -76,13 +108,21 @@ export async function claimSlot(
  */
 export async function releaseSlot(
   tx: Tx,
-  args: { slotId: string; who: { userId: string } | { guestEmail: string } },
+  args: {
+    slotId: string;
+    who: { userId: string } | { guestEmail: string; scoutName?: string };
+  },
 ): Promise<{ released: boolean; promotedIds: string[] }> {
   const slot = await lockSlot(tx, args.slotId);
   const where =
     "userId" in args.who
       ? { slotId: slot.id, userId: args.who.userId }
-      : { slotId: slot.id, userId: null, email: args.who.guestEmail };
+      : {
+          slotId: slot.id,
+          userId: null,
+          email: args.who.guestEmail,
+          scoutName: args.who.scoutName ?? "",
+        };
   const target = await tx.slotAssignment.findFirst({ where });
   if (!target) return { released: false, promotedIds: [] };
   await tx.slotAssignment.delete({ where: { id: target.id } });

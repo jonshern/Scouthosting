@@ -9,6 +9,8 @@ import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { ownedIdOrNull, ownedIds } from "@/lib/tenancy/owned";
 import { deleteEventWithSlipTrace } from "@/lib/events/delete";
+import { PublicSlugSchema } from "@/lib/events/public-signup";
+import { slotsFromEventFile } from "@/lib/events/waypoint-file";
 
 const Iso = z
   .string()
@@ -29,6 +31,7 @@ const EventInput = z.object({
   cost: z.string().optional().or(z.literal("")),
   capacity: z.string().optional().or(z.literal("")),
   signupRequired: z.union([z.literal("on"), z.literal("")]).optional(),
+  publicSlug: PublicSlugSchema.optional().or(z.literal("")),
   rrule: z.string().trim().max(200).optional().or(z.literal("")),
   recurrenceUntil: z.string().optional().or(z.literal("")),
   serviceHours: z.string().optional().or(z.literal("")),
@@ -98,6 +101,7 @@ export async function upsertEvent(
     cost: toInt(d.cost) ?? null,
     capacity: toInt(d.capacity) ?? null,
     signupRequired: d.signupRequired === "on",
+    publicSlug: d.publicSlug || null,
     rrule: nz(d.rrule) ?? null,
     recurrenceUntil: d.recurrenceUntil ? new Date(d.recurrenceUntil) : null,
     serviceHours: toFloat(d.serviceHours) ?? null,
@@ -111,11 +115,18 @@ export async function upsertEvent(
   if (locationId === false) return { error: "Location not found." };
   data.locationId = locationId;
 
-  if (d.id) {
-    const { count } = await prisma.event.updateMany({ where: { id: d.id, orgId: org.id }, data });
-    if (count === 0) return { error: "Event not found." };
-  } else {
-    await prisma.event.create({ data });
+  try {
+    if (d.id) {
+      const { count } = await prisma.event.updateMany({ where: { id: d.id, orgId: org.id }, data });
+      if (count === 0) return { error: "Event not found." };
+    } else {
+      await prisma.event.create({ data });
+    }
+  } catch (e) {
+    if ((e as { code?: string }).code === "P2002") {
+      return { error: "That public sign-up slug is already used by another event." };
+    }
+    throw e;
   }
 
   revalidatePath(`/o/${org.slug}/admin/events`);
@@ -147,4 +158,59 @@ export async function deleteEvent(_prev: unknown, formData: FormData) {
   // Redirect server-side so the client doesn't have to coordinate
   // navigation after success.
   redirect(`/o/${auth.org.slug}/admin/events`);
+}
+
+const ImportSlotsSchema = z.object({
+  orgSlug: z.string().min(1),
+  eventId: z.string().min(1),
+  file: z.string().min(1, "Paste the event file.").max(500_000, "That file is too large."),
+});
+
+export type ImportSlotsState = { error?: string; ok?: true; created?: number; updated?: number } | null;
+
+/**
+ * Create or update this event's sign-up slots from a Waypoint event
+ * file: one slot per station ("station:<id>") and per volunteer role
+ * ("role:<id>"). Re-importing an edited file updates titles and
+ * capacities in place; slots missing from the file are left alone so
+ * nobody's seat is deleted by an import.
+ */
+export async function importEventSlots(
+  _prev: ImportSlotsState,
+  formData: FormData,
+): Promise<ImportSlotsState> {
+  if (!(await verifyOrigin())) return { error: "Bad origin." };
+  if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) return { error: "Bad CSRF." };
+  const parsed = ImportSlotsSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const d = parsed.data;
+  const auth = await authorize(d.orgSlug);
+  if ("error" in auth) return { error: auth.error };
+  const { org } = auth;
+
+  const event = await prisma.event.findFirst({ where: { id: d.eventId, orgId: org.id }, select: { id: true } });
+  if (!event) return { error: "Event not found." };
+
+  const spec = slotsFromEventFile(d.file);
+  if ("error" in spec) return { error: spec.error };
+
+  const existing = await prisma.signupSlot.findMany({
+    where: { eventId: event.id, key: { in: spec.slots.map((s) => s.key) } },
+    select: { key: true },
+  });
+  const have = new Set(existing.map((s) => s.key));
+  await prisma.$transaction(
+    spec.slots.map((s) =>
+      prisma.signupSlot.upsert({
+        where: { eventId_key: { eventId: event.id, key: s.key } },
+        update: { title: s.title, description: s.description, capacity: s.capacity, sortOrder: s.sortOrder },
+        create: { orgId: org.id, eventId: event.id, ...s },
+      }),
+    ),
+  );
+
+  revalidatePath(`/o/${org.slug}/admin/events/${event.id}`);
+  revalidatePath(`/o/${org.slug}/calendar`);
+  const updated = spec.slots.filter((s) => have.has(s.key)).length;
+  return { ok: true, created: spec.slots.length - updated, updated };
 }

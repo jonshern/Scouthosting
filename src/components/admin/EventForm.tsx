@@ -16,6 +16,7 @@ type EventInitial = {
   cost?: number | null;
   capacity?: number | null;
   signupRequired?: boolean | null;
+  publicSlug?: string | null;
   rrule?: string | null;
   recurrenceUntil?: Date | string | null;
   serviceHours?: number | null;
@@ -143,6 +144,23 @@ export function EventForm({
       <div className="flex items-center gap-2">
         <input id="signupRequired" name="signupRequired" type="checkbox" defaultChecked={!!e.signupRequired} />
         <label htmlFor="signupRequired">Sign-up required</label>
+      </div>
+
+      <div>
+        <label className="label" htmlFor="publicSlug">Public sign-up slug</label>
+        <input
+          id="publicSlug"
+          name="publicSlug"
+          maxLength={80}
+          placeholder="spring-badge-day-2027"
+          defaultValue={e.publicSlug ?? ""}
+          className="field font-mono text-xs"
+        />
+        <p className="mt-1 text-xs text-ink-muted">
+          Lets families sign up from Waypoint without an account, at{" "}
+          <code>/api/events/&lt;slug&gt;/signups</code>. Use the event file&apos;s name (without{" "}
+          <code>.json</code>). Needs &quot;Sign-up required&quot;. Leave blank to keep sign-ups inside Compass.
+        </p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
