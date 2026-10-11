@@ -296,6 +296,21 @@ async function main() {
   await provisionStandingChannelsInline(org.id, org.displayName);
   await provisionTreasuryInline(org.id);
 
+  // Treasury system funds (mirrors SYSTEM_FUNDS in
+  // src/lib/treasury/provision.ts; inlined for the same reason as the
+  // channels above). Sales, dues and transfers need these to exist.
+  for (const f of [
+    { code: "general", name: "General fund" },
+    { code: "scout-accounts", name: "Scout accounts" },
+    { code: "stripe-fees", name: "Stripe processing fees" },
+  ]) {
+    await prisma.fund.upsert({
+      where: { orgId_code: { orgId: org.id, code: f.code } },
+      update: {},
+      create: { orgId: org.id, code: f.code, name: f.name, isSystem: true },
+    });
+  }
+
   // Pre-launch invite codes. Apex marketing site is gated until a
   // visitor enters one of these. Idempotent — re-runs upsert.
   const inviteSeeds = [
