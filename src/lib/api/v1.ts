@@ -43,6 +43,7 @@ export const LIMITS = {
   chatPost: { bucket: "chat-post", limit: 30, windowMs: MINUTE },
   reaction: { bucket: "reaction", limit: 60, windowMs: MINUTE },
   rsvp: { bucket: "rsvp", limit: 30, windowMs: MINUTE },
+  slot: { bucket: "slot", limit: 30, windowMs: MINUTE },
   photoUpload: { bucket: "photo-upload", limit: 60, windowMs: HOUR },
   push: { bucket: "push", limit: 20, windowMs: HOUR },
   support: { bucket: "support", limit: 5, windowMs: HOUR },

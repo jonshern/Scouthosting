@@ -162,7 +162,9 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
     f.event = (await prisma.event.create({ data: { orgId: f.org.id, title: "Badge Day", startsAt: soon } })).id;
     f.otherEvent = (await prisma.event.create({ data: { orgId: f.org.id, title: "Other", startsAt: soon } })).id;
     f.otherOrgEvent = (await prisma.event.create({ data: { orgId: f.otherOrg.id, title: "Theirs", startsAt: soon } })).id;
-    f.slotA = (await prisma.signupSlot.create({ data: { orgId: f.org.id, eventId: f.event, title: "First Aid" } })).id;
+    f.slotA = (
+      await prisma.signupSlot.create({ data: { orgId: f.org.id, eventId: f.event, title: "First Aid", key: `station:wp-fa-${S}` } })
+    ).id;
     f.slotB = (await prisma.signupSlot.create({ data: { orgId: f.org.id, eventId: f.event, title: "Cooking" } })).id;
     f.otherSlot = (await prisma.signupSlot.create({ data: { orgId: f.org.id, eventId: f.otherEvent, title: "X" } })).id;
   });
@@ -177,6 +179,9 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
     await prisma.rateLimitBucket.deleteMany({
       where: { OR: users.map((u) => ({ key: { startsWith: `v1:user:${u}` } })) },
     });
+    // Unknown client IP in tests → the shared "anon" bucket; only this
+    // file posts to the staff RSVP route.
+    await prisma.rateLimitBucket.deleteMany({ where: { key: "staff-rsvp:ip:anon" } });
   });
 
   const addBody = (label: string, extra: Record<string, unknown> = {}) => ({
@@ -232,7 +237,7 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
         phone: "555-0100",
         role: "counselor",
         status: "invited",
-        station: { slotId: f.slotA, key: `station:${f.slotA}`, title: "First Aid" },
+        station: { slotId: f.slotA, key: `station:wp-fa-${S}`, title: "First Aid" },
         respondedAt: null,
       });
       expect(r.text).not.toContain("rsvpTokenHash");
@@ -351,7 +356,7 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
       expect(rows[0]).toMatchObject({
         role: "counselor",
         status: "yes",
-        station: { slotId: f.slotA, key: `station:${f.slotA}`, title: "First Aid" },
+        station: { slotId: f.slotA, key: `station:wp-fa-${S}`, title: "First Aid" },
         event: { id: f.event, title: "Badge Day" },
       });
       expect(((await call(meStaffing.GET as Handler, { token: f.unverified.token })).json.staffing as unknown[]).length).toBe(0);
@@ -413,6 +418,9 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
       expect(await channelMembers(stationA)).toEqual([f.admin.id, f.leader.id].sort());
       const b = await call(channelsRoute.POST as Handler, { token: f.leader.token, params: { id: f.event }, body: { audience: "station", slotId: f.slotB } });
       expect(await channelMembers((b.json.channel as { id: string }).id)).toEqual([f.admin.id, f.leader.id, f.helper.id].sort());
+      // No key on slot B: the key falls back to station:<slotId>.
+      expect((b.json.channel as { station: { key: string } }).station.key).toBe(`station:${f.slotB}`);
+      expect((a.json.channel as { station: { key: string } }).station.key).toBe(`station:wp-fa-${S}`);
       expect((await call(channelsRoute.POST as Handler, { token: f.leader.token, params: { id: f.event }, body: { audience: "station" } })).json.error).toBe("missing_slot");
       expect(
         (await call(channelsRoute.POST as Handler, { token: f.leader.token, params: { id: f.event }, body: { audience: "station", slotId: f.otherSlot } })).json.error,
@@ -516,9 +524,17 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
       await prisma.rsvp.create({
         data: { orgId: f.org.id, eventId: f.event, name: "Roster youth", email: f.rosterYouth.email, response: "yes" },
       });
+      // A public (Waypoint) sign-up: the seat is for a scout, the
+      // contact is the guardian who signed them up.
+      const waypointGuardian = `wp-guardian-${S}@example.invalid`;
+      await prisma.slotAssignment.create({
+        data: { orgId: f.org.id, slotId: f.slotA, name: "WP Guardian", email: waypointGuardian, scoutName: "Sam K.", phone: "555-0111" },
+      });
       const { r, to } = await announce({ scope: "families" });
       expect(r.status).toBe(200);
-      expect(to).toEqual([f.guardianEmail, f.helper.email].sort());
+      expect(to).toEqual([f.guardianEmail, f.helper.email, waypointGuardian].sort());
+      const log = await prisma.mailLog.findUniqueOrThrow({ where: { id: (r.json.announcement as { mailLogId: string }).mailLogId } });
+      expect(JSON.stringify(log.recipients)).not.toContain("Sam K.");
       expect(to).not.toContain(f.scout.email);
       expect(to).not.toContain(f.youthMemberEmail);
       expect(to).not.toContain(f.rosterYouth.email);

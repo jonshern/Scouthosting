@@ -77,7 +77,7 @@ describe("tokens", () => {
 });
 
 describe("staffDto", () => {
-  it("exposes the station as { slotId, key, title }", () => {
+  it("exposes the station as { slotId, key, title }, preferring the slot's own key", () => {
     const base = {
       id: "s1",
       name: "Pat",
@@ -89,9 +89,14 @@ describe("staffDto", () => {
       counselorId: null,
       respondedAt: null,
     };
-    expect(staffDto({ ...base, slot: { id: "slot1", title: "First Aid" } }).station).toEqual({
+    expect(staffDto({ ...base, slot: { id: "slot1", title: "First Aid", key: null } }).station).toEqual({
       slotId: "slot1",
       key: "station:slot1",
+      title: "First Aid",
+    });
+    expect(staffDto({ ...base, slot: { id: "slot1", title: "First Aid", key: "station:wp-first-aid" } }).station).toEqual({
+      slotId: "slot1",
+      key: "station:wp-first-aid",
       title: "First Aid",
     });
     expect(staffDto({ ...base, slot: null }).station).toBeNull();

@@ -522,6 +522,10 @@ model Event {
   cost            Int? // dollars
   capacity        Int?
   signupRequired  Boolean   @default(false)
+  // Public sign-up address for apps outside Compass (Waypoint's badge
+  // day pages): POST /api/events/<publicSlug>/signups. Null = not
+  // open to public sign-ups. Globally unique, so no org is needed.
+  publicSlug      String?   @unique
   category        String? // meeting, campout, service, court-of-honor...
   // RFC 5545 RRULE without the leading "RRULE:" prefix. Null = single
   // occurrence. Examples: "FREQ=WEEKLY;BYDAY=MO" (every Monday),
@@ -579,6 +583,9 @@ model SignupSlot {
   // assignment is released. Leaders can disable per-slot.
   allowWaitlist Boolean  @default(true)
   sortOrder     Int      @default(0)
+  // Stable external id, so an outside event file can address the slot:
+  // "station:<stationId>" or "role:<volunteerRoleId>" for Waypoint.
+  key           String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -588,6 +595,7 @@ model SignupSlot {
   staff       EventStaff[]
   channels    Channel[]
 
+  @@unique([eventId, key])
   @@index([orgId, eventId, sortOrder])
 }
 
@@ -598,6 +606,13 @@ model SlotAssignment {
   userId     String? // signed-in user (preferred path)
   name       String
   email      String?
+  // Public sign-ups: the scout this seat is for, first name + last
+  // initial only (youth protection). "" when the signer is the
+  // attendee (drivers, volunteers, signed-in members), so one parent
+  // can hold a seat per scout while (slot, email) stays deduped.
+  scoutName  String   @default("")
+  // Guardian's phone, optional, from public sign-ups.
+  phone      String?
   notes      String?
   // True while the assignment is queued behind a full slot. When an
   // active assignment is released, the oldest waitlisted row is
@@ -609,9 +624,10 @@ model SlotAssignment {
   slot SignupSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
   user User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
 
-  // Block dupes by signed-in user; (slot, email) handles the anon path.
+  // Block dupes by signed-in user; (slot, email, scout) handles the
+  // anon path (scoutName "" for a guest signing up themselves).
   @@unique([slotId, userId])
-  @@unique([slotId, email])
+  @@unique([slotId, email, scoutName])
   @@index([orgId, slotId])
 }
 

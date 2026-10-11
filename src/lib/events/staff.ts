@@ -98,7 +98,7 @@ export function hashStaffToken(token: string): string {
 /* DTO                                                                 */
 /* ------------------------------------------------------------------ */
 
-export const STAFF_INCLUDE = { slot: { select: { id: true, title: true } } } as const;
+export const STAFF_INCLUDE = { slot: { select: { id: true, title: true, key: true } } } as const;
 
 export type StaffRow = {
   id: string;
@@ -110,15 +110,20 @@ export type StaffRow = {
   notes: string | null;
   counselorId: string | null;
   respondedAt: Date | null;
-  slot: { id: string; title: string } | null;
+  slot: { id: string; title: string; key: string | null } | null;
 };
 
-export function stationKey(slotId: string): string {
-  return `station:${slotId}`;
+/**
+ * A station's external key: the slot's own `key` (e.g. Waypoint's
+ * "station:<stationId>") when it has one, else one derived from the
+ * slot id in the same shape.
+ */
+export function stationKeyFor(slot: { id: string; key?: string | null }): string {
+  return slot.key || `station:${slot.id}`;
 }
 
-export function stationDto(slot: { id: string; title: string } | null) {
-  return slot ? { slotId: slot.id, key: stationKey(slot.id), title: slot.title } : null;
+export function stationDto(slot: { id: string; title: string; key?: string | null } | null) {
+  return slot ? { slotId: slot.id, key: stationKeyFor(slot), title: slot.title } : null;
 }
 
 export function staffDto(row: StaffRow) {

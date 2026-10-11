@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { EventForm } from "@/components/admin/EventForm";
+import { ImportSlotsForm } from "@/components/admin/ImportSlotsForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DeleteEventButton } from "@/components/admin/DeleteContentButtons";
 import {
@@ -27,6 +28,10 @@ export default async function EditEventPage({
       where: { id, orgId: org.id },
       include: {
         rsvps: { orderBy: { createdAt: "desc" } },
+        slots: {
+          orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+          include: { assignments: { select: { waitlisted: true } } },
+        },
       },
     }),
     prisma.location.findMany({
@@ -96,6 +101,7 @@ export default async function EditEventPage({
           cost: event.cost,
           capacity: event.capacity,
           signupRequired: event.signupRequired,
+          publicSlug: event.publicSlug,
           rrule: event.rrule,
           recurrenceUntil: event.recurrenceUntil,
           serviceHours: event.serviceHours,
@@ -108,6 +114,35 @@ export default async function EditEventPage({
         csrf={<CsrfTokenInput />}
         locations={locations}
       />
+
+      <div className="border-t border-line pt-6 space-y-4">
+        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Stations and volunteer slots</h2>
+        {event.slots.length > 0 && (
+          <table className="w-full text-sm">
+            <thead className="text-left text-slate-muted">
+              <tr>
+                <th className="py-1">Slot</th>
+                <th className="py-1">Key</th>
+                <th className="py-1">Taken</th>
+                <th className="py-1">Waitlist</th>
+              </tr>
+            </thead>
+            <tbody>
+              {event.slots.map((s) => (
+                <tr key={s.id} className="border-t border-ink-muted/15">
+                  <td className="py-2">{s.title}</td>
+                  <td className="py-2 font-mono text-xs">{s.key ?? "—"}</td>
+                  <td className="py-2">
+                    {s.assignments.filter((a) => !a.waitlisted).length} / {s.capacity}
+                  </td>
+                  <td className="py-2">{s.assignments.filter((a) => a.waitlisted).length}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <ImportSlotsForm orgSlug={slug} eventId={event.id} csrf={<CsrfTokenInput />} />
+      </div>
 
       <div className="space-y-4">
         <div>

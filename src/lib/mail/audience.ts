@@ -211,9 +211,10 @@ export function mergeEventRecipients(
  *
  *   staff    — EventStaff rows that said yes or maybe
  *   station  — the same, limited to one station (SignupSlot)
- *   families — yes/maybe RSVPs plus sign-up slot takers; a youth RSVP
- *              tied to a roster entry reaches that scout's linked
- *              parents instead
+ *   families — yes/maybe RSVPs plus sign-up slot takers (public
+ *              sign-ups reach the guardian who signed the scout up);
+ *              a youth RSVP tied to a roster entry reaches that
+ *              scout's linked parents instead
  *
  * Never a scout's address: any email on a youth roster entry, or held
  * by a user with the scout role, is dropped, as are roster addresses
@@ -255,10 +256,13 @@ export async function buildEventAudience(
           member: { select: { isYouth: true, parentIds: true } },
         },
       }),
+      // Includes public (Waypoint) sign-ups: a row with scoutName set
+      // holds a seat for a scout, but its name/email/phone are the
+      // guardian's, so the guardian is who gets the email.
       prisma.slotAssignment.findMany({
         where: { orgId, slot: { eventId: event.id } },
         orderBy: { createdAt: "asc" },
-        select: { name: true, email: true },
+        select: { name: true, email: true, phone: true },
       }),
     ]);
     const parentIds = new Set<string>();

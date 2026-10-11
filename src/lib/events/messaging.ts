@@ -12,7 +12,7 @@ import { IdSchema, badRequest } from "@/lib/api/v1";
 import { EVENT_AUDIENCES, provisionEventChannel, type EventAudience } from "@/lib/chat";
 import { buildEmailAudience, describeAudience, type EventAudienceSelector } from "@/lib/mail/audience";
 import { sendLoggedBroadcast } from "@/lib/mail/broadcast";
-import type { StaffEvent, Actor } from "@/lib/events/staff";
+import { stationDto, type StaffEvent, type Actor } from "@/lib/events/staff";
 
 type Db = PrismaClient;
 
@@ -47,7 +47,7 @@ const CHANNEL_SELECT = {
   isSuspended: true,
   suspendedReason: true,
   archivedAt: true,
-  slot: { select: { id: true, title: true } },
+  slot: { select: { id: true, title: true, key: true } },
   _count: { select: { members: true } },
 } as const;
 
@@ -59,7 +59,7 @@ type ChannelRow = {
   isSuspended: boolean;
   suspendedReason: string | null;
   archivedAt: Date | null;
-  slot: { id: string; title: string } | null;
+  slot: { id: string; title: string; key: string | null } | null;
   _count: { members: number };
 };
 
@@ -68,7 +68,7 @@ export function eventChannelDto(c: ChannelRow) {
     id: c.id,
     name: c.name,
     audience: c.audience ?? "families",
-    station: c.slot ? { slotId: c.slot.id, key: `station:${c.slot.id}`, title: c.slot.title } : null,
+    station: stationDto(c.slot),
     isSuspended: c.isSuspended,
     suspendedReason: c.suspendedReason,
     archived: !!c.archivedAt,
