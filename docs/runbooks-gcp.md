@@ -25,6 +25,8 @@ Merging to `main` deploys. The *Deploy* workflow:
 
 If any smoke test fails, the script sends traffic back to the previous revision and the workflow goes red. To redeploy an older commit, open *Actions → Deploy → Run workflow* and pick the commit's branch or tag.
 
+The image never migrates on its own: it only runs `next start`. Wherever it runs, `scripts/migrate.sh` (as the schema owner) must finish before a new version starts. On Google Cloud that is the `core-migrate-<env>` job above; in bluecard's local stack on Jon's Mac it is the `migrate` service, which `scripts/local.sh up` runs before `seed` and `server`. Running `npm run dev` from a checkout is different: apply migrations there with `npx prisma migrate deploy` after pulling.
+
 Database changes: keep each migration compatible with the server version before it (add a column, ship, backfill, then drop in a later release), because the old version serves traffic while the migration runs.
 
 ## Roll back
