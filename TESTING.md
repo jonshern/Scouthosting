@@ -75,7 +75,7 @@ The webServer runs `npm run start` on port 3000 with these env vars
 set (see `playwright.config.ts`):
 
 - `DATABASE_URL` → `compass_test` on 5433 (separate DB from dev)
-- `NODE_ENV=production` (mirrors Fly)
+- `NODE_ENV=production` (mirrors production)
 - `ALLOW_ADMIN_PASSWORD_LOGIN=1` — required because the policy gate
   (`src/lib/auth/policy.ts#passwordLoginAllowedForRole`) blocks
   email+password sign-in for admins when `NODE_ENV=production`.

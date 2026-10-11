@@ -17,8 +17,7 @@ PORT       ?= $(shell . ./.env 2>/dev/null; echo $${PORT:-3000})
 
 .PHONY: help bootstrap dev redeploy seed test e2e clean mobile mobile-build \
         install db-up db-wait migrate wipe pull dev-bg dev-stop down \
-        staging staging-deploy staging-logs staging-seed staging-shell \
-        ensure-master-key ensure-staging-master-key
+        ensure-master-key
 
 help: ## Show this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "Compass dev targets\n\nUsage: make <target>\n\nTargets:\n"} /^[a-zA-Z0-9_-]+:.*##/ { printf "  \033[1m%-14s\033[0m %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
@@ -77,44 +76,6 @@ mobile: ## Start the Expo Metro server (pick iOS / Android / web from its menu).
 
 mobile-build: ## EAS cloud build. PROFILE=development|preview|production, PLATFORM=ios|android|all.
 	cd $(MOBILE) && npx --yes -p eas-cli eas build --profile $(PROFILE) --platform $(PLATFORM)
-
-# --- staging (Fly.io) ---
-# Fly app is `compass-staging`. The Dockerfile CMD runs
-# `prisma migrate deploy && npm run start` on boot, so deploys apply
-# pending migrations automatically. Secrets (DATABASE_URL,
-# AUTH_TOKEN_SECRET, INVITE_SECRET, RSVP_SECRET, APEX_DOMAIN, …) live in
-# `fly secrets`. One-time setup assumes `fly auth login`.
-
-staging: ensure-staging-master-key staging-deploy staging-seed ## Full staging push: ensure MASTER_KEY secret, deploy, re-seed.
-	@echo
-	@echo "staging deploy complete."
-	@echo "  fly logs    → make staging-logs"
-	@echo "  shell       → make staging-shell"
-
-# MASTER_KEY must be set as a Fly secret before first deploy or the
-# app will refuse to boot in production. Idempotent: only sets if
-# the secret isn't already present.
-ensure-staging-master-key:
-	@if ! fly secrets list --json 2>/dev/null | grep -q '"Name":"MASTER_KEY"'; then \
-	  echo "no MASTER_KEY secret on Fly — generating one"; \
-	  KEY=$$(openssl rand -hex 32); \
-	  fly secrets set MASTER_KEY=$$KEY --stage; \
-	  echo "MASTER_KEY staged. Will activate on next deploy."; \
-	else \
-	  echo "MASTER_KEY already set on Fly — leaving it alone."; \
-	fi
-
-staging-deploy: ## Build + deploy current main to Fly staging (compass-staging).
-	fly deploy --remote-only
-
-staging-logs: ## Tail logs from the Fly staging app.
-	fly logs
-
-staging-seed: ## Run the demo seed inside the Fly staging app (idempotent).
-	fly ssh console -C "npm run db:seed"
-
-staging-shell: ## Open an interactive shell inside the running Fly staging app.
-	fly ssh console
 
 # --- internal helpers (not in `make help`) ---
 

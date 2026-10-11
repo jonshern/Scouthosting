@@ -10,7 +10,7 @@
 // Content:    { org, page, memberCount, heroPhoto, capturedAt }
 //
 // Local storage (`STORAGE_DRIVER=local`) writes under
-// /data/uploads/orgs/<slug>/snapshot/home.json on Fly. S3 backend
+// <LOCAL_UPLOADS_DIR>/orgs/<slug>/snapshot/home.json. S3 backend
 // would write the same key — no special-casing needed if/when we
 // swap drivers.
 
@@ -20,7 +20,7 @@ import { unstable_cache } from "next/cache";
 import { prisma } from "@/lib/db";
 
 // Resolved per-call so changes to LOCAL_UPLOADS_DIR (e.g. in tests
-// or after a fly-secrets edit) are picked up without re-importing.
+// or after an env edit) are picked up without re-importing.
 function root(): string {
   return process.env.LOCAL_UPLOADS_DIR ?? path.resolve(process.cwd(), ".local-uploads");
 }

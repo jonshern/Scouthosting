@@ -300,7 +300,7 @@ async function main() {
   }
 
   // Standing chat channels (troop / parents / leaders / per-patrol).
-  // Inlined so this seed runs in the Fly runtime image, which only
+  // Inlined so this seed runs in the runtime image, which only
   // copies prisma/ — not src/. Mirrors provisionStandingChannels in
   // src/lib/chat without the YPT post-check (the runtime guard
   // enforces two-deep on every write, so seed-time validation is
