@@ -3,7 +3,7 @@
 # Build:  docker build -t compass:latest .
 # Run:    docker run --rm -p 3000:3000 --env-file .env compass:latest
 
-FROM node:22-slim AS deps
+FROM node:22-trixie-slim AS deps
 WORKDIR /app
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends \
@@ -16,7 +16,7 @@ RUN npm ci --include=optional && npx prisma generate
 
 # ---------------------------------------------------------------------
 
-FROM node:22-slim AS builder
+FROM node:22-trixie-slim AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
@@ -39,7 +39,7 @@ RUN npm run build
 
 # ---------------------------------------------------------------------
 
-FROM node:22-slim AS runtime
+FROM node:22-trixie-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
