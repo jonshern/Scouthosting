@@ -1,17 +1,16 @@
-// /rsvp/[token] — one-click email RSVP. Verify the signed token,
-// then upsert an Rsvp keyed on (eventId, email) using the embedded
-// claims. The query string carries `r` ∈ {yes, no, maybe} so each
-// button in the email is its own URL.
+// /rsvp/[token] — one-click email RSVP. Each email button links here
+// with `r` ∈ {yes, no, maybe}. Opening the link only verifies the signed
+// token and asks the reader to confirm; mail scanners fetch every link,
+// so the answer is recorded by the confirm POST (src/lib/rsvp/link.ts).
 
-import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { verifyRsvpToken } from "@/lib/security/rsvp-token";
-import {
-  memberForUserInOrg,
-  settleEventChargeForRsvp,
-} from "@/lib/treasury/event-charge";
+import { parseLinkGuests, parseLinkResponse } from "@/lib/rsvp/link";
+import { confirmLinkRsvp } from "@/server-actions/rsvp-link";
 
-type Search = { r?: string; guests?: string };
+type Search = { r?: string; guests?: string; done?: string };
+
+const LABEL = { yes: "Yes, I'm going", maybe: "Maybe", no: "Can't make it" } as const;
 
 export default async function OneClickRsvp({
   params,
@@ -36,7 +35,7 @@ export default async function OneClickRsvp({
 
   const event = await prisma.event.findUnique({
     where: { id: claims.eventId },
-    select: { id: true, orgId: true, title: true, startsAt: true, location: true },
+    select: { id: true, title: true, location: true },
   });
   if (!event) {
     return (
@@ -46,66 +45,52 @@ export default async function OneClickRsvp({
     );
   }
 
-  const response = (sp.r === "no" || sp.r === "maybe" ? sp.r : "yes") as "yes" | "no" | "maybe";
-  const guests = Math.max(0, Math.floor(Number(sp.guests ?? 0)) || 0);
-
-  const memberId = await memberForUserInOrg({
-    orgId: event.orgId,
-    userEmail: claims.email,
-  });
-
-  const existing = await prisma.rsvp.findFirst({
-    where: { eventId: event.id, email: claims.email.toLowerCase() },
-    select: { id: true, memberId: true },
-  });
-  if (existing) {
-    await prisma.rsvp.update({
-      where: { id: existing.id },
-      data: {
-        response,
-        guests,
-        memberId: existing.memberId ?? memberId ?? null,
-      },
-    });
-  } else {
-    await prisma.rsvp.create({
-      data: {
-        orgId: event.orgId,
-        eventId: event.id,
-        name: claims.name,
-        email: claims.email.toLowerCase(),
-        memberId,
-        response,
-        guests,
-      },
-    });
+  const done = parseLinkResponse(sp.done);
+  if (done) {
+    return (
+      <main className="mx-auto max-w-content px-6 py-16 text-center">
+        <h1 className="font-display text-3xl">Thanks — RSVP saved</h1>
+        <p className="mt-3 text-ink-muted">
+          We've recorded <strong>{done}</strong> for <strong>{event.title}</strong>
+          {event.location ? ` at ${event.location}` : ""}.
+        </p>
+        <p className="mt-6 text-sm text-ink-muted">
+          Made a mistake? Click a different button in the email and confirm again.
+        </p>
+      </main>
+    );
   }
 
-  if (memberId) {
-    try {
-      await settleEventChargeForRsvp({
-        orgId: event.orgId,
-        eventId: event.id,
-        memberId,
-        response,
-      });
-    } catch (err) {
-      // eslint-disable-next-line no-console
-      console.error("event-charge settlement failed", err);
-    }
-  }
+  const picked = parseLinkResponse(sp.r) ?? "yes";
+  const guests = parseLinkGuests(sp.guests);
+  const order = [picked, ...(["yes", "maybe", "no"] as const).filter((r) => r !== picked)];
 
   return (
     <main className="mx-auto max-w-content px-6 py-16 text-center">
-      <h1 className="font-display text-3xl">Thanks — RSVP saved</h1>
+      <h1 className="font-display text-3xl">RSVP for {event.title}</h1>
       <p className="mt-3 text-ink-muted">
-        We've recorded <strong>{response}</strong> for{" "}
-        <strong>{event.title}</strong>
-        {event.location ? ` at ${event.location}` : ""}.
+        Answering as {claims.name}
+        {event.location ? ` · ${event.location}` : ""}.
       </p>
-      <p className="mt-6 text-sm text-ink-muted">
-        Made a mistake? Just click a different button in the email — we'll overwrite this.
-      </p>
+      <div className="mt-8 flex flex-wrap justify-center gap-3">
+        {order.map((r, i) => (
+          <form key={r} action={confirmLinkRsvp}>
+            <input type="hidden" name="token" value={token} />
+            <input type="hidden" name="response" value={r} />
+            <input type="hidden" name="guests" value={guests} />
+            <button
+              type="submit"
+              className={
+                i === 0
+                  ? "rounded-md bg-ink px-5 py-2.5 font-medium text-white"
+                  : "rounded-md border border-line px-5 py-2.5 font-medium"
+              }
+            >
+              {LABEL[r]}
+            </button>
+          </form>
+        ))}
+      </div>
     </main>
   );
 }
