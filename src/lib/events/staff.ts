@@ -26,6 +26,7 @@ import { ApiError, IdSchema, badRequest, notFound } from "@/lib/api/v1";
 import { sendMail, type MailResult } from "@/lib/mail";
 import { reconcileEventChannels } from "@/lib/chat";
 import { audit } from "@/lib/audit";
+import { orgPublicOrigin } from "@/lib/tenancy/resolve";
 
 export const STAFF_ROLES = ["counselor", "staff", "volunteer", "lead"] as const;
 export type StaffRole = (typeof STAFF_ROLES)[number];
@@ -145,19 +146,32 @@ export function staffDto(row: StaffRow) {
 /* Checks                                                              */
 /* ------------------------------------------------------------------ */
 
-/** Refuse an address that belongs to a youth in this org. */
-export async function assertAdultEmail(orgId: string, email: string, db: Db = defaultPrisma): Promise<void> {
+/**
+ * Does this address belong to a youth anywhere in Compass: a youth
+ * roster entry in any org (emails are plaintext, so this is a cheap
+ * query) or a user holding the scout role in any org?
+ */
+export async function isYouthEmail(email: string, db: Db = defaultPrisma): Promise<boolean> {
+  const match = { equals: email.trim(), mode: "insensitive" as const };
   const [youth, scout] = await Promise.all([
-    db.member.findFirst({
-      where: { orgId, isYouth: true, deletedAt: null, email: { equals: email, mode: "insensitive" } },
-      select: { id: true },
-    }),
-    db.orgMembership.findFirst({
-      where: { orgId, role: "scout", user: { email: { equals: email, mode: "insensitive" } } },
-      select: { id: true },
-    }),
+    db.member.findFirst({ where: { isYouth: true, deletedAt: null, email: match }, select: { id: true } }),
+    db.orgMembership.findFirst({ where: { role: "scout", user: { email: match } }, select: { id: true } }),
   ]);
-  if (youth || scout) throw badRequest("youth_email");
+  return !!(youth || scout);
+}
+
+/** Refuse an address that belongs to a youth (in any org). */
+export async function assertAdultEmail(email: string, db: Db = defaultPrisma): Promise<void> {
+  if (await isYouthEmail(email, db)) throw badRequest("youth_email");
+}
+
+/** When an event stops taking staff answers: its end, else a day after it starts. */
+export function eventClosesAt(event: { startsAt: Date; endsAt: Date | null }): Date {
+  return event.endsAt ?? new Date(event.startsAt.getTime() + 24 * 60 * 60 * 1000);
+}
+
+export function isEventOver(event: { startsAt: Date; endsAt: Date | null }, now: Date = new Date()): boolean {
+  return eventClosesAt(event).getTime() < now.getTime();
 }
 
 async function assertSlotOnEvent(eventId: string, slotId: string, db: Db) {
@@ -200,10 +214,10 @@ export async function listStaff(eventId: string, db: Db = defaultPrisma) {
 export async function addStaff(
   event: StaffEvent,
   input: AddStaffInput,
-  opts: { baseUrl: string; actor?: Actor | null; db?: Db },
+  opts: { actor?: Actor | null; db?: Db; baseUrl?: string },
 ) {
   const db = opts.db ?? defaultPrisma;
-  await assertAdultEmail(event.orgId, input.email, db);
+  await assertAdultEmail(input.email, db);
   if (input.slotId) await assertSlotOnEvent(event.id, input.slotId, db);
   if (input.counselorId) await assertCounselorInOrg(event.orgId, input.counselorId, db);
 
@@ -236,7 +250,14 @@ export async function addStaff(
     throw err;
   }
 
-  const sent = await sendStaffInvite({ event, staff: row, token, baseUrl: opts.baseUrl });
+  // Links go to the org's canonical address, never the request's Host
+  // (a bearer client picks that header).
+  let baseUrl = opts.baseUrl;
+  if (!baseUrl) {
+    const org = await db.org.findUniqueOrThrow({ where: { id: event.orgId }, select: { slug: true, customDomain: true } });
+    baseUrl = orgPublicOrigin(org);
+  }
+  const sent = await sendStaffInvite({ event, staff: row, token, baseUrl });
   audit({
     orgId: event.orgId,
     userId: opts.actor?.id ?? null,
@@ -339,7 +360,11 @@ async function recordResponse(
   return row;
 }
 
-/** Answer from the emailed link. Unknown token → 404 invalid_token. */
+/**
+ * Answer from the emailed link. Unknown token → 404 invalid_token;
+ * event over → 410 event_over; an address that has since turned out to
+ * be a youth's → 403 youth_email.
+ */
 export async function respondByToken(
   token: string,
   status: StaffResponse,
@@ -347,12 +372,15 @@ export async function respondByToken(
   opts: { db?: Db; now?: Date } = {},
 ) {
   const db = opts.db ?? defaultPrisma;
+  const now = opts.now ?? new Date();
   const staff = await db.eventStaff.findUnique({
     where: { rsvpTokenHash: hashStaffToken(token) },
-    select: { id: true, eventId: true },
+    select: { id: true, eventId: true, email: true, event: { select: { startsAt: true, endsAt: true } } },
   });
   if (!staff) throw notFound("invalid_token");
-  return recordResponse(staff, status, notes, {}, db, opts.now ?? new Date());
+  if (isEventOver(staff.event, now)) throw new ApiError(410, "event_over");
+  if (await isYouthEmail(staff.email, db)) throw new ApiError(403, "youth_email");
+  return recordResponse(staff, status, notes, {}, db, now);
 }
 
 /**
@@ -364,12 +392,12 @@ export async function findStaffForUser(
   user: { id: string; email: string; emailVerified: boolean },
   db: Db = defaultPrisma,
 ) {
-  const linked = await db.eventStaff.findFirst({ where: { eventId, userId: user.id }, select: { id: true, eventId: true, userId: true } });
+  const linked = await db.eventStaff.findFirst({ where: { eventId, userId: user.id }, select: { id: true, eventId: true, userId: true, email: true } });
   if (linked) return linked;
   if (!user.emailVerified) return null;
   return db.eventStaff.findFirst({
     where: { eventId, userId: null, email: user.email.toLowerCase() },
-    select: { id: true, eventId: true, userId: true },
+    select: { id: true, eventId: true, userId: true, email: true },
   });
 }
 
@@ -383,6 +411,9 @@ export async function respondAsUser(
   const db = opts.db ?? defaultPrisma;
   const staff = await findStaffForUser(eventId, user, db);
   if (!staff) throw notFound("not_staff");
+  if ((await isYouthEmail(user.email, db)) || (await isYouthEmail(staff.email, db))) {
+    throw new ApiError(403, "youth_email");
+  }
   return recordResponse(staff, status, notes, { userId: user.id }, db, opts.now ?? new Date());
 }
 
@@ -489,12 +520,4 @@ export async function sendStaffInvite(args: {
   } catch (err) {
     return { ok: false, error: String((err as Error)?.message ?? err) };
   }
-}
-
-/** Origin for links in emails, from the request's forwarded headers. */
-export function originFromHeaders(h: Headers, fallback = "http://localhost:3000"): string {
-  const host = h.get("host");
-  if (!host) return fallback;
-  const proto = h.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
-  return `${proto}://${host}`;
 }

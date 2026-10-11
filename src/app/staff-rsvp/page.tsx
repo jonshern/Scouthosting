@@ -4,7 +4,7 @@
 
 import type { Metadata } from "next";
 import { prisma } from "@/lib/db";
-import { STAFF_ROLE_LABELS, hashStaffToken, type StaffRole } from "@/lib/events/staff";
+import { STAFF_ROLE_LABELS, hashStaffToken, isEventOver, type StaffRole } from "@/lib/events/staff";
 import { StaffRsvpForm } from "@/components/public/StaffRsvpForm";
 
 export const metadata: Metadata = { title: "Event staff RSVP", robots: { index: false } };
@@ -28,6 +28,7 @@ export default async function StaffRsvpPage({
               select: {
                 title: true,
                 startsAt: true,
+                endsAt: true,
                 location: true,
                 org: { select: { displayName: true } },
               },
@@ -42,6 +43,17 @@ export default async function StaffRsvpPage({
         <h1 className="font-display text-3xl">Link not valid</h1>
         <p className="mt-2 text-ink-muted">
           This link doesn&apos;t match an invitation. Ask the event organizer to send it again.
+        </p>
+      </main>
+    );
+  }
+
+  if (isEventOver(staff.event)) {
+    return (
+      <main className="mx-auto max-w-content px-6 py-16 text-center">
+        <h1 className="font-display text-3xl">This event is over</h1>
+        <p className="mt-2 text-ink-muted">
+          {staff.event.title} has ended, so this link no longer takes answers. Thanks for being willing to help.
         </p>
       </main>
     );

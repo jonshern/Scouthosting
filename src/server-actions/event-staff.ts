@@ -5,7 +5,6 @@
 // that turn API error codes into form messages.
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { z, ZodError } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
@@ -16,7 +15,6 @@ import {
   AddStaffSchema,
   PatchStaffSchema,
   addStaff,
-  originFromHeaders,
   removeStaff,
   updateStaff,
   type StaffEvent,
@@ -27,6 +25,7 @@ export type EventStaffState = { ok?: true; error?: string; message?: string } | 
 
 const MESSAGES: Record<string, string> = {
   youth_email: "That address belongs to a youth member. Event staff must be adults.",
+  event_over: "This event is over.",
   staff_exists: "That email is already on this event's staff.",
   bad_slot: "Pick a station from this event.",
   bad_counselor: "That counselor isn't in your directory.",
@@ -98,10 +97,7 @@ export async function addEventStaff(_prev: EventStaffState, formData: FormData):
   if ("error" in ctx) return ctx;
   try {
     const input = AddStaffSchema.parse(ctx.fields);
-    const r = await addStaff(ctx.event, input, {
-      baseUrl: originFromHeaders(await headers()),
-      actor: ctx.user,
-    });
+    const r = await addStaff(ctx.event, input, { actor: ctx.user });
     return done(ctx, r.inviteSent ? `Invited ${r.staff.name}.` : `Added ${r.staff.name}, but the invite email failed.`);
   } catch (err) {
     return { error: messageFor(err) };

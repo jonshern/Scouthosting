@@ -213,8 +213,9 @@ export function mergeEventRecipients(
  *   station  — the same, limited to one station (SignupSlot)
  *   families — yes/maybe RSVPs plus sign-up slot takers (public
  *              sign-ups reach the guardian who signed the scout up);
- *              a youth RSVP tied to a roster entry reaches that
- *              scout's linked parents instead
+ *              when an RSVP or sign-up is a scout's own (by roster
+ *              link or by email), that scout's linked parents are
+ *              emailed instead
  *
  * Never a scout's address: any email on a youth roster entry, or held
  * by a user with the scout role, is dropped, as are roster addresses
@@ -274,6 +275,11 @@ export async function buildEventAudience(
       candidates.push({ name: r.name, email: r.email, memberId: r.memberId });
     }
     candidates.push(...assignments);
+    // A scout's own address is never emailed (blocked below), so copy
+    // their guardians instead. The RSVP route and slot sign-ups don't
+    // record which roster member they're for, so match the scout's
+    // roster entry by email.
+    for (const pid of await youthParentIdsByEmail(orgId, candidates.map((c) => c.email))) parentIds.add(pid);
     if (parentIds.size) candidates.push(...(await parentCandidates(orgId, [...parentIds])));
   }
 
@@ -282,6 +288,29 @@ export async function buildEventAudience(
     candidates.map((c) => c.email),
   );
   return mergeEventRecipients(candidates, blocked);
+}
+
+/**
+ * Parent roster ids for every address here that is a youth roster
+ * entry in this org. That covers scout-role users too: their roster
+ * entry carries the same email.
+ */
+async function youthParentIdsByEmail(
+  orgId: string,
+  emails: Array<string | null | undefined>,
+): Promise<string[]> {
+  const wanted = [...new Set(emails.filter((e): e is string => !!e).map((e) => e.trim().toLowerCase()))];
+  if (!wanted.length) return [];
+  const kids = await prisma.member.findMany({
+    where: {
+      orgId,
+      isYouth: true,
+      deletedAt: null,
+      OR: wanted.map((email) => ({ email: { equals: email, mode: "insensitive" as const } })),
+    },
+    select: { parentIds: true },
+  });
+  return [...new Set(kids.flatMap((k) => k.parentIds))];
 }
 
 async function parentCandidates(orgId: string, ids: string[]): Promise<EventCandidate[]> {

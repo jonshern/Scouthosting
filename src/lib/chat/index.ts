@@ -555,8 +555,10 @@ async function userIdsByEmail(emails: Iterable<string | null | undefined>, prism
  * families channel its two-deep adults. Everyone else must still hold
  * a role in the org: chat reads require it, so an outside counselor
  * would only be a dead row (they get the email fallback instead).
- * Youth never land in staff or station channels; families channels
- * may include scouts and stay under the two-deep guard.
+ * Youth never land in staff or station channels. A families channel
+ * includes a scout only together with their own guardian (pulled in
+ * via Member.parentIds even if the guardian didn't RSVP), and stays
+ * under the two-deep guard.
  */
 export async function eventChannelUserIds(
   channel: { orgId: string; eventId: string; audience: EventAudience; slotId: string | null },
@@ -612,16 +614,93 @@ export async function eventChannelUserIds(
   ]);
   const youthEmails = await rosterYouthEmails(orgId, users.map((u) => u.email), prismaClient);
   const membershipByUser = new Map(memberships.map((m) => [m.userId, m]));
-  const allowYouth = audience === "families";
-  const kept = users
-    .filter((u) => {
-      const kind = classifyMember(membershipByUser.get(u.id), youthEmails.has(u.email.toLowerCase()));
-      if (kind === "outsider") return false;
-      if (kind === "youth") return allowYouth;
-      return true;
-    })
-    .map((u) => u.id);
-  return [...leaderIds, ...kept];
+  const kept = new Set<string>(leaderIds);
+  const youth: Array<{ id: string; email: string }> = [];
+  for (const u of users) {
+    const kind = classifyMember(membershipByUser.get(u.id), youthEmails.has(u.email.toLowerCase()));
+    if (kind === "outsider") continue;
+    if (kind === "youth") {
+      // Never in staff/station channels.
+      if (audience === "families") youth.push(u);
+      continue;
+    }
+    kept.add(u.id);
+  }
+
+  // Youth protection: a scout is only in a families channel together
+  // with their own guardian. Bring in each scout's linked parents
+  // (Member.parentIds, the same walk as auto-add's parents-of-youth),
+  // and leave out any scout with no guardian who has an account.
+  if (youth.length) {
+    const guardians = await guardianUserIdsByYouthEmail(
+      orgId,
+      youth.map((y) => y.email),
+      prismaClient,
+    );
+    for (const y of youth) {
+      const g = guardians.get(y.email.toLowerCase()) ?? [];
+      if (!g.length) continue;
+      kept.add(y.id);
+      for (const id of g) kept.add(id);
+    }
+  }
+  return [...kept];
+}
+
+/**
+ * For each youth email, the users who are that scout's guardians in
+ * this org: roster youth (by email) → Member.parentIds → parent roster
+ * entries → users with the same verified email who hold an adult role
+ * (parent / leader / admin) in the org.
+ */
+export async function guardianUserIdsByYouthEmail(
+  orgId: string,
+  youthEmails: string[],
+  prismaClient: Prisma,
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  const wanted = [...new Set(youthEmails.map((e) => e.toLowerCase()))];
+  if (!wanted.length) return out;
+  const kids = await prismaClient.member.findMany({
+    where: {
+      orgId,
+      isYouth: true,
+      deletedAt: null,
+      OR: wanted.map((email) => ({ email: { equals: email, mode: "insensitive" as const } })),
+    },
+    select: { email: true, parentIds: true },
+  });
+  const parentIds = [...new Set(kids.flatMap((k) => k.parentIds))];
+  if (!parentIds.length) return out;
+  const parents = await prismaClient.member.findMany({
+    where: { orgId, id: { in: parentIds }, isYouth: false, deletedAt: null, email: { not: null } },
+    select: { id: true, email: true },
+  });
+  const parentEmails = parents.map((p) => (p.email ?? "").toLowerCase()).filter(Boolean);
+  if (!parentEmails.length) return out;
+  const users = await prismaClient.user.findMany({
+    where: {
+      emailVerified: true,
+      OR: parentEmails.map((email) => ({ email: { equals: email, mode: "insensitive" as const } })),
+      memberships: { some: { orgId, role: { in: ["parent", "leader", "admin"] } } },
+    },
+    select: { id: true, email: true },
+  });
+  const userIdsByEmail = new Map<string, string[]>();
+  for (const u of users) {
+    const k = u.email.toLowerCase();
+    userIdsByEmail.set(k, [...(userIdsByEmail.get(k) ?? []), u.id]);
+  }
+  const userIdsByParentId = new Map(
+    parents.map((p) => [p.id, userIdsByEmail.get((p.email ?? "").toLowerCase()) ?? []]),
+  );
+  for (const k of kids) {
+    const key = (k.email ?? "").toLowerCase();
+    const ids = new Set(out.get(key) ?? []);
+    for (const pid of k.parentIds) for (const uid of userIdsByParentId.get(pid) ?? []) ids.add(uid);
+    out.set(key, [...ids]);
+  }
+  return out;
 }
 
 /**

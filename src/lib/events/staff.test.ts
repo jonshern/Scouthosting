@@ -6,11 +6,13 @@ import {
   TokenRsvpSchema,
   hashStaffToken,
   newStaffToken,
-  originFromHeaders,
   renderStaffInvite,
   staffDto,
   staffRsvpUrl,
+  isEventOver,
 } from "./staff";
+import { orgPublicOrigin } from "@/lib/tenancy/resolve";
+import { isCrossSiteRequest } from "@/lib/security/same-origin";
 import { AnnounceSchema, CreateChannelSchema } from "./messaging";
 
 const code = (r: { success: boolean; error?: { issues: Array<{ message: string }> } }) =>
@@ -124,11 +126,20 @@ describe("invite email", () => {
     expect(html).toContain(url);
   });
 
-  it("builds the origin from the Host header", () => {
-    expect(originFromHeaders(new Headers({ host: "localhost:3000" }))).toBe("http://localhost:3000");
-    expect(originFromHeaders(new Headers({ host: "t.compass.app", "x-forwarded-proto": "https" }))).toBe(
-      "https://t.compass.app",
+  it("builds links from the org's canonical origin, not a request header", () => {
+    expect(orgPublicOrigin({ slug: "troop1" }, { apexHost: "compass.app", production: true })).toBe("https://troop1.compass.app");
+    expect(orgPublicOrigin({ slug: "troop1", customDomain: "troop1.org" }, { production: true })).toBe("https://troop1.org");
+    expect(orgPublicOrigin({ slug: "troop1" }, { apexHost: "localhost", production: false, port: "3000" })).toBe(
+      "http://troop1.localhost:3000",
     );
+    expect(orgPublicOrigin({ slug: "t" }, { apexHost: "localhost:4000", production: false })).toBe("http://t.localhost:4000");
+  });
+
+  it("closes staff answers when the event is over", () => {
+    const startsAt = new Date("2026-10-10T09:00:00Z");
+    expect(isEventOver({ startsAt, endsAt: null }, new Date("2026-10-11T08:00:00Z"))).toBe(false);
+    expect(isEventOver({ startsAt, endsAt: null }, new Date("2026-10-11T10:00:00Z"))).toBe(true);
+    expect(isEventOver({ startsAt, endsAt: new Date("2026-10-10T17:00:00Z") }, new Date("2026-10-10T18:00:00Z"))).toBe(true);
   });
 });
 
@@ -140,5 +151,19 @@ describe("messaging schemas", () => {
     expect(code(AnnounceSchema.safeParse({ scope: "station", subject: "s", body: "b" }))).toBe("missing_slot");
     expect(code(AnnounceSchema.safeParse({ scope: "staff", subject: "", body: "b" }))).toBe("missing_subject");
     expect(AnnounceSchema.safeParse({ scope: "families", subject: "s", body: "b" }).success).toBe(true);
+  });
+});
+
+describe("isCrossSiteRequest", () => {
+  const h = (o: Record<string, string>) => new Headers({ host: "troop1.compass.app", ...o });
+  it("passes same-origin browsers and header-less clients", () => {
+    expect(isCrossSiteRequest(h({}))).toBe(false);
+    expect(isCrossSiteRequest(h({ "sec-fetch-site": "same-origin", origin: "https://troop1.compass.app" }))).toBe(false);
+  });
+  it("refuses other sites", () => {
+    expect(isCrossSiteRequest(h({ "sec-fetch-site": "cross-site" }))).toBe(true);
+    expect(isCrossSiteRequest(h({ "sec-fetch-site": "same-site" }))).toBe(true);
+    expect(isCrossSiteRequest(h({ origin: "https://evil.example" }))).toBe(true);
+    expect(isCrossSiteRequest(h({ origin: "null" }))).toBe(true);
   });
 });

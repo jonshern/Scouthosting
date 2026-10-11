@@ -32,7 +32,9 @@ export function StaffRsvpForm({ token, initialStatus }: { token: string; initial
             ? "Too many tries. Wait a minute and try again."
             : body.error === "invalid_token"
               ? "This link is no longer valid."
-              : "Couldn't save your answer. Try again.",
+              : body.error === "event_over"
+                ? "This event is over, so answers are closed."
+                : "Couldn't save your answer. Try again.",
         );
         return;
       }

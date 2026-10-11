@@ -18,6 +18,7 @@ import { issueToken } from "@/lib/auth/api-token";
 import { _setMailDriverForTests, type MailMessage } from "@/lib/mail";
 import { hashStaffToken } from "@/lib/events/staff";
 import { reconcileEventChannels } from "@/lib/chat";
+import { orgPublicOrigin } from "@/lib/tenancy/resolve";
 
 import * as staffRoute from "@/app/api/v1/events/[id]/staff/route";
 import * as staffById from "@/app/api/v1/events/[id]/staff/[staffId]/route";
@@ -64,7 +65,8 @@ const mail: MailMessage[] = [];
 
 type U = { id: string; token: string; email: string };
 const f = {} as {
-  org: { id: string };
+  org: { id: string; slug: string };
+  family2: U; // another parent in the org
   otherOrg: { id: string };
   admin: U;
   leader: U;
@@ -105,7 +107,7 @@ async function makeOrg(label: string) {
       scoutmasterName: "Test",
       scoutmasterEmail: `sm-${S}@example.invalid`,
     },
-    select: { id: true },
+    select: { id: true, slug: true },
   });
 }
 
@@ -131,6 +133,7 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
     f.helper = await makeUser("helper");
     f.scout = await makeUser("scout");
     f.rosterYouth = await makeUser("rosteryouth");
+    f.family2 = await makeUser("family2");
     f.counselor = await makeUser("counselor");
     f.unverified = await makeUser("unverified", false);
     f.outsider = await makeUser("outsider");
@@ -142,6 +145,7 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
         { orgId: f.org.id, userId: f.helper.id, role: "parent" },
         { orgId: f.org.id, userId: f.scout.id, role: "scout" },
         { orgId: f.org.id, userId: f.rosterYouth.id, role: "parent" },
+        { orgId: f.org.id, userId: f.family2.id, role: "parent" },
         { orgId: f.otherOrg.id, userId: f.outsider.id, role: "admin" },
       ],
     });
@@ -151,10 +155,22 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
     const guardian = await prisma.member.create({
       data: { orgId: f.org.id, email: f.guardianEmail, isYouth: false },
     });
+    // The parent user is on the roster as the scout user's guardian.
+    const parentMember = await prisma.member.create({
+      data: { orgId: f.org.id, email: f.parent.email, isYouth: false },
+    });
+    const guardian2 = await prisma.member.create({
+      data: { orgId: f.org.id, email: `guardian2-${S}@example.invalid`, isYouth: false },
+    });
     await prisma.member.createMany({
       data: [
-        { orgId: f.org.id, email: f.rosterYouth.email, isYouth: true },
+        // rosterYouth's only guardian has no Compass account.
+        { orgId: f.org.id, email: f.rosterYouth.email, isYouth: true, parentIds: [guardian.id] },
         { orgId: f.org.id, email: f.youthMemberEmail, isYouth: true, parentIds: [guardian.id] },
+        { orgId: f.org.id, email: f.scout.email, isYouth: true, parentIds: [parentMember.id] },
+        { orgId: f.org.id, email: `kid2-${S}@example.invalid`, isYouth: true, parentIds: [guardian2.id] },
+        // A youth in a different org entirely.
+        { orgId: f.otherOrg.id, email: `elsewhere-youth-${S}@example.invalid`, isYouth: true },
       ],
     });
 
@@ -172,7 +188,7 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
   afterAll(async () => {
     _setMailDriverForTests(null);
     const users = [
-      f.admin, f.leader, f.parent, f.helper, f.scout, f.rosterYouth, f.counselor, f.unverified, f.outsider,
+      f.admin, f.leader, f.parent, f.helper, f.scout, f.rosterYouth, f.counselor, f.unverified, f.outsider, f.family2,
     ].filter(Boolean).map((u) => u.id);
     await prisma.org.deleteMany({ where: { id: { in: [f.org?.id, f.otherOrg?.id].filter(Boolean) } } });
     await prisma.user.deleteMany({ where: { id: { in: users } } });
@@ -247,7 +263,9 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
       expect(sent[0].to).toBe(f.counselor.email);
       const token = /staff-rsvp\?token=([A-Za-z0-9_-]+)/.exec(sent[0].html)?.[1];
       expect(token).toBeTruthy();
-      expect(sent[0].html).toContain("https://troop.example.test/staff-rsvp?token=");
+      // Built from the org's canonical address, not the request's Host.
+      expect(sent[0].html).toContain(`${orgPublicOrigin({ slug: f.org.slug })}/staff-rsvp?token=`);
+      expect(sent[0].html).not.toContain("troop.example.test");
       const row = await prisma.eventStaff.findFirstOrThrow({ where: { eventId: f.event, email: f.counselor.email } });
       expect(row.rsvpTokenHash).toBe(hashStaffToken(token!));
       expect(row.rsvpTokenHash).not.toBe(token);
@@ -427,21 +445,28 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
       ).toBe("bad_slot");
     });
 
-    it("families channel: RSVPs and sign-ups, youth allowed under two-deep", async () => {
+    it("families channel: RSVPs and sign-ups; a scout comes with their guardian, or not at all", async () => {
+      // The scout RSVPs yes; their parent (f.parent) didn't RSVP.
       await prisma.rsvp.create({ data: { orgId: f.org.id, eventId: f.event, userId: f.scout.id, name: "Scout", email: f.scout.email, response: "yes" } });
+      // rosterYouth RSVPs yes, but their only guardian has no account.
+      await prisma.rsvp.create({
+        data: { orgId: f.org.id, eventId: f.event, userId: f.rosterYouth.id, name: "Roster youth", email: f.rosterYouth.email, response: "yes" },
+      });
       await prisma.slotAssignment.create({ data: { orgId: f.org.id, slotId: f.slotB, name: "Helper", email: f.helper.email.toUpperCase() } });
       const r = await call(channelsRoute.POST as Handler, { token: f.leader.token, params: { id: f.event }, body: { audience: "families" } });
       families = (r.json.channel as { id: string }).id;
       expect(r.json.channel).toMatchObject({ audience: "families", isSuspended: false });
-      expect(await channelMembers(families)).toEqual([f.admin.id, f.leader.id, f.scout.id, f.helper.id].sort());
+      const members = await channelMembers(families);
+      expect(members).toEqual([f.admin.id, f.leader.id, f.scout.id, f.parent.id, f.helper.id].sort());
+      expect(members).not.toContain(f.rosterYouth.id);
     });
 
     it("re-syncs when an RSVP comes in through the API", async () => {
-      const r = await call(rsvpRoute.POST as Handler, { token: f.parent.token, params: { id: f.event }, body: { response: "yes" } });
+      const r = await call(rsvpRoute.POST as Handler, { token: f.family2.token, params: { id: f.event }, body: { response: "yes" } });
       expect(r.status).toBe(200);
-      expect(await channelMembers(families)).toContain(f.parent.id);
-      await call(rsvpRoute.POST as Handler, { token: f.parent.token, params: { id: f.event }, body: { response: "no" } });
-      expect(await channelMembers(families)).not.toContain(f.parent.id);
+      expect(await channelMembers(families)).toContain(f.family2.id);
+      await call(rsvpRoute.POST as Handler, { token: f.family2.token, params: { id: f.event }, body: { response: "no" } });
+      expect(await channelMembers(families)).not.toContain(f.family2.id);
     });
 
     it("re-syncs staff channels when a staffer answers", async () => {
@@ -479,8 +504,11 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
       expect(ids).toContain(staffChannel);
       expect(ids).toContain(families);
       expect(ids).not.toContain(stationA);
+      // The scout's guardian is only in the families channel.
       const parent = await call(channelsRoute.GET as Handler, { token: f.parent.token, params: { id: f.event } });
-      expect(parent.json.channels).toEqual([]);
+      expect((parent.json.channels as Array<{ id: string }>).map((c) => c.id)).toEqual([families]);
+      const family2 = await call(channelsRoute.GET as Handler, { token: f.family2.token, params: { id: f.event } });
+      expect(family2.json.channels).toEqual([]);
       expect((await call(channelsRoute.GET as Handler, { token: f.outsider.token, params: { id: f.event } })).status).toBe(404);
     });
   });
@@ -521,8 +549,10 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
       await prisma.rsvp.create({
         data: { orgId: f.org.id, eventId: f.event, memberId: kid.id, name: "Kid", email: f.youthMemberEmail, response: "yes" },
       });
-      await prisma.rsvp.create({
-        data: { orgId: f.org.id, eventId: f.event, name: "Roster youth", email: f.rosterYouth.email, response: "yes" },
+      // A scout's own slot sign-up (no roster link on the row): the
+      // scout's guardian gets the email instead.
+      await prisma.slotAssignment.create({
+        data: { orgId: f.org.id, slotId: f.slotB, name: "Kid Two", email: `kid2-${S}@example.invalid` },
       });
       // A public (Waypoint) sign-up: the seat is for a scout, the
       // contact is the guardian who signed them up.
@@ -532,20 +562,90 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
       });
       const { r, to } = await announce({ scope: "families" });
       expect(r.status).toBe(200);
-      expect(to).toEqual([f.guardianEmail, f.helper.email, waypointGuardian].sort());
+      // guardianEmail: kid's RSVP (roster-linked). f.parent: the scout
+      // user's RSVP has no memberId, matched by email. guardian2: kid2's
+      // slot sign-up. rosterYouth's guardian is guardianEmail too.
+      expect(to).toEqual(
+        [f.guardianEmail, f.helper.email, waypointGuardian, f.parent.email, `guardian2-${S}@example.invalid`].sort(),
+      );
       const log = await prisma.mailLog.findUniqueOrThrow({ where: { id: (r.json.announcement as { mailLogId: string }).mailLogId } });
       expect(JSON.stringify(log.recipients)).not.toContain("Sam K.");
       expect(to).not.toContain(f.scout.email);
       expect(to).not.toContain(f.youthMemberEmail);
       expect(to).not.toContain(f.rosterYouth.email);
-      // parent RSVP'd "no" earlier, so they're out too.
-      expect(to).not.toContain(f.parent.email);
+      expect(to).not.toContain(`kid2-${S}@example.invalid`);
+      // family2 RSVP'd "no" earlier, so they're out.
+      expect(to).not.toContain(f.family2.email);
     });
 
     it("validates scope and station", async () => {
       expect((await announce({ scope: "everyone" })).r.json.error).toBe("bad_scope");
       expect((await announce({ scope: "station" })).r.json.error).toBe("missing_slot");
       expect((await announce({ scope: "station", slotId: f.otherSlot })).r.json.error).toBe("bad_slot");
+    });
+  });
+
+  describe("youth checks and closed events", () => {
+    beforeAll(async () => {
+      await prisma.rateLimitBucket.deleteMany({ where: { key: "staff-rsvp:ip:anon" } });
+    });
+
+    it("refuses a youth address from any org, not just this one", async () => {
+      const r = await call(staffRoute.POST as Handler, {
+        token: f.leader.token,
+        params: { id: f.event },
+        body: { name: "Elsewhere", email: `elsewhere-youth-${S}@example.invalid`, role: "volunteer" },
+      });
+      expect(r.status).toBe(400);
+      expect(r.json.error).toBe("youth_email");
+    });
+
+    it("re-checks at answer time: an address that became a youth's can't answer", async () => {
+      const email = `later-youth-${S}@example.invalid`;
+      const token = `later-youth-token-${S}-abcdefghijklmnop`;
+      await prisma.eventStaff.create({
+        data: { orgId: f.org.id, eventId: f.event, name: "Later", email, role: "volunteer", rsvpTokenHash: hashStaffToken(token) },
+      });
+      await prisma.member.create({ data: { orgId: f.otherOrg.id, email, isYouth: true } });
+      const r = await call(publicRsvp.POST as unknown as Handler, { body: { token, status: "yes" } });
+      expect(r.status).toBe(403);
+      expect(r.json.error).toBe("youth_email");
+    });
+
+    it("closes the link once the event is over (410 event_over)", async () => {
+      const past = await prisma.event.create({
+        data: { orgId: f.org.id, title: "Last month", startsAt: new Date(Date.now() - 30 * 86400_000) },
+      });
+      const token = `past-event-token-${S}-abcdefghijklmnop`;
+      await prisma.eventStaff.create({
+        data: { orgId: f.org.id, eventId: past.id, name: "Late", email: `late-${S}@example.invalid`, role: "volunteer", rsvpTokenHash: hashStaffToken(token) },
+      });
+      const r = await call(publicRsvp.POST as unknown as Handler, { body: { token, status: "yes" } });
+      expect(r.status).toBe(410);
+      expect(r.json.error).toBe("event_over");
+    });
+
+    it("refuses cross-site browser posts and non-JSON bodies", async () => {
+      const token = `known-token-${S}-abcdefghijklmnop`;
+      const post = (headers: Record<string, string>, body: string) =>
+        publicRsvp.POST(
+          new NextRequest("http://troop.example.test/api/events/staff-rsvp", {
+            method: "POST",
+            headers: { host: "troop.example.test", ...headers },
+            body,
+          }),
+        );
+      const json = JSON.stringify({ token, status: "yes" });
+      const cross = await post({ "content-type": "application/json", origin: "https://evil.example", "sec-fetch-site": "cross-site" }, json);
+      expect(cross.status).toBe(403);
+      expect(await cross.json()).toMatchObject({ error: "cross_site" });
+      const form = await post({ "content-type": "application/x-www-form-urlencoded" }, `token=${token}&status=yes`);
+      expect(form.status).toBe(415);
+      const same = await post(
+        { "content-type": "application/json", origin: "http://troop.example.test", "sec-fetch-site": "same-origin" },
+        json,
+      );
+      expect(same.status).toBe(200);
     });
   });
 });
