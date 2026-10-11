@@ -11,6 +11,7 @@ import { ensureScoutSalesLink, settleSalesOrderAsPaid, slugify } from "@/lib/sal
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 import { dollarsToCents } from "@/lib/treasury/money";
+import { ownedIdOrNull, ownedIds } from "@/lib/tenancy/owned";
 
 type AuthOk = {
   user: NonNullable<Awaited<ReturnType<typeof getSession>>["user"]>;
@@ -133,7 +134,12 @@ export async function upsertProduct(_prev: SalesState, formData: FormData): Prom
     imageUrl: d.imageUrl || null,
   };
   if (d.id) {
-    await prisma.salesProduct.update({ where: { id: d.id }, data });
+    // Products have no orgId; scope through the campaign we just checked.
+    const { count } = await prisma.salesProduct.updateMany({
+      where: { id: d.id, campaignId: campaign.id },
+      data,
+    });
+    if (count === 0) return { error: "Product not found." };
   } else {
     await prisma.salesProduct.create({ data });
   }
@@ -221,12 +227,15 @@ export async function createManualOrder(_prev: SalesState, formData: FormData): 
   }
   if (orderItems.length === 0) return { error: "No items selected." };
 
+  const scoutMemberId = await ownedIdOrNull("member", auth.org.id, d.scoutMemberId);
+  if (scoutMemberId === false) return { error: "Scout not found." };
+
   const order = await prisma.salesOrder.create({
     data: {
       orgId: auth.org.id,
       campaignId: campaign.id,
       source: d.source,
-      scoutMemberId: d.scoutMemberId || null,
+      scoutMemberId: scoutMemberId,
       buyerName: d.buyerName,
       buyerEmail: d.buyerEmail || null,
       buyerPhone: d.buyerPhone || null,
@@ -443,10 +452,14 @@ export async function recordBoothSale(_prev: SalesState, formData: FormData): Pr
   const campaign = await prisma.salesCampaign.findUnique({ where: { id: d.campaignId } });
   if (!campaign || campaign.orgId !== auth.org.id) return { error: "Campaign not found." };
 
-  const staff = (d.staffMemberIds ?? "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const staff = await ownedIds(
+    "member",
+    auth.org.id,
+    (d.staffMemberIds ?? "")
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
   const totalCents = dollarsToCents(d.total);
   if (totalCents <= 0) return { error: "Total must be positive." };
 

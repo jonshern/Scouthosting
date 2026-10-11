@@ -56,7 +56,11 @@ export async function upsertAlbum(_prev: unknown, formData: FormData) {
     visibility: d.visibility,
   };
   if (d.id) {
-    await prisma.album.update({ where: { id: d.id }, data });
+    const { count } = await prisma.album.updateMany({
+      where: { id: d.id, orgId: auth.org.id },
+      data,
+    });
+    if (count === 0) return { error: "Album not found." };
   } else {
     await prisma.album.create({ data });
   }

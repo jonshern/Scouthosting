@@ -10,6 +10,7 @@ import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii, encryptMemberPii } from "@/lib/members/crypto";
+import { ownedIds } from "@/lib/tenancy/owned";
 
 type AuthOk = {
   user: NonNullable<Awaited<ReturnType<typeof getSession>>["user"]>;
@@ -103,11 +104,17 @@ export async function upsertMember(_prev: MemberState, formData: FormData): Prom
       .split(",")
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean),
-    parentIds: (d.parentIds ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .slice(0, 8),
+    // Only this unit's members can be linked as parents: a parent link
+    // grants access to the scout's records and permission slips.
+    parentIds: await ownedIds(
+      "member",
+      auth.org.id,
+      (d.parentIds ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 8),
+    ),
   };
   if (d.id) {
     const existing = await prisma.member.findUnique({ where: { id: d.id } });

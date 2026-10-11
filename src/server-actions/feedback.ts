@@ -6,6 +6,7 @@ import { type FeedbackKind } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
+import { roleInOrg } from "@/lib/auth/role";
 
 const KINDS = new Set<FeedbackKind>(["feature", "bug", "help"]);
 
@@ -58,6 +59,19 @@ export async function toggleFeedbackVote(formData: FormData): Promise<void> {
   if (!user) throw new Error("Sign in.");
   const parsed = VoteSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error("Invalid input.");
+
+  // Org-scoped requests are votable only by members of that org;
+  // global (product-wide) requests by anyone signed in.
+  const request = await prisma.feedbackRequest.findUnique({
+    where: { id: parsed.data.id },
+    select: { orgId: true, scope: true },
+  });
+  if (!request) throw new Error("Request not found.");
+  if (request.scope !== "global") {
+    if (!request.orgId || !(await roleInOrg(user.id, request.orgId))) {
+      throw new Error("Not a member.");
+    }
+  }
 
   const existing = await prisma.feedbackVote.findUnique({
     where: { requestId_userId: { requestId: parsed.data.id, userId: user.id } },
