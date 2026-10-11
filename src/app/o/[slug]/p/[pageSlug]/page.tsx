@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { roleInOrg } from "@/lib/auth/role";
 import { renderMarkdownLite } from "@/lib/markdown";
 import { PublicPageHeader } from "@/components/site/PublicPageHeader";

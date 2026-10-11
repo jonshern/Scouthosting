@@ -1,16 +1,19 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import {
   generateSecret,
   provisioningUri,
   verifyTotp,
   generateBackupCodes,
+  openTotpSecret,
+  sealTotpSecret,
 } from "@/lib/auth/mfa";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 import { verifyMfaCodeForUser } from "@/lib/auth/mfa-verify";
+import { accountStanding, mfaLocked } from "@/lib/auth/requirements";
 
 export type MfaState = { error?: string; ok?: true } | null;
 
@@ -57,7 +60,7 @@ export async function enrollMfa(formData: FormData): Promise<EnrollResult> {
   await prisma.$transaction([
     prisma.user.update({
       where: { id: dbUser.id },
-      data: { totpSecret: secret, totpEnrolledAt: null, totpLastUsedAt: null },
+      data: { totpSecret: sealTotpSecret(secret, dbUser.id), totpEnrolledAt: null, totpLastUsedAt: null },
     }),
     prisma.backupCode.deleteMany({ where: { userId: dbUser.id } }),
     prisma.backupCode.createMany({
@@ -101,7 +104,7 @@ export async function confirmMfa(_prev: MfaState, formData: FormData): Promise<M
   if (dbUser.totpEnrolledAt) return { error: "MFA is already enabled." };
 
   const result = verifyTotp(
-    dbUser.totpSecret,
+    openTotpSecret(dbUser.totpSecret, dbUser.id),
     code,
     new Date(),
     dbUser.totpLastUsedAt ? dbUser.totpLastUsedAt.getTime() : null,
@@ -158,6 +161,9 @@ export async function disableMfa(_prev: MfaState, formData: FormData): Promise<M
   });
   if (!dbUser) return { error: "Not signed in." };
   if (!dbUser.totpEnrolledAt) return { error: "MFA is not enabled." };
+  if (mfaLocked(await accountStanding(user.id))) {
+    return { error: "Leaders and admins must keep two-step sign-in on." };
+  }
   const ok = await verifyMfaCodeForUser(user.id, code);
   if (!ok) return { error: "That code is invalid." };
   await prisma.$transaction([

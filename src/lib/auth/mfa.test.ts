@@ -134,3 +134,20 @@ describe("generateBackupCodes + verifyBackupCode", () => {
     expect(idx2).toBe(-1);
   });
 });
+
+describe("TOTP secret sealing", () => {
+  it("round-trips and binds the secret to its user", async () => {
+    const { sealTotpSecret, openTotpSecret, isSealedTotpSecret } = await import("./mfa");
+    const secret = generateSecret();
+    const sealed = sealTotpSecret(secret, "user-a");
+    expect(isSealedTotpSecret(sealed)).toBe(true);
+    expect(sealed).not.toContain(secret);
+    expect(openTotpSecret(sealed, "user-a")).toBe(secret);
+    expect(() => openTotpSecret(sealed, "user-b")).toThrow();
+  });
+
+  it("reads secrets stored before sealing", async () => {
+    const { openTotpSecret } = await import("./mfa");
+    expect(openTotpSecret("JBSWY3DPEHPK3PXP", "user-a")).toBe("JBSWY3DPEHPK3PXP");
+  });
+});

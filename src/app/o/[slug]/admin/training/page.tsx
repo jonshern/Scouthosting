@@ -4,7 +4,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { unwrapDekWithMaster, decryptField } from "@/lib/encryption";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 

@@ -4,7 +4,7 @@
 
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { emergencyContactsForEvent } from "@/lib/events/emergency-contacts";
 import { buildCsv, csvHeaders } from "@/lib/csv";

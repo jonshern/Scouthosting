@@ -29,6 +29,10 @@ export function SignupForm({ csrf }: { csrf: React.ReactNode }) {
         />
         <p className="mt-1 text-xs text-ink-muted">At least 12 characters.</p>
       </div>
+      <label className="flex items-start gap-2 text-sm">
+        <input type="checkbox" name="adult" value="yes" required className="mt-1" />
+        <span>I confirm I am 18 or older. Scouts join through a parent or guardian&apos;s account.</span>
+      </label>
       {state?.error && (
         <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">
           {state.error}
