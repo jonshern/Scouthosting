@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   reactStrictMode: true,
+  // Dev only: lets `next dev` serve its scripts and HMR to a Mac
+  // exposed over `tailscale serve` (<mac>.<tailnet>.ts.net).
+  allowedDevOrigins: ["*.ts.net"],
   experimental: {
     serverActions: { bodySizeLimit: "2mb" },
   },
