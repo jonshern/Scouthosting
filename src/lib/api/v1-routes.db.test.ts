@@ -27,6 +27,7 @@ import { provisionOrgVault } from "@/lib/encryption";
 
 import * as me from "@/app/api/v1/auth/me/route";
 import * as tokenById from "@/app/api/v1/auth/token/[id]/route";
+import * as tokenCurrent from "@/app/api/v1/auth/token/current/route";
 import * as channels from "@/app/api/v1/channels/route";
 import * as channel from "@/app/api/v1/channels/[id]/route";
 import * as messages from "@/app/api/v1/channels/[id]/messages/route";
@@ -242,6 +243,17 @@ describe.skipIf(!db)("/api/v1 (Postgres)", () => {
       const mine = await call(tokenById.DELETE as Handler, { method: "DELETE", token: f.parent.token, params: { id: t.id } });
       expect(mine.status).toBe(200);
       expect((await call(me.GET as Handler, { token: t.raw })).status).toBe(401);
+    });
+
+    it("signs out by revoking only the token that made the request", async () => {
+      const phone = await issueToken(f.parent.id, "phone", prisma);
+      const tablet = await issueToken(f.parent.id, "tablet", prisma);
+      const r = await call(tokenCurrent.DELETE as Handler, { method: "DELETE", token: phone.raw, params: {} });
+      expect(r.status).toBe(200);
+      expect(r.json).toEqual({ ok: true });
+      expect((await call(me.GET as Handler, { token: phone.raw })).status).toBe(401);
+      expect((await call(me.GET as Handler, { token: tablet.raw })).status).toBe(200);
+      expect((await call(tokenCurrent.DELETE as Handler, { method: "DELETE", token: phone.raw, params: {} })).status).toBe(401);
     });
   });
 

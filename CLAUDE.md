@@ -102,7 +102,8 @@ stable):
 4. 303 to `<redirect>?token=compass_pat_…&userId=…&displayName=…`.
    The app sends `Authorization: Bearer <token>` to `/api/v1/*`.
    Tokens expire after 90 days, die when the password changes, and
-   `DELETE /api/v1/auth/token/<id>` revokes one.
+   `DELETE /api/v1/auth/token/current` (sign-out) revokes the token
+   that calls it; `DELETE /api/v1/auth/token/<id>` revokes any of yours.
 
 ### 5. pg-boss v12 needs `createQueue` before `work`
 
