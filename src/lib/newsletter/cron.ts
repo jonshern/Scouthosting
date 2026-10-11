@@ -13,6 +13,7 @@ import type { PrismaClient } from "@prisma/client";
 import { logger as defaultLogger, type Logger } from "@/lib/log";
 import { composeNewsletter } from "./index";
 import { sweepChannelTwoDeep } from "@/lib/chat";
+import { purgeExpiredScoutRecords } from "@/lib/retention/scouts";
 import { sendMail, type MailMessage } from "@/lib/mail";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptField } from "@/lib/encryption";
@@ -277,6 +278,7 @@ export type CronTickResult = {
   rulesFired: number;
   errorLogsRetained: number;
   trashedMembersPurged: number;
+  scoutRecordsPurged: number;
   channelsSuspended: number;
 };
 
@@ -371,6 +373,16 @@ export async function runCronTick(opts: {
     });
   }
 
+  // Youth record retention: 18 months after a scout turns 18 or leaves.
+  let scoutRecordsPurged = 0;
+  try {
+    scoutRecordsPurged = (await purgeExpiredScoutRecords({ now, prismaClient })).purged;
+  } catch (err) {
+    logger.warn("scout retention sweep failed", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   // Youth-protection backstop: suspend channels that have drifted below
   // two-deep since their last post.
   let channelsSuspended = 0;
@@ -388,6 +400,7 @@ export async function runCronTick(opts: {
     rulesFired,
     errorLogsRetained,
     trashedMembersPurged,
+    scoutRecordsPurged,
     channelsSuspended,
   };
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import { leftAtFor } from "@/lib/retention/scouts";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -87,7 +88,7 @@ export async function declinePending(
   // excludes them from broadcasts + the default roster filter.
   await prisma.member.update({
     where: { id: member.id },
-    data: { status: "alumni" },
+    data: { status: "alumni", leftAt: leftAtFor(member, "alumni") },
   });
   audit({
     orgId: auth.org.id,

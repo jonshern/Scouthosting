@@ -1,5 +1,6 @@
 "use server";
 
+import { leftAtFor } from "@/lib/retention/scouts";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -119,7 +120,10 @@ export async function upsertMember(_prev: MemberState, formData: FormData): Prom
   if (d.id) {
     const existing = await prisma.member.findUnique({ where: { id: d.id } });
     if (!existing || existing.orgId !== auth.org.id) return { error: "Member not found." };
-    await prisma.member.update({ where: { id: existing.id }, data });
+    await prisma.member.update({
+      where: { id: existing.id },
+      data: { ...data, leftAt: leftAtFor(existing, d.status) },
+    });
     audit({
       orgId: auth.org.id,
       userId: auth.user.id,
@@ -130,7 +134,7 @@ export async function upsertMember(_prev: MemberState, formData: FormData): Prom
       summary: `Updated ${d.firstName} ${d.lastName}`,
     });
   } else {
-    const created = await prisma.member.create({ data });
+    const created = await prisma.member.create({ data: { ...data, leftAt: leftAtFor(null, d.status) } });
     audit({
       orgId: auth.org.id,
       userId: auth.user.id,
