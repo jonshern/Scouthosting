@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { LIMITS, json, v1Route } from "@/lib/api/v1";
 import { loadSlotForMember } from "@/lib/api/v1-slots";
 import { releaseSlot } from "@/lib/slots";
+import { notifyPromoted } from "@/lib/slots/notify";
 
 export const runtime = "nodejs";
 
@@ -16,6 +17,7 @@ export const POST = v1Route<{ id: string; slotId: string }>(
     const r = await prisma.$transaction((tx) =>
       releaseSlot(tx, { slotId: slot.id, who: { userId: user.id } }),
     );
+    await notifyPromoted(r.promotedIds);
     return json({ ok: true, released: r.released });
   },
   { limits: [LIMITS.slot] },

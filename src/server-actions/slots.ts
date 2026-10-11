@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { claimSlot, releaseSlot } from "@/lib/slots";
+import { notifyPromoted } from "@/lib/slots/notify";
 
 const TakeSchema = z.object({
   orgSlug: z.string().min(1),
@@ -114,7 +115,10 @@ export async function releaseSlotAssignment(
   const { user } = await getSession();
   if (!user) return { error: "Sign in to release a slot, or ask the event organizer." };
 
-  await prisma.$transaction((tx) => releaseSlot(tx, { slotId: slot.id, who: { userId: user.id } }));
+  const r = await prisma.$transaction((tx) =>
+    releaseSlot(tx, { slotId: slot.id, who: { userId: user.id } }),
+  );
+  await notifyPromoted(r.promotedIds);
 
   revalidatePath(`/o/${org.slug}/calendar`);
   return { ok: true, released: true };
