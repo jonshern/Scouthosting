@@ -13,15 +13,26 @@ vi.mock("@/lib/realtime/bus", () => ({
   publishUnsuspended: vi.fn(),
 }));
 
-import { findOrCreateDmChannel, unsuspendChannel } from "./index";
+import { findOrCreateDmChannel, sweepChannelTwoDeep, unsuspendChannel } from "./index";
 
 const ORG = "org_1";
 const FUTURE = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
 
 describe("chat/findOrCreateDmChannel — no 1:1 with youth", () => {
-  function stub(roles: Record<string, string>) {
+  function stub(roles: Record<string, string>, youthRoster: string[] = []) {
     const created: unknown[] = [];
     const prisma = {
+      user: {
+        findMany: async ({ where }: { where: { id: { in: string[] } } }) =>
+          where.id.in.map((id) => ({ id, email: `${id}@example.invalid` })),
+      },
+      member: {
+        findMany: async ({ where }: { where: { email: { in: string[] } } }) =>
+          youthRoster
+            .map((id) => `${id}@example.invalid`)
+            .filter((e) => where.email.in.includes(e))
+            .map((email) => ({ email })),
+      },
       orgMembership: {
         findMany: async ({ where }: { where: { userId: { in: string[] } } }) =>
           where.userId.in
@@ -62,6 +73,13 @@ describe("chat/findOrCreateDmChannel — no 1:1 with youth", () => {
     ).rejects.toMatchObject({ code: "DM_YOUTH_BLOCKED" });
   });
 
+  it("refuses a self-registered scout who only has the default parent role", async () => {
+    const { prisma } = stub({ a: "leader", b: "parent" }, ["b"]);
+    await expect(
+      findOrCreateDmChannel(ORG, "a", "b", { prismaClient: prisma }),
+    ).rejects.toMatchObject({ code: "DM_YOUTH_BLOCKED" });
+  });
+
   it("refuses when one side isn't a member of the org", async () => {
     const { prisma } = stub({ a: "leader" });
     await expect(
@@ -97,6 +115,7 @@ describe("chat/unsuspendChannel — two-deep must be met first", () => {
             user: { memberships: [{ role: m.role, yptCurrentUntil: m.ypt }] },
           })),
       },
+      member: { findMany: async () => [] },
       message: {
         create: async (args: unknown) => {
           messages.push(args);
@@ -132,5 +151,46 @@ describe("chat/unsuspendChannel — two-deep must be met first", () => {
     expect(r).toEqual({ ok: true });
     expect(updates).toHaveLength(1);
     expect(messages).toHaveLength(1);
+  });
+});
+
+describe("chat/sweepChannelTwoDeep — nightly backstop", () => {
+  it("suspends a channel whose only second leader's YPT lapsed", async () => {
+    const PAST = new Date(Date.now() - 86_400_000);
+    const suspended: string[] = [];
+    const prisma = {
+      channel: {
+        findMany: async () => [{ id: "ok" }, { id: "lapsed" }],
+        findUnique: async ({ where }: { where: { id: string } }) => ({
+          id: where.id,
+          orgId: ORG,
+          kind: "patrol",
+          isSuspended: false,
+          name: where.id,
+        }),
+        update: async ({ where }: { where: { id: string } }) => {
+          suspended.push(where.id);
+          return {};
+        },
+      },
+      channelMember: {
+        findMany: async ({ where }: { where: { channelId: string } }) => [
+          { user: { memberships: [{ role: "scout", yptCurrentUntil: null }] } },
+          { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
+          {
+            user: {
+              memberships: [
+                { role: "leader", yptCurrentUntil: where.channelId === "ok" ? FUTURE : PAST },
+              ],
+            },
+          },
+        ],
+      },
+      member: { findMany: async () => [] },
+      message: { create: async () => ({}) },
+    } as unknown as PrismaClient;
+    const r = await sweepChannelTwoDeep({ prismaClient: prisma });
+    expect(r).toEqual({ checked: 2, suspended: 1 });
+    expect(suspended).toEqual(["lapsed"]);
   });
 });

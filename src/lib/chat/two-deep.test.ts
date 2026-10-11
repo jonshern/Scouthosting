@@ -7,11 +7,12 @@ import type { PrismaClient } from "@prisma/client";
 import { checkChannelTwoDeep } from "./index";
 
 type Membership = { role: string; yptCurrentUntil: Date | null };
-type ChannelMember = { user: { memberships: Membership[] } };
+type ChannelMember = { user: { email?: string; memberships: Membership[] } };
 
 function makePrismaStub(opts: {
   channel: { id: string; orgId: string; kind: string } | null;
   channelMembers: ChannelMember[];
+  youthRosterEmails?: string[];
 }): PrismaClient {
   return {
     channel: {
@@ -19,6 +20,12 @@ function makePrismaStub(opts: {
     },
     channelMember: {
       findMany: async () => opts.channelMembers,
+    },
+    member: {
+      findMany: async ({ where }: { where: { email: { in: string[] } } }) =>
+        (opts.youthRosterEmails ?? [])
+          .filter((e) => where.email.in.includes(e))
+          .map((email) => ({ email })),
     },
   } as unknown as PrismaClient;
 }
@@ -185,5 +192,33 @@ describe("chat/checkChannelTwoDeep — youth + adult counting", () => {
     });
     const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
     expect(r.ok).toBe(true);
+  });
+});
+
+describe("chat/checkChannelTwoDeep — youth on the roster", () => {
+  it("a parent-role user whose email is a youth roster entry counts as youth", async () => {
+    const prisma = makePrismaStub({
+      channel: { id: "ch1", orgId: ORG, kind: "troop" },
+      channelMembers: [
+        { user: { email: "Casey@Example.invalid", memberships: [{ role: "parent", yptCurrentUntil: null }] } },
+        { user: { email: "lead@example.invalid", memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
+      ],
+      youthRosterEmails: ["casey@example.invalid"],
+    });
+    const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
+    expect(r.hasYouth).toBe(true);
+    expect(r.reason).toBe("only-one-current-adult");
+  });
+
+  it("a leader is never reclassified as youth by the roster", async () => {
+    const prisma = makePrismaStub({
+      channel: { id: "ch1", orgId: ORG, kind: "troop" },
+      channelMembers: [
+        { user: { email: "lead@example.invalid", memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
+      ],
+      youthRosterEmails: ["lead@example.invalid"],
+    });
+    const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
+    expect(r.hasYouth).toBe(false);
   });
 });

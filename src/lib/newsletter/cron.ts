@@ -12,6 +12,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { logger as defaultLogger, type Logger } from "@/lib/log";
 import { composeNewsletter } from "./index";
+import { sweepChannelTwoDeep } from "@/lib/chat";
 import { sendMail, type MailMessage } from "@/lib/mail";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptField } from "@/lib/encryption";
@@ -276,6 +277,7 @@ export type CronTickResult = {
   rulesFired: number;
   errorLogsRetained: number;
   trashedMembersPurged: number;
+  channelsSuspended: number;
 };
 
 export async function runCronTick(opts: {
@@ -369,11 +371,23 @@ export async function runCronTick(opts: {
     });
   }
 
+  // Youth-protection backstop: suspend channels that have drifted below
+  // two-deep since their last post.
+  let channelsSuspended = 0;
+  try {
+    channelsSuspended = (await sweepChannelTwoDeep({ now, prismaClient })).suspended;
+  } catch (err) {
+    logger.warn("two-deep sweep failed", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   return {
     schedulesDrafted,
     schedulesSkipped,
     rulesFired,
     errorLogsRetained,
     trashedMembersPurged,
+    channelsSuspended,
   };
 }

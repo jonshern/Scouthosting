@@ -18,7 +18,9 @@
 // touch a real DB.
 //
 // Identity model:
-//   - A User is a "youth" if their OrgMembership.role === 'scout'.
+//   - A User is a "youth" if their OrgMembership.role === 'scout', or
+//     they hold the default 'parent' role but their email matches a
+//     youth (Member.isYouth) roster entry. See classifyMember().
 //   - A User is an "adult leader" if role ∈ {leader, admin}. Parents
 //     don't satisfy two-deep; only registered, YPT-current adults do.
 //   - YPT-current means OrgMembership.yptCurrentUntil > now.
@@ -65,6 +67,37 @@ export type TwoDeepResult = {
 };
 
 /**
+ * Who counts as youth. OrgMembership.role alone isn't enough: a scout
+ * who signs up themselves gets the default "parent" role. So a
+ * parent-role user whose email matches a youth roster entry is youth
+ * too, and a channel member with no role in the org can't be confirmed
+ * as an adult, so they count as youth (fail closed). Leaders and
+ * admins are adults by role; they're the ones YPT applies to.
+ */
+export function classifyMember(
+  membership: { role: string } | null | undefined,
+  onYouthRoster: boolean,
+): "youth" | "leader" | "adult" {
+  if (!membership || membership.role === "scout") return "youth";
+  if (membership.role === "leader" || membership.role === "admin") return "leader";
+  return onYouthRoster ? "youth" : "adult";
+}
+
+async function rosterYouthEmails(
+  orgId: string,
+  emails: Array<string | null | undefined>,
+  prismaClient: Prisma,
+): Promise<Set<string>> {
+  const wanted = [...new Set(emails.filter((e): e is string => !!e).map((e) => e.toLowerCase()))];
+  if (!wanted.length) return new Set();
+  const rows = await prismaClient.member.findMany({
+    where: { orgId, isYouth: true, deletedAt: null, email: { in: wanted } },
+    select: { email: true },
+  });
+  return new Set(rows.map((r) => (r.email ?? "").toLowerCase()));
+}
+
+/**
  * Cheap predicate: does this channel currently meet the two-deep bar?
  * Channel meets the bar iff (no youth) OR (≥2 YPT-current adults).
  */
@@ -93,6 +126,7 @@ export async function checkChannelTwoDeep(
     include: {
       user: {
         select: {
+          email: true,
           memberships: {
             where: { orgId: channel.orgId },
             select: { role: true, yptCurrentUntil: true },
@@ -101,19 +135,21 @@ export async function checkChannelTwoDeep(
       },
     },
   });
+  const youthEmails = await rosterYouthEmails(
+    channel.orgId,
+    members.map((cm) => cm.user.email),
+    prismaClient,
+  );
 
   let hasYouth = false;
   let currentAdultCount = 0;
   for (const cm of members) {
     const om = cm.user.memberships[0];
-    // A channel member with no role in this org can't be confirmed as
-    // an adult, so treat them like youth for the two-deep bar.
-    if (!om || om.role === "scout") {
+    const kind = classifyMember(om, youthEmails.has((cm.user.email ?? "").toLowerCase()));
+    if (kind === "youth") {
       hasYouth = true;
-    } else if (om.role === "leader" || om.role === "admin") {
-      if (om.yptCurrentUntil && new Date(om.yptCurrentUntil) > now) {
-        currentAdultCount += 1;
-      }
+    } else if (kind === "leader" && om?.yptCurrentUntil && new Date(om.yptCurrentUntil) > now) {
+      currentAdultCount += 1;
     }
   }
 
@@ -241,6 +277,32 @@ export async function unsuspendChannel(
     // pub/sub failures never bubble up
   }
   return { ok: true };
+}
+
+/**
+ * Backstop for the write-path guard: re-check every live channel and
+ * suspend any that have fallen below two-deep (an adult's YPT lapsed,
+ * a leader left, a scout was added) even if nobody has posted since.
+ * Called from the cron tick.
+ */
+export async function sweepChannelTwoDeep(opts: {
+  now?: Date;
+  prismaClient: Prisma;
+}): Promise<{ checked: number; suspended: number }> {
+  const { now = new Date(), prismaClient } = opts;
+  const channels = await prismaClient.channel.findMany({
+    where: { archivedAt: null, isSuspended: false },
+    select: { id: true },
+  });
+  let suspended = 0;
+  for (const c of channels) {
+    const r = await checkChannelTwoDeep(c.id, { now, prismaClient });
+    if (!r.ok && r.reason !== "channel-not-found") {
+      await suspendChannel(c.id, r.reason ?? "two-deep-failed", { prismaClient });
+      suspended += 1;
+    }
+  }
+  return { checked: channels.length, suspended };
 }
 
 /* ------------------------------------------------------------------ */
@@ -500,14 +562,29 @@ export async function findOrCreateDmChannel(
 
   // Youth protection: no private 1:1 channel may include a scout (or
   // anyone we can't confirm as an adult member of this org).
-  const memberships = await prismaClient.orgMembership.findMany({
-    where: { orgId, userId: { in: [userAId, userBId] } },
-    select: { userId: true, role: true },
-  });
-  const roleByUser = new Map(memberships.map((m) => [m.userId, m.role]));
+  const [memberships, users] = await Promise.all([
+    prismaClient.orgMembership.findMany({
+      where: { orgId, userId: { in: [userAId, userBId] } },
+      select: { userId: true, role: true },
+    }),
+    prismaClient.user.findMany({
+      where: { id: { in: [userAId, userBId] } },
+      select: { id: true, email: true },
+    }),
+  ]);
+  const youthEmails = await rosterYouthEmails(
+    orgId,
+    users.map((u) => u.email),
+    prismaClient,
+  );
+  const membershipByUser = new Map(memberships.map((m) => [m.userId, m]));
+  const emailByUser = new Map(users.map((u) => [u.id, (u.email ?? "").toLowerCase()]));
   for (const uid of [userAId, userBId]) {
-    const role = roleByUser.get(uid);
-    if (!role || role === "scout") {
+    const kind = classifyMember(
+      membershipByUser.get(uid),
+      youthEmails.has(emailByUser.get(uid) ?? ""),
+    );
+    if (kind === "youth") {
       const err = new Error("Direct messages can't include youth members") as Error & {
         code?: string;
       };
