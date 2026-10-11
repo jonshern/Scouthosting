@@ -38,7 +38,7 @@ export function RosterImportForm({ orgSlug, csrf }: Props) {
 
       <label className="block">
         <span className="block text-sm">Upload CSV / XLSX</span>
-        <input type="file" name="file" accept=".csv,.xlsx,.xls,.tsv" className="mt-1" />
+        <input type="file" name="file" accept=".csv,.xlsx,.tsv" className="mt-1" />
       </label>
       <label className="block">
         <span className="block text-sm">…or paste CSV here</span>
