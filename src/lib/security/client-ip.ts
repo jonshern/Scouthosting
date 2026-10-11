@@ -14,9 +14,12 @@
 //   CLIENT_IP_HEADER=<other header>    e.g. cf-connecting-ip, x-real-ip,
 //                                      when a trusted proxy overwrites it.
 //
-// Outside a known platform (local dev, tests) nothing is trusted and
-// the result is null, so callers fall back to a shared bucket rather
-// than a spoofable one.
+// TRUSTED_IP_HEADER / TRUSTED_PROXY_HOPS are accepted as aliases.
+//
+// Outside production with no platform detected (local dev, tests) the
+// rightmost X-Forwarded-For hop is used. In production with nothing
+// configured, nothing is trusted and the result is null, so callers fall
+// back to a shared bucket rather than a spoofable one.
 
 import { isIP } from "node:net";
 
@@ -28,11 +31,13 @@ export type ClientIpConfig = {
 };
 
 export function clientIpConfig(env: Record<string, string | undefined> = process.env): ClientIpConfig {
-  const hops = Math.max(1, Number.parseInt(env.CLIENT_IP_XFF_HOPS ?? "1", 10) || 1);
-  const explicit = env.CLIENT_IP_HEADER?.trim().toLowerCase();
+  const rawHops = env.CLIENT_IP_XFF_HOPS ?? env.TRUSTED_PROXY_HOPS ?? "1";
+  const hops = Math.max(1, Number.parseInt(rawHops, 10) || 1);
+  const explicit = (env.CLIENT_IP_HEADER || env.TRUSTED_IP_HEADER)?.trim().toLowerCase();
   if (explicit) return { header: explicit, xffHops: hops };
   if (env.FLY_APP_NAME) return { header: "fly-client-ip", xffHops: hops };
   if (env.K_SERVICE) return { header: "x-forwarded-for", xffHops: hops };
+  if (env.NODE_ENV !== "production") return { header: "x-forwarded-for", xffHops: hops };
   return { header: null, xffHops: hops };
 }
 
@@ -56,4 +61,14 @@ export function clientIp(
   if (config.header !== "x-forwarded-for") return normalise(value);
   const parts = value.split(",").map((s) => s.trim()).filter(Boolean);
   return normalise(parts[parts.length - config.xffHops]);
+}
+
+/** clientIp() for callers that want a bucket key: "anon" when unknown. */
+export function clientIpFromHeaders(headers: HeaderSource): string {
+  return clientIp(headers) ?? "anon";
+}
+
+/** Header list for Better Auth's own IP tracking. */
+export function clientIpHeaders(config: ClientIpConfig = clientIpConfig()): string[] {
+  return config.header ? [config.header] : [];
 }

@@ -1,11 +1,21 @@
-import { describe, expect, it } from "vitest";
-import { clientIp, clientIpConfig } from "./client-ip";
+import { afterEach, describe, expect, it } from "vitest";
+import { clientIp, clientIpConfig, clientIpFromHeaders, clientIpHeaders } from "./client-ip";
 
 const h = (o: Record<string, string>) => new Headers(o);
 
 describe("clientIpConfig", () => {
-  it("trusts nothing outside a known platform", () => {
-    expect(clientIpConfig({}).header).toBeNull();
+  it("trusts nothing in production outside a known platform", () => {
+    expect(clientIpConfig({ NODE_ENV: "production" }).header).toBeNull();
+    expect(clientIpHeaders({ header: null, xffHops: 1 })).toEqual([]);
+  });
+  it("uses the rightmost X-Forwarded-For hop in dev", () => {
+    expect(clientIpConfig({ NODE_ENV: "development" }).header).toBe("x-forwarded-for");
+  });
+  it("accepts TRUSTED_IP_HEADER / TRUSTED_PROXY_HOPS as aliases", () => {
+    expect(clientIpConfig({ TRUSTED_IP_HEADER: "X-Real-IP", TRUSTED_PROXY_HOPS: "2" })).toEqual({
+      header: "x-real-ip",
+      xffHops: 2,
+    });
   });
   it("uses Fly-Client-IP on Fly", () => {
     expect(clientIpConfig({ FLY_APP_NAME: "compass" }).header).toBe("fly-client-ip");
@@ -56,5 +66,32 @@ describe("clientIp", () => {
     expect(clientIp(h({ "x-real-ip": "2001:db8::2" }), cfg)).toBe("2001:db8::2");
     expect(clientIp(h({ "x-real-ip": "not-an-ip" }), cfg)).toBeNull();
     expect(clientIp(h({ "x-real-ip": "v1:user:abc" }), cfg)).toBeNull();
+  });
+});
+
+describe("clientIpFromHeaders", () => {
+  afterEach(() => {
+    delete process.env.TRUSTED_IP_HEADER;
+    delete process.env.TRUSTED_PROXY_HOPS;
+  });
+
+  it("ignores client-supplied entries at the front of X-Forwarded-For", () => {
+    expect(clientIpFromHeaders(h({ "x-forwarded-for": "1.2.3.4, 203.0.113.9" }))).toBe("203.0.113.9");
+  });
+
+  it("walks back the configured number of proxy hops", () => {
+    process.env.TRUSTED_PROXY_HOPS = "2";
+    expect(clientIpFromHeaders(h({ "x-forwarded-for": "6.6.6.6, 203.0.113.9, 10.0.0.1" }))).toBe("203.0.113.9");
+  });
+
+  it("uses a platform header verbatim when configured", () => {
+    process.env.TRUSTED_IP_HEADER = "fly-client-ip";
+    expect(
+      clientIpFromHeaders(h({ "fly-client-ip": "198.51.100.7", "x-forwarded-for": "6.6.6.6" })),
+    ).toBe("198.51.100.7");
+  });
+
+  it("falls back to anon", () => {
+    expect(clientIpFromHeaders(h({}))).toBe("anon");
   });
 });
