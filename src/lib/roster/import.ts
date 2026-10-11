@@ -2,7 +2,7 @@
 // of row arrays (header row first), then maps each data row into a
 // Member-shaped DTO ready for prisma.member.createMany.
 
-import * as XLSX from "xlsx";
+import { readSheet } from "read-excel-file/node";
 
 export type RosterRow = {
   orgId: string;
@@ -20,11 +20,11 @@ export type RosterRow = {
   notes: string | null;
 };
 
-export function parseRoster(args: {
+export async function parseRoster(args: {
   buffer?: Buffer | null;
   filename?: string | null;
   text?: string | null;
-}): string[][] {
+}): Promise<string[][]> {
   const fmt = detectFormat(args);
   if (fmt === "csv") {
     const src = args.text || (args.buffer && args.buffer.toString("utf8")) || "";
@@ -87,18 +87,25 @@ export function parseCsv(text: string): string[][] {
   return rows.filter((r) => r.length > 1 || (r.length === 1 && r[0].trim() !== ""));
 }
 
-export function parseXlsx(buffer: Buffer): string[][] {
-  const wb = XLSX.read(buffer, { type: "buffer", cellDates: false, cellNF: false });
-  const sheetName = wb.SheetNames[0];
-  if (!sheetName) return [];
-  const sheet = wb.Sheets[sheetName];
-  const matrix: unknown[][] = XLSX.utils.sheet_to_json(sheet, {
-    header: 1,
-    defval: "",
-    blankrows: false,
-    raw: false,
-  }) as unknown[][];
-  return matrix.map((row) => row.map((cell) => (cell == null ? "" : String(cell))));
+// .xlsx only. SheetJS ("xlsx" on npm) was dropped: the npm release has
+// unfixed prototype-pollution and ReDoS advisories and newer builds are
+// only published off-registry. Legacy binary .xls files aren't read.
+export async function parseXlsx(buffer: Buffer): Promise<string[][]> {
+  let rows: unknown[][];
+  try {
+    rows = (await readSheet(buffer, 1)) as unknown[][];
+  } catch {
+    throw new Error("Couldn't read that spreadsheet. Save it as .xlsx or .csv and try again.");
+  }
+  return rows
+    .map((row) => row.map(cellToString))
+    .filter((row) => row.some((c) => c !== ""));
+}
+
+function cellToString(cell: unknown): string {
+  if (cell == null) return "";
+  if (cell instanceof Date) return cell.toISOString().slice(0, 10);
+  return String(cell);
 }
 
 function normaliseHeader(s: string): string {
