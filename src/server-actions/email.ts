@@ -11,9 +11,7 @@ import {
   describeAudience,
   type AudienceKind,
 } from "@/lib/mail/audience";
-import { sendMail } from "@/lib/mail";
-import { renderMarkdownLite } from "@/lib/markdown";
-import { audit } from "@/lib/audit";
+import { sendLoggedBroadcast } from "@/lib/mail/broadcast";
 
 const BroadcastInput = z.object({
   orgSlug: z.string().min(1),
@@ -62,103 +60,22 @@ export async function sendBroadcast(_prev: BroadcastState, formData: FormData): 
   const recipients = await buildEmailAudience(auth.org.id, selector);
   const audienceLabel = describeAudience(selector);
 
-  const html = renderMarkdownLite(d.body);
-
-  // Snapshot the recipient list at compose time so the MailLog reflects who
-  // we *intended* to send to, even if directory rows mutate afterward.
-  const recipientSnapshot = recipients.map((r) => ({
-    name: r.name,
-    email: r.email,
-    phone: r.phone ?? null,
-    channel: "email" as const,
-  }));
-
-  const mailLog = await prisma.mailLog.create({
-    data: {
-      orgId: auth.org.id,
-      authorId: auth.user.id,
-      subject: d.subject,
-      body: d.body,
-      channel: "email",
-      audienceLabel,
-      recipientCount: recipients.length,
-      deliveredCount: 0,
-      failedCount: 0,
-      status: dryRun ? "dryrun" : "queued",
-      recipients: recipientSnapshot,
-    },
-  });
-
-  if (dryRun || recipients.length === 0) {
-    audit({
-      orgId: auth.org.id,
-      userId: auth.user.id,
-      userDisplay: auth.user.displayName,
-      entityType: "MailLog",
-      entityId: mailLog.id,
-      action: "create",
-      summary: dryRun
-        ? `Dry-run “${d.subject}” to ${audienceLabel} (${recipients.length})`
-        : `Composed “${d.subject}” to ${audienceLabel} (no recipients)`,
-    });
-    revalidatePath(`/o/${auth.org.slug}/admin/email`);
-    return {
-      ok: true,
-      mailLogId: mailLog.id,
-      recipientCount: recipients.length,
-      deliveredCount: 0,
-      failedCount: 0,
-      dryRun,
-    };
-  }
-
-  // Synchronous fan-out (in-process). When the pg-boss port lands these
-  // rows go on a queue and a worker fans out; until then we send inline
-  // so admins see end-to-end behaviour.
-  let delivered = 0;
-  let failed = 0;
-  const errors: string[] = [];
-  for (const r of recipients) {
-    const result = await sendMail({
-      to: r.email,
-      toName: r.name,
-      subject: d.subject,
-      html,
-    });
-    if (result.ok) delivered += 1;
-    else {
-      failed += 1;
-      if (errors.length < 5) errors.push(`${r.email}: ${result.error}`);
-    }
-  }
-
-  const status = failed === 0 ? "sent" : delivered === 0 ? "failed" : "partial";
-  await prisma.mailLog.update({
-    where: { id: mailLog.id },
-    data: {
-      deliveredCount: delivered,
-      failedCount: failed,
-      status,
-      errors: errors.length ? errors.join("\n") : null,
-    },
-  });
-
-  audit({
+  const result = await sendLoggedBroadcast({
     orgId: auth.org.id,
-    userId: auth.user.id,
-    userDisplay: auth.user.displayName,
-    entityType: "MailLog",
-    entityId: mailLog.id,
-    action: "create",
-    summary: `Sent “${d.subject}” to ${audienceLabel} (${delivered}/${recipients.length})`,
+    author: auth.user,
+    subject: d.subject,
+    body: d.body,
+    audienceLabel,
+    recipients,
+    dryRun,
   });
   revalidatePath(`/o/${auth.org.slug}/admin/email`);
   return {
     ok: true,
-    mailLogId: mailLog.id,
-    recipientCount: recipients.length,
-    deliveredCount: delivered,
-    failedCount: failed,
-    dryRun: false,
+    mailLogId: result.mailLogId,
+    recipientCount: result.recipientCount,
+    deliveredCount: result.deliveredCount,
+    failedCount: result.failedCount,
+    dryRun: result.dryRun,
   };
 }

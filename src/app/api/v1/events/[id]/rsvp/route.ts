@@ -3,6 +3,7 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { reconcileEventChannels } from "@/lib/chat";
 import {
   LIMITS,
   json,
@@ -65,6 +66,8 @@ export const POST = v1Route<{ id: string }>(
             ...data,
           },
         });
+    // Families channels follow yes/maybe RSVPs.
+    await reconcileEventChannels(event.id, { prismaClient: prisma });
     return json({ rsvp: { id: rsvp.id, response: rsvp.response, guests: rsvp.guests } });
   },
   { limits: [LIMITS.rsvp] },

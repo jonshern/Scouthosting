@@ -210,6 +210,7 @@ model Org {
   salesCampaigns       SalesCampaign[]
   salesOrders          SalesOrder[]
   boothSales           BoothSale[]
+  eventStaff           EventStaff[]
   owner                User?                 @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([plan])
@@ -273,6 +274,7 @@ model User {
   backupCodes           BackupCode[]
   errorLogs             ErrorLog[]
   publishedPageVersions PageVersion[]
+  eventStaff            EventStaff[]
 }
 
 // One-time-use 2FA backup codes. Generated at enrollment (10 per user),
@@ -552,7 +554,8 @@ model Event {
   cohAwards       CohAward[]
   rides           CarRide[]
   reimbursements  Reimbursement[]
-  channel         Channel?
+  channels        Channel[]
+  staff           EventStaff[]
   permissionSlips PermissionSlip[]
   transactions    Transaction[]
   locationRef     Location?        @relation(fields: [locationId], references: [id], onDelete: SetNull)
@@ -582,6 +585,8 @@ model SignupSlot {
   org         Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
   event       Event            @relation(fields: [eventId], references: [id], onDelete: Cascade)
   assignments SlotAssignment[]
+  staff       EventStaff[]
+  channels    Channel[]
 
   @@index([orgId, eventId, sortOrder])
 }
@@ -1442,10 +1447,50 @@ model MeritBadgeCounselor {
   updatedAt DateTime @updatedAt
 
   org    Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  member Member? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  member     Member?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  eventStaff EventStaff[]
 
   @@index([orgId, name])
   @@index([orgId, memberId])
+}
+
+// An adult helping run an event: a merit badge counselor at a badge
+// day, a station staffer, a general volunteer, or the event lead.
+// Unlike Rsvp (families attending), these are the people the event
+// needs. A staffer may not have a Compass account: they answer from
+// the emailed link (rsvpTokenHash holds a SHA-256 of that link's
+// token, never the token) or, once signed in, from the app, which
+// links userId on the first match by email. Adults only: adding an
+// address that belongs to a youth Member is refused.
+model EventStaff {
+  id            String    @id @default(cuid())
+  orgId         String
+  eventId       String
+  userId        String?
+  counselorId   String? // optional link to the org's counselor directory
+  name          String
+  email         String // stored lowercased
+  phone         String?
+  role          String    @default("volunteer") // counselor | staff | volunteer | lead
+  slotId        String? // the station (SignupSlot) they work, if any
+  status        String    @default("invited") // invited | yes | no | maybe
+  rsvpTokenHash String?   @unique
+  notes         String?
+  respondedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  org       Org                  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  event     Event                @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user      User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  counselor MeritBadgeCounselor? @relation(fields: [counselorId], references: [id], onDelete: SetNull)
+  slot      SignupSlot?          @relation(fields: [slotId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, email])
+  @@index([orgId, eventId])
+  @@index([userId])
+  @@index([email])
+  @@index([slotId])
 }
 
 // Reimbursement request — a member submits an expense, the treasurer
@@ -1604,7 +1649,16 @@ model Channel {
   // channels and is generally useful elsewhere too.
   purpose         String?
   patrolName      String? // for kind=patrol; matches Member.patrol
-  eventId         String?   @unique // for kind=event; one channel per event
+  // kind=event: the event this channel belongs to. An event can have
+  // several channels, one per audience (and one per station).
+  eventId         String?
+  // kind=event only. Who the reconciler puts in the channel:
+  //   staff    — event staff who said yes/maybe, plus org leaders
+  //   station  — the staff assigned to `slotId`, plus org leaders
+  //   families — RSVP'd and signed-up families, plus org leaders
+  // null on event channels made before audiences existed = families.
+  audience        String?
+  slotId          String? // kind=event, audience=station: the station's SignupSlot
   // Rule-based membership for kind=broadcast (and any future kind that
   // wants dynamic membership). Shape:
   //   { patrols?: string[], skills?: string[],
@@ -1630,10 +1684,12 @@ model Channel {
 
   org      Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
   event    Event?          @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  slot     SignupSlot?     @relation(fields: [slotId], references: [id], onDelete: SetNull)
   members  ChannelMember[]
   messages Message[]
 
   @@index([orgId, kind])
+  @@index([eventId])
   @@index([orgId, archivedAt])
 }
 

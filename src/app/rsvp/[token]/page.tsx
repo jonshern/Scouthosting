@@ -5,6 +5,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { reconcileEventChannels } from "@/lib/chat";
 import { verifyRsvpToken } from "@/lib/security/rsvp-token";
 import {
   memberForUserInOrg,
@@ -80,6 +81,8 @@ export default async function OneClickRsvp({
       },
     });
   }
+
+  await reconcileEventChannels(event.id, { prismaClient: prisma });
 
   if (memberId) {
     try {

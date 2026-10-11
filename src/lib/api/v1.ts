@@ -46,6 +46,8 @@ export const LIMITS = {
   photoUpload: { bucket: "photo-upload", limit: 60, windowMs: HOUR },
   push: { bucket: "push", limit: 20, windowMs: HOUR },
   support: { bucket: "support", limit: 5, windowMs: HOUR },
+  staffInvite: { bucket: "staff-invite", limit: 100, windowMs: HOUR },
+  announce: { bucket: "announce", limit: 10, windowMs: HOUR },
 } satisfies Record<string, RouteLimit>;
 
 export class ApiError extends Error {
