@@ -25,7 +25,7 @@
 //     don't satisfy two-deep; only registered, YPT-current adults do.
 //   - YPT-current means OrgMembership.yptCurrentUntil > now.
 //   - A channel member with no OrgMembership in the channel's org is
-//     treated as youth (unverified), never as an adult.
+//     ignored: chat reads and writes both require org membership.
 //   - DMs never include youth: findOrCreateDmChannel refuses them, so
 //     there is no 1:1 adult-scout path.
 
@@ -70,15 +70,19 @@ export type TwoDeepResult = {
  * Who counts as youth. OrgMembership.role alone isn't enough: a scout
  * who signs up themselves gets the default "parent" role. So a
  * parent-role user whose email matches a youth roster entry is youth
- * too, and a channel member with no role in the org can't be confirmed
- * as an adult, so they count as youth (fail closed). Leaders and
- * admins are adults by role; they're the ones YPT applies to.
+ * too. Leaders and admins are adults by role; they're the ones YPT
+ * applies to. A channel member with no role in the org is an outsider:
+ * they can't read or post, and the DM guard refuses them outright.
  */
 export function classifyMember(
   membership: { role: string } | null | undefined,
   onYouthRoster: boolean,
-): "youth" | "leader" | "adult" {
-  if (!membership || membership.role === "scout") return "youth";
+): "youth" | "leader" | "adult" | "outsider" {
+  // No role in this org (left the unit, stale row): they can neither
+  // read nor post (both chat surfaces require org membership), so they
+  // don't change who is actually in the conversation.
+  if (!membership) return "outsider";
+  if (membership.role === "scout") return "youth";
   if (membership.role === "leader" || membership.role === "admin") return "leader";
   return onYouthRoster ? "youth" : "adult";
 }
@@ -584,7 +588,7 @@ export async function findOrCreateDmChannel(
       membershipByUser.get(uid),
       youthEmails.has(emailByUser.get(uid) ?? ""),
     );
-    if (kind === "youth") {
+    if (kind === "youth" || kind === "outsider") {
       const err = new Error("Direct messages can't include youth members") as Error & {
         code?: string;
       };

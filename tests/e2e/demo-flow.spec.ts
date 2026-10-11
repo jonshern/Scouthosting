@@ -94,6 +94,7 @@ test.describe("demo flow", () => {
     await page.getByLabel("Your name").fill("Demo Viewer");
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill("CorrectHorseBatteryStaple!");
+    await page.getByLabel(/18 or older/).check();
     await page.waitForTimeout(1700);
     await page.getByRole("button", { name: /create account/i }).click();
     // A brand-new account with no org membership lands on

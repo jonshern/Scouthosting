@@ -4,7 +4,7 @@
 // to chase people down for "who has WFA / what's your shirt size?".
 
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth/lucia";
+import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";

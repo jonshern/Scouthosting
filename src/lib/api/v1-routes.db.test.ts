@@ -111,6 +111,7 @@ const f = {} as {
   draftPost: string;
   album: string;
   revokedToken: string;
+  expiredToken: string;
 };
 
 async function makeUser(label: string) {
@@ -153,7 +154,7 @@ describe.skipIf(!db)("/api/v1 (Postgres)", () => {
     await prisma.orgMembership.createMany({
       data: [
         { orgId: f.org.id, userId: f.admin.id, role: "admin", yptCurrentUntil: ypt },
-        { orgId: f.org.id, userId: f.leader.id, role: "leader" },
+        { orgId: f.org.id, userId: f.leader.id, role: "leader", yptCurrentUntil: ypt },
         { orgId: f.org.id, userId: f.parent.id, role: "parent" },
         { orgId: f.org.id, userId: f.scout.id, role: "scout" },
         { orgId: f.otherOrg.id, userId: f.outsider.id, role: "admin" },
@@ -172,7 +173,9 @@ describe.skipIf(!db)("/api/v1 (Postgres)", () => {
           },
         })
       ).id;
-    f.troopChannel = await mk(f.org.id, "troop", "Troop", [f.admin.id, f.parent.id, f.leaver.id]);
+    // `leaver` left the org, so the two-deep check counts them as youth;
+    // two YPT-current adults keep the channel open.
+    f.troopChannel = await mk(f.org.id, "troop", "Troop", [f.admin.id, f.leader.id, f.parent.id, f.leaver.id]);
     f.leadersChannel = await mk(f.org.id, "custom", "Announcements", [f.admin.id, f.parent.id], "leaders");
     // A scout with only one YPT-current adult: below two-deep.
     f.youthChannel = await mk(f.org.id, "patrol", "Eagles", [f.admin.id, f.scout.id]);
@@ -200,6 +203,7 @@ describe.skipIf(!db)("/api/v1 (Postgres)", () => {
     const revoked = await issueToken(f.parent.id, "old phone", prisma);
     await revokeToken(revoked.id, prisma);
     f.revokedToken = revoked.raw;
+    f.expiredToken = (await issueToken(f.parent.id, "stale phone", prisma, -1000)).raw;
   });
 
   afterAll(async () => {
@@ -215,7 +219,7 @@ describe.skipIf(!db)("/api/v1 (Postgres)", () => {
 
   describe("authentication", () => {
     it("rejects missing, malformed, unknown and revoked tokens with 401 unauthorized", async () => {
-      for (const token of [null, "nope", "compass_pat_deadbeef", f.revokedToken]) {
+      for (const token of [null, "nope", "compass_pat_deadbeef", f.revokedToken, f.expiredToken]) {
         const r = await call(me.GET as Handler, { token });
         expect(r.status).toBe(401);
         expect(r.json).toEqual({ error: "unauthorized" });

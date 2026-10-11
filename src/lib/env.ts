@@ -26,12 +26,29 @@ function apexHost(): string {
   return "localhost";
 }
 
+// SESSION_SECRET signs sessions (via Better Auth) and every one-shot link
+// (RSVP, invite, unsubscribe, permission slip). Each of those modules has
+// a hard-coded dev fallback, so a production server without the secret
+// would accept links anyone can forge. Refuse to boot instead.
+const DEV_SECRET = "dev-only-not-secret-replace-in-prod-0123456789abcdef";
+
+function authSecret(): string {
+  const v = process.env.BETTER_AUTH_SECRET || process.env.SESSION_SECRET;
+  const isBuildPhase = process.env.NEXT_PHASE === "phase-production-build";
+  if (process.env.NODE_ENV === "production" && !isBuildPhase) {
+    if (!v) throw new Error("Missing required env var: SESSION_SECRET (generate with: openssl rand -hex 32)");
+    if (v.length < 32) throw new Error("SESSION_SECRET must be at least 32 characters.");
+  }
+  return v || DEV_SECRET;
+}
+
 export const env = {
   NODE_ENV: optional("NODE_ENV", "development"),
   DATABASE_URL: required("DATABASE_URL"),
   APEX_HOST: apexHost(),
   COOKIE_DOMAIN: optional("COOKIE_DOMAIN", ""),
-  SESSION_SECRET: optional("SESSION_SECRET", "dev-only-not-secret"),
+  SESSION_SECRET: optional("SESSION_SECRET", DEV_SECRET),
+  AUTH_SECRET: authSecret(),
   ALLOW_ADMIN_PASSWORD_LOGIN: optional("ALLOW_ADMIN_PASSWORD_LOGIN", ""),
 } as const;
 
