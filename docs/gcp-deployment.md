@@ -1,8 +1,8 @@
 # Deploying on Google Cloud
 
-Compass is the family's core service: the troop site and the API that Waypoint (merit badges and events, `jonshern/bluecard`) and Summit (the scout's trail, `jonshern/emmett-scouting`) call. This is its Google Cloud setup, described in Terraform (`infra/`) and deployed by GitHub Actions. It replaces fly.io once the move is decided; until then both exist side by side and nothing here runs.
+Compass is the family's core service: the troop site and the API that Waypoint (merit badges and events, `jonshern/bluecard`) and Summit (the scout's trail, `jonshern/emmett-scouting`) call. This is its Google Cloud setup, described in Terraform (`infra/`) and deployed by GitHub Actions. fly.io is shut down; until the GCP project exists, Compass runs on Jon's Mac and nothing here runs.
 
-**Nothing in this setup does anything until the `GCP_PROJECT_ID` repository variable is set.** The *Deploy*, *Preview* and *Infra* workflows skip themselves without it, and the fly.io deployment (`fly.toml`, the Dockerfile's migrate-on-boot `CMD`) is untouched.
+**Nothing in this setup does anything until the `GCP_PROJECT_ID` repository variable is set.** The *Deploy*, *Preview* and *Infra* workflows skip themselves without it.
 
 ## The shape of it
 
@@ -41,7 +41,7 @@ flowchart LR
 
 | Piece | Service | Notes |
 |---|---|---|
-| Core service | Cloud Run `core-<env>` (Node 22, port 3000, 1 GiB) | This repository's Dockerfile. Cloud Run starts it with `npm run start`; it never migrates on boot here. Scales to zero. |
+| Core service | Cloud Run `core-<env>` (Node 22, port 3000, 1 GiB) | This repository's Dockerfile. Its `CMD` runs `next start` directly (the image has no npm/npx); it never migrates on boot. Scales to zero. |
 | Database | Cloud SQL Postgres 17 `core-pg` (`db-f1-micro`) | One instance for the family; `compass_staging` and `compass_prod` databases on it. Daily backups, 7-day point-in-time restore, deletion protection. |
 | Migrations | Cloud Run job `core-migrate-<env>` (`scripts/migrate.sh`) | Runs with the schema owner's login before traffic moves, then grants the server's login row access only. A failed migration stops the deploy. |
 | Web apps | Firebase Hosting, sites `<prefix>-waypoint`, `<prefix>-summit` and `<prefix>-landing` (`-staging` for staging) | Created here; Waypoint's and Summit's repositories build and publish to them, and rewrite `/api/**` to `core-<env>` in their own `firebase.json`. `landing` is the family's one static page (bluecard `marketing/landing/`), served on the apex domain with `www` redirecting to it. |
@@ -79,13 +79,15 @@ Staging and previews skip the pre-launch invite gate and let admins in without t
 Three decisions are open and block any of this from running:
 
 1. **One GCP project for the family?** The setup assumes yes.
-2. **The domain.** Compass is `scoutingcompass.com` on fly.io today; Waypoint and Summit would be subdomains or their own names (`app_domains`, `custom_domains`), and the landing page takes the apex (`custom_domains = { prod = { landing = "example.org" } }`, plus `www` added as a redirect in the Firebase console).
-3. **When to move off fly.io.** The move must **import the existing `MASTER_KEY`** from fly.io rather than let Terraform generate a new one, or every organization's encrypted roster and photos become unreadable without their recovery codes. Import it before the first apply that creates `core-prod`:
+2. **The domain.** Compass is `scoutingcompass.com`; Waypoint and Summit would be subdomains or their own names (`app_domains`, `custom_domains`), and the landing page takes the apex (`custom_domains = { prod = { landing = "example.org" } }`, plus `www` added as a redirect in the Firebase console).
+3. **Moving Compass to GCP.** fly.io is shut down. Compass currently runs on Jon's Mac, so there is no fly.io data to import: unless Jon exported some, the first apply generates a fresh `MASTER_KEY` and starts from an empty database (migrations, then seed if wanted). The `MASTER_KEY` encrypts every organization's roster and photos, so whichever database moves to `compass_prod` must come with the key it was written under.
+
+   **Optional: importing an existing database.** If Jon has a `MASTER_KEY` (hex) and a Postgres dump to keep (from the Mac or an old fly.io export), import the key before the first apply that creates `core-prod`, or that data becomes unreadable without each organization's recovery code:
    ```sh
    # after bootstrap, before the first apply of infra/
-   terraform -chdir=infra import 'module.environment["prod"].random_id.master_key' "$(printf '%s' "$FLY_MASTER_KEY" | xxd -r -p | base64 | tr '+/' '-_' | tr -d '=')"
+   terraform -chdir=infra import 'module.environment["prod"].random_id.master_key' "$(printf '%s' "$OLD_MASTER_KEY" | xxd -r -p | base64 | tr '+/' '-_' | tr -d '=')"
    ```
-   Then dump the fly.io Postgres and restore it into `compass_prod` before switching DNS.
+   Then restore the dump into `compass_prod` before switching DNS.
 
 ## One-time setup
 

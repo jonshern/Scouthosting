@@ -1,6 +1,6 @@
 # Runbooks (GCP)
 
-What to do when something happens in production on Google Cloud (see [gcp-deployment.md](gcp-deployment.md); the fly.io setup is separate). Each alert email links to its section here. Commands assume `gcloud` is signed in to the family's GCP project with `gcloud config set run/region us-central1`.
+What to do when something happens in production on Google Cloud (see [gcp-deployment.md](gcp-deployment.md)). Each alert email links to its section here. Commands assume `gcloud` is signed in to the family's GCP project with `gcloud config set run/region us-central1`.
 
 | Situation | Section |
 |---|---|

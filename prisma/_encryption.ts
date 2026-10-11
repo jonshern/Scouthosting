@@ -1,4 +1,4 @@
-// Seed-only encryption helpers. The Fly runtime image only copies
+// Seed-only encryption helpers. The runtime image only copies
 // `prisma/` (not `src/`), so `prisma/seed.ts` can't import from
 // `@/lib/encryption`. This file is a deliberate dupe of the bits the
 // seed needs, kept in sync with src/lib/encryption/{primitives,vault,field}.ts.

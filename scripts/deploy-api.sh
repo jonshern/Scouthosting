@@ -5,7 +5,6 @@
 #   3. smoke test /health (database reachable) and roll back on failure
 #
 # Usage: scripts/deploy-api.sh <staging|prod> <image>
-# (fly.io deploys are separate: see fly.toml.)
 # Needs gcloud signed in with run/region set (CI does this).
 set -euo pipefail
 

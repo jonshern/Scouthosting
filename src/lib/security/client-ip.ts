@@ -5,7 +5,6 @@
 // keying a limiter on it lets anyone pick a fresh bucket per request.
 // Instead we read exactly one source, chosen by deployment:
 //
-//   CLIENT_IP_HEADER=fly-client-ip     Fly.io (default when FLY_APP_NAME is set)
 //   CLIENT_IP_HEADER=x-forwarded-for   Cloud Run / any proxy that appends
 //                                      (default when K_SERVICE is set). The
 //                                      address is taken CLIENT_IP_XFF_HOPS
@@ -35,7 +34,6 @@ export function clientIpConfig(env: Record<string, string | undefined> = process
   const hops = Math.max(1, Number.parseInt(rawHops, 10) || 1);
   const explicit = (env.CLIENT_IP_HEADER || env.TRUSTED_IP_HEADER)?.trim().toLowerCase();
   if (explicit) return { header: explicit, xffHops: hops };
-  if (env.FLY_APP_NAME) return { header: "fly-client-ip", xffHops: hops };
   if (env.K_SERVICE) return { header: "x-forwarded-for", xffHops: hops };
   if (env.NODE_ENV !== "production") return { header: "x-forwarded-for", xffHops: hops };
   return { header: null, xffHops: hops };

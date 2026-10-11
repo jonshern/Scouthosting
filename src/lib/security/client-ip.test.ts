@@ -17,14 +17,11 @@ describe("clientIpConfig", () => {
       xffHops: 2,
     });
   });
-  it("uses Fly-Client-IP on Fly", () => {
-    expect(clientIpConfig({ FLY_APP_NAME: "compass" }).header).toBe("fly-client-ip");
-  });
   it("uses the rightmost X-Forwarded-For hop on Cloud Run", () => {
     expect(clientIpConfig({ K_SERVICE: "api" })).toEqual({ header: "x-forwarded-for", xffHops: 1 });
   });
   it("lets an explicit header win", () => {
-    expect(clientIpConfig({ FLY_APP_NAME: "x", CLIENT_IP_HEADER: "CF-Connecting-IP" }).header).toBe(
+    expect(clientIpConfig({ K_SERVICE: "x", CLIENT_IP_HEADER: "CF-Connecting-IP" }).header).toBe(
       "cf-connecting-ip",
     );
   });
@@ -52,8 +49,8 @@ describe("clientIp", () => {
   });
 
   it("reads a single-value platform header and ignores X-Forwarded-For", () => {
-    const cfg = { header: "fly-client-ip", xffHops: 1 };
-    expect(clientIp(h({ "fly-client-ip": "203.0.113.9", "x-forwarded-for": "1.1.1.1" }), cfg)).toBe(
+    const cfg = { header: "cf-connecting-ip", xffHops: 1 };
+    expect(clientIp(h({ "cf-connecting-ip": "203.0.113.9", "x-forwarded-for": "1.1.1.1" }), cfg)).toBe(
       "203.0.113.9",
     );
     expect(clientIp(h({ "x-forwarded-for": "1.1.1.1" }), cfg)).toBeNull();
@@ -85,9 +82,9 @@ describe("clientIpFromHeaders", () => {
   });
 
   it("uses a platform header verbatim when configured", () => {
-    process.env.TRUSTED_IP_HEADER = "fly-client-ip";
+    process.env.TRUSTED_IP_HEADER = "cf-connecting-ip";
     expect(
-      clientIpFromHeaders(h({ "fly-client-ip": "198.51.100.7", "x-forwarded-for": "6.6.6.6" })),
+      clientIpFromHeaders(h({ "cf-connecting-ip": "198.51.100.7", "x-forwarded-for": "6.6.6.6" })),
     ).toBe("198.51.100.7");
   });
 

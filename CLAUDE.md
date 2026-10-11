@@ -9,7 +9,7 @@ this lean.
 - Node 22 · Next.js 16 · React 19 · Prisma 5 · Postgres 16 · Better Auth · argon2id · pg-boss · Tailwind
 - Mobile: Expo / React Native (talks to `/api/v1/*` over HTTPS)
 - Local infra: `docker-compose.yml` runs Postgres only; Next runs as a host Node process via `npm run dev`
-- Deploy: `Dockerfile` at the repo root builds and runs `prisma migrate deploy && next start` on port 3000
+- Deploy: `Dockerfile` at the repo root builds an image that runs `next start` on port 3000 (no npm in the image; migrations are a separate step, `scripts/migrate.sh`). Target is Cloud Run (`infra/`, `docs/gcp-deployment.md`); until the GCP project exists Compass runs on Jon's Mac. fly.io is shut down.
 
 ## Layout
 
@@ -103,10 +103,10 @@ v12 introduced a stricter queue model. `src/lib/jobs/index.ts` calls
 handler. Tests run with `JOBS_DISABLED=1` so the worker never spins
 up against `compass_test`.
 
-### 6. Photos / uploads on Fly are ephemeral when storage=local
+### 6. Photos / uploads in a container are ephemeral when storage=local
 
 `STORAGE_DRIVER=local` writes to `/app/var/uploads/*` which doesn't
-survive container restart on Fly. Use `STORAGE_DRIVER=s3` (or `gcs`)
+survive a container restart (Cloud Run instances have no disk). Use `STORAGE_DRIVER=s3` (or `gcs`)
 with a real bucket in production. The drivers lazy-load
 `@aws-sdk/client-s3` / `@google-cloud/storage` so the deps are only
 required when actually used.
@@ -243,4 +243,4 @@ to point the simulator at the host machine.
 - TestFlight pipeline (gated on Apple Developer enrollment)
 - OTel SDK init in `src/instrumentation.ts` (currently only fatal
   handlers + jobs runtime)
-- Persistent uploads on Fly via `STORAGE_DRIVER=s3` + a real bucket
+- Persistent uploads in production via `STORAGE_DRIVER=gcs` + the Terraform bucket
