@@ -70,19 +70,33 @@ export async function submitRsvp(_prev: unknown, formData: FormData) {
     }
   } else {
     if (!d.name || !d.email) return { error: "Name and email are required when not signed in." };
-    memberId = await memberForUserInOrg({ orgId: org.id, userEmail: d.email });
-    await prisma.rsvp.create({
-      data: {
-        orgId: org.id,
-        eventId: d.eventId,
-        memberId,
-        name: d.name,
-        email: d.email,
-        response: d.response,
-        guests,
-        notes: d.notes || null,
-      },
-    });
+    const email = d.email.toLowerCase();
+    // An unverified, typed-in email doesn't get linked to a roster
+    // member: otherwise anyone could post (or reverse) an event charge
+    // on another family's account. memberId stays null for guests.
+    try {
+      await prisma.rsvp.create({
+        data: {
+          orgId: org.id,
+          eventId: d.eventId,
+          name: d.name,
+          email,
+          response: d.response,
+          guests,
+          notes: d.notes || null,
+        },
+      });
+    } catch (err) {
+      // Guests can't overwrite an RSVP by typing someone's email; they
+      // change theirs from the emailed RSVP link or by signing in.
+      if ((err as { code?: string }).code === "P2002") {
+        return {
+          error:
+            "There's already an RSVP for this email. Use the link in your RSVP email or sign in to change it.",
+        };
+      }
+      throw err;
+    }
   }
 
   if (memberId) {

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/lucia";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
+import { claimSlot, releaseSlot } from "@/lib/slots";
 
 const TakeSchema = z.object({
   orgSlug: z.string().min(1),
@@ -26,8 +27,8 @@ export type SlotActionState =
 
 /**
  * Take a sign-up slot (drivers, food, gear). Anyone can claim — login
- * is optional. Capacity is enforced inside a transaction so two
- * simultaneous claims can't oversubscribe. When a slot is full and
+ * is optional. Capacity is enforced under a row lock on the slot (see
+ * lib/slots) so two simultaneous claims can't oversubscribe. When a slot is full and
  * waitlisting is allowed, additional claims queue; auto-promoted on
  * release in `releaseSlotAssignment`.
  */
@@ -48,7 +49,7 @@ export async function takeSlot(
 
   const slot = await prisma.signupSlot.findFirst({
     where: { id: d.slotId, orgId: org.id },
-    select: { id: true, capacity: true, allowWaitlist: true, eventId: true },
+    select: { id: true },
   });
   if (!slot) return { error: "Slot not found." };
 
@@ -62,30 +63,17 @@ export async function takeSlot(
 
   let waitlisted = false;
   try {
-    await prisma.$transaction(async (tx) => {
-      const activeCount = await tx.slotAssignment.count({
-        where: { slotId: slot.id, waitlisted: false },
-      });
-      if (activeCount >= slot.capacity) {
-        if (!slot.allowWaitlist) {
-          const err = new Error("FULL") as Error & { code?: string };
-          err.code = "FULL";
-          throw err;
-        }
-        waitlisted = true;
-      }
-      await tx.slotAssignment.create({
-        data: {
-          orgId: org.id,
-          slotId: slot.id,
-          userId: user?.id ?? null,
-          name,
-          email,
-          notes,
-          waitlisted,
-        },
-      });
-    });
+    const r = await prisma.$transaction((tx) =>
+      claimSlot(tx, {
+        orgId: org.id,
+        slotId: slot.id,
+        userId: user?.id ?? null,
+        name,
+        email,
+        notes,
+      }),
+    );
+    waitlisted = r.waitlisted;
   } catch (e) {
     const err = e as { code?: string };
     if (err.code === "FULL") return { error: "This slot is full." };
@@ -99,9 +87,8 @@ export async function takeSlot(
 
 /**
  * Release a slot assignment. Only the user who claimed it (matching
- * by userId for signed-in or by email for anonymous) can release.
- * Promotes the oldest waitlisted assignment in the same transaction
- * if the released row was active.
+ * by userId for signed-in or by email for anonymous guest claims) can
+ * release. Promotes waitlisters oldest-first in the same transaction.
  */
 export async function releaseSlotAssignment(
   _prev: SlotActionState,
@@ -125,32 +112,16 @@ export async function releaseSlotAssignment(
   if (!slot) return { error: "Slot not found." };
 
   const { user } = await getSession();
-  const where: { slotId: string; userId?: string; email?: string } = { slotId: slot.id };
+  let who: { userId: string } | { guestEmail: string };
   if (user) {
-    where.userId = user.id;
+    who = { userId: user.id };
   } else {
     const email = (d.email ?? "").trim().toLowerCase();
     if (!email) return { error: "Email is required to release as a guest." };
-    where.email = email;
+    who = { guestEmail: email };
   }
 
-  await prisma.$transaction(async (tx) => {
-    const target = await tx.slotAssignment.findFirst({ where });
-    if (!target) return;
-    await tx.slotAssignment.delete({ where: { id: target.id } });
-    if (!target.waitlisted) {
-      const nextUp = await tx.slotAssignment.findFirst({
-        where: { slotId: slot.id, waitlisted: true },
-        orderBy: { createdAt: "asc" },
-      });
-      if (nextUp) {
-        await tx.slotAssignment.update({
-          where: { id: nextUp.id },
-          data: { waitlisted: false },
-        });
-      }
-    }
-  });
+  await prisma.$transaction((tx) => releaseSlot(tx, { slotId: slot.id, who }));
 
   revalidatePath(`/o/${org.slug}/calendar`);
   return { ok: true, released: true };

@@ -8,7 +8,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { verifyPermSlipToken } from "@/lib/security/perm-slip-token";
-import { effectiveSlipText } from "@/lib/permission-slips";
+import { canSignSlip, effectiveSlipText } from "@/lib/permission-slips";
 
 function clientIp(req: Request): string | null {
   const xff = req.headers.get("x-forwarded-for");
@@ -41,12 +41,42 @@ export async function POST(
     );
   }
 
-  const event = await prisma.event.findUnique({
-    where: { id: claims.eventId },
-    select: { id: true, orgId: true, permissionSlipText: true },
-  });
+  const [event, member, existing] = await Promise.all([
+    prisma.event.findUnique({
+      where: { id: claims.eventId },
+      select: { id: true, orgId: true, permissionSlipText: true, startsAt: true, endsAt: true },
+    }),
+    prisma.member.findUnique({
+      where: { id: claims.memberId },
+      select: { id: true, orgId: true, isYouth: true, deletedAt: true, parentIds: true },
+    }),
+    prisma.permissionSlip.findUnique({
+      where: { eventId_memberId: { eventId: claims.eventId, memberId: claims.memberId } },
+      select: { id: true },
+    }),
+  ]);
   if (!event || event.orgId !== claims.orgId) {
     return NextResponse.redirect(new URL(`/permission-slip/${token}?error=missing`, req.url), 303);
+  }
+  const parents = member?.parentIds.length
+    ? await prisma.member.findMany({
+        where: { orgId: event.orgId, id: { in: member.parentIds }, deletedAt: null },
+        select: { email: true },
+      })
+    : [];
+  const decision = canSignSlip({
+    now: new Date(),
+    event,
+    member,
+    parentEmails: parents.map((p) => p.email),
+    claimedParentEmail: claims.parentEmail,
+    alreadySigned: !!existing,
+  });
+  if (!decision.ok) {
+    return NextResponse.redirect(
+      new URL(`/permission-slip/${token}?error=${encodeURIComponent(decision.message)}`, req.url),
+      303,
+    );
   }
 
   const slipTextSnapshot = effectiveSlipText(event.permissionSlipText);
