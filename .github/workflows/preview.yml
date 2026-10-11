@@ -1,0 +1,96 @@
+# Every PR gets its own preview: the PR's image as a tagged, no-traffic
+# revision of the staging core service, on staging data. Closing the PR
+# removes the tag. Does nothing until GCP_PROJECT_ID is set.
+name: Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  PROJECT: ${{ vars.GCP_PROJECT_ID }}
+  REGION: ${{ vars.GCP_REGION || 'us-central1' }}
+  TAG: pr-${{ github.event.pull_request.number }}
+  SERVICE: core-staging
+
+jobs:
+  deploy:
+    # Forks get no cloud credentials.
+    if: >-
+      vars.GCP_PROJECT_ID != '' &&
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/gcp-auth
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          region: ${{ env.REGION }}
+
+      - name: Build and push the image
+        run: |
+          image="${REGION}-docker.pkg.dev/${PROJECT}/core/compass:${TAG}-${GITHUB_SHA::7}"
+          gcloud auth configure-docker "${REGION}-docker.pkg.dev" --quiet
+          docker build -t "$image" .
+          docker push "$image"
+          echo "IMAGE=$image" >> "$GITHUB_ENV"
+
+      # Previews never run migrations against shared staging data; CI checks
+      # new migrations against a throwaway database instead.
+      - name: Deploy tagged revision (no traffic)
+        id: api
+        run: |
+          gcloud run deploy "$SERVICE" --image "$IMAGE" --tag "$TAG" --no-traffic --quiet
+          url=$(gcloud run services describe "$SERVICE" --format=json \
+            | jq -r --arg t "$TAG" '.status.traffic[] | select(.tag == $t) | .url')
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Comment preview links
+        uses: actions/github-script@v8
+        env:
+          API_URL: ${{ steps.api.outputs.url }}
+        with:
+          script: |
+            const marker = '<!-- core-preview -->';
+            const body = [
+              marker,
+              '**Preview** (uses staging data, expires in 7 days)',
+              '',
+              `| | |`,
+              `|---|---|`,
+              `| Compass | ${process.env.API_URL} (staging data) |`,
+              `| Commit | ${context.sha.slice(0, 7)} |`,
+            ].join('\n');
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const mine = comments.find((c) => c.body?.includes(marker));
+            if (mine) await github.rest.issues.updateComment({ owner, repo, comment_id: mine.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });
+
+  cleanup:
+    if: >-
+      vars.GCP_PROJECT_ID != '' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/gcp-auth
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          region: ${{ env.REGION }}
+      - name: Remove the PR's revision tag
+        run: gcloud run services update-traffic "$SERVICE" --remove-tags "$TAG" --quiet || true

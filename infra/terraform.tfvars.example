@@ -1,0 +1,16 @@
+project_id  = "scouting-family-123456"
+mail_from   = "Compass <noreply@example.org>"
+alert_email = "you@example.org"
+
+# Send real mail once the Resend key is in Secret Manager:
+# mail_drivers = { prod = "resend" }
+
+# Keep prod warm around a big event (about $8-10/month while set to 1):
+# environments = {
+#   staging = { min_instances = 0, max_instances = 2 }
+#   prod    = { min_instances = 1, max_instances = 6 }
+# }
+
+# app_domains    = { prod = "app.example.org" }
+# custom_domains = { prod = { landing = "example.org", waypoint = "waypoint.example.org", summit = "summit.example.org" } }
+# monitored_web_apps = ["waypoint"]
