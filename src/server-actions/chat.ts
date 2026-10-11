@@ -60,9 +60,10 @@ export async function sendMessage(
     }),
   ]);
 
-  // Outsiders stop here, before the two-deep check below can suspend
+  // Outsiders (including people who left the unit but kept a stale
+  // channel row) stop here, before the two-deep check below can suspend
   // a channel they don't belong to.
-  if (!membership && !channelMembership) return { error: "Channel not found." };
+  if (!membership) return { error: "Channel not found." };
 
   // Two-deep gate (auto-suspends if it would be violated).
   try {
