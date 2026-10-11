@@ -5,6 +5,7 @@
 // (lib/templates/) is itself an Express-only thing; the unit can
 // apply one later from /admin/site/template.
 
+import { provisionTreasury } from "@/lib/treasury/provision";
 import { prisma } from "@/lib/db";
 import { UNIT_TYPES, buildSeedBroadcastChannels, type UnitType } from "@/lib/auth/org-roles";
 import { provisionOrgVault } from "@/lib/encryption";
@@ -180,6 +181,7 @@ export async function provisionOrg(input: ProvisionInput): Promise<{
   });
 
   await persistSeedBroadcastChannels(org);
+  await provisionTreasury(org.id);
 
   return { org, recoveryCode };
 }

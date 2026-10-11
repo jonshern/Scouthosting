@@ -61,15 +61,24 @@ export async function provisionTreasury(orgId: string): Promise<ProvisionSummary
   return { fundsCreated, subaccountsCreated };
 }
 
-/** Resolve a system fund by code, throwing if treasury isn't provisioned. */
+/**
+ * Resolve a system fund by code. Orgs created before treasury existed
+ * (or never opened the treasury page) have no system funds yet, so a
+ * known system fund is created on first use instead of failing the
+ * caller's write with a 500.
+ */
 export async function requireSystemFund(orgId: string, code: string) {
   const fund = await prisma.fund.findUnique({
     where: { orgId_code: { orgId, code } },
   });
-  if (!fund) {
-    throw new Error(
-      `Treasury not provisioned for org ${orgId}: missing system fund "${code}". Call provisionTreasury() first.`,
-    );
+  if (fund) return fund;
+  const system = SYSTEM_FUNDS.find((f) => f.code === code);
+  if (!system) {
+    throw new Error(`Unknown system fund "${code}" for org ${orgId}.`);
   }
-  return fund;
+  return prisma.fund.upsert({
+    where: { orgId_code: { orgId, code } },
+    update: {},
+    create: { orgId, code, name: system.name, isSystem: true },
+  });
 }
