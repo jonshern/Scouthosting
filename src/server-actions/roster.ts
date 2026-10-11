@@ -72,7 +72,7 @@ async function loadInputRows(formData: FormData, orgId: string): Promise<RosterR
 
   let matrix: string[][];
   try {
-    matrix = parseRoster({ buffer, filename, text: text || undefined });
+    matrix = await parseRoster({ buffer, filename, text: text || undefined });
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Couldn't parse upload." };
   }
