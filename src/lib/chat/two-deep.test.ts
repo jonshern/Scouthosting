@@ -51,14 +51,29 @@ describe("chat/checkChannelTwoDeep — gates", () => {
     });
   });
 
-  it("leaders-kind channel always passes (no youth there by definition)", async () => {
+  it("leaders-kind channel with only adults passes", async () => {
     const prisma = makePrismaStub({
       channel: { id: "ch1", orgId: ORG, kind: "leaders" },
-      channelMembers: [],
+      channelMembers: [
+        { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
+      ],
     });
     const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
     expect(r.ok).toBe(true);
     expect(r.hasYouth).toBe(false);
+  });
+
+  it("leaders-kind channel gets no free pass when a scout was added by hand", async () => {
+    const prisma = makePrismaStub({
+      channel: { id: "ch1", orgId: ORG, kind: "leaders" },
+      channelMembers: [
+        { user: { memberships: [{ role: "scout", yptCurrentUntil: null }] } },
+        { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
+      ],
+    });
+    const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("only-one-current-adult");
   });
 });
 
@@ -145,12 +160,25 @@ describe("chat/checkChannelTwoDeep — youth + adult counting", () => {
     expect(r.currentAdultCount).toBe(0);
   });
 
-  it("orphaned channel members (no membership row) are ignored", async () => {
+  it("orphaned channel members (no membership row) count as youth, not adults", async () => {
+    const prisma = makePrismaStub({
+      channel: { id: "ch1", orgId: ORG, kind: "custom" },
+      channelMembers: [
+        { user: { memberships: [] } }, // orphan: can't confirm they're an adult
+        { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
+      ],
+    });
+    const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
+    expect(r.ok).toBe(false);
+    expect(r.hasYouth).toBe(true);
+    expect(r.reason).toBe("only-one-current-adult");
+  });
+
+  it("orphans are fine once two YPT-current adults are present", async () => {
     const prisma = makePrismaStub({
       channel: { id: "ch1", orgId: ORG, kind: "troop" },
       channelMembers: [
-        { user: { memberships: [{ role: "scout", yptCurrentUntil: null }] } },
-        { user: { memberships: [] } }, // orphan
+        { user: { memberships: [] } },
         { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
         { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
       ],

@@ -7,7 +7,7 @@
 // Adult leaders and org admins always pass. Suspended / archived
 // channels always block. The policies decide who else can post:
 //
-//   "everyone" — any org member
+//   "everyone" — any org member (or explicit channel member)
 //   "members"  — only ChannelMember rows (default)
 //   "section"  — only members whose Member.patrol matches the
 //                channel's patrolName (e.g. Wolf Den parents in the
@@ -64,7 +64,10 @@ export function canPostToChannel(channel: ChannelDto, actor: ChatActor): CanPost
     return { ok: false, reason: "leaders-only" };
   }
   if (policy === "everyone") {
-    return { ok: true };
+    // "Everyone in the unit" — not everyone with an account. A signed-in
+    // user from another org (no role here) must not be able to post.
+    if (actor.role || actor.channelMembership) return { ok: true };
+    return { ok: false, reason: "not-a-member" };
   }
   if (policy === "members") {
     if (actor.channelMembership) return { ok: true };

@@ -20,7 +20,7 @@ export type Recipient = {
 export const AUDIENCE_LABELS: Record<AudienceKind, string> = {
   everyone: "Everyone",
   adults: "Adults",
-  youth: "Youth",
+  youth: "Youth (parents copied)",
   leaders: "Leaders",
   patrol: "Patrol",
 };
@@ -75,25 +75,40 @@ export async function buildEmailAudience(
   });
   if (!org || !org.encryptedDek) return [];
 
+  const select = {
+    id: true,
+    email: true,
+    isYouth: true,
+    parentIds: true,
+    encFirstName: true,
+    encLastName: true,
+    encPhone: true,
+    encStreet: true,
+    encCity: true,
+    encState: true,
+    encZip: true,
+    lastNameLc1: true,
+  } as const;
+
   const members = await prisma.member.findMany({
     where: where as never,
-    select: {
-      id: true,
-      email: true,
-      encFirstName: true,
-      encLastName: true,
-      encPhone: true,
-      encStreet: true,
-      encCity: true,
-      encState: true,
-      encZip: true,
-      lastNameLc1: true,
-    },
+    select,
     orderBy: [{ lastNameLc1: "asc" }, { id: "asc" }],
   });
 
+  // Youth protection: whenever a youth member is on the list, their
+  // linked parents get the same message. Parents still have to pass the
+  // same deliverability/opt-out filters as everyone else.
+  const parentIds = missingParentIds(members);
+  const parents = parentIds.length
+    ? await prisma.member.findMany({
+        where: { ...baseWhere, id: { in: parentIds } } as never,
+        select,
+      })
+    : [];
+
   const dek = unwrapDekWithMaster(org);
-  const decrypted = members.map((m) => {
+  const decrypted = [...members, ...parents].map((m) => {
     const pii = decryptMemberPii(m, dek, orgId);
     return { ...m, ...pii };
   });
@@ -110,6 +125,22 @@ export async function buildEmailAudience(
       email: m.email,
       phone: m.phone,
     }));
+}
+
+/**
+ * Parent member IDs linked to youth on the list who aren't already
+ * recipients themselves.
+ */
+export function missingParentIds(
+  members: Array<{ id: string; isYouth: boolean; parentIds: string[] }>,
+): string[] {
+  const onList = new Set(members.map((m) => m.id));
+  const out = new Set<string>();
+  for (const m of members) {
+    if (!m.isYouth) continue;
+    for (const pid of m.parentIds) if (!onList.has(pid)) out.add(pid);
+  }
+  return [...out];
 }
 
 export function describeAudience(selector: AudienceSelector): string {

@@ -44,17 +44,6 @@ export async function sendMessage(
   });
   if (!channel) return { error: "Channel not found." };
 
-  // Two-deep gate (auto-suspends if it would be violated).
-  try {
-    await assertChannelTwoDeep(channel.id, { prismaClient: prisma });
-  } catch (err) {
-    const e = err as { code?: string; reason?: string };
-    if (e.code === "CHANNEL_SUSPENDED") {
-      return { error: `Channel paused: ${e.reason ?? "two-deep failed"}.` };
-    }
-    throw err;
-  }
-
   // Resolve actor context for the post-policy check.
   const [membership, channelMembership, member] = await Promise.all([
     prisma.orgMembership.findFirst({
@@ -70,6 +59,21 @@ export async function sendMessage(
       select: { patrol: true },
     }),
   ]);
+
+  // Outsiders stop here, before the two-deep check below can suspend
+  // a channel they don't belong to.
+  if (!membership && !channelMembership) return { error: "Channel not found." };
+
+  // Two-deep gate (auto-suspends if it would be violated).
+  try {
+    await assertChannelTwoDeep(channel.id, { prismaClient: prisma });
+  } catch (err) {
+    const e = err as { code?: string; reason?: string };
+    if (e.code === "CHANNEL_SUSPENDED") {
+      return { error: `Channel paused: ${e.reason ?? "two-deep failed"}.` };
+    }
+    throw err;
+  }
 
   const allow = canPostToChannel(channel, {
     role: membership?.role,

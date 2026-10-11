@@ -66,6 +66,20 @@ describe("chat/permissions/canPostToChannel — policy 'everyone'", () => {
   it("passes for any non-leader org member", () => {
     expect(canPostToChannel(channel({ postPolicy: "everyone" }), parent).ok).toBe(true);
   });
+
+  it("rejects a signed-in user with no role in this org", () => {
+    expect(canPostToChannel(channel({ postPolicy: "everyone" }), {})).toEqual({
+      ok: false,
+      reason: "not-a-member",
+    });
+  });
+
+  it("passes for an explicit channel member without an org role", () => {
+    const r = canPostToChannel(channel({ postPolicy: "everyone" }), {
+      channelMembership: { role: "member" },
+    });
+    expect(r.ok).toBe(true);
+  });
 });
 
 describe("chat/permissions/canPostToChannel — policy 'members'", () => {

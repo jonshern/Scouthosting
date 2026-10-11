@@ -22,6 +22,10 @@
 //   - A User is an "adult leader" if role ∈ {leader, admin}. Parents
 //     don't satisfy two-deep; only registered, YPT-current adults do.
 //   - YPT-current means OrgMembership.yptCurrentUntil > now.
+//   - A channel member with no OrgMembership in the channel's org is
+//     treated as youth (unverified), never as an adult.
+//   - DMs never include youth: findOrCreateDmChannel refuses them, so
+//     there is no 1:1 adult-scout path.
 
 import type { PrismaClient } from "@prisma/client";
 import { audit } from "@/lib/audit";
@@ -81,10 +85,8 @@ export async function checkChannelTwoDeep(
     return { ok: false, hasYouth: false, currentAdultCount: 0, reason: "channel-not-found" };
   }
 
-  // Leader-only channels never contain youth.
-  if (channel.kind === "leaders") {
-    return { ok: true, hasYouth: false, currentAdultCount: 0, reason: null };
-  }
+  // No kind-based shortcut (e.g. "leaders"): owners can add people by
+  // hand, so the actual member list is the only thing we trust.
 
   const members = await prismaClient.channelMember.findMany({
     where: { channelId },
@@ -104,8 +106,9 @@ export async function checkChannelTwoDeep(
   let currentAdultCount = 0;
   for (const cm of members) {
     const om = cm.user.memberships[0];
-    if (!om) continue;
-    if (om.role === "scout") {
+    // A channel member with no role in this org can't be confirmed as
+    // an adult, so treat them like youth for the two-deep bar.
+    if (!om || om.role === "scout") {
       hasYouth = true;
     } else if (om.role === "leader" || om.role === "admin") {
       if (om.yptCurrentUntil && new Date(om.yptCurrentUntil) > now) {
@@ -197,15 +200,19 @@ export async function suspendChannel(
 
 export async function unsuspendChannel(
   channelId: string,
-  opts: { prismaClient: Prisma } & ActorContext,
-): Promise<void> {
+  opts: { now?: Date; prismaClient: Prisma } & ActorContext,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
   const { prismaClient, org, user } = opts;
   if (!prismaClient) throw new Error("unsuspendChannel: missing prismaClient");
   const before = await prismaClient.channel.findUnique({
     where: { id: channelId },
     select: { id: true, isSuspended: true, name: true },
   });
-  if (!before || !before.isSuspended) return;
+  if (!before || !before.isSuspended) return { ok: true };
+  // A leader can't switch messages back on while the channel still
+  // fails two-deep; the next post would just re-suspend it.
+  const check = await checkChannelTwoDeep(channelId, { now: opts.now, prismaClient });
+  if (!check.ok) return { ok: false, reason: check.reason ?? "two-deep-failed" };
   await prismaClient.channel.update({
     where: { id: channelId },
     data: { isSuspended: false, suspendedReason: null },
@@ -233,6 +240,7 @@ export async function unsuspendChannel(
   } catch {
     // pub/sub failures never bubble up
   }
+  return { ok: true };
 }
 
 /* ------------------------------------------------------------------ */
@@ -489,6 +497,25 @@ export async function findOrCreateDmChannel(
   }
   const { prismaClient } = opts;
   if (!prismaClient) throw new Error("findOrCreateDmChannel: prismaClient required");
+
+  // Youth protection: no private 1:1 channel may include a scout (or
+  // anyone we can't confirm as an adult member of this org).
+  const memberships = await prismaClient.orgMembership.findMany({
+    where: { orgId, userId: { in: [userAId, userBId] } },
+    select: { userId: true, role: true },
+  });
+  const roleByUser = new Map(memberships.map((m) => [m.userId, m.role]));
+  for (const uid of [userAId, userBId]) {
+    const role = roleByUser.get(uid);
+    if (!role || role === "scout") {
+      const err = new Error("Direct messages can't include youth members") as Error & {
+        code?: string;
+      };
+      err.code = "DM_YOUTH_BLOCKED";
+      throw err;
+    }
+  }
+
   const name = dmChannelName(userAId, userBId);
   const existing = await prismaClient.channel.findFirst({
     where: { orgId, kind: "dm", name },
