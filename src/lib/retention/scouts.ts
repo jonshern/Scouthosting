@@ -5,7 +5,8 @@
 // for those units the age clock starts at 21 instead.
 //
 // "Records" means the Member row (encrypted PII, and everything that
-// cascades from it: permission slips, trainings, position terms, loans,
+// cascades from it: permission slips (an audit row without personal
+// details records that each slip existed), trainings, position terms, loans,
 // sales links, subaccount), RSVPs and sign-up claims, and, when the
 // scout has their own login in this unit, their chat messages,
 // reactions, uploaded photos (database rows and stored files), channel
@@ -163,6 +164,30 @@ async function purgeOne(
         orgId: m.orgId,
         OR: [...(userId ? [{ userId }] : []), ...(email ? [{ email }] : [])],
       },
+    });
+    // Signed slips go with the scout, but leave a trace that consent
+    // existed: event, signing time, signer role. No names or emails.
+    const slips = await tx.permissionSlip.findMany({
+      where: { memberId: m.id },
+      select: { id: true, eventId: true, signedAt: true },
+    });
+    await tx.auditLog.createMany({
+      data: [
+        {
+          orgId: m.orgId,
+          entityType: "Member",
+          entityId: m.id,
+          action: "retention-delete",
+          summary: "Scout record deleted under the retention policy",
+        },
+        ...slips.map((s) => ({
+          orgId: m.orgId,
+          entityType: "PermissionSlip",
+          entityId: s.id,
+          action: "retention-delete",
+          summary: `Signed by parent/guardian for event ${s.eventId} at ${s.signedAt.toISOString()}`,
+        })),
+      ],
     });
     await tx.member.delete({ where: { id: m.id } });
   });

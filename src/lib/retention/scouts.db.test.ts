@@ -73,6 +73,9 @@ describe.skipIf(!url)("scout retention against Postgres", () => {
     expect(await prisma.message.count({ where: { channelId: channel.id } })).toBe(0);
     expect(await prisma.photo.count({ where: { orgId } })).toBe(0);
     expect(await prisma.permissionSlip.count({ where: { orgId } })).toBe(0);
+    const trail = await prisma.auditLog.findMany({ where: { orgId, action: "retention-delete" } });
+    expect(trail.map((t) => t.entityType).sort()).toEqual(["Member", "PermissionSlip"]);
+    expect(trail.some((t) => t.summary?.includes("Parent"))).toBe(false);
     expect(await prisma.rsvp.count({ where: { orgId } })).toBe(0);
   });
 
