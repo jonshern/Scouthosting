@@ -66,6 +66,20 @@ describe("chat/permissions/canPostToChannel — policy 'everyone'", () => {
   it("passes for any non-leader org member", () => {
     expect(canPostToChannel(channel({ postPolicy: "everyone" }), parent).ok).toBe(true);
   });
+
+  it("rejects a signed-in user with no role in this org", () => {
+    expect(canPostToChannel(channel({ postPolicy: "everyone" }), {})).toEqual({
+      ok: false,
+      reason: "not-a-member",
+    });
+  });
+
+  it("passes for an explicit channel member without an org role", () => {
+    const r = canPostToChannel(channel({ postPolicy: "everyone" }), {
+      channelMembership: { role: "member" },
+    });
+    expect(r.ok).toBe(true);
+  });
 });
 
 describe("chat/permissions/canPostToChannel — policy 'members'", () => {
@@ -141,5 +155,23 @@ describe("chat/permissions/normalisePostPolicy", () => {
 
   it("throws for unknown values", () => {
     expect(() => normalisePostPolicy("everyone-and-grandma")).toThrow(/Unknown postPolicy/);
+  });
+});
+
+describe("chat/permissions/canPostToChannel — DMs", () => {
+  it("a leader who isn't in the DM can't post to it", () => {
+    expect(canPostToChannel(channel({ kind: "dm" }), admin)).toEqual({
+      ok: false,
+      reason: "not-in-channel",
+    });
+    expect(canPostToChannel(channel({ kind: "dm" }), leader).ok).toBe(false);
+  });
+
+  it("either DM member can post", () => {
+    const r = canPostToChannel(channel({ kind: "dm" }), {
+      ...parent,
+      channelMembership: { role: "member" },
+    });
+    expect(r.ok).toBe(true);
   });
 });

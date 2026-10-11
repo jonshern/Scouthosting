@@ -7,11 +7,12 @@ import type { PrismaClient } from "@prisma/client";
 import { checkChannelTwoDeep } from "./index";
 
 type Membership = { role: string; yptCurrentUntil: Date | null };
-type ChannelMember = { user: { memberships: Membership[] } };
+type ChannelMember = { user: { email?: string; memberships: Membership[] } };
 
 function makePrismaStub(opts: {
   channel: { id: string; orgId: string; kind: string } | null;
   channelMembers: ChannelMember[];
+  youthRosterEmails?: string[];
 }): PrismaClient {
   return {
     channel: {
@@ -19,6 +20,12 @@ function makePrismaStub(opts: {
     },
     channelMember: {
       findMany: async () => opts.channelMembers,
+    },
+    member: {
+      findMany: async ({ where }: { where: { email: { in: string[] } } }) =>
+        (opts.youthRosterEmails ?? [])
+          .filter((e) => where.email.in.includes(e))
+          .map((email) => ({ email })),
     },
   } as unknown as PrismaClient;
 }
@@ -51,14 +58,29 @@ describe("chat/checkChannelTwoDeep — gates", () => {
     });
   });
 
-  it("leaders-kind channel always passes (no youth there by definition)", async () => {
+  it("leaders-kind channel with only adults passes", async () => {
     const prisma = makePrismaStub({
       channel: { id: "ch1", orgId: ORG, kind: "leaders" },
-      channelMembers: [],
+      channelMembers: [
+        { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
+      ],
     });
     const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
     expect(r.ok).toBe(true);
     expect(r.hasYouth).toBe(false);
+  });
+
+  it("leaders-kind channel gets no free pass when a scout was added by hand", async () => {
+    const prisma = makePrismaStub({
+      channel: { id: "ch1", orgId: ORG, kind: "leaders" },
+      channelMembers: [
+        { user: { memberships: [{ role: "scout", yptCurrentUntil: null }] } },
+        { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
+      ],
+    });
+    const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
+    expect(r.ok).toBe(false);
+    expect(r.reason).toBe("only-one-current-adult");
   });
 });
 
@@ -145,17 +167,58 @@ describe("chat/checkChannelTwoDeep — youth + adult counting", () => {
     expect(r.currentAdultCount).toBe(0);
   });
 
-  it("orphaned channel members (no membership row) are ignored", async () => {
+  it("orphaned channel members (no membership row) count as youth, not adults", async () => {
+    const prisma = makePrismaStub({
+      channel: { id: "ch1", orgId: ORG, kind: "custom" },
+      channelMembers: [
+        { user: { memberships: [] } }, // orphan: can't confirm they're an adult
+        { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
+      ],
+    });
+    const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
+    expect(r.ok).toBe(false);
+    expect(r.hasYouth).toBe(true);
+    expect(r.reason).toBe("only-one-current-adult");
+  });
+
+  it("orphans are fine once two YPT-current adults are present", async () => {
     const prisma = makePrismaStub({
       channel: { id: "ch1", orgId: ORG, kind: "troop" },
       channelMembers: [
-        { user: { memberships: [{ role: "scout", yptCurrentUntil: null }] } },
-        { user: { memberships: [] } }, // orphan
+        { user: { memberships: [] } },
         { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
         { user: { memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
       ],
     });
     const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
     expect(r.ok).toBe(true);
+  });
+});
+
+describe("chat/checkChannelTwoDeep — youth on the roster", () => {
+  it("a parent-role user whose email is a youth roster entry counts as youth", async () => {
+    const prisma = makePrismaStub({
+      channel: { id: "ch1", orgId: ORG, kind: "troop" },
+      channelMembers: [
+        { user: { email: "Casey@Example.invalid", memberships: [{ role: "parent", yptCurrentUntil: null }] } },
+        { user: { email: "lead@example.invalid", memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
+      ],
+      youthRosterEmails: ["casey@example.invalid"],
+    });
+    const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
+    expect(r.hasYouth).toBe(true);
+    expect(r.reason).toBe("only-one-current-adult");
+  });
+
+  it("a leader is never reclassified as youth by the roster", async () => {
+    const prisma = makePrismaStub({
+      channel: { id: "ch1", orgId: ORG, kind: "troop" },
+      channelMembers: [
+        { user: { email: "lead@example.invalid", memberships: [{ role: "leader", yptCurrentUntil: FUTURE }] } },
+      ],
+      youthRosterEmails: ["lead@example.invalid"],
+    });
+    const r = await checkChannelTwoDeep("ch1", { prismaClient: prisma });
+    expect(r.hasYouth).toBe(false);
   });
 });

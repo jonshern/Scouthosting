@@ -10,12 +10,22 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { unsuspendChannelAction, archiveChannelAction } from "@/server-actions/channels";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
+const UNSUSPEND_ERRORS: Record<string, string> = {
+  "no-current-adults":
+    "Can't turn messages back on: this channel has youth and no YPT-current adult leaders.",
+  "only-one-current-adult":
+    "Can't turn messages back on: add a second YPT-current adult leader first.",
+};
+
 export default async function ChannelsAdminPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ error?: string }>;
 }) {
   const { slug } = await params;
+  const { error } = await searchParams;
   const { user } = await getSession();
   if (!user) redirect(`/login?next=/o/${slug}/admin/channels`);
   const org = await prisma.org.findUnique({ where: { slug } });
@@ -47,6 +57,11 @@ export default async function ChannelsAdminPage({
   return (
     <main className="mx-auto max-w-content px-6 py-12">
       <AdminPageHeader kicker="Messages" title="Channels" />
+      {error ? (
+        <p role="alert" className="card mb-4 text-sm">
+          {UNSUSPEND_ERRORS[error] ?? "Can't turn messages back on until two-deep is met."}
+        </p>
+      ) : null}
       <ul className="space-y-2">
         {channels.map((c) => (
           <li key={c.id} className="card">

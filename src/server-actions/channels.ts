@@ -50,11 +50,14 @@ export async function unsuspendChannelAction(formData: FormData): Promise<void> 
   const channelId = String(formData.get("channelId") ?? "");
   const auth = await authorizeChannelAdmin(orgSlug, channelId);
   if ("error" in auth) throw new Error(auth.error);
-  await unsuspendChannel(channelId, {
+  const result = await unsuspendChannel(channelId, {
     prismaClient: prisma,
     org: auth.org,
     user: auth.user,
   });
+  if (!result.ok) {
+    redirect(`/o/${orgSlug}/admin/channels?error=${encodeURIComponent(result.reason)}`);
+  }
   redirect(`/o/${orgSlug}/admin/channels`);
 }
 

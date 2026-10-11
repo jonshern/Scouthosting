@@ -4,10 +4,11 @@
 // send a message. This module is the single decision point — every
 // code path that creates a Message must go through canPostToChannel().
 //
-// Adult leaders and org admins always pass. Suspended / archived
-// channels always block. The policies decide who else can post:
+// Adult leaders and org admins pass everywhere except DMs, which only
+// their two members can post in. Suspended / archived channels always
+// block. The policies decide who else can post:
 //
-//   "everyone" — any org member
+//   "everyone" — any org member (or explicit channel member)
 //   "members"  — only ChannelMember rows (default)
 //   "section"  — only members whose Member.patrol matches the
 //                channel's patrolName (e.g. Wolf Den parents in the
@@ -28,6 +29,7 @@ export const POST_POLICY_LABELS: Record<PostPolicy, string> = {
 
 export type ChannelDto = {
   id?: string;
+  kind?: string | null;
   postPolicy?: PostPolicy | string | null;
   patrolName?: string | null;
   isSuspended?: boolean | null;
@@ -54,6 +56,13 @@ export function canPostToChannel(channel: ChannelDto, actor: ChatActor): CanPost
   const isLeader =
     isAdmin || actor.role === "leader" || actor.isLeader === true || hasUnitLeaderScope;
 
+  // DMs are private between their two members. Being a leader is no
+  // pass to post into someone else's conversation.
+  if (channel.kind === "dm") {
+    if (actor.channelMembership) return { ok: true };
+    return { ok: false, reason: "not-in-channel" };
+  }
+
   if (isLeader) return { ok: true };
 
   const isChannelOwner = actor.channelMembership?.role === "owner";
@@ -64,7 +73,10 @@ export function canPostToChannel(channel: ChannelDto, actor: ChatActor): CanPost
     return { ok: false, reason: "leaders-only" };
   }
   if (policy === "everyone") {
-    return { ok: true };
+    // "Everyone in the unit" — not everyone with an account. A signed-in
+    // user from another org (no role here) must not be able to post.
+    if (actor.role || actor.channelMembership) return { ok: true };
+    return { ok: false, reason: "not-a-member" };
   }
   if (policy === "members") {
     if (actor.channelMembership) return { ok: true };
