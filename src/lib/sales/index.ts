@@ -195,7 +195,7 @@ export async function ensureScoutSalesLink(args: {
   if (existing) return { publicSlug: existing.publicSlug };
 
   // Build a slug; collide-resolve by appending a short suffix.
-  let baseSlug = slugify(`${args.scoutFirstName}-${args.scoutLastName}`) || args.memberId.slice(0, 8);
+  const baseSlug = slugify(`${args.scoutFirstName}-${args.scoutLastName}`) || args.memberId.slice(0, 8);
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const candidate = attempt === 0 ? baseSlug : `${baseSlug}-${attempt + 1}`;
     try {

@@ -80,12 +80,14 @@ export default function SignupPage() {
           </p>
 
           <div className="mt-8 grid gap-2.5">
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- API route, not a page */}
             <a
               href="/api/auth/google/begin"
               className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"
             >
               Continue with Google
             </a>
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- API route, not a page */}
             <a
               href="/api/auth/apple/begin"
               className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"

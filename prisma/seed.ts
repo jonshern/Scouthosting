@@ -108,6 +108,32 @@ async function provisionStandingChannelsInline(orgId: string, displayName: strin
   }
 }
 
+// Mirrors src/lib/treasury/provision.ts#provisionTreasury (system funds +
+// a subaccount per non-alumni member) on the seed's own client. A unit
+// that has used the treasury has these; the treasury E2E specs need them.
+async function provisionTreasuryInline(orgId: string) {
+  const funds = [
+    { code: "general", name: "General fund" },
+    { code: "scout-accounts", name: "Scout accounts" },
+    { code: "stripe-fees", name: "Stripe processing fees" },
+  ];
+  for (const f of funds) {
+    await prisma.fund.upsert({
+      where: { orgId_code: { orgId, code: f.code } },
+      update: {},
+      create: { orgId, code: f.code, name: f.name, isSystem: true },
+    });
+  }
+  const members = await prisma.member.findMany({
+    where: { orgId, deletedAt: null, status: { not: "alumni" } },
+    select: { id: true },
+  });
+  await prisma.memberSubaccount.createMany({
+    data: members.map((m) => ({ orgId, memberId: m.id })),
+    skipDuplicates: true,
+  });
+}
+
 async function main() {
   const passwordHash = await hash(ADMIN_PASSWORD, ARGON_PARAMS);
 
@@ -140,7 +166,7 @@ async function main() {
   // the seed is idempotent and existing encrypted Member rows stay
   // decryptable. New orgs get a fresh DEK and the recovery code is
   // logged once to stdout.
-  let existingOrg = await prisma.org.findUnique({
+  const existingOrg = await prisma.org.findUnique({
     where: { slug: "troop100" },
     select: {
       id: true,
@@ -211,7 +237,7 @@ async function main() {
   });
 
   if (recoveryCode) {
-    // eslint-disable-next-line no-console
+     
     console.log(`[seed] org=${org.slug} passphrase=${DEMO_PASSPHRASE} recoveryCode=${recoveryCode}`);
   }
 
@@ -268,6 +294,7 @@ async function main() {
   // enforces two-deep on every write, so seed-time validation is
   // redundant).
   await provisionStandingChannelsInline(org.id, org.displayName);
+  await provisionTreasuryInline(org.id);
 
   // Pre-launch invite codes. Apex marketing site is gated until a
   // visitor enters one of these. Idempotent — re-runs upsert.
@@ -284,7 +311,7 @@ async function main() {
     });
   }
 
-  // eslint-disable-next-line no-console
+   
   console.log("Seeded:", {
     user: user.email,
     org: org.slug,
@@ -296,7 +323,7 @@ async function main() {
 main()
   .then(() => prisma.$disconnect())
   .catch(async (e) => {
-    // eslint-disable-next-line no-console
+     
     console.error(e);
     await prisma.$disconnect();
     process.exit(1);

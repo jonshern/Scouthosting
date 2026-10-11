@@ -10,9 +10,12 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 vi.hoisted(() => {
+  // vi.hoisted runs before imports, so require() is the only way in.
+  /* eslint-disable @typescript-eslint/no-require-imports */
   process.env.LOCAL_UPLOADS_DIR = require("node:fs").mkdtempSync(
     require("node:path").join(require("node:os").tmpdir(), "v1-uploads-"),
   );
+  /* eslint-enable @typescript-eslint/no-require-imports */
   delete process.env.CLIENT_IP_HEADER;
   delete process.env.FLY_APP_NAME;
   delete process.env.K_SERVICE;

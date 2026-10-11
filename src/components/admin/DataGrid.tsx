@@ -84,7 +84,7 @@ export function DataGrid<TData extends object>({
 
   function exportCsv() {
     if (!csvName) return;
-    const headers = useMemoSafeFlatHeaders(table);
+    const headers = flatHeaderLabels(table);
     const rows = visibleRows.map((r) =>
       r.getVisibleCells().map((c) => {
         const v = c.getValue();
@@ -198,7 +198,7 @@ export function DataGrid<TData extends object>({
 // Internal helper: flat header text for the CSV export. We avoid
 // useMemo here because the headers depend on the table state and
 // rebuilding on each export keystroke is fine.
-function useMemoSafeFlatHeaders<TData>(table: ReturnType<typeof useReactTable<TData>>) {
+function flatHeaderLabels<TData>(table: ReturnType<typeof useReactTable<TData>>) {
   return table
     .getHeaderGroups()[0]!
     .headers.map((h) =>

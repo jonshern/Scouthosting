@@ -134,6 +134,20 @@ if the SDK isn't installed or `STRIPE_SECRET_KEY` is unset. Builds
 without the package; webhook verification is implemented locally so
 the test path doesn't need the SDK either.
 
+### 10. Commit every migration folder
+
+`prisma/migrations/` used to be in `.gitignore`, so new migration
+folders silently stayed local and `prisma migrate deploy` in production
+never created their tables. It's tracked normally now; check
+`git status` shows your new folder before pushing a schema change.
+
+### 11. CI
+
+`.github/workflows/ci.yml` runs typecheck, lint, unit + `*.db.test.ts`
+suites (against a Postgres service via `TEST_DATABASE_URL`) and the
+Playwright suite on every PR. `*.db.test.ts` files share one database
+and run in parallel: clean up only rows your test created.
+
 ## Demo accounts (test DB)
 
 Password for all seeded accounts: `AdminPasswordTest123!`
