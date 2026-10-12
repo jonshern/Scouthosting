@@ -9,13 +9,13 @@
 // points at the original via reversesId. The collapsed-pair view in
 // the ledger UI hides matched pairs unless the user opts in.
 
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { SCOUT_ACCOUNTS } from "./money";
 import type { TxType } from "./money";
 
-type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
+export type Tx = Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">;
 
 export type PostInput = {
   orgId: string;
@@ -109,22 +109,34 @@ export async function reverseTransaction(args: {
   description?: string;
   createdById?: string | null;
 }): Promise<PostResult> {
-  return prisma.$transaction(async (tx) => {
-    const orig = await tx.transaction.findUnique({
-      where: { id: args.originalId },
-    });
-    if (!orig || orig.orgId !== args.orgId) {
-      throw new Error("Original transaction not found.");
-    }
-    // Block double-reversal: a transaction may only be reversed once.
-    const existing = await tx.transaction.findFirst({
-      where: { reversesId: orig.id },
-      select: { id: true },
-    });
-    if (existing) {
-      throw new Error("Transaction already reversed.");
-    }
-    return postWithin(tx as unknown as Tx, {
+  return prisma.$transaction((tx) => reverseWithin(tx as unknown as Tx, args));
+}
+
+/**
+ * reverseTransaction inside an existing $transaction. A transaction may
+ * only be reversed once: Transaction.reversesId is unique, so a second
+ * reversal racing the first fails on the index (→ "already reversed")
+ * instead of refunding twice.
+ */
+export async function reverseWithin(
+  tx: Tx,
+  args: { orgId: string; originalId: string; description?: string; createdById?: string | null },
+): Promise<PostResult> {
+  const orig = await tx.transaction.findUnique({
+    where: { id: args.originalId },
+  });
+  if (!orig || orig.orgId !== args.orgId) {
+    throw new Error("Original transaction not found.");
+  }
+  const existing = await tx.transaction.findFirst({
+    where: { reversesId: orig.id },
+    select: { id: true },
+  });
+  if (existing) {
+    throw new Error("Transaction already reversed.");
+  }
+  try {
+    return await postWithin(tx, {
       orgId: args.orgId,
       fundId: orig.fundId,
       type: "refund",
@@ -137,7 +149,12 @@ export async function reverseTransaction(args: {
       reversesId: orig.id,
       createdById: args.createdById ?? null,
     });
-  });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      throw new Error("Transaction already reversed.");
+    }
+    throw err;
+  }
 }
 
 /** Post a transfer between two funds. */
@@ -152,25 +169,41 @@ export async function postTransfer(args: {
   if (args.amountCents <= 0) {
     throw new Error("transfer amount must be positive");
   }
-  return prisma.$transaction(async (tx) => {
-    const out = await postWithin(tx as unknown as Tx, {
-      orgId: args.orgId,
-      fundId: args.fromFundId,
-      type: "transfer-out",
-      amountCents: -args.amountCents,
-      description: args.description,
-      createdById: args.createdById,
-    });
-    const incoming = await postWithin(tx as unknown as Tx, {
-      orgId: args.orgId,
-      fundId: args.toFundId,
-      type: "transfer-in",
-      amountCents: args.amountCents,
-      description: args.description,
-      createdById: args.createdById,
-    });
-    return { outId: out.id, inId: incoming.id };
+  return prisma.$transaction((tx) => postTransferWithin(tx as unknown as Tx, args));
+}
+
+/** postTransfer inside an existing $transaction. */
+export async function postTransferWithin(
+  tx: Tx,
+  args: {
+    orgId: string;
+    fromFundId: string;
+    toFundId: string;
+    amountCents: number;
+    description: string;
+    createdById?: string | null;
+  },
+): Promise<{ outId: string; inId: string }> {
+  if (args.amountCents <= 0) {
+    throw new Error("transfer amount must be positive");
+  }
+  const out = await postWithin(tx, {
+    orgId: args.orgId,
+    fundId: args.fromFundId,
+    type: "transfer-out",
+    amountCents: -args.amountCents,
+    description: args.description,
+    createdById: args.createdById,
   });
+  const incoming = await postWithin(tx, {
+    orgId: args.orgId,
+    fundId: args.toFundId,
+    type: "transfer-in",
+    amountCents: args.amountCents,
+    description: args.description,
+    createdById: args.createdById,
+  });
+  return { outId: out.id, inId: incoming.id };
 }
 
 /** Bulk dues: charge a single fund/amount across many members. */

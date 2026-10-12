@@ -58,24 +58,24 @@ enum Role {
 }
 
 model Org {
-  id                   String             @id @default(cuid())
-  slug                 String             @unique
-  unitType             UnitType
-  unitNumber           String
-  displayName          String
-  tagline              String?
-  charterOrg           String
-  city                 String
-  state                String
-  council              String?
-  district             String?
-  founded              String?
-  meetingDay           String             @default("Mondays")
-  meetingTime          String             @default("7:00 PM")
-  meetingLocation      String?
-  scoutmasterName      String
-  scoutmasterEmail     String
-  committeeChairEmail  String?
+  id                            String             @id @default(cuid())
+  slug                          String             @unique
+  unitType                      UnitType
+  unitNumber                    String
+  displayName                   String
+  tagline                       String?
+  charterOrg                    String
+  city                          String
+  state                         String
+  council                       String?
+  district                      String?
+  founded                       String?
+  meetingDay                    String             @default("Mondays")
+  meetingTime                   String             @default("7:00 PM")
+  meetingLocation               String?
+  scoutmasterName               String
+  scoutmasterEmail              String
+  committeeChairEmail           String?
   // Workspace-style ownership. Single User who holds plan/billing/delete
   // authority on this org — the Slack "primary owner" / GitHub "owner"
   // analogue. Distinct from OrgMembership.role: an owner also holds an
@@ -84,45 +84,45 @@ model Org {
   // only fire for the founding scoutmaster: change plan, delete org,
   // transfer ownership. Backfilled from scoutmasterEmail at migration
   // time; nullable because the founder might be deleted before transfer.
-  ownerId              String?
-  primaryColor         String             @default("#1d6b39")
-  accentColor          String             @default("#caa54a")
+  ownerId                       String?
+  primaryColor                  String             @default("#1d6b39")
+  accentColor                   String             @default("#caa54a")
   // Per-org logo. Filename in the same per-org storage area as Photos
   // (lib/storage.js). null = use the default brand mark (unit number).
-  logoFilename         String?
-  plan                 Plan               @default(patrol)
-  isDemo               Boolean            @default(false)
-  customDomain         String?            @unique
+  logoFilename                  String?
+  plan                          Plan               @default(patrol)
+  isDemo                        Boolean            @default(false)
+  customDomain                  String?            @unique
   // Per-org feature flags. Map of feature key → boolean (or any JSON
   // value for richer config). Read via lib/featureFlags.js so unknown
   // flags get sensible defaults. Toggled from /__super (super-admin
   // console) — leaders don't edit this directly.
-  features             Json?
+  features                      Json?
   // À-la-carte add-ons orthogonal to the plan tier. JSON array of
   // string keys (e.g. ["messaging"]). Add-ons unlock specific feature
   // bundles (DMs, broadcast email/SMS, channels, newsletters) and are
   // billed separately from the base subscription. Demo orgs bypass.
   // Self-serve enable/disable lands in a follow-up; for now a super-
   // admin sets the array.
-  addOns               Json?
+  addOns                        Json?
   // Suspended orgs are read-only: no admin login, no API writes, the
   // public site still renders. Used for non-payment / abuse holds.
   // suspendedReason renders on the (still-public) homepage so members
   // know to nudge their charter org.
-  suspendedAt          DateTime?
-  suspendedReason      String?
+  suspendedAt                   DateTime?
+  suspendedReason               String?
   // Stripe billing state. Webhook events (lib/stripe.js) are the single
   // writer for these fields — admin UI reads them but never mutates them
   // directly. `subscriptionStatus` is the gate for plan enforcement
   // (lib/billingState.js). A null `stripeCustomerId` is fine: the org is
   // either pre-checkout (still trialing) or grandfathered.
-  stripeCustomerId     String?            @unique
-  stripeSubscriptionId String?            @unique
-  stripePriceId        String?
-  subscriptionStatus   SubscriptionStatus @default(trialing)
-  trialEndsAt          DateTime?
-  currentPeriodEnd     DateTime?
-  cancelAtPeriodEnd    Boolean            @default(false)
+  stripeCustomerId              String?            @unique
+  stripeSubscriptionId          String?            @unique
+  stripePriceId                 String?
+  subscriptionStatus            SubscriptionStatus @default(trialing)
+  trialEndsAt                   DateTime?
+  currentPeriodEnd              DateTime?
+  cancelAtPeriodEnd             Boolean            @default(false)
   // Treasury Stripe (per-org member-payment account, distinct from
   // the platform billing fields above). Both ciphertexts are wrapped
   // with the org's DEK so the master key alone can't decrypt them.
@@ -138,18 +138,18 @@ model Org {
   //   - recoveryWrappedDek    → server-generated recovery code shown ONCE
   // Verifier hashes let us reject wrong inputs without unwrapping.
   // See src/lib/encryption/vault.ts.
-  encryptedDek            Bytes?
-  passphraseWrappedDek    Bytes?
-  passphraseSalt          Bytes?
-  passphraseVerifier      String?
-  recoveryWrappedDek      Bytes?
-  recoverySalt            Bytes?
-  recoveryVerifier        String?
-  keyVersion              Int                @default(0)
-  keyRotatedAt            DateTime?
-  recoveryAcknowledgedAt  DateTime?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
+  encryptedDek                  Bytes?
+  passphraseWrappedDek          Bytes?
+  passphraseSalt                Bytes?
+  passphraseVerifier            String?
+  recoveryWrappedDek            Bytes?
+  recoverySalt                  Bytes?
+  recoveryVerifier              String?
+  keyVersion                    Int                @default(0)
+  keyRotatedAt                  DateTime?
+  recoveryAcknowledgedAt        DateTime?
+  createdAt                     DateTime           @default(now())
+  updatedAt                     DateTime           @updatedAt
 
   memberships          OrgMembership[]
   members              Member[]
@@ -215,7 +215,7 @@ model Org {
   requirementProgress  RequirementProgress[]
   requirementEvents    RequirementProgressEvent[]
   counselorMeetings    CounselorMeeting[]
-  owner                User?                 @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  owner                User?                      @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([plan])
   @@index([ownerId])
@@ -274,7 +274,7 @@ model User {
   feedbackRequests      FeedbackRequest[]
   feedbackVotes         FeedbackVote[]
   feedbackComments      FeedbackComment[]
-  ownedOrgs             Org[]             @relation("OrgOwner")
+  ownedOrgs             Org[]                 @relation("OrgOwner")
   backupCodes           BackupCode[]
   errorLogs             ErrorLog[]
   publishedPageVersions PageVersion[]
@@ -488,7 +488,7 @@ model Member {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
-  org                  Org                   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org                  Org                        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   rsvps                Rsvp[]
   positionTerms        PositionTerm[]
   trainings            Training[]
@@ -501,7 +501,7 @@ model Member {
   scoutbookProfile     ScoutbookProfile?
   salesOrders          SalesOrder[]
   scoutSalesLinks      ScoutSalesLink[]
-  patrolsLed           Patrol[] @relation("PatrolLeader")
+  patrolsLed           Patrol[]                   @relation("PatrolLeader")
   counselorAssignments CounselorAssignment[]
   requirementProgress  RequirementProgress[]
   requirementEvents    RequirementProgressEvent[]
@@ -514,42 +514,42 @@ model Member {
 }
 
 model Event {
-  id              String    @id @default(cuid())
-  orgId           String
-  title           String
-  description     String?
-  startsAt        DateTime
-  endsAt          DateTime?
-  allDay          Boolean   @default(false)
-  location        String?
+  id                     String    @id @default(cuid())
+  orgId                  String
+  title                  String
+  description            String?
+  startsAt               DateTime
+  endsAt                 DateTime?
+  allDay                 Boolean   @default(false)
+  location               String?
   // For map links: stored verbatim and used to build Google/Apple/Waze URLs
   // at render time. Free-form fallback when locationId is null.
-  locationAddress String?
+  locationAddress        String?
   // Optional first-class link to a saved Location entry. When set,
   // the leader's quick map / location autocomplete uses the saved
   // entry; the free-form `location` + `locationAddress` fields above
   // remain populated for back-compat / public ICS feeds.
-  locationId      String?
-  cost            Int? // dollars
-  capacity        Int?
-  signupRequired  Boolean   @default(false)
+  locationId             String?
+  cost                   Int? // dollars
+  capacity               Int?
+  signupRequired         Boolean   @default(false)
   // Public sign-up address for apps outside Compass (Waypoint's badge
   // day pages): POST /api/events/<publicSlug>/signups. Null = not
   // open to public sign-ups. Globally unique, so no org is needed.
-  publicSlug      String?   @unique
-  category        String? // meeting, campout, service, court-of-honor...
+  publicSlug             String?   @unique
+  category               String? // meeting, campout, service, court-of-honor...
   // RFC 5545 RRULE without the leading "RRULE:" prefix. Null = single
   // occurrence. Examples: "FREQ=WEEKLY;BYDAY=MO" (every Monday),
   // "FREQ=MONTHLY;BYDAY=1TU" (first Tuesday of every month).
-  rrule           String?
-  recurrenceUntil DateTime?
+  rrule                  String?
+  recurrenceUntil        DateTime?
   // Per-attendee credits this event grants. A 2-night campout sets
   // campingNights = 2; a service project sets serviceHours = 4. Every
   // member with a "yes" RSVP earns the credits when /admin/credits
   // computes totals. null/0 means the event doesn't grant that credit.
-  serviceHours    Float?
-  campingNights   Int?
-  hikingMiles     Float?
+  serviceHours           Float?
+  campingNights          Int?
+  hikingMiles            Float?
   // When true, every yes-RSVP youth needs an electronic permission
   // slip on file before the event. The text below is the consent
   // language a parent agrees to when they sign; defaults to a generic
@@ -557,10 +557,10 @@ model Event {
   // the PermissionSlip model with the parent's typed name, IP, and
   // a snapshot of slipText so future edits don't retroactively
   // change what the parent agreed to.
-  requiresPermissionSlip Boolean @default(false)
+  requiresPermissionSlip Boolean   @default(false)
   permissionSlipText     String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   org             Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
   rsvps           Rsvp[]
@@ -687,36 +687,36 @@ model Album {
 }
 
 model Photo {
-  id             String    @id @default(cuid())
-  orgId          String
+  id              String    @id @default(cuid())
+  orgId           String
   // Albums are the public-gallery surface. Chat-attached photos live
   // outside any album (albumId=null) and are reached via the chat
   // surface only — the /uploads route's auth check looks up the
   // attached message and confirms the viewer can read its channel.
-  albumId        String?
+  albumId         String?
   // Set when this photo is attached to a chat Message. Mutually
   // exclusive with albumId — a photo is either gallery-context or
   // chat-context. The /uploads route uses the populated side to
   // authorize. Setting deletedAt on the Message soft-deletes the
   // photo from chat without losing the file (audit retention).
-  messageId      String?
-  filename       String
-  originalName   String?
-  mimeType       String
-  sizeBytes      Int
-  caption        String?
-  takenAt        DateTime?
-  width          Int?
-  height         Int?
-  sortOrder      Int       @default(0)
-  uploaderUserId String?
+  messageId       String?
+  filename        String
+  originalName    String?
+  mimeType        String
+  sizeBytes       Int
+  caption         String?
+  takenAt         DateTime?
+  width           Int?
+  height          Int?
+  sortOrder       Int       @default(0)
+  uploaderUserId  String?
   // Bytes-on-disk are encrypted with the org's DEK (AES-256-GCM)
   // when `encrypted = true`. encOriginalName replaces the plaintext
   // originalName field for new uploads (originalName is kept for
   // any pre-encryption photos until purged).
   encrypted       Boolean   @default(false)
   encOriginalName Bytes?
-  createdAt      DateTime  @default(now())
+  createdAt       DateTime  @default(now())
 
   org      Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   album    Album?   @relation(fields: [albumId], references: [id], onDelete: Cascade)
@@ -1081,7 +1081,7 @@ model Equipment {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  org       Org        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org       Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
   gearItems GearItem[]
   loans     EquipmentLoan[]
 
@@ -1164,9 +1164,9 @@ model PageVersion {
 model EventCategory {
   id        String   @id @default(cuid())
   orgId     String
-  slug      String   // stable lowercase id matched against Event.category
-  label     String   // human label shown in pickers + tags
-  color     String   // hex (#rrggbb) for the tag background
+  slug      String // stable lowercase id matched against Event.category
+  label     String // human label shown in pickers + tags
+  color     String // hex (#rrggbb) for the tag background
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1473,7 +1473,7 @@ model MeritBadgeCounselor {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  org    Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org        Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
   member     Member?      @relation(fields: [memberId], references: [id], onDelete: SetNull)
   eventStaff EventStaff[]
 
@@ -2334,21 +2334,21 @@ model PermissionSlip {
 // can have multiple historical loans, only one of which is active
 // at a time (returnedAt = null).
 model EquipmentLoan {
-  id           String    @id @default(cuid())
-  orgId        String
-  equipmentId  String
-  memberId     String
-  loanedAt     DateTime  @default(now())
+  id          String    @id @default(cuid())
+  orgId       String
+  equipmentId String
+  memberId    String
+  loanedAt    DateTime  @default(now())
   // Soft due date for "should be returned by"; surfaced as overdue
   // when now() > dueAt and returnedAt is null.
-  dueAt        DateTime?
-  returnedAt   DateTime?
+  dueAt       DateTime?
+  returnedAt  DateTime?
   // Free-form on the way out (condition, count, accessories) and on
   // the way back (damage, missing pieces).
-  loanNotes    String?
-  returnNotes  String?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  loanNotes   String?
+  returnNotes String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   org       Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
   equipment Equipment @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
@@ -2366,25 +2366,25 @@ model EquipmentLoan {
 // =====================================================================
 
 model Fund {
-  id        String   @id @default(cuid())
-  orgId     String
+  id                         String   @id @default(cuid())
+  orgId                      String
   // Stable code for system funds (`general`, `scout-accounts`,
   // `stripe-fees`); free-form for custom funds.
-  code      String
-  name      String
-  isSystem  Boolean  @default(false)
-  archived  Boolean  @default(false)
+  code                       String
+  name                       String
+  isSystem                   Boolean  @default(false)
+  archived                   Boolean  @default(false)
   // Cached running balance, recomputed in the same transaction as
   // every Transaction insert. Validated nightly.
-  balanceCents Int   @default(0)
+  balanceCents               Int      @default(0)
   // Optional Stripe configuration: when a fund opts into receiving
   // online payments we record the destination account here. Null on
   // most funds; only `general` typically wires.
   stripeDestinationAccountId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
 
-  org          Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org          Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
   transactions Transaction[]
   budgets      FundBudget[]
   campaigns    SalesCampaign[]
@@ -2412,35 +2412,35 @@ model MemberSubaccount {
 }
 
 model Transaction {
-  id              String   @id @default(cuid())
-  orgId           String
-  fundId          String
-  memberId        String?
-  eventId         String?
-  reimbursementId String?
+  id                    String   @id @default(cuid())
+  orgId                 String
+  fundId                String
+  memberId              String?
+  eventId               String?
+  reimbursementId       String?
   // type drives the posting UI grouping. Values:
   //   dues | event-charge | deposit | expense |
   //   transfer-out | transfer-in | refund |
   //   fundraiser-credit | sale | manual
-  type            String
+  type                  String
   // Signed cents. Positive = money in (or charge added to a member
   // subaccount); negative = money out / credit applied. Reversals
   // are inserted as opposite-sign rows that point at the original.
-  amountCents     Int
-  description     String
-  postedAt        DateTime @default(now())
+  amountCents           Int
+  description           String
+  postedAt              DateTime @default(now())
   // Reversal pointer — set on the *new* opposite-sign row that
   // cancels an earlier transaction. The original row is never
   // mutated; the read path collapses pairs.
-  reversesId      String?
+  reversesId            String?  @unique
   // Stripe / bank reconciliation pointers.
   stripePaymentIntentId String?
   bankImportRowId       String?
   // Optional sales linkage for fundraising flows.
-  salesOrderId    String?
-  createdById     String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  salesOrderId          String?
+  createdById           String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   org           Org            @relation(fields: [orgId], references: [id], onDelete: Cascade)
   fund          Fund           @relation(fields: [fundId], references: [id], onDelete: Restrict)
@@ -2509,15 +2509,15 @@ model BankImport {
 }
 
 model BankImportRow {
-  id            String    @id @default(cuid())
-  importId      String
-  postedAt      DateTime
-  amountCents   Int
-  description   String
-  matchedAt     DateTime?
-  createdAt     DateTime  @default(now())
+  id          String    @id @default(cuid())
+  importId    String
+  postedAt    DateTime
+  amountCents Int
+  description String
+  matchedAt   DateTime?
+  createdAt   DateTime  @default(now())
 
-  import       BankImport     @relation(fields: [importId], references: [id], onDelete: Cascade)
+  import       BankImport    @relation(fields: [importId], references: [id], onDelete: Cascade)
   transactions Transaction[]
 
   @@index([importId, matchedAt])
@@ -2529,7 +2529,7 @@ model BankImportRow {
 // =====================================================================
 
 model SalesCampaign {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   orgId         String
   name          String
   startsOn      DateTime
@@ -2538,12 +2538,12 @@ model SalesCampaign {
   fundId        String
   // "per-scout" splits proceeds to scout-accounts at scoutSplitPct.
   // "whole-unit" keeps everything in the campaign fund.
-  proceedsSplit String   @default("per-scout")
-  scoutSplitPct Int      @default(70)
-  publicSlug    String?  @unique
+  proceedsSplit String    @default("per-scout")
+  scoutSplitPct Int       @default(70)
+  publicSlug    String?   @unique
   description   String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   org        Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
   fund       Fund             @relation(fields: [fundId], references: [id], onDelete: Restrict)
@@ -2558,29 +2558,29 @@ model SalesCampaign {
 }
 
 model SalesProduct {
-  id          String  @id @default(cuid())
-  campaignId  String
-  sku         String
-  name        String
-  priceCents  Int
-  unitCostCents Int    @default(0)
-  imageUrl    String?
-  sortOrder   Int     @default(0)
-  archived    Boolean @default(false)
+  id            String  @id @default(cuid())
+  campaignId    String
+  sku           String
+  name          String
+  priceCents    Int
+  unitCostCents Int     @default(0)
+  imageUrl      String?
+  sortOrder     Int     @default(0)
+  archived      Boolean @default(false)
 
-  campaign   SalesCampaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  campaign   SalesCampaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
   orderItems SalesOrderItem[]
 
   @@unique([campaignId, sku])
 }
 
 model PrizeTier {
-  id              String  @id @default(cuid())
-  campaignId      String
-  thresholdCents  Int
-  name            String
-  description     String?
-  sortOrder       Int     @default(0)
+  id             String  @id @default(cuid())
+  campaignId     String
+  thresholdCents Int
+  name           String
+  description    String?
+  sortOrder      Int     @default(0)
 
   campaign SalesCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 }
@@ -2601,7 +2601,7 @@ model ScoutSalesLink {
 }
 
 model SalesOrder {
-  id                    String   @id @default(cuid())
+  id                    String    @id @default(cuid())
   orgId                 String
   campaignId            String
   // "scout-personal" | "booth" | "leader-manual" | "public-page"
@@ -2613,19 +2613,19 @@ model SalesOrder {
   buyerAddress          String?
   notes                 String?
   // "placed" | "paid" | "delivered" | "cancelled"
-  status                String   @default("placed")
+  status                String    @default("placed")
   paidAt                DateTime?
   deliveredAt           DateTime?
   totalCents            Int
   stripePaymentIntentId String?
-  depositTransactionId  String?  @unique
-  refundTransactionId   String?  @unique
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  depositTransactionId  String?   @unique
+  refundTransactionId   String?   @unique
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  org      Org                @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  campaign SalesCampaign      @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  scout    Member?            @relation(fields: [scoutMemberId], references: [id], onDelete: SetNull)
+  org      Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  campaign SalesCampaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  scout    Member?          @relation(fields: [scoutMemberId], references: [id], onDelete: SetNull)
   items    SalesOrderItem[]
   postings Transaction[]
 
@@ -2653,16 +2653,16 @@ model SalesOrderItem {
 }
 
 model BoothSale {
-  id              String   @id @default(cuid())
-  orgId           String
-  campaignId      String
-  location        String
-  scheduledAt     DateTime
-  staffMemberIds  String[] @default([])
-  totalCents      Int      @default(0)
-  notes           String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id             String   @id @default(cuid())
+  orgId          String
+  campaignId     String
+  location       String
+  scheduledAt    DateTime
+  staffMemberIds String[] @default([])
+  totalCents     Int      @default(0)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   org      Org           @relation(fields: [orgId], references: [id], onDelete: Cascade)
   campaign SalesCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
@@ -2706,8 +2706,8 @@ model ScoutbookProfile {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  org         Org                  @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  member      Member               @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  org         Org                   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  member      Member                @relation(fields: [memberId], references: [id], onDelete: Cascade)
   meritBadges ScoutbookMeritBadge[]
   awards      ScoutbookAward[]
 
@@ -2800,17 +2800,17 @@ model Location {
 }
 
 model Patrol {
-  id              String   @id @default(cuid())
-  orgId           String
-  name            String
+  id             String   @id @default(cuid())
+  orgId          String
+  name           String
   // Hex (e.g. "#1d3a8a"). Defaults to the editorial accent.
-  color           String   @default("#1d3a8a")
-  leaderMemberId  String?
-  description     String?
-  archived        Boolean  @default(false)
-  sortOrder       Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  color          String   @default("#1d3a8a")
+  leaderMemberId String?
+  description    String?
+  archived       Boolean  @default(false)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   org    Org     @relation(fields: [orgId], references: [id], onDelete: Cascade)
   leader Member? @relation("PatrolLeader", fields: [leaderMemberId], references: [id], onDelete: SetNull)
@@ -2818,7 +2818,6 @@ model Patrol {
   @@unique([orgId, name])
   @@index([orgId, archived])
 }
-
 
 // Fixed-window rate-limit counters, shared across every app instance.
 // One row per bucket key ("v1:ip:<addr>", "v1:user:<id>:write", ...).
@@ -2842,6 +2841,20 @@ model DemoOutboxMessage {
   toName    String?
   subject   String?
   body      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+// One row per Stripe webhook effect already applied (src/lib/billing/
+// stripe-idempotency.ts). The key names what was applied, e.g.
+// "treasury:pi_123" or "event:evt_123", so a payment that arrives as two
+// different events, or the same event delivered twice at once, is
+// applied once.
+model StripeWebhookReceipt {
+  key       String   @id
+  eventId   String
+  eventType String
   createdAt DateTime @default(now())
 
   @@index([createdAt])

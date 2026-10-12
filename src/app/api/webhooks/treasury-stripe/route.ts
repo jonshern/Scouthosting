@@ -18,7 +18,8 @@ import {
   SCOUT_ACCOUNTS,
   STRIPE_FEES_FUND,
 } from "@/lib/treasury/money";
-import { postTransaction, postTransfer } from "@/lib/treasury/posting";
+import { postTransferWithin, postWithin, type Tx } from "@/lib/treasury/posting";
+import { applyStripeOnce, stripeKey } from "@/lib/billing/stripe-idempotency";
 import { audit } from "@/lib/audit";
 
 export async function POST(req: Request) {
@@ -95,16 +96,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, ignored: "already-settled" });
     }
     const { settleSalesOrderAsPaid } = await import("@/lib/sales");
+    let settled: boolean;
     try {
-      await settleSalesOrderAsPaid({
+      ({ settled } = await settleSalesOrderAsPaid({
         orgId: org.id,
         orderId: order.id,
         paymentSource: "stripe",
         stripePaymentIntentId: piId,
-      });
+      }));
     } catch (e) {
       return NextResponse.json({ error: (e as Error).message }, { status: 500 });
     }
+    // The other event for this payment (or a leader) settled it first.
+    if (!settled) return NextResponse.json({ ok: true, ignored: "already-settled" });
     audit({
       orgId: org.id,
       userId: null,
@@ -118,15 +122,9 @@ export async function POST(req: Request) {
   }
 
   // Member-balance payment branch (treasury): credit the member's
-  // subaccount.
-  const seen = await prisma.transaction.findFirst({
-    where: { stripePaymentIntentId: piId, type: "deposit" },
-    select: { id: true },
-  });
-  if (seen) {
-    return NextResponse.json({ ok: true, ignored: "duplicate" });
-  }
-
+  // subaccount. One payment arrives as two events (checkout session and
+  // payment intent), sometimes at the same moment, so every posting
+  // happens once, together, keyed on the payment intent.
   const amountCents = obj.amount_received ?? obj.amount_total ?? 0;
   if (amountCents <= 0) {
     return NextResponse.json({ error: "zero_amount" }, { status: 400 });
@@ -143,56 +141,64 @@ export async function POST(req: Request) {
   if (!generalFund || !scoutAccountsFund) {
     return NextResponse.json({ error: "treasury_unprovisioned" }, { status: 503 });
   }
-
-  // Step 1: deposit lands in general.
-  const dep = await postTransaction({
-    orgId: org.id,
-    fundId: generalFund.id,
-    type: "deposit",
-    amountCents,
-    description: memberId ? "Online member payment" : "Online deposit",
-    memberId: memberId ?? undefined,
-    stripePaymentIntentId: piId,
-  });
-
-  // Step 2: if memberId, transfer the gross from general → scout-accounts
-  // and credit the member's subaccount.
-  if (memberId) {
-    await postTransfer({
-      orgId: org.id,
-      fromFundId: generalFund.id,
-      toFundId: scoutAccountsFund.id,
-      amountCents,
-      description: `Online payment crediting ${memberId.slice(0, 8)}`,
-    });
-    await postTransaction({
-      orgId: org.id,
-      fundId: scoutAccountsFund.id,
-      type: "deposit",
-      amountCents,
-      description: "Online payment credit",
-      memberId,
-      stripePaymentIntentId: piId,
-    });
-  }
-
-  // Step 3: Stripe fee — if we have it, post the offset.
   const fee = obj.application_fee_amount;
-  if (fee && fee > 0) {
-    const feesFund = await prisma.fund.findUnique({
-      where: { orgId_code: { orgId: org.id, code: STRIPE_FEES_FUND } },
-    });
-    if (feesFund) {
-      await postTransaction({
+  const feesFund =
+    fee && fee > 0
+      ? await prisma.fund.findUnique({ where: { orgId_code: { orgId: org.id, code: STRIPE_FEES_FUND } } })
+      : null;
+
+  const applied = await applyStripeOnce(
+    { key: stripeKey("treasury", piId), eventId, eventType },
+    async (stx) => {
+      const tx = stx as unknown as Tx;
+      // Step 1: deposit lands in general.
+      const dep = await postWithin(tx, {
         orgId: org.id,
-        fundId: feesFund.id,
-        type: "expense",
-        amountCents: -fee,
-        description: `Stripe fee (${piId})`,
+        fundId: generalFund.id,
+        type: "deposit",
+        amountCents,
+        description: memberId ? "Online member payment" : "Online deposit",
+        memberId: memberId ?? undefined,
         stripePaymentIntentId: piId,
       });
-    }
+      // Step 2: if memberId, transfer the gross from general →
+      // scout-accounts and credit the member's subaccount.
+      if (memberId) {
+        await postTransferWithin(tx, {
+          orgId: org.id,
+          fromFundId: generalFund.id,
+          toFundId: scoutAccountsFund.id,
+          amountCents,
+          description: `Online payment crediting ${memberId.slice(0, 8)}`,
+        });
+        await postWithin(tx, {
+          orgId: org.id,
+          fundId: scoutAccountsFund.id,
+          type: "deposit",
+          amountCents,
+          description: "Online payment credit",
+          memberId,
+          stripePaymentIntentId: piId,
+        });
+      }
+      // Step 3: Stripe fee, when the event carries it.
+      if (feesFund && fee && fee > 0) {
+        await postWithin(tx, {
+          orgId: org.id,
+          fundId: feesFund.id,
+          type: "expense",
+          amountCents: -fee,
+          description: `Stripe fee (${piId})`,
+          stripePaymentIntentId: piId,
+        });
+      }
+      return dep;
+    },
+  );
+  if (applied.duplicate) {
+    return NextResponse.json({ ok: true, ignored: "duplicate" });
   }
+  const dep = applied.result;
 
   audit({
     orgId: org.id,

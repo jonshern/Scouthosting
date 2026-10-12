@@ -6,7 +6,7 @@ import type { Org, SalesCampaign } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
-import { postTransaction, postTransfer } from "@/lib/treasury/posting";
+import { postTransferWithin, postWithin, type Tx } from "@/lib/treasury/posting";
 import { SCOUT_ACCOUNTS } from "@/lib/treasury/money";
 
 export function slugify(s: string): string {
@@ -111,68 +111,78 @@ export async function settleSalesOrderAsPaid(args: {
   orderId: string;
   paymentSource: "manual" | "stripe";
   stripePaymentIntentId?: string | null;
-}): Promise<void> {
-  const order = await prisma.salesOrder.findUnique({
-    where: { id: args.orderId },
-    include: { campaign: { include: { fund: true } } },
-  });
-  if (!order || order.orgId !== args.orgId) throw new Error("Order not found.");
-  if (order.status === "paid") return; // idempotent
-  if (order.depositTransactionId) return;
-
-  const campaign = order.campaign;
-  const grossCents = order.totalCents;
-
-  const deposit = await postTransaction({
-    orgId: args.orgId,
-    fundId: campaign.fundId,
-    type: "deposit",
-    amountCents: grossCents,
-    description: `Sale: ${campaign.name} order ${order.id.slice(0, 8)}`,
-    salesOrderId: order.id,
-    stripePaymentIntentId: args.stripePaymentIntentId ?? null,
-  });
-
-  if (
-    campaign.proceedsSplit === "per-scout" &&
-    order.scoutMemberId &&
-    campaign.scoutSplitPct > 0
-  ) {
-    const scoutShareCents = Math.floor(
-      (grossCents * Math.min(100, campaign.scoutSplitPct)) / 100,
-    );
-    const scoutAcctsFund = await prisma.fund.findUnique({
-      where: { orgId_code: { orgId: args.orgId, code: SCOUT_ACCOUNTS } },
+}): Promise<{ settled: boolean }> {
+  // One transaction, with the order row locked first: the Stripe
+  // webhook (which fires twice per payment) and a leader's "mark paid"
+  // can land together, and only the first may post. Everything posts or
+  // nothing does, so a failure part way leaves the order unpaid and a
+  // retry starts clean.
+  return prisma.$transaction(async (stx) => {
+    const tx = stx as unknown as Tx;
+    await stx.$queryRaw`SELECT id FROM "SalesOrder" WHERE id = ${args.orderId} FOR UPDATE`;
+    const order = await stx.salesOrder.findUnique({
+      where: { id: args.orderId },
+      include: { campaign: { include: { fund: true } } },
     });
-    if (scoutAcctsFund && scoutShareCents > 0) {
-      await postTransfer({
-        orgId: args.orgId,
-        fromFundId: campaign.fundId,
-        toFundId: scoutAcctsFund.id,
-        amountCents: scoutShareCents,
-        description: `Sale split → scout (${order.id.slice(0, 8)})`,
-      });
-      // Credit the scout's subaccount.
-      await postTransaction({
-        orgId: args.orgId,
-        fundId: scoutAcctsFund.id,
-        type: "fundraiser-credit",
-        amountCents: scoutShareCents,
-        description: `Sale credit: ${campaign.name}`,
-        memberId: order.scoutMemberId,
-        salesOrderId: order.id,
-      });
-    }
-  }
+    if (!order || order.orgId !== args.orgId) throw new Error("Order not found.");
+    if (order.status === "paid" || order.status === "delivered") return { settled: false };
+    if (order.depositTransactionId) return { settled: false };
 
-  await prisma.salesOrder.update({
-    where: { id: order.id },
-    data: {
-      status: "paid",
-      paidAt: new Date(),
-      depositTransactionId: deposit.id,
-      stripePaymentIntentId: args.stripePaymentIntentId ?? order.stripePaymentIntentId,
-    },
+    const campaign = order.campaign;
+    const grossCents = order.totalCents;
+
+    const deposit = await postWithin(tx, {
+      orgId: args.orgId,
+      fundId: campaign.fundId,
+      type: "deposit",
+      amountCents: grossCents,
+      description: `Sale: ${campaign.name} order ${order.id.slice(0, 8)}`,
+      salesOrderId: order.id,
+      stripePaymentIntentId: args.stripePaymentIntentId ?? null,
+    });
+
+    if (
+      campaign.proceedsSplit === "per-scout" &&
+      order.scoutMemberId &&
+      campaign.scoutSplitPct > 0
+    ) {
+      const scoutShareCents = Math.floor(
+        (grossCents * Math.min(100, campaign.scoutSplitPct)) / 100,
+      );
+      const scoutAcctsFund = await stx.fund.findUnique({
+        where: { orgId_code: { orgId: args.orgId, code: SCOUT_ACCOUNTS } },
+      });
+      if (scoutAcctsFund && scoutShareCents > 0) {
+        await postTransferWithin(tx, {
+          orgId: args.orgId,
+          fromFundId: campaign.fundId,
+          toFundId: scoutAcctsFund.id,
+          amountCents: scoutShareCents,
+          description: `Sale split → scout (${order.id.slice(0, 8)})`,
+        });
+        // Credit the scout's subaccount.
+        await postWithin(tx, {
+          orgId: args.orgId,
+          fundId: scoutAcctsFund.id,
+          type: "fundraiser-credit",
+          amountCents: scoutShareCents,
+          description: `Sale credit: ${campaign.name}`,
+          memberId: order.scoutMemberId,
+          salesOrderId: order.id,
+        });
+      }
+    }
+
+    await stx.salesOrder.update({
+      where: { id: order.id },
+      data: {
+        status: "paid",
+        paidAt: new Date(),
+        depositTransactionId: deposit.id,
+        stripePaymentIntentId: args.stripePaymentIntentId ?? order.stripePaymentIntentId,
+      },
+    });
+    return { settled: true };
   });
 }
 
