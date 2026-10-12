@@ -38,8 +38,8 @@ enum Plan {
 }
 
 // Stripe subscription state, snapshotted from webhook events. `trialing`
-// is the default for a freshly-provisioned org (60-day trial set in
-// provision.js); `expired` is the post-trial state when the org never
+// is the default for a freshly-provisioned org (30-day trial set in
+// lib/billing/trial.ts); `expired` is the post-trial state when the org never
 // converted (distinct from `canceled`, which means they had a paid
 // subscription and stopped).
 enum SubscriptionStatus {

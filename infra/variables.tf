@@ -49,6 +49,12 @@ variable "mail_drivers" {
   default     = {}
 }
 
+variable "stripe_price_ids" {
+  description = "Stripe Price ID for the unit subscription per environment, e.g. { prod = \"price_...\" }. Billing stays off where unset (docs/billing.md)."
+  type        = map(string)
+  default     = {}
+}
+
 variable "web_apps" {
   description = "Static web apps in the family that get a Firebase Hosting site per environment. Their repositories publish to them. landing is the family's one-page front door on the apex domain (bluecard marketing/landing/)."
   type        = list(string)

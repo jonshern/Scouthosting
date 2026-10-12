@@ -3,11 +3,12 @@
 import { useActionState } from "react";
 import { signupAction, type ActionState } from "@/server-actions/auth";
 
-export function SignupForm({ csrf }: { csrf: React.ReactNode }) {
+export function SignupForm({ csrf, next }: { csrf: React.ReactNode; next?: string }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(signupAction, null);
   return (
     <form action={formAction} className="space-y-4" noValidate>
       {csrf}
+      {next && <input type="hidden" name="next" value={next} />}
       <div>
         <label className="label" htmlFor="displayName">Your name</label>
         <input id="displayName" name="displayName" required className="field" autoComplete="name" />

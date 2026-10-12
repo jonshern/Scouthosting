@@ -1,61 +1,49 @@
-// Stripe integration. SDK is an optionalDependency so deployments
-// without billing keys (dev / self-hosted) keep working.
+// Stripe integration for the platform subscription (one price per
+// unit per month). Deployments without billing keys (dev / self-hosted)
+// keep working: every call 503s through `stripe_not_configured`.
 //
-// One product (Unit), one Stripe Price ID. 60-day trial set on the
-// Org row at provision time; we don't pass trial_period_days to
-// Stripe — the trial happens pre-checkout (no card on file).
+// The free trial starts at sign-up with no card (Org.trialEndsAt, see
+// lib/billing/trial.ts). When a unit subscribes during the trial,
+// Checkout carries the rest of the trial over as Stripe's `trial_end`,
+// so the first charge lands the day the trial would have ended and
+// Stripe renews monthly from there.
 
 import crypto from "node:crypto";
 import type { SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/log";
+import { createStripeRestClient } from "./stripe-rest";
+import { stripeTrialEnd } from "./trial";
 
 const log = logger.child("stripe");
 
-// Stripe SDK has loose types. Lazy-import is keyed on a small surface.
-type StripeLike = {
-  checkout: { sessions: { create: (args: unknown) => Promise<{ id: string; url: string | null }> } };
-  billingPortal: {
-    sessions: { create: (args: unknown) => Promise<{ url: string }> };
-  };
-  subscriptions: {
-    update: (id: string, args: unknown) => Promise<unknown>;
-  };
-};
+type StripeLike = ReturnType<typeof createStripeRestClient>;
 
 let _stripe: StripeLike | null = null;
-let _loadAttempted = false;
 
 export async function getStripe(): Promise<StripeLike | null> {
   if (_stripe) return _stripe;
-  if (_loadAttempted) return _stripe;
-  _loadAttempted = true;
-
   const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) {
-    log.info("STRIPE_SECRET_KEY not set — billing routes will 503.");
+  if (!key || !isConfigured()) {
+    log.info("Stripe keys not set — billing is off.");
     return null;
   }
-  try {
-    // Stripe is an optional dep — Next.js builds without it. The
-    // dynamic import + ts-expect-error keeps the build green when
-    // STRIPE_SECRET_KEY is unset and the package isn't installed.
-    // @ts-expect-error optional dep, may not be installed
-    const mod = (await import("stripe")) as {
-      default: new (key: string, opts: { apiVersion: string }) => StripeLike;
-    };
-    _stripe = new mod.default(key, { apiVersion: "2024-11-20.acacia" });
-    return _stripe;
-  } catch (err) {
-    log.warn("Stripe SDK not installed; run `npm i stripe`.", {
-      err: err instanceof Error ? err.message : String(err),
-    });
-    return null;
-  }
+  _stripe = createStripeRestClient(key);
+  return _stripe;
 }
 
+/** Test hook: swap the client (or clear it so the next call rebuilds). */
+export function setStripeClientForTests(client: StripeLike | null): void {
+  _stripe = client;
+}
+
+// Real keys only: Terraform seeds Secret Manager with "unset-…"
+// placeholders, and treating those as configured would lock every unit
+// whose trial ends with no way to pay.
 export function isConfigured(): boolean {
-  return Boolean(process.env.STRIPE_SECRET_KEY && process.env.STRIPE_PRICE_ID);
+  const key = process.env.STRIPE_SECRET_KEY ?? "";
+  const price = process.env.STRIPE_PRICE_ID ?? "";
+  return /^(sk|rk)_(test|live)_/.test(key) && price.startsWith("price_");
 }
 
 export async function createCheckoutSession(
@@ -64,9 +52,10 @@ export async function createCheckoutSession(
     slug: string;
     stripeCustomerId?: string | null;
     scoutmasterEmail?: string | null;
+    trialEndsAt?: Date | null;
   },
   user: { email?: string | null } | null,
-  opts: { successUrl: string; cancelUrl: string },
+  opts: { successUrl: string; cancelUrl: string; now?: Date },
 ): Promise<{ url: string | null; sessionId: string }> {
   const stripe = await getStripe();
   if (!stripe) throw new Error("stripe_not_configured");
@@ -77,16 +66,23 @@ export async function createCheckoutSession(
     ? { customer: org.stripeCustomerId }
     : { customer_email: user?.email || org.scoutmasterEmail };
 
+  const trialEnd = stripeTrialEnd(org.trialEndsAt ?? null, opts.now);
+
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     payment_method_types: ["card"],
+    payment_method_collection: "always",
     line_items: [{ price: priceId, quantity: 1 }],
     success_url: opts.successUrl,
     cancel_url: opts.cancelUrl,
     allow_promotion_codes: false,
     billing_address_collection: "auto",
+    client_reference_id: org.id,
     metadata: { orgId: org.id, orgSlug: org.slug },
-    subscription_data: { metadata: { orgId: org.id, orgSlug: org.slug } },
+    subscription_data: {
+      metadata: { orgId: org.id, orgSlug: org.slug },
+      ...(trialEnd ? { trial_end: trialEnd } : {}),
+    },
     ...customerArgs,
   });
 
@@ -202,9 +198,11 @@ type StripeEvent = {
       status?: string;
       cancel_at_period_end?: boolean;
       current_period_end?: number;
-      items?: { data?: Array<{ price?: { id?: string } }> };
+      items?: { data?: Array<{ price?: { id?: string }; current_period_end?: number }> };
       metadata?: Record<string, string>;
       subscription_details?: { metadata?: Record<string, string> };
+      // Newer API versions move an invoice's subscription metadata here.
+      parent?: { subscription_details?: { metadata?: Record<string, string> } };
     };
   };
 };
@@ -247,9 +245,7 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
           stripeSubscriptionId: obj.id || undefined,
           stripePriceId: obj.items?.data?.[0]?.price?.id || undefined,
           subscriptionStatus: status as SubscriptionStatus,
-          currentPeriodEnd: obj.current_period_end
-            ? new Date(obj.current_period_end * 1000)
-            : null,
+          currentPeriodEnd: periodEnd(obj),
           cancelAtPeriodEnd,
         },
       });
@@ -266,9 +262,7 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
         data: {
           subscriptionStatus: "canceled" as SubscriptionStatus,
           cancelAtPeriodEnd: false,
-          currentPeriodEnd: obj.current_period_end
-            ? new Date(obj.current_period_end * 1000)
-            : null,
+          currentPeriodEnd: periodEnd(obj),
         },
       });
       await stripeAudit(orgId, "billing.subscription_deleted", `Subscription ${obj.id} ended.`);
@@ -308,7 +302,9 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
 async function resolveOrgIdFromEvent(event: StripeEvent): Promise<string | null> {
   const obj = event.data?.object || {};
   const direct =
-    obj.metadata?.orgId || obj.subscription_details?.metadata?.orgId;
+    obj.metadata?.orgId ||
+    obj.subscription_details?.metadata?.orgId ||
+    obj.parent?.subscription_details?.metadata?.orgId;
   if (direct) return direct;
 
   const customerId = obj.customer;
@@ -320,6 +316,14 @@ async function resolveOrgIdFromEvent(event: StripeEvent): Promise<string | null>
     if (org) return org.id;
   }
   return null;
+}
+
+// The period end sits on the subscription in older API versions and on
+// each subscription item from 2025-03-31 on; the webhook endpoint's API
+// version decides which one arrives.
+function periodEnd(obj: NonNullable<NonNullable<StripeEvent["data"]>["object"]>): Date | null {
+  const secs = obj.current_period_end ?? obj.items?.data?.[0]?.current_period_end;
+  return secs ? new Date(secs * 1000) : null;
 }
 
 function mapStripeStatus(stripeStatus: string | undefined): string {
@@ -362,4 +366,4 @@ async function stripeAudit(orgId: string, action: string, summary: string): Prom
   }
 }
 
-export const _internal = { mapStripeStatus, resolveOrgIdFromEvent };
+export const _internal = { mapStripeStatus, resolveOrgIdFromEvent, periodEnd };

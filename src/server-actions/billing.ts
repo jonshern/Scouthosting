@@ -1,0 +1,82 @@
+"use server";
+
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { prisma } from "@/lib/db";
+import { getSession } from "@/lib/auth/session";
+import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
+import { canManageBilling } from "@/lib/billing/access";
+import { createBillingPortalSession, createCheckoutSession, isConfigured } from "@/lib/billing/stripe";
+import { logger } from "@/lib/log";
+
+const log = logger.child("billing-actions");
+
+export type BillingActionState = { error?: string } | null;
+
+const Schema = z.object({ orgSlug: z.string().min(1) });
+
+async function originForRequest(): Promise<string> {
+  const h = await headers();
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  const host = h.get("host") ?? "localhost:3000";
+  return `${proto}://${host}`;
+}
+
+async function authorize(formData: FormData) {
+  if (!(await verifyOrigin())) return { error: "Bad origin." } as const;
+  if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) return { error: "Bad CSRF token." } as const;
+  const parsed = Schema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: "Invalid input." } as const;
+  const { user } = await getSession();
+  if (!user) return { error: "Sign in first." } as const;
+  const org = await prisma.org.findUnique({ where: { slug: parsed.data.orgSlug } });
+  if (!org || !(await canManageBilling(user, org))) return { error: "Only the unit's admins can manage billing." } as const;
+  return { user, org } as const;
+}
+
+export async function startSubscriptionAction(
+  _prev: BillingActionState,
+  formData: FormData,
+): Promise<BillingActionState> {
+  const a = await authorize(formData);
+  if ("error" in a) return { error: a.error };
+  if (!isConfigured()) return { error: "Billing isn't set up on this server yet." };
+  if (a.org.stripeSubscriptionId && a.org.subscriptionStatus !== "canceled") {
+    return { error: "This unit already has a subscription. Use Manage billing." };
+  }
+
+  const base = `${await originForRequest()}/o/${a.org.slug}/admin/billing`;
+  let url: string | null;
+  try {
+    ({ url } = await createCheckoutSession(a.org, a.user, {
+      successUrl: `${base}?checkout=success`,
+      cancelUrl: `${base}?checkout=cancel`,
+    }));
+  } catch (e) {
+    log.warn("checkout session failed", { orgId: a.org.id, err: e instanceof Error ? e.message : String(e) });
+    return { error: "Stripe couldn't start checkout. Try again in a minute." };
+  }
+  if (!url) return { error: "Stripe didn't return a checkout page." };
+  redirect(url);
+}
+
+export async function openBillingPortalAction(
+  _prev: BillingActionState,
+  formData: FormData,
+): Promise<BillingActionState> {
+  const a = await authorize(formData);
+  if ("error" in a) return { error: a.error };
+  if (!a.org.stripeCustomerId) return { error: "Add a card first." };
+
+  let url: string;
+  try {
+    ({ url } = await createBillingPortalSession(a.org, {
+      returnUrl: `${await originForRequest()}/o/${a.org.slug}/admin/billing`,
+    }));
+  } catch (e) {
+    log.warn("portal session failed", { orgId: a.org.id, err: e instanceof Error ? e.message : String(e) });
+    return { error: "Stripe couldn't open billing. Try again in a minute." };
+  }
+  redirect(url);
+}

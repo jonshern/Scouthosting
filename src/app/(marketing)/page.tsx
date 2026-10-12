@@ -108,8 +108,8 @@ export default function MarketingHome() {
               with Scouting.org and Scoutbook.
             </p>
             <div className="flex flex-wrap gap-3">
-              <Link href="/signup" className="btn-primary text-base px-5 py-3">
-                Start 60-day free trial →
+              <Link href="/start" className="btn-primary text-base px-5 py-3">
+                Start 30-day free trial →
               </Link>
               <Link href="/plans" className="btn-secondary text-base px-5 py-3">
                 See every feature
@@ -255,7 +255,7 @@ export default function MarketingHome() {
               $99
             </div>
             <div className="text-xs text-slate-muted mt-1 mb-6">
-              per year, flat · 60-day free trial
+              per year, flat · 30-day free trial
             </div>
             <p className="text-sm text-slate-soft mb-6 pb-6 border-b border-line">
               Everything most units need: public site, calendar, photos, email
@@ -278,8 +278,8 @@ export default function MarketingHome() {
                 </li>
               ))}
             </ul>
-            <Link href="/signup" className="btn-secondary w-full justify-center">
-              Start 60-day free trial →
+            <Link href="/start" className="btn-secondary w-full justify-center">
+              Start 30-day free trial →
             </Link>
           </div>
 
@@ -295,7 +295,7 @@ export default function MarketingHome() {
               $119
             </div>
             <div className="text-xs text-white/60 mt-1 mb-6">
-              per year, flat · 60-day free trial
+              per year, flat · 30-day free trial
             </div>
             <p className="text-sm text-white/85 mb-6 pb-6 border-b border-white/15">
               Everything in Unit, plus group chat, SMS broadcasts, and the
@@ -319,16 +319,16 @@ export default function MarketingHome() {
               ))}
             </ul>
             <Link
-              href="/signup"
+              href="/start"
               className="inline-flex w-full items-center justify-center rounded-md bg-sky px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white hover:text-ink"
             >
-              Start 60-day free trial →
+              Start 30-day free trial →
             </Link>
           </div>
         </div>
 
         <p className="mt-7 text-center text-[13px] text-slate-muted">
-          60-day free trial on every plan · No per-scout, per-leader, or
+          30-day free trial on every plan · No per-scout, per-leader, or
           setup fees · 501(c)(3)? Automatic 20% off · Stripe fees
           passed through at cost.
         </p>
@@ -557,14 +557,14 @@ export default function MarketingHome() {
       {/* CTA */}
       <section className="mx-auto max-w-content px-6 py-24 text-center">
         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sky text-white text-[11px] font-bold tracking-[0.14em] uppercase mb-6">
-          Free for 60 days
+          Free for 30 days
         </span>
         <h2 className="font-display text-[44px] md:text-[72px] font-normal leading-[0.98] tracking-[-0.03em] max-w-3xl mx-auto mb-8">
           Set up your troop&apos;s home base{" "}
           <em className="text-sky font-normal">before next week&apos;s meeting.</em>
         </h2>
         <div className="flex flex-wrap gap-3 justify-center mb-6">
-          <Link href="/signup" className="btn-primary text-[15px] px-7 py-4 rounded-full">
+          <Link href="/start" className="btn-primary text-[15px] px-7 py-4 rounded-full">
             Start free trial →
           </Link>
           <Link

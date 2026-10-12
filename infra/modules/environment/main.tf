@@ -17,12 +17,14 @@ locals {
     GCS_BUCKET     = google_storage_bucket.uploads.name
     # "console" logs mail instead of sending it. Switch to "resend" with
     # var.mail_driver once the Resend key is in Secret Manager.
-    MAIL_DRIVER   = var.mail_driver
-    MAIL_FROM     = var.mail_from
-    SMS_DRIVER    = "console" # no SMS: youth protection rules out texting scouts
-    PUSH_DRIVER   = "console"
-    JOBS_DISABLED = "1" # jobs run inside the request; no always-on worker to pay for
-    LOG_LEVEL     = "info"
+    MAIL_DRIVER = var.mail_driver
+    MAIL_FROM   = var.mail_from
+    # Billing stays off until this and the two Stripe secrets below are real.
+    STRIPE_PRICE_ID = var.stripe_price_id
+    SMS_DRIVER      = "console" # no SMS: youth protection rules out texting scouts
+    PUSH_DRIVER     = "console"
+    JOBS_DISABLED   = "1" # jobs run inside the request; no always-on worker to pay for
+    LOG_LEVEL       = "info"
     # Cloud Run appends the caller's IP as the last X-Forwarded-For hop;
     # Compass's rate limits trust only that one.
     CLIENT_IP_HEADER   = "x-forwarded-for"
@@ -57,6 +59,9 @@ locals {
     # and can be added the same way.
     GOOGLE_CLIENT_ID     = "google-client-id"
     GOOGLE_CLIENT_SECRET = "google-client-secret"
+    # Unit subscriptions (docs/billing.md).
+    STRIPE_SECRET_KEY     = "stripe-secret-key"
+    STRIPE_WEBHOOK_SECRET = "stripe-webhook-secret"
   }
 
   secret_env = merge(

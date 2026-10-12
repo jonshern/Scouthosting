@@ -82,7 +82,7 @@ export function Header() {
             Sign in
           </Link>
           <Link
-            href="/signup"
+            href="/start"
             className="inline-flex items-center justify-center rounded-full bg-sky text-white px-4 py-2 text-[13px] font-semibold hover:bg-ink transition-colors"
           >
             Start a trial

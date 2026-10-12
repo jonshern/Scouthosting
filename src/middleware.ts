@@ -57,6 +57,7 @@ const APEX_INVITE_ALLOWLIST = new Set<string>([
   "/login",
   "/logout",
   "/signup",
+  "/start",       // self-serve sign-up; the unit form needs a signed-in adult
 ]);
 const APEX_INVITE_PREFIXES = [
   "/api/",        // server actions / route handlers (the form needs this)

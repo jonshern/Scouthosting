@@ -100,7 +100,7 @@ export default function PlansPage() {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full bg-sky text-white px-3 py-1.5 text-[11px] font-bold tracking-[0.14em] uppercase mb-6">
               <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-white" />
-              60 days free · no card required
+              30 days free · no card required
             </span>
             <h1 className="font-display text-[44px] md:text-[72px] font-normal leading-[0.95] tracking-[-0.025em]">
               Two flavors,{" "}
@@ -170,14 +170,14 @@ export default function PlansPage() {
               <span className="text-white/60 text-[14px]">/ month</span>
             </div>
             <div className="text-[12px] text-white/75 mt-2 leading-[1.5]">
-              Flat per unit — pack, troop, crew, ship, or post. 60-day free trial.
+              Flat per unit — pack, troop, crew, ship, or post. 30-day free trial.
               Cancel anytime.
             </div>
             <Link
-              href="/signup?plan=premium"
+              href="/start?plan=premium"
               className="mt-5 inline-flex items-center justify-center w-full rounded-md bg-amber text-white px-4 py-3 text-[14px] font-semibold hover:opacity-90"
             >
-              Start Premium — 60 days free →
+              Start Premium — 30 days free →
             </Link>
             <ul className="list-none p-0 mt-7 space-y-0">
               {PREMIUM.map((f) => (
@@ -202,13 +202,13 @@ export default function PlansPage() {
               <span className="text-slate-muted text-[14px]">/ month</span>
             </div>
             <div className="text-[12px] text-slate-soft mt-2 leading-[1.5]">
-              Flat per unit. 60-day free trial. Cancel anytime.
+              Flat per unit. 30-day free trial. Cancel anytime.
             </div>
             <Link
-              href="/signup?plan=standard"
+              href="/start?plan=standard"
               className="mt-5 inline-flex items-center justify-center w-full rounded-md border-[1.5px] border-ink text-ink px-4 py-3 text-[14px] font-semibold hover:bg-ink hover:text-white transition-colors"
             >
-              Start Standard — 60 days free →
+              Start Standard — 30 days free →
             </Link>
             <ul className="list-none p-0 mt-7 space-y-0">
               {STANDARD.map((f) => (
