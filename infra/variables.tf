@@ -52,7 +52,7 @@ variable "mail_drivers" {
 variable "web_apps" {
   description = "Static web apps in the family that get a Firebase Hosting site per environment. Their repositories publish to them. landing is the family's one-page front door on the apex domain (bluecard marketing/landing/)."
   type        = list(string)
-  default     = ["waypoint", "summit", "landing"]
+  default     = ["waypoint", "lantern", "landing"]
 }
 
 variable "site_prefix" {

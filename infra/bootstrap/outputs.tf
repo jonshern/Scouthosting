@@ -12,6 +12,6 @@ output "workload_identity_provider" {
 }
 
 output "web_deployer_service_account" {
-  description = "Value for GCP_DEPLOYER_SA in the Waypoint and Summit repositories."
+  description = "Value for GCP_DEPLOYER_SA in the Waypoint and Lantern repositories."
   value       = google_service_account.web_deployer.email
 }
