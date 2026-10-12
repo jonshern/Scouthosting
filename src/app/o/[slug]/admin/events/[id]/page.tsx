@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { EventForm } from "@/components/admin/EventForm";
 import { ImportSlotsForm } from "@/components/admin/ImportSlotsForm";
+import { AddSlotForm } from "@/components/admin/AddSlotForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DeleteEventButton } from "@/components/admin/DeleteContentButtons";
 import {
@@ -78,9 +79,7 @@ export default async function EditEventPage({
       />
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <Link href={`/o/${slug}/admin/events`}>← All events</Link>
-        <Link href={`/o/${slug}/admin/events/${event.id}/slots`}>
-          Manage signup slots →
-        </Link>
+        <a href="#slots">Sign-up slots ↓</a>
         <Link href={`/o/${slug}/admin/events/${event.id}/emergency-contacts`}>
           Emergency contacts →
         </Link>
@@ -117,8 +116,8 @@ export default async function EditEventPage({
         locations={locations}
       />
 
-      <div className="border-t border-line pt-6 space-y-4">
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Stations and volunteer slots</h2>
+      <div id="slots" className="border-t border-line pt-6 space-y-4">
+        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Sign-up slots</h2>
         {event.slots.length > 0 && (
           <table className="w-full text-sm">
             <thead className="text-left text-slate-muted">
@@ -143,7 +142,16 @@ export default async function EditEventPage({
             </tbody>
           </table>
         )}
-        <ImportSlotsForm orgSlug={slug} eventId={event.id} csrf={<CsrfTokenInput />} />
+        <div className="grid gap-6 lg:grid-cols-2">
+          <div className="space-y-2">
+            <h3 className="font-medium">Add a slot</h3>
+            <AddSlotForm orgSlug={slug} eventId={event.id} csrf={<CsrfTokenInput />} />
+          </div>
+          <div className="space-y-2">
+            <h3 className="font-medium">Import stations and roles from Waypoint</h3>
+            <ImportSlotsForm orgSlug={slug} eventId={event.id} csrf={<CsrfTokenInput />} />
+          </div>
+        </div>
       </div>
 
       <div className="space-y-4">

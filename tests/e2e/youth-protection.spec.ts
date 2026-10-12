@@ -143,9 +143,7 @@ test.describe("youth protection", () => {
       page.waitForResponse((r) => r.request().method() === "POST"),
       row.getByRole("button", { name: "Unsuspend" }).click(),
     ]);
-    // The action redirects to the same URL without revalidating, so the
-    // list only shows the new state after a fresh load.
-    await page.goto(`${TENANT}/admin/channels`);
+    // The list refreshes in place, without a reload.
     await expect(row).not.toContainText("Paused:");
     await expect(row.getByRole("button", { name: "Unsuspend" })).toHaveCount(0);
 

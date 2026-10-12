@@ -20,6 +20,7 @@ import { UpcomingEventsWidget } from "@/components/widgets/UpcomingEventsWidget"
 import { RecentPhotosWidget } from "@/components/widgets/RecentPhotosWidget";
 import { AnnouncementsWidget } from "@/components/widgets/AnnouncementsWidget";
 import { loadHomeSnapshot } from "@/lib/publish/snapshot";
+import { orgBasePath } from "@/lib/tenancy/base-path";
 
 // Render the homepage as ISR — Next caches the response for 60s and
 // background-revalidates. With the widgets fetching live data
@@ -60,6 +61,7 @@ function PhotoTile({
 
 export default async function OrgHome({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  const base = await orgBasePath(slug);
   const shell = await loadHomeSnapshot(slug);
   if (!shell) notFound();
   const { org, page, memberCount, heroPhoto } = shell;
@@ -172,7 +174,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
               <h3 className="font-display text-[22px] font-normal md:text-[26px]">
                 Recent adventures
               </h3>
-              <Link href="/photos" className="text-xs font-medium text-sky">
+              <Link href={`${base}/photos`} className="text-xs font-medium text-sky">
                 View all photos →
               </Link>
             </div>
@@ -185,7 +187,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
               <h3 className="font-display text-[22px] font-normal md:text-[26px]">
                 News & announcements
               </h3>
-              <Link href="/posts" className="text-xs font-medium text-sky">
+              <Link href={`${base}/posts`} className="text-xs font-medium text-sky">
                 All posts →
               </Link>
             </div>
@@ -277,7 +279,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
             </div>
             <UpcomingEventsWidget orgSlug={slug} />
             <Link
-              href="/calendar"
+              href={`${base}/calendar`}
               className="mt-5 block w-full rounded-md bg-ink py-2.5 text-center text-[13px] font-medium text-white transition-colors hover:bg-sky"
             >
               Full calendar →

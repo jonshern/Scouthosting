@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { classifyHost } from "@/lib/tenancy/resolve";
+import { TENANT_HOST_HEADER } from "@/lib/tenancy/host-header";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/log";
 import { INVITE_COOKIE, readInviteCookie } from "@/lib/invite";
@@ -51,7 +52,8 @@ async function resolveCustomDomainSlug(domain: string): Promise<string | null | 
 //   the event staff invite answer (POST /api/events/staff-rsvp).
 // /staff-rsvp — the staff invite page; the link may be built on whichever
 //   host the leader sent it from.
-const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/api/events/", "/staff-rsvp"];
+// /account — the signed-in user's own pages (the admin avatar links here).
+const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/api/events/", "/staff-rsvp", "/account"];
 const CSRF_COOKIE = "compass_csrf";
 
 // Pre-launch apex gate. Visitors without a valid `compass_invite`
@@ -113,6 +115,10 @@ function ensureCsrfCookie(req: NextRequest, res: NextResponse): void {
 
 export async function middleware(req: NextRequest) {
   const host = req.headers.get("host");
+  // Only middleware sets TENANT_HOST_HEADER; drop any copy a client sent.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.delete(TENANT_HOST_HEADER);
+  const next = () => NextResponse.next({ request: { headers: requestHeaders } });
   const c = classifyHost(host);
   const url = req.nextUrl;
 
@@ -129,7 +135,7 @@ export async function middleware(req: NextRequest) {
       dest.search = "";
       res = NextResponse.rewrite(dest);
     } else {
-      res = NextResponse.next();
+      res = next();
     }
   } else if (c.kind === "tenant" || c.kind === "custom") {
     const slug =
@@ -146,21 +152,25 @@ export async function middleware(req: NextRequest) {
     // renders the not-found page ("That subdomain isn't a Compass site
     // yet"). We still set the CSRF cookie at the bottom.
     if (!slug) {
-      res = NextResponse.next();
+      res = next();
     } else {
       const alreadyRewritten = TENANT_PASSTHROUGH_PREFIXES.some((p) =>
         url.pathname.startsWith(p),
       );
+      // Tells pages they're on this troop's own host, so troop links can
+      // be bare and main-site links must name the apex
+      // (lib/tenancy/base-path.ts, lib/tenancy/marketing-link.ts).
+      requestHeaders.set(TENANT_HOST_HEADER, slug);
       if (alreadyRewritten) {
-        res = NextResponse.next();
+        res = next();
       } else {
         const rewritten = req.nextUrl.clone();
         rewritten.pathname = `/o/${slug}${url.pathname === "/" ? "" : url.pathname}`;
-        res = NextResponse.rewrite(rewritten);
+        res = NextResponse.rewrite(rewritten, { request: { headers: requestHeaders } });
       }
     }
   } else {
-    res = NextResponse.next();
+    res = next();
   }
 
   ensureCsrfCookie(req, res);
