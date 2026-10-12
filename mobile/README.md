@@ -75,14 +75,12 @@ tiles with a white "C" mark.
 
 ### Backend pointer
 
-The mobile client picks up the backend URL from
-`EXPO_PUBLIC_COMPASS_BASE_URL` at build time (defaults to per-org
-subdomains under `compass.app`). Set it in `.env` (gitignored) when
-building against staging or a local tunnel:
-
-```
-EXPO_PUBLIC_COMPASS_BASE_URL=https://staging.compass.app
-```
+The app talks to one Compass server for everything (`/api/v1` doesn't
+care about the host). In order, it uses: an address set on the phone
+(Profile > Server, the sign-in screen, or a `compass://connect?url=…`
+link), then `EXPO_PUBLIC_COMPASS_BASE_URL` from the build, then
+`https://compass.app`. Running it on a phone against your Mac is in
+[docs/phone.md](../docs/phone.md).
 
 ## Folder structure
 

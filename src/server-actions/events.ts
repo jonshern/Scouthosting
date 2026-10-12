@@ -11,6 +11,8 @@ import { ownedIdOrNull, ownedIds } from "@/lib/tenancy/owned";
 import { deleteEventWithSlipTrace } from "@/lib/events/delete";
 import { PublicSlugSchema } from "@/lib/events/public-signup";
 import { slotsFromEventFile } from "@/lib/events/waypoint-file";
+import { fillFromWaitlist } from "@/lib/slots";
+import { notifyPromoted } from "@/lib/slots/notify";
 
 const Iso = z
   .string()
@@ -216,15 +218,22 @@ export async function importEventSlots(
     select: { key: true },
   });
   const have = new Set(existing.map((s) => s.key));
-  await prisma.$transaction(
-    spec.slots.map((s) =>
-      prisma.signupSlot.upsert({
+  // A slot that grew lets its waitlist in, the same as when someone
+  // releases a seat.
+  const promotedIds = await prisma.$transaction(async (tx) => {
+    const promoted: string[] = [];
+    for (const s of spec.slots) {
+      const row = await tx.signupSlot.upsert({
         where: { eventId_key: { eventId: event.id, key: s.key } },
         update: { title: s.title, description: s.description, capacity: s.capacity, sortOrder: s.sortOrder },
         create: { orgId: org.id, eventId: event.id, ...s },
-      }),
-    ),
-  );
+        select: { id: true },
+      });
+      promoted.push(...(await fillFromWaitlist(tx, row.id)));
+    }
+    return promoted;
+  });
+  await notifyPromoted(promotedIds);
 
   let publicSlug = event.publicSlug;
   let slugWarning: string | undefined;

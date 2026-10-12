@@ -19,6 +19,7 @@ import { accessibleScouts, pickScout, ScoutLookupError, type AccessibleScout, ty
 import { inTroop, journeyFor, lanternCustom, pendingSignoffs, progressFor, recentActivity, upcomingEvents } from "./scout-data";
 import { WriteRefused, requirementKnown, rsvpForEvent, setRequirementStatus } from "./writes";
 import { prisma } from "@/lib/db";
+import { EventFullError } from "@/lib/rsvp/capacity";
 
 const log = logger.child("mcp");
 
@@ -59,6 +60,9 @@ async function guarded(ctx: Ctx, scope: string, body: () => Promise<CallToolResu
   } catch (err) {
     if (err instanceof ScoutLookupError) return problem(err.message + describeChoices(err.choices));
     if (err instanceof WriteRefused) return problem(err.message);
+    if (err instanceof EventFullError) {
+      return problem(err.spotsLeft > 0 ? `That event only has ${err.spotsLeft} spot${err.spotsLeft === 1 ? "" : "s"} left.` : "That event is full.");
+    }
     if (err instanceof ApiError) {
       if (err.code === "org_suspended") return problem("This unit's Compass account is paused, so changes can't be saved right now.");
       return problem("You don't have access to that.");

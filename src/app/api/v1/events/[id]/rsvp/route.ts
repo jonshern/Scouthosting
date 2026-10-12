@@ -3,8 +3,10 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { EventFullError } from "@/lib/rsvp/capacity";
 import { submitOwnRsvp } from "@/lib/rsvp/submit";
 import {
+  ApiError,
   LIMITS,
   json,
   notFound,
@@ -33,11 +35,19 @@ export const POST = v1Route<{ id: string }>(
     await requireOrgAccessForResource(event.orgId, user.id, { write: true });
 
     const input = await readJson(req, Body);
-    const rsvp = await submitOwnRsvp(user, event, {
-      response: input.response,
-      guests: input.guests,
-      notes: input.notes || null,
-    });
+    let rsvp;
+    try {
+      rsvp = await submitOwnRsvp(user, event, {
+        response: input.response,
+        guests: input.guests,
+        notes: input.notes || null,
+      });
+    } catch (err) {
+      if (err instanceof EventFullError) {
+        throw new ApiError(409, "event_full", { spotsLeft: err.spotsLeft });
+      }
+      throw err;
+    }
     return json({ rsvp: { id: rsvp.id, response: rsvp.response, guests: rsvp.guests } });
   },
   { limits: [LIMITS.rsvp] },

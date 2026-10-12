@@ -9,6 +9,7 @@
 
 const KEY_TOKEN = "compass.bearer";
 const KEY_PROFILE = "compass.profile";
+const KEY_SERVER = "compass.server";
 
 export type StoredProfile = {
   userId: string;
@@ -27,12 +28,16 @@ export interface SecureStorage {
   getProfile(): Promise<StoredProfile | null>;
   setProfile(profile: StoredProfile): Promise<void>;
   clearProfile(): Promise<void>;
+  /** The server address set on this phone, or null for the built-in one. */
+  getServer(): Promise<string | null>;
+  setServer(address: string | null): Promise<void>;
 }
 
 /** In-memory implementation. Used for tests and as a fallback. */
 export function createMemoryStorage(): SecureStorage {
   let token: string | null = null;
   let profile: StoredProfile | null = null;
+  let server: string | null = null;
   return {
     async getToken() { return token; },
     async setToken(v: string) { token = v; },
@@ -40,6 +45,8 @@ export function createMemoryStorage(): SecureStorage {
     async getProfile() { return profile; },
     async setProfile(p: StoredProfile) { profile = p; },
     async clearProfile() { profile = null; },
+    async getServer() { return server; },
+    async setServer(v: string | null) { server = v; },
   };
 }
 
@@ -85,6 +92,13 @@ export function createSecureStorage(): SecureStorage {
     },
     async clearProfile() {
       await secureStore!.deleteItemAsync(KEY_PROFILE);
+    },
+    async getServer() {
+      return await secureStore!.getItemAsync(KEY_SERVER);
+    },
+    async setServer(address: string | null) {
+      if (address) await secureStore!.setItemAsync(KEY_SERVER, address);
+      else await secureStore!.deleteItemAsync(KEY_SERVER);
     },
   };
 }

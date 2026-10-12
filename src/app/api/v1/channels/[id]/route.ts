@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 
 export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
   const channel = await loadReadableChannel(params.id, user.id);
-  const page = await loadMessagePage(channel.id);
+  const page = await loadMessagePage(channel.id, undefined, user.id);
 
   return json({
     channel: {

@@ -49,7 +49,7 @@ export async function apiRequest<T = unknown>(
   if (!orgSlug) throw new Error("apiRequest: missing orgSlug");
   if (!token) throw new ApiError(401, "missing_token");
 
-  const url = new URL(`/api/v1${path.startsWith("/") ? "" : "/"}${path}`, hostForOrg(orgSlug, config));
+  const url = new URL(`${hostForOrg(orgSlug, config)}/api/v1${path.startsWith("/") ? "" : "/"}${path}`);
   if (reqOpts.query) {
     for (const [k, v] of Object.entries(reqOpts.query)) {
       if (v !== undefined) url.searchParams.set(k, String(v));

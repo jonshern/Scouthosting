@@ -127,11 +127,26 @@ export async function releaseSlot(
   if (!target) return { released: false, promotedIds: [] };
   await tx.slotAssignment.delete({ where: { id: target.id } });
 
+  const promotedIds = await promote(tx, slot);
+  return { released: true, promotedIds };
+}
+
+/**
+ * Move waitlisters into open seats after a leader raised a slot's
+ * capacity (or re-imported the event file with bigger slots). Returns
+ * the promoted assignment ids.
+ */
+export async function fillFromWaitlist(tx: Tx, slotId: string): Promise<string[]> {
+  const slot = await lockSlot(tx, slotId);
+  return promote(tx, slot);
+}
+
+async function promote(tx: Tx, slot: { id: string; capacity: number }): Promise<string[]> {
   const active = await tx.slotAssignment.count({
     where: { slotId: slot.id, waitlisted: false },
   });
   const open = slot.capacity - active;
-  if (open <= 0) return { released: true, promotedIds: [] };
+  if (open <= 0) return [];
 
   const nextUp = await tx.slotAssignment.findMany({
     where: { slotId: slot.id, waitlisted: true },
@@ -146,5 +161,5 @@ export async function releaseSlot(
       data: { waitlisted: false },
     });
   }
-  return { released: true, promotedIds };
+  return promotedIds;
 }
