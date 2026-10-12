@@ -157,14 +157,15 @@ export async function middleware(req: NextRequest) {
       const alreadyRewritten = TENANT_PASSTHROUGH_PREFIXES.some((p) =>
         url.pathname.startsWith(p),
       );
+      // Tells pages they're on this troop's own host, so troop links can
+      // be bare and main-site links must name the apex
+      // (lib/tenancy/base-path.ts, lib/tenancy/marketing-link.ts).
+      requestHeaders.set(TENANT_HOST_HEADER, slug);
       if (alreadyRewritten) {
         res = next();
       } else {
         const rewritten = req.nextUrl.clone();
         rewritten.pathname = `/o/${slug}${url.pathname === "/" ? "" : url.pathname}`;
-        // Tells pages their links can be bare on this host
-        // (lib/tenancy/base-path.ts).
-        requestHeaders.set(TENANT_HOST_HEADER, slug);
         res = NextResponse.rewrite(rewritten, { request: { headers: requestHeaders } });
       }
     }
