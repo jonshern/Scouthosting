@@ -7,7 +7,7 @@
 // idempotent and on the leader's terms).
 
 import { prisma } from "@/lib/db";
-import { postTransaction, reverseTransaction } from "./posting";
+import { postWithin, reverseWithin, type Tx } from "./posting";
 import { requireSystemFund } from "./provision";
 import { SCOUT_ACCOUNTS } from "./money";
 
@@ -26,46 +26,60 @@ export async function settleEventChargeForRsvp(args: {
   if (!event || event.orgId !== args.orgId) return;
   if (!event.cost || event.cost <= 0) return;
 
-  // Look up the last open (unreversed) event-charge for this pair.
-  const existing = await prisma.transaction.findFirst({
-    where: {
-      orgId: args.orgId,
-      eventId: args.eventId,
-      memberId: args.memberId,
-      type: "event-charge",
-      reversedBy: { none: {} },
-    },
-    orderBy: { postedAt: "desc" },
-  });
+  let fund: { id: string } | null = null;
+  try {
+    fund = await requireSystemFund(args.orgId, SCOUT_ACCOUNTS);
+  } catch {
+    fund = null; // treasury not provisioned; charges are skipped
+  }
 
-  if (args.response === "yes") {
-    if (existing) return; // already charged
-    let fund;
-    try {
-      fund = await requireSystemFund(args.orgId, SCOUT_ACCOUNTS);
-    } catch {
-      return; // treasury not provisioned; skip silently
+  // One settlement at a time per (event, member): a double-tap "yes",
+  // or "yes" then "no" in quick succession, would otherwise both read
+  // "no charge yet" and post twice, or leave a charge behind a "no".
+  // Inside the lock, settle to what the RSVP rows say now rather than
+  // to this request's response, so whichever request settles last
+  // leaves the ledger matching the final RSVP.
+  await prisma.$transaction(async (stx) => {
+    const tx = stx as unknown as Tx;
+    await stx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`event-charge:${args.eventId}:${args.memberId}`}))`;
+    const going =
+      (await stx.rsvp.count({
+        where: { eventId: args.eventId, memberId: args.memberId, response: "yes" },
+      })) > 0;
+    const existing = await stx.transaction.findFirst({
+      where: {
+        orgId: args.orgId,
+        eventId: args.eventId,
+        memberId: args.memberId,
+        type: "event-charge",
+        reversedBy: { none: {} },
+      },
+      orderBy: { postedAt: "desc" },
+    });
+
+    if (going) {
+      if (existing || !fund) return; // already charged, or no treasury
+      await postWithin(tx, {
+        orgId: args.orgId,
+        fundId: fund.id,
+        type: "event-charge",
+        amountCents: -event.cost! * 100,
+        description: `Event charge: ${event.title}`,
+        memberId: args.memberId,
+        eventId: args.eventId,
+      });
+      return;
     }
-    await postTransaction({
-      orgId: args.orgId,
-      fundId: fund.id,
-      type: "event-charge",
-      amountCents: -event.cost * 100,
-      description: `Event charge: ${event.title}`,
-      memberId: args.memberId,
-      eventId: args.eventId,
-    });
-    return;
-  }
 
-  // Transition away from yes → reverse the open charge if any.
-  if (existing) {
-    await reverseTransaction({
-      orgId: args.orgId,
-      originalId: existing.id,
-      description: `Auto-reversal: RSVP changed to ${args.response} for ${event.title}`,
-    });
-  }
+    // No longer going → reverse the open charge, if any.
+    if (existing) {
+      await reverseWithin(tx, {
+        orgId: args.orgId,
+        originalId: existing.id,
+        description: `Auto-reversal: RSVP changed to ${args.response} for ${event.title}`,
+      });
+    }
+  });
 }
 
 /** Resolve a User → Member in this org by email, for the signed-in path. */
