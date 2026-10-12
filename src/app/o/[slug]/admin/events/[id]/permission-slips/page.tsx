@@ -10,6 +10,7 @@ import { effectiveSlipText } from "@/lib/permission-slips";
 import { SendSlipsButton } from "@/components/admin/SendSlipsButton";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { Pill, Stat, StatRow } from "@/components/ui";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function EventSlipsPage({
   params,
@@ -17,6 +18,7 @@ export default async function EventSlipsPage({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const event = await prisma.event.findUnique({

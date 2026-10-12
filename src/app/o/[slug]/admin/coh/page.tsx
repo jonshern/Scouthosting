@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function CohPage({
   params,
@@ -12,6 +13,7 @@ export default async function CohPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const { user } = await getSession();
   if (!user) redirect(`/login?next=/o/${slug}/admin/coh`);
   const org = await prisma.org.findUnique({ where: { slug } });

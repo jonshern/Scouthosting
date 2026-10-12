@@ -9,6 +9,7 @@ import {
   FiscalYearForm,
   BudgetForm,
 } from "@/components/admin/FiscalYearForms";
+import { requireTreasuryPage } from "@/lib/admin/guard";
 
 export default async function FiscalYearDetail({
   params,
@@ -16,6 +17,7 @@ export default async function FiscalYearDetail({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
+  await requireTreasuryPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const fy = await prisma.fiscalYear.findUnique({

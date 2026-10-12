@@ -5,6 +5,7 @@
 
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { requireAdminPage } from "@/lib/admin/guard";
 import { getSession } from "@/lib/auth/session";
 import { canManageBilling } from "@/lib/billing/access";
 import { availableIntervals, isConfigured } from "@/lib/billing/stripe";
@@ -29,6 +30,7 @@ export default async function BillingPage({
   searchParams: Promise<{ checkout?: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const { checkout } = await searchParams;
   const { user } = await getSession();
   if (!user) redirect(`/login?next=/o/${slug}/admin/billing`);

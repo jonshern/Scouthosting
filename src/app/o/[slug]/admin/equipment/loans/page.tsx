@@ -8,6 +8,7 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 import { Pill } from "@/components/ui";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function LoanHistoryPage({
   params,
@@ -15,6 +16,7 @@ export default async function LoanHistoryPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
 

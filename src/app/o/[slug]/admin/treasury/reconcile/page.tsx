@@ -12,6 +12,7 @@ import {
 } from "@/components/admin/BankImportForms";
 import { Pill } from "@/components/ui";
 import { centsToDollars } from "@/lib/treasury/money";
+import { requireTreasuryPage } from "@/lib/admin/guard";
 
 export default async function TreasuryReconcilePage({
   params,
@@ -19,6 +20,7 @@ export default async function TreasuryReconcilePage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireTreasuryPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
 

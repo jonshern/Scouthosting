@@ -11,6 +11,7 @@ import {
   isoDay,
   monthLabel,
 } from "@/lib/calendar/month-grid";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 type Search = { view?: string; ym?: string };
 
@@ -36,6 +37,7 @@ export default async function AdminEventsList({
   searchParams: Promise<Search>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const sp = await searchParams;
   const view = sp.view === "month" ? "month" : "list";
 

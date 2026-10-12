@@ -7,6 +7,7 @@ import { canManageTreasury } from "@/lib/auth/treasury-access";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { setReimbursementStatus } from "@/server-actions/reimbursements";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 const STATUSES = ["pending", "approved", "denied", "paid"] as const;
 
@@ -16,6 +17,7 @@ export default async function ReimbursementsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const { user } = await getSession();
   if (!user) redirect(`/login?next=/o/${slug}/admin/reimbursements`);
   const org = await prisma.org.findUnique({ where: { slug } });

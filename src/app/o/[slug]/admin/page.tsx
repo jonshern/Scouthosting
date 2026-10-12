@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 const SECONDARY = {
   sky: "var(--accent)", // #1d4ed8
@@ -57,6 +58,7 @@ export default async function AdminOverview({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({
     where: { slug },
     include: {

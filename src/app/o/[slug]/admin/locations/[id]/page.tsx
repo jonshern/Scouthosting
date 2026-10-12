@@ -7,6 +7,7 @@ import {
   LocationForm,
   DeleteLocationButton,
 } from "@/components/admin/LocationForms";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function LocationDetail({
   params,
@@ -14,6 +15,7 @@ export default async function LocationDetail({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const location = await prisma.location.findUnique({
