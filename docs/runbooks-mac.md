@@ -158,6 +158,20 @@ for s in blue green; do launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/
 
 `--replace` asks you to type the database name, keeps the old database as `compass_before_restore_<time>` (and the old uploads beside the new ones) and runs the same checks as the drill. Drop the old copy once Compass looks right.
 
+## Upgrades and reboots
+
+Compass only runs while you're signed in to the Mac: the launchd jobs are per-user agents. Set the Mac up so a reboot, a power cut or an overnight macOS update brings it back on its own:
+
+- System Settings → Energy (or Battery → Options on a laptop): turn on "Prevent automatic sleeping when the display is off" and "Start up automatically after a power failure".
+- System Settings → Users & Groups → "Automatically log in as" your user. FileVault turns this off; with FileVault on, someone has to type the password after every restart, so install macOS updates when you can do that.
+- Docker Desktop → Settings → General → "Start Docker Desktop when you sign in". The Postgres container restarts itself once Docker is up.
+
+**Node.** CI, the Dockerfile and this Mac all use the major version in `.nvmrc` (22). `make deploy` refuses to build if the Mac's `node` is a different major, because a `brew upgrade` can quietly move it. To change Node on purpose: change `.nvmrc`, `engines` in `package.json`, the workflows and the Dockerfile in one PR; once it's merged, install that Node on the Mac, run `make host-install` (launchd remembers the folder `node` was in when it was installed) and then `make deploy`. To stay on 22 with Homebrew, use `brew install node@22` and put `$(brew --prefix node@22)/bin` first on your `PATH`.
+
+**Postgres.** The container image is `postgres:16-alpine`; Docker picks up 16.x fixes when the container is recreated (`docker compose pull && make db-up`). A new major (17) can't open a 16 data folder, so it's a move rather than an upgrade: run `scripts/host/backup.sh`, change the image in `docker-compose.yml` and the volume name with it (`compass-pgdata` to `compass-pgdata17`, both places) so 17 starts on an empty folder, `docker compose down` (keeps the old volume), `make db-up db-wait`, then `scripts/host/restore.sh --replace <that backup>` and `make deploy`. The old volume stays until you delete it. Cloud SQL runs 17, so moving to 17 here also matches the cloud.
+
+**macOS.** Major macOS upgrades can reset the Energy and login settings above and ask Docker Desktop for permissions again. After one, open `localhost:3000/health` and check that alerts still reach your phone (`curl -d test "$ALERT_WEBHOOK"` with the URL from `.env`).
+
 ## Move to a new Mac
 
 1. On the new Mac: Docker Desktop, Node 22, clone Scouthosting, `make install db-up db-wait`.

@@ -27,6 +27,15 @@ mkdir -p "$SLOTS"
 git -C "$ROOT" fetch --quiet origin
 NEW="$(git -C "$ROOT" rev-parse "$REF^{commit}")" || die "unknown ref: $REF"
 
+# The build and the slots run on whatever `node` launchd finds. A
+# `brew upgrade` can move that to a new major the code was never tested
+# on (CI and the Dockerfile use .nvmrc's), so refuse before building.
+WANT_NODE="$(git -C "$ROOT" show "$NEW:.nvmrc" 2>/dev/null | grep -oE '[0-9]+' | head -n1 || true)"
+HAVE_NODE="$(node -p 'process.versions.node.split(".")[0]')"
+if [ -n "$WANT_NODE" ] && [ "$HAVE_NODE" != "$WANT_NODE" ]; then
+  die "this Mac runs Node $HAVE_NODE but ${NEW:0:8} wants Node $WANT_NODE (.nvmrc); see 'Upgrades and reboots' in docs/runbooks-mac.md"
+fi
+
 LIVE="$(live_slot)"
 if [ -n "$LIVE" ]; then
   IDLE="$(other_slot "$LIVE")"
