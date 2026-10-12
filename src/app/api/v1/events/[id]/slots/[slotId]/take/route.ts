@@ -5,6 +5,7 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { reconcileEventChannels } from "@/lib/chat";
 import { ApiError, LIMITS, json, readJson, v1Route } from "@/lib/api/v1";
 import { loadSlotForMember } from "@/lib/api/v1-slots";
 import { SlotFullError, claimSlot } from "@/lib/slots";
@@ -31,6 +32,7 @@ export const POST = v1Route<{ id: string; slotId: string }>(
           idempotent: true,
         }),
       );
+      await reconcileEventChannels(event.id, { prismaClient: prisma });
       return json({ ok: true, waitlisted: r.waitlisted });
     } catch (err) {
       if (err instanceof SlotFullError) throw new ApiError(409, "slot_full");

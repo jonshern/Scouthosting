@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { reconcileEventChannels } from "@/lib/chat";
 import { getSession } from "@/lib/auth/session";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import {
@@ -113,6 +114,7 @@ export async function submitRsvp(_prev: unknown, formData: FormData) {
     }
   }
 
+  await reconcileEventChannels(d.eventId, { prismaClient: prisma });
   revalidatePath(`/o/${org.slug}/calendar`);
   return { ok: true as const };
 }

@@ -52,6 +52,19 @@ export async function rateLimit(
   }
 }
 
+/**
+ * One hit against `key` for the public (no sign-in) routes: null when
+ * allowed, else the whole seconds until the window resets, for a 429
+ * with Retry-After.
+ */
+export async function retryAfterIfLimited(
+  key: string,
+  l: { limit: number; windowMs: number },
+): Promise<number | null> {
+  const r = await rateLimit(key, l.limit, l.windowMs);
+  return r.ok ? null : Math.max(1, Math.ceil(r.resetMs / 1000));
+}
+
 /** Delete buckets whose window has passed. Safe to call any time. */
 export async function sweepExpired(
   db: PrismaClient = defaultPrisma,

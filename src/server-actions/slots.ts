@@ -6,6 +6,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { claimSlot, releaseSlot } from "@/lib/slots";
+import { reconcileEventChannels } from "@/lib/chat";
 import { notifyPromoted } from "@/lib/slots/notify";
 
 const TakeSchema = z.object({
@@ -49,7 +50,7 @@ export async function takeSlot(
 
   const slot = await prisma.signupSlot.findFirst({
     where: { id: d.slotId, orgId: org.id },
-    select: { id: true },
+    select: { id: true, eventId: true },
   });
   if (!slot) return { error: "Slot not found." };
 
@@ -81,6 +82,8 @@ export async function takeSlot(
     throw e;
   }
 
+  // Families channels include everyone who took a slot.
+  await reconcileEventChannels(slot.eventId, { prismaClient: prisma });
   revalidatePath(`/o/${org.slug}/calendar`);
   return { ok: true, waitlisted };
 }
@@ -106,7 +109,7 @@ export async function releaseSlotAssignment(
 
   const slot = await prisma.signupSlot.findFirst({
     where: { id: d.slotId, orgId: org.id },
-    select: { id: true },
+    select: { id: true, eventId: true },
   });
   if (!slot) return { error: "Slot not found." };
 
@@ -119,6 +122,7 @@ export async function releaseSlotAssignment(
     releaseSlot(tx, { slotId: slot.id, who: { userId: user.id } }),
   );
   await notifyPromoted(r.promotedIds);
+  await reconcileEventChannels(slot.eventId, { prismaClient: prisma });
 
   revalidatePath(`/o/${org.slug}/calendar`);
   return { ok: true, released: true };

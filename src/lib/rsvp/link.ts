@@ -5,6 +5,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "@/lib/db";
+import { reconcileEventChannels } from "@/lib/chat";
 import type { RsvpClaims } from "@/lib/security/rsvp-token";
 import {
   memberForUserInOrg,
@@ -62,6 +63,9 @@ export async function recordLinkRsvp(args: {
       },
     });
   }
+
+  // Families channels follow yes/maybe RSVPs.
+  await reconcileEventChannels(event.id, { prismaClient: db });
 
   if (memberId) {
     try {

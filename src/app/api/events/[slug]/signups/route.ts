@@ -15,9 +15,10 @@ import type { NextRequest } from "next/server";
 import { ZodError } from "zod";
 import { prisma } from "@/lib/db";
 import { ApiError, json, readJson } from "@/lib/api/v1";
-import { rateLimit } from "@/lib/security/rate-limit";
+import { retryAfterIfLimited } from "@/lib/security/rate-limit";
 import { clientIpFromHeaders } from "@/lib/security/client-ip";
 import { logger } from "@/lib/log";
+import { reconcileEventChannels } from "@/lib/chat";
 import {
   PublicSlugSchema,
   SIGNUP_LIMITS,
@@ -41,9 +42,8 @@ function fail(status: number, error: string, message: string, extra: Record<stri
 }
 
 async function limited(key: string, l: { limit: number; windowMs: number }): Promise<Response | null> {
-  const r = await rateLimit(key, l.limit, l.windowMs);
-  if (r.ok) return null;
-  const retryAfter = Math.max(1, Math.ceil(r.resetMs / 1000));
+  const retryAfter = await retryAfterIfLimited(key, l);
+  if (retryAfter === null) return null;
   return fail(
     429,
     "rate_limited",
@@ -72,6 +72,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
     if (perEmail) return perEmail;
 
     const result = await submitPublicSignup(prisma, slug.data, body);
+    // Families channels include everyone holding a seat.
+    const event = await prisma.event.findUnique({ where: { publicSlug: slug.data }, select: { id: true } });
+    if (event) await reconcileEventChannels(event.id, { prismaClient: prisma });
     return json(result);
   } catch (err) {
     if (err instanceof SignupError) return fail(err.status, err.code, err.message, err.extra);

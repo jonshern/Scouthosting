@@ -6,6 +6,14 @@ import { EventForm } from "@/components/admin/EventForm";
 import { ImportSlotsForm } from "@/components/admin/ImportSlotsForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DeleteEventButton } from "@/components/admin/DeleteContentButtons";
+import {
+  AddStaffForm,
+  AnnounceForm,
+  CreateChannelForm,
+  StaffRow,
+} from "@/components/admin/EventStaffForms";
+import { STAFF_ROLE_LABELS, type StaffRole } from "@/lib/events/staff";
+import { listEventChannels } from "@/lib/events/messaging";
 
 export default async function EditEventPage({
   params,
@@ -33,6 +41,28 @@ export default async function EditEventPage({
     }),
   ]);
   if (!event) notFound();
+
+  const [staff, stations, counselors, channels] = await Promise.all([
+    prisma.eventStaff.findMany({
+      where: { eventId: event.id },
+      orderBy: [{ role: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, email: true, role: true, status: true, slotId: true, notes: true },
+    }),
+    prisma.signupSlot.findMany({
+      where: { eventId: event.id },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      select: { id: true, title: true },
+    }),
+    prisma.meritBadgeCounselor.findMany({
+      where: { orgId: org.id },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, email: true },
+    }),
+    listEventChannels(event.id, { userId: "", isLeader: true }),
+  ]);
+  const staffYes = staff.filter((s) => s.status === "yes").length;
+  const staffByRole = new Map<string, typeof staff>();
+  for (const s of staff) staffByRole.set(s.role, [...(staffByRole.get(s.role) ?? []), s]);
 
   const total = event.rsvps.length;
   const yeses = event.rsvps.filter((r) => r.response === "yes").length;
@@ -112,6 +142,79 @@ export default async function EditEventPage({
           </table>
         )}
         <ImportSlotsForm orgSlug={slug} eventId={event.id} csrf={<CsrfTokenInput />} />
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Staff</h2>
+          <p className="text-sm text-slate-muted">
+            Counselors, station staff and volunteers. Each gets an email with a private link to answer.
+            {staff.length > 0 ? ` ${staffYes} of ${staff.length} confirmed.` : ""}
+          </p>
+        </div>
+        {staff.length > 0 && (
+          <table className="w-full text-sm">
+            <thead className="text-left text-slate-muted">
+              <tr>
+                <th className="py-1">Name</th>
+                <th className="py-1">Status</th>
+                <th className="py-1" colSpan={2}>Role · station</th>
+              </tr>
+            </thead>
+            {[...staffByRole.entries()].map(([role, rows]) => (
+              <tbody key={role}>
+                <tr>
+                  <td colSpan={4} className="pt-4 pb-1 text-xs uppercase tracking-wide text-slate-muted">
+                    {STAFF_ROLE_LABELS[role as StaffRole] ?? role} ({rows.length})
+                  </td>
+                </tr>
+                {rows.map((s) => (
+                  <StaffRow
+                    key={s.id}
+                    orgSlug={slug}
+                    eventId={event.id}
+                    staff={s}
+                    stations={stations}
+                    csrf={<CsrfTokenInput />}
+                  />
+                ))}
+              </tbody>
+            ))}
+          </table>
+        )}
+        <AddStaffForm
+          orgSlug={slug}
+          eventId={event.id}
+          stations={stations}
+          counselors={counselors}
+          csrf={<CsrfTokenInput />}
+        />
+      </div>
+
+      <div className="space-y-4">
+        <div>
+          <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Messages</h2>
+          <p className="text-sm text-slate-muted">
+            Chat channels for staff, a single station, or attending families, plus email for anyone not on Compass.
+          </p>
+        </div>
+        {channels.length > 0 && (
+          <ul className="space-y-1 text-sm">
+            {channels.map((c) => (
+              <li key={c.id} className="flex flex-wrap items-center gap-2">
+                <Link href={`/o/${slug}/chat?channel=${c.id}`}>{c.name}</Link>
+                <span className="pill">{c.audience}</span>
+                <span className="text-slate-muted">{c.memberCount} members</span>
+                {c.isSuspended ? <span className="pill text-danger">paused: two-deep</span> : null}
+                {c.archived ? <span className="pill">archived</span> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CreateChannelForm orgSlug={slug} eventId={event.id} stations={stations} csrf={<CsrfTokenInput />} />
+          <AnnounceForm orgSlug={slug} eventId={event.id} stations={stations} csrf={<CsrfTokenInput />} />
+        </div>
       </div>
 
       <div className="border-t border-line pt-6">

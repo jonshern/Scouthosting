@@ -10,7 +10,8 @@
 //   2. Channel auto-creation + membership reconciliation.
 //      Patrol channels track Member.patrol; troop channels track
 //      every org member; parents/leaders channels track their roles;
-//      event channels link to a specific Event. Auto-managed members
+//      event channels link to a specific Event and an audience (staff,
+//      one station's staff, or attending families). Auto-managed members
 //      carry addedAutomatically=true; manual owner adds carry false
 //      so the reconciler doesn't undo a leader's deliberate override.
 //
@@ -31,6 +32,7 @@
 
 import type { PrismaClient } from "@prisma/client";
 import { audit } from "@/lib/audit";
+import { logger } from "@/lib/log";
 import { publishSuspended, publishUnsuspended } from "@/lib/realtime/bus";
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -47,6 +49,13 @@ export const CHANNEL_KINDS = [
   "dm",
 ] as const;
 export type ChannelKind = (typeof CHANNEL_KINDS)[number];
+
+/** Who an event channel is for. See Channel.audience in schema.prisma. */
+export const EVENT_AUDIENCES = ["staff", "station", "families"] as const;
+export type EventAudience = (typeof EVENT_AUDIENCES)[number];
+
+/** Staff statuses that put someone in the staff/station channels and emails. */
+export const STAFF_ACTIVE_STATUSES = ["yes", "maybe"];
 
 type Prisma = PrismaClient;
 
@@ -319,23 +328,46 @@ export async function ensureChannel(args: {
   name: string;
   patrolName?: string | null;
   eventId?: string | null;
+  audience?: EventAudience | null;
+  slotId?: string | null;
   prismaClient: Prisma;
 }): Promise<{ id: string }> {
   const { orgId, kind, name, patrolName = null, eventId = null, prismaClient } = args;
   if (!CHANNEL_KINDS.includes(kind)) throw new Error(`ensureChannel: unknown kind ${kind}`);
   if (!prismaClient) throw new Error("ensureChannel: missing prismaClient");
 
-  const where: { orgId: string; kind: ChannelKind; patrolName?: string | null; eventId?: string | null } = {
-    orgId,
-    kind,
-  };
-  if (kind === "patrol") where.patrolName = patrolName;
-  if (kind === "event") where.eventId = eventId;
+  let audience: EventAudience | null = null;
+  let slotId: string | null = null;
+  if (kind === "event") {
+    audience = args.audience ?? "families";
+    if (!EVENT_AUDIENCES.includes(audience)) throw new Error(`ensureChannel: unknown audience ${audience}`);
+    slotId = audience === "station" ? (args.slotId ?? null) : null;
+    if (audience === "station" && !slotId) throw new Error("ensureChannel: station channel needs slotId");
+  }
 
-  const existing = await prismaClient.channel.findFirst({ where });
+  const where: {
+    orgId: string;
+    kind: ChannelKind;
+    patrolName?: string | null;
+    eventId?: string | null;
+    audience?: string | null;
+    slotId?: string | null;
+    OR?: Array<{ audience: string | null }>;
+  } = { orgId, kind };
+  if (kind === "patrol") where.patrolName = patrolName;
+  if (kind === "event") {
+    where.eventId = eventId;
+    where.slotId = slotId;
+    // Event channels from before audiences existed (audience null) are
+    // the families channel.
+    if (audience === "families") where.OR = [{ audience: "families" }, { audience: null }];
+    else where.audience = audience;
+  }
+
+  const existing = await prismaClient.channel.findFirst({ where, orderBy: { createdAt: "asc" } });
   if (existing) return existing;
   return prismaClient.channel.create({
-    data: { orgId, kind, name, patrolName, eventId },
+    data: { orgId, kind, name, patrolName, eventId, audience, slotId },
   });
 }
 
@@ -348,7 +380,15 @@ export async function reconcileChannelMembers(
 
   const channel = await prismaClient.channel.findUnique({
     where: { id: channelId },
-    select: { id: true, orgId: true, kind: true, patrolName: true, eventId: true },
+    select: {
+      id: true,
+      orgId: true,
+      kind: true,
+      patrolName: true,
+      eventId: true,
+      audience: true,
+      slotId: true,
+    },
   });
   if (!channel) throw new Error(`reconcileChannelMembers: channel ${channelId} not found`);
   if (channel.kind === "custom") {
@@ -360,6 +400,9 @@ export async function reconcileChannelMembers(
       orgId: channel.orgId,
       kind: channel.kind as ChannelKind,
       patrolName: channel.patrolName,
+      eventId: channel.eventId,
+      audience: channel.audience,
+      slotId: channel.slotId,
     },
     prismaClient,
   );
@@ -414,10 +457,29 @@ export async function reconcileChannelMembers(
 }
 
 async function desiredUserIds(
-  channel: { orgId: string; kind: ChannelKind; patrolName: string | null },
+  channel: {
+    orgId: string;
+    kind: ChannelKind;
+    patrolName: string | null;
+    eventId?: string | null;
+    audience?: string | null;
+    slotId?: string | null;
+  },
   prismaClient: Prisma,
 ): Promise<string[]> {
   const { orgId, kind, patrolName } = channel;
+  if (kind === "event") {
+    if (!channel.eventId) return [];
+    return eventChannelUserIds(
+      {
+        orgId,
+        eventId: channel.eventId,
+        audience: (channel.audience ?? "families") as EventAudience,
+        slotId: channel.slotId ?? null,
+      },
+      prismaClient,
+    );
+  }
   if (kind === "leaders") {
     const rows = await prismaClient.orgMembership.findMany({
       where: { orgId, role: { in: ["leader", "admin"] } },
@@ -432,7 +494,7 @@ async function desiredUserIds(
     });
     return rows.map((r) => r.userId);
   }
-  if (kind === "troop" || kind === "event") {
+  if (kind === "troop") {
     const rows = await prismaClient.orgMembership.findMany({
       where: { orgId },
       select: { userId: true },
@@ -460,6 +522,208 @@ async function desiredUserIds(
     return [...scoutUsers.map((u) => u.id), ...leaders.map((l) => l.userId)];
   }
   return [];
+}
+
+/**
+ * Users matching any of these emails (case-insensitive). Only verified
+ * addresses count: anyone can sign up with an unverified email, and
+ * that must not be enough to join an event's channels.
+ */
+async function userIdsByEmail(emails: Iterable<string | null | undefined>, prismaClient: Prisma): Promise<string[]> {
+  const wanted = [...new Set([...emails].filter((e): e is string => !!e).map((e) => e.toLowerCase()))];
+  if (!wanted.length) return [];
+  const rows = await prismaClient.user.findMany({
+    where: {
+      emailVerified: true,
+      OR: wanted.map((email) => ({ email: { equals: email, mode: "insensitive" as const } })),
+    },
+    select: { id: true },
+  });
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Members of an event channel, by audience:
+ *
+ *   staff    — users behind EventStaff rows that said yes/maybe (by
+ *              linked userId or a User with the same email)
+ *   station  — the same, limited to staff assigned to channel.slotId
+ *   families — users who RSVP'd yes/maybe (by userId or email) and
+ *              users who took a sign-up slot on the event
+ *
+ * Org leaders and admins are always in, which is also what gives a
+ * families channel its two-deep adults. Everyone else must still hold
+ * a role in the org: chat reads require it, so an outside counselor
+ * would only be a dead row (they get the email fallback instead).
+ * Youth never land in staff or station channels. A families channel
+ * includes a scout only together with their own guardian (pulled in
+ * via Member.parentIds even if the guardian didn't RSVP), and stays
+ * under the two-deep guard.
+ */
+export async function eventChannelUserIds(
+  channel: { orgId: string; eventId: string; audience: EventAudience; slotId: string | null },
+  prismaClient: Prisma,
+): Promise<string[]> {
+  const { orgId, eventId, audience, slotId } = channel;
+  const leaders = await prismaClient.orgMembership.findMany({
+    where: { orgId, role: { in: ["leader", "admin"] } },
+    select: { userId: true },
+  });
+
+  const candidates = new Set<string>();
+  if (audience === "staff" || audience === "station") {
+    if (audience === "station" && !slotId) return leaders.map((l) => l.userId);
+    const staff = await prismaClient.eventStaff.findMany({
+      where: {
+        eventId,
+        orgId,
+        status: { in: STAFF_ACTIVE_STATUSES },
+        ...(audience === "station" ? { slotId } : {}),
+      },
+      select: { userId: true, email: true },
+    });
+    for (const s of staff) if (s.userId) candidates.add(s.userId);
+    for (const id of await userIdsByEmail(staff.map((s) => s.email), prismaClient)) candidates.add(id);
+  } else {
+    const [rsvps, assignments] = await Promise.all([
+      prismaClient.rsvp.findMany({
+        where: { eventId, orgId, response: { in: ["yes", "maybe"] } },
+        select: { userId: true, email: true },
+      }),
+      prismaClient.slotAssignment.findMany({
+        where: { orgId, slot: { eventId } },
+        select: { userId: true, email: true },
+      }),
+    ]);
+    for (const r of [...rsvps, ...assignments]) if (r.userId) candidates.add(r.userId);
+    const emails = [...rsvps, ...assignments].map((r) => r.email);
+    for (const id of await userIdsByEmail(emails, prismaClient)) candidates.add(id);
+  }
+
+  const leaderIds = leaders.map((l) => l.userId);
+  for (const id of leaderIds) candidates.delete(id);
+  if (!candidates.size) return leaderIds;
+
+  const ids = [...candidates];
+  const [memberships, users] = await Promise.all([
+    prismaClient.orgMembership.findMany({
+      where: { orgId, userId: { in: ids } },
+      select: { userId: true, role: true },
+    }),
+    prismaClient.user.findMany({ where: { id: { in: ids } }, select: { id: true, email: true } }),
+  ]);
+  const youthEmails = await rosterYouthEmails(orgId, users.map((u) => u.email), prismaClient);
+  const membershipByUser = new Map(memberships.map((m) => [m.userId, m]));
+  const kept = new Set<string>(leaderIds);
+  const youth: Array<{ id: string; email: string }> = [];
+  for (const u of users) {
+    const kind = classifyMember(membershipByUser.get(u.id), youthEmails.has(u.email.toLowerCase()));
+    if (kind === "outsider") continue;
+    if (kind === "youth") {
+      // Never in staff/station channels.
+      if (audience === "families") youth.push(u);
+      continue;
+    }
+    kept.add(u.id);
+  }
+
+  // Youth protection: a scout is only in a families channel together
+  // with their own guardian. Bring in each scout's linked parents
+  // (Member.parentIds, the same walk as auto-add's parents-of-youth),
+  // and leave out any scout with no guardian who has an account.
+  if (youth.length) {
+    const guardians = await guardianUserIdsByYouthEmail(
+      orgId,
+      youth.map((y) => y.email),
+      prismaClient,
+    );
+    for (const y of youth) {
+      const g = guardians.get(y.email.toLowerCase()) ?? [];
+      if (!g.length) continue;
+      kept.add(y.id);
+      for (const id of g) kept.add(id);
+    }
+  }
+  return [...kept];
+}
+
+/**
+ * For each youth email, the users who are that scout's guardians in
+ * this org: roster youth (by email) → Member.parentIds → parent roster
+ * entries → users with the same verified email who hold an adult role
+ * (parent / leader / admin) in the org.
+ */
+export async function guardianUserIdsByYouthEmail(
+  orgId: string,
+  youthEmails: string[],
+  prismaClient: Prisma,
+): Promise<Map<string, string[]>> {
+  const out = new Map<string, string[]>();
+  const wanted = [...new Set(youthEmails.map((e) => e.toLowerCase()))];
+  if (!wanted.length) return out;
+  const kids = await prismaClient.member.findMany({
+    where: {
+      orgId,
+      isYouth: true,
+      deletedAt: null,
+      OR: wanted.map((email) => ({ email: { equals: email, mode: "insensitive" as const } })),
+    },
+    select: { email: true, parentIds: true },
+  });
+  const parentIds = [...new Set(kids.flatMap((k) => k.parentIds))];
+  if (!parentIds.length) return out;
+  const parents = await prismaClient.member.findMany({
+    where: { orgId, id: { in: parentIds }, isYouth: false, deletedAt: null, email: { not: null } },
+    select: { id: true, email: true },
+  });
+  const parentEmails = parents.map((p) => (p.email ?? "").toLowerCase()).filter(Boolean);
+  if (!parentEmails.length) return out;
+  const users = await prismaClient.user.findMany({
+    where: {
+      emailVerified: true,
+      OR: parentEmails.map((email) => ({ email: { equals: email, mode: "insensitive" as const } })),
+      memberships: { some: { orgId, role: { in: ["parent", "leader", "admin"] } } },
+    },
+    select: { id: true, email: true },
+  });
+  const userIdsByEmail = new Map<string, string[]>();
+  for (const u of users) {
+    const k = u.email.toLowerCase();
+    userIdsByEmail.set(k, [...(userIdsByEmail.get(k) ?? []), u.id]);
+  }
+  const userIdsByParentId = new Map(
+    parents.map((p) => [p.id, userIdsByEmail.get((p.email ?? "").toLowerCase()) ?? []]),
+  );
+  for (const k of kids) {
+    const key = (k.email ?? "").toLowerCase();
+    const ids = new Set(out.get(key) ?? []);
+    for (const pid of k.parentIds) for (const uid of userIdsByParentId.get(pid) ?? []) ids.add(uid);
+    out.set(key, [...ids]);
+  }
+  return out;
+}
+
+/**
+ * Re-run membership for every live channel of an event. Called after
+ * staff, RSVPs or sign-ups change. Never throws: a reconcile hiccup
+ * must not undo the write that triggered it (the nightly two-deep
+ * sweep is the backstop).
+ */
+export async function reconcileEventChannels(
+  eventId: string,
+  opts: { prismaClient: Prisma; now?: Date },
+): Promise<{ channels: number }> {
+  try {
+    const channels = await opts.prismaClient.channel.findMany({
+      where: { kind: "event", eventId, archivedAt: null },
+      select: { id: true },
+    });
+    for (const c of channels) await reconcileChannelMembers(c.id, opts);
+    return { channels: channels.length };
+  } catch (err) {
+    logger.child("chat").error("reconcileEventChannels failed", { eventId, err });
+    return { channels: 0 };
+  }
 }
 
 /* ------------------------------------------------------------------ */
@@ -503,18 +767,34 @@ export async function provisionStandingChannels(args: {
   return { troop, parents, leaders, patrols: patrolChannels };
 }
 
+export function eventChannelName(
+  eventTitle: string,
+  audience: EventAudience,
+  stationTitle?: string | null,
+): string {
+  if (audience === "staff") return `${eventTitle} — Staff`;
+  if (audience === "station") return `${eventTitle} — ${stationTitle || "Station"}`;
+  return `${eventTitle} — Families`;
+}
+
 export async function provisionEventChannel(args: {
   event: { id: string; title: string };
   org: { id: string };
+  audience?: EventAudience;
+  slot?: { id: string; title: string } | null;
   prismaClient: Prisma;
 }): Promise<{ id: string }> {
   const { event, org, prismaClient } = args;
+  const audience = args.audience ?? "families";
   if (!event?.id || !org?.id) throw new Error("provisionEventChannel: missing event/org");
+  if (audience === "station" && !args.slot) throw new Error("provisionEventChannel: station needs a slot");
   const channel = await ensureChannel({
     orgId: org.id,
     kind: "event",
-    name: event.title,
+    name: eventChannelName(event.title, audience, args.slot?.title),
     eventId: event.id,
+    audience,
+    slotId: audience === "station" ? args.slot!.id : null,
     prismaClient,
   });
   await reconcileChannelMembers(channel.id, { prismaClient });
