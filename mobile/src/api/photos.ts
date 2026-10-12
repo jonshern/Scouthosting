@@ -43,10 +43,7 @@ export async function uploadPhotoToAlbum(
   const { orgSlug, token, config = DEFAULT_API_CONFIG, fetchImpl = fetch } = client;
   if (!token) throw new ApiError(401, "missing_token");
 
-  const url = new URL(
-    `/api/v1/orgs/${orgId}/albums/${albumId}/photos`,
-    hostForOrg(orgSlug, config),
-  );
+  const url = new URL(`${hostForOrg(orgSlug, config)}/api/v1/orgs/${orgId}/albums/${albumId}/photos`);
 
   const form = new FormData();
   // RN's FormData accepts the {uri,type,name} shape that the platform

@@ -24,6 +24,7 @@ import { MessageBubble } from '../../components/MessageBubble';
 import { fontFamilies, palette, radius, spacing } from '../../theme/tokens';
 import type { ChatStackParamList } from '../../navigation/types';
 import { useAuth } from '../../state/AuthContext';
+import { serverAddress } from '../../api/config';
 import { getChannel, sendMessage, toggleReaction, votePoll, setRsvpResponse } from '../../api/channels';
 import type { RsvpResponse } from '../../api/types';
 import { ApiError } from '../../api/client';
@@ -222,10 +223,8 @@ export default function ThreadScreen() {
   const channelId = route.params.channelId;
   const myUserId = auth.state.status === 'signed-in' ? auth.state.profile.userId : null;
   // Host base for photo URLs — server returns "/uploads/<filename>"
-  // (relative); prepend the active org's host so <Image> can resolve it.
-  const hostBaseUrl = auth.state.status === 'signed-in'
-    ? `https://${auth.state.activeOrg.orgSlug}.${process.env.EXPO_PUBLIC_COMPASS_APEX || 'compass.app'}`
-    : '';
+  // (relative); prepend the server address so <Image> can resolve it.
+  const hostBaseUrl = auth.state.status === 'signed-in' ? serverAddress() : '';
 
   const refresh = useCallback(async () => {
     const client = auth.client();

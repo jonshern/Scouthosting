@@ -12,6 +12,8 @@ import {
   type StoredProfile,
 } from "../api/storage";
 import { registerPushToken, unregisterPushToken } from "../api/push";
+import { BUILT_IN_SERVER, serverAddress, setServerAddress } from "../api/config";
+import { connectLinkAddress, normalizeServerUrl } from "../api/serverUrl";
 import type { ClientOptions } from "../api/client";
 
 export type AuthState =
@@ -37,6 +39,23 @@ type AuthContextValue = {
    * need to type-guard on state.status. Null when not signed-in.
    */
   session: ActiveSession | null;
+  server: ServerState;
+};
+
+export type ServerState = {
+  /** The server every request goes to. */
+  address: string;
+  /** True when it's the address the app was built with. */
+  builtIn: boolean;
+  /**
+   * Save an address typed on this phone; returns an error message, or
+   * null when saved. Moving to another server signs out of the old one.
+   */
+  setAddress(input: string): Promise<string | null>;
+  /** Go back to the address the app was built with. */
+  resetAddress(): Promise<void>;
+  /** Ask the server's /health whether it's up. */
+  check(): Promise<{ ok: boolean; message: string }>;
 };
 
 export type ActiveSession = {
@@ -60,11 +79,17 @@ type ProviderProps = {
 export function AuthProvider({ children, storage: storageOverride }: ProviderProps) {
   const storage = useMemo(() => storageOverride || createSecureStorage(), [storageOverride]);
   const [state, setState] = useState<AuthState>({ status: "loading" });
+  const [address, setAddr] = useState(serverAddress());
 
   // Hydrate on mount.
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      const savedServer = await storage.getServer().catch(() => null);
+      if (savedServer) {
+        setServerAddress(savedServer);
+        setAddr(serverAddress());
+      }
       const token = await storage.getToken();
       const profile = await storage.getProfile();
       if (cancelled) return;
@@ -77,6 +102,17 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
       const activeId = profile.activeOrgId || profile.orgs[0]!.orgId;
       const activeOrg = profile.orgs.find((o) => o.orgId === activeId) || profile.orgs[0]!;
       setState({ status: "signed-in", token, profile, activeOrg });
+      // Tokens last 90 days and die when the password changes. If the
+      // server turns this one down, go back to the sign-in screen.
+      try {
+        await fetchMe({ orgSlug: activeOrg.orgSlug, token });
+      } catch (e) {
+        if (!cancelled && e instanceof ApiError && e.status === 401) {
+          await storage.clearToken();
+          await storage.clearProfile();
+          setState({ status: "signed-out" });
+        }
+      }
     })();
     return () => { cancelled = true; };
   }, [storage]);
@@ -140,6 +176,72 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
     setState({ status: "signed-out" });
   }, [state, storage]);
 
+  const forgetSignIn = useCallback(async () => {
+    if (state.status === "signed-in") {
+      const client = { orgSlug: state.activeOrg.orgSlug, token: state.token };
+      await unregisterPushToken(client);
+      await signOutFlow(client, storage);
+    }
+    setState({ status: "signed-out" });
+  }, [state, storage]);
+
+  const setAddress = useCallback(async (input: string): Promise<string | null> => {
+    const next = normalizeServerUrl(input);
+    if (!next) return "That doesn't look like a server address. Try https://your-mac.your-tailnet.ts.net";
+    if (next !== serverAddress()) await forgetSignIn();
+    setServerAddress(next);
+    await storage.setServer(next);
+    setAddr(next);
+    return null;
+  }, [forgetSignIn, storage]);
+
+  const resetAddress = useCallback(async () => {
+    if (serverAddress() !== BUILT_IN_SERVER) await forgetSignIn();
+    setServerAddress(null);
+    await storage.setServer(null);
+    setAddr(serverAddress());
+  }, [forgetSignIn, storage]);
+
+  const check = useCallback(async () => {
+    const at = serverAddress();
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 8000);
+    try {
+      const res = await fetch(`${at}/health`, { signal: ctl.signal });
+      return res.ok
+        ? { ok: true, message: `Connected to ${at}` }
+        : { ok: false, message: `${at} answered ${res.status}.` };
+    } catch {
+      return { ok: false, message: `Couldn't reach ${at}. Check that Tailscale is on, on this phone and on the server, and that the server is running.` };
+    } finally {
+      clearTimeout(timer);
+    }
+  }, []);
+
+  // compass://connect?url=https://… (printed by scripts/phone.sh) points
+  // the app at a server.
+  useEffect(() => {
+    if (state.status === "loading") return;
+    const onLink = (url: string | null) => {
+      if (!url || !/(?:^[a-z][a-z0-9+.-]*:\/\/|\/)connect\?/i.test(url)) return;
+      const next = connectLinkAddress(url);
+      if (next) void setAddress(next);
+    };
+    let sub: { remove(): void } | null = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const Linking = require("expo-linking") as typeof import("expo-linking");
+      void Linking.getInitialURL().then(onLink);
+      sub = Linking.addEventListener("url", (e) => onLink(e.url));
+    } catch {
+      // No linking module (unit tests).
+    }
+    return () => sub?.remove();
+    // Listen once the saved address has loaded; setAddress changes with
+    // the sign-in state, which shouldn't re-run the initial link.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.status === "loading"]);
+
   const switchOrg = useCallback(async (orgId: string) => {
     if (state.status !== "signed-in") return;
     const next = state.profile.orgs.find((o) => o.orgId === orgId);
@@ -167,6 +269,14 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
         }
       : null;
 
+  const server = useMemo<ServerState>(() => ({
+    address,
+    builtIn: address === BUILT_IN_SERVER,
+    setAddress,
+    resetAddress,
+    check,
+  }), [address, setAddress, resetAddress, check]);
+
   const value = useMemo<AuthContextValue>(() => ({
     state,
     signIn,
@@ -174,7 +284,8 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
     switchOrg,
     client,
     session,
-  }), [state, signIn, signOut, switchOrg, client, session]);
+    server,
+  }), [state, signIn, signOut, switchOrg, client, session, server]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
