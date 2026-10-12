@@ -16,6 +16,7 @@ PORT       ?= $(shell . ./.env 2>/dev/null; echo $${PORT:-3000})
 .DEFAULT_GOAL := help
 
 .PHONY: help bootstrap dev redeploy seed test e2e clean mobile mobile-build demo demo-reset \
+        backup restore-drill deploy rollback host-install \
         install db-up db-wait migrate wipe pull dev-bg dev-stop down \
         ensure-master-key
 
@@ -70,6 +71,23 @@ e2e: ## Playwright + axe a11y tests against the running dev server.
 	@PORT=$(PORT) npx playwright test
 
 clean: dev-stop down ## Stop the dev server and the Postgres container.
+
+# --- host Mac (docs/runbooks-mac.md) ---
+
+backup: ## Back up the database and uploads to ../compass-backups.
+	scripts/host/backup.sh
+
+restore-drill: ## Restore the newest backup into a scratch database and verify it.
+	scripts/host/restore.sh --drill
+
+deploy: ## Blue-green deploy of origin/main (or REF=...) to the host Mac.
+	scripts/host/deploy.sh $(REF)
+
+rollback: ## Flip the host back to the previous slot (instant).
+	scripts/host/rollback.sh
+
+host-install: ## Install the launchd jobs: switch, two slots, cron, backup, drill, watchdog.
+	scripts/host/install-launchd.sh
 
 # --- mobile (Expo + EAS) ---
 
