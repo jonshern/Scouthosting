@@ -16,6 +16,8 @@ export default defineConfig({
   // arguments resolve relative to mobile/, even when vitest is invoked
   // from the worktree root.
   root: here,
+  // Keep vite from picking up the Next app's PostCSS config one level up.
+  css: { postcss: {} },
   test: {
     include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     environment: 'node',
