@@ -28,7 +28,7 @@ const Query = z.object({ before: IsoDate.optional() });
 export const GET = v1Route<{ id: string }>(async (req, { user, params }) => {
   const channel = await loadReadableChannel(params.id, user.id);
   const { before } = readQuery(req, Query);
-  return json(await loadMessagePage(channel.id, before));
+  return json(await loadMessagePage(channel.id, before, user.id));
 });
 
 const Body = z.object({
