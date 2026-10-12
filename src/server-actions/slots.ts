@@ -72,6 +72,8 @@ export async function takeSlot(
         name,
         email,
         notes,
+        // A double tap by a signed-in user returns their seat, not an error.
+        idempotent: !!user,
       }),
     );
     waitlisted = r.waitlisted;

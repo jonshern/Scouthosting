@@ -53,6 +53,7 @@ export const LIMITS = {
   support: { bucket: "support", limit: 5, windowMs: HOUR },
   staffInvite: { bucket: "staff-invite", limit: 100, windowMs: HOUR },
   announce: { bucket: "announce", limit: 10, windowMs: HOUR },
+  journey: { bucket: "journey", limit: 120, windowMs: MINUTE },
 } satisfies Record<string, RouteLimit>;
 
 export class ApiError extends Error {

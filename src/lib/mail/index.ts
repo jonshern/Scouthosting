@@ -83,13 +83,23 @@ class ResendDriver implements MailDriver {
 
 let cached: MailDriver | null = null;
 
+/**
+ * The configured driver. In production a half-set configuration
+ * (MAIL_DRIVER=resend without a key, or an unknown driver) throws, and
+ * instrumentation.ts calls this at boot so the server refuses to start
+ * rather than quietly logging every email to stdout. Leaving
+ * MAIL_DRIVER unset is allowed (a host with no mail yet) and reported
+ * by mailDriverName() on /health.
+ */
 export function getMailDriver(): MailDriver {
   if (cached) return cached;
-  const driver = (process.env.MAIL_DRIVER ?? "console").toLowerCase();
+  const production = process.env.NODE_ENV === "production";
+  const driver = (process.env.MAIL_DRIVER || "console").toLowerCase();
   if (driver === "resend") {
     const key = process.env.RESEND_API_KEY;
     const from = process.env.MAIL_FROM ?? "Compass <noreply@compass.app>";
     if (!key) {
+      if (production) throw new Error("MAIL_DRIVER=resend but RESEND_API_KEY is unset");
       // eslint-disable-next-line no-console
       console.warn("MAIL_DRIVER=resend but RESEND_API_KEY is unset; falling back to console");
       cached = new ConsoleDriver();
@@ -98,8 +108,16 @@ export function getMailDriver(): MailDriver {
     cached = new ResendDriver(key, from);
     return cached;
   }
+  if (driver !== "console" && production) {
+    throw new Error(`Unknown MAIL_DRIVER "${driver}" (use resend, or console to send nothing)`);
+  }
   cached = new ConsoleDriver();
   return cached;
+}
+
+/** "resend" or "console" (nothing leaves the server); for /health. */
+export function mailDriverName(): "resend" | "console" {
+  return getMailDriver() instanceof ResendDriver ? "resend" : "console";
 }
 
 export function _setMailDriverForTests(d: MailDriver | null): void {

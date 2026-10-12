@@ -75,7 +75,9 @@ export function EmailComposer({
         <div role="status" className="text-sm text-green-700 bg-green-50 border border-green-200 rounded p-3">
           {state.dryRun
             ? `Would send to ${state.recipientCount} recipient${state.recipientCount === 1 ? "" : "s"}.`
-            : `Sent to ${state.deliveredCount}/${state.recipientCount}` +
+            : state.status === "queued"
+              ? `Sending to ${state.recipientCount} recipient${state.recipientCount === 1 ? "" : "s"}. Progress shows in the email history.`
+              : `Sent to ${state.deliveredCount}/${state.recipientCount}` +
               (state.failedCount > 0 ? ` (${state.failedCount} failed)` : "") + "."}
         </div>
       )}

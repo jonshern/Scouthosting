@@ -8,7 +8,7 @@ export function SignupForm({ csrf, next }: { csrf: React.ReactNode; next?: strin
   return (
     <form action={formAction} className="space-y-4" noValidate>
       {csrf}
-      {next && <input type="hidden" name="next" value={next} />}
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       <div>
         <label className="label" htmlFor="displayName">Your name</label>
         <input id="displayName" name="displayName" required className="field" autoComplete="name" />

@@ -105,6 +105,15 @@ stable):
    `DELETE /api/v1/auth/token/current` (sign-out) revokes the token
    that calls it; `DELETE /api/v1/auth/token/<id>` revokes any of yours.
 
+Lantern's saved trails are `/api/v1/journey/*` (`src/lib/journey/`):
+a signed-in adult adds the scouts they follow (`JourneyScout`, no
+troop needed) and checks steps off (`JourneyProgress`, keys like
+`rank:second-class#1a`). A scout linked to a troop roster entry the
+user is a parent of (confirmed email only) also shows that troop's
+`RequirementProgress` sign-offs; Lantern never writes those. Sign-up
+keeps `?next=` so a new account made from the app's sign-in returns
+to the app.
+
 ### 5. pg-boss v12 needs `createQueue` before `work`
 
 v12 introduced a stricter queue model. `src/lib/jobs/index.ts` calls

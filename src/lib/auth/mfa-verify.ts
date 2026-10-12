@@ -40,15 +40,26 @@ export async function verifyMfaCodeForUser(userId: string, code: string): Promis
     const lastUsedWindow = dbUser.totpLastUsedAt ? dbUser.totpLastUsedAt.getTime() : null;
     const secret = openTotpSecret(dbUser.totpSecret, dbUser.id);
     const result = verifyTotp(secret, trimmed, new Date(), lastUsedWindow);
-    if (result.ok) {
-      await prisma.user.update({
-        where: { id: dbUser.id },
-        data: {
-          totpLastUsedAt: new Date(result.lastUsedWindow!),
-          // Enrolled before secrets were sealed: seal it now.
-          ...(isSealedTotpSecret(dbUser.totpSecret) ? {} : { totpSecret: sealTotpSecret(secret, dbUser.id) }),
-        },
-      });
+    // Claim the time window only if no one has used it yet: two sign-ins
+    // racing with the same code both pass verifyTotp, but only one
+    // conditional update matches.
+    const window = result.ok ? new Date(result.lastUsedWindow!) : null;
+    const claimed =
+      window &&
+      (
+        await prisma.user.updateMany({
+          where: { id: dbUser.id, OR: [{ totpLastUsedAt: null }, { totpLastUsedAt: { lt: window } }] },
+          data: { totpLastUsedAt: window },
+        })
+      ).count === 1;
+    if (claimed) {
+      if (!isSealedTotpSecret(dbUser.totpSecret)) {
+        // Enrolled before secrets were sealed: seal it now.
+        await prisma.user.update({
+          where: { id: dbUser.id },
+          data: { totpSecret: sealTotpSecret(secret, dbUser.id) },
+        });
+      }
       await audit({
         action: "mfa.verify",
         entityType: "User",
@@ -66,11 +77,16 @@ export async function verifyMfaCodeForUser(userId: string, code: string): Promis
     select: { id: true, codeHash: true },
   });
   const idx = await verifyBackupCode(candidates.map((c) => c.codeHash), trimmed);
-  if (idx >= 0) {
-    await prisma.backupCode.update({
-      where: { id: candidates[idx].id },
-      data: { usedAt: new Date() },
-    });
+  // Same for a backup code: only the request that marks it used wins.
+  const consumed =
+    idx >= 0 &&
+    (
+      await prisma.backupCode.updateMany({
+        where: { id: candidates[idx].id, usedAt: null },
+        data: { usedAt: new Date() },
+      })
+    ).count === 1;
+  if (consumed) {
     await audit({
       action: "mfa.verify-backup",
       entityType: "User",
