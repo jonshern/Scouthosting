@@ -6,6 +6,7 @@
 import type { PrismaClient } from "@prisma/client";
 import { prisma as defaultPrisma } from "@/lib/db";
 import { reconcileEventChannels } from "@/lib/chat";
+import { EventFullError, assertRsvpFits } from "./capacity";
 import type { RsvpClaims } from "@/lib/security/rsvp-token";
 import {
   memberForUserInOrg,
@@ -28,7 +29,11 @@ export async function recordLinkRsvp(args: {
   response: LinkResponse;
   guests: number;
   prismaClient?: PrismaClient;
-}): Promise<{ ok: true; eventId: string } | { ok: false; reason: "event" }> {
+}): Promise<
+  | { ok: true; eventId: string }
+  | { ok: false; reason: "event" }
+  | { ok: false; reason: "full"; spotsLeft: number }
+> {
   const db = args.prismaClient ?? defaultPrisma;
   const { claims, response, guests } = args;
   const email = claims.email.toLowerCase();
@@ -41,27 +46,35 @@ export async function recordLinkRsvp(args: {
 
   const memberId = await memberForUserInOrg({ orgId: event.orgId, userEmail: email });
 
-  const existing = await db.rsvp.findFirst({
-    where: { eventId: event.id, email },
-    select: { id: true, memberId: true },
-  });
-  if (existing) {
-    await db.rsvp.update({
-      where: { id: existing.id },
-      data: { response, guests, memberId: existing.memberId ?? memberId ?? null },
+  try {
+    await db.$transaction(async (tx) => {
+      const existing = await tx.rsvp.findFirst({
+        where: { eventId: event.id, email },
+        select: { id: true, memberId: true },
+      });
+      await assertRsvpFits(tx, { eventId: event.id, existingId: existing?.id ?? null, response, guests });
+      if (existing) {
+        await tx.rsvp.update({
+          where: { id: existing.id },
+          data: { response, guests, memberId: existing.memberId ?? memberId ?? null },
+        });
+      } else {
+        await tx.rsvp.create({
+          data: {
+            orgId: event.orgId,
+            eventId: event.id,
+            name: claims.name,
+            email,
+            memberId,
+            response,
+            guests,
+          },
+        });
+      }
     });
-  } else {
-    await db.rsvp.create({
-      data: {
-        orgId: event.orgId,
-        eventId: event.id,
-        name: claims.name,
-        email,
-        memberId,
-        response,
-        guests,
-      },
-    });
+  } catch (err) {
+    if (err instanceof EventFullError) return { ok: false, reason: "full", spotsLeft: err.spotsLeft };
+    throw err;
   }
 
   // Families channels follow yes/maybe RSVPs.
