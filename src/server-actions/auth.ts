@@ -6,7 +6,7 @@ import { isAPIError } from "better-auth/api";
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db";
 import { LoginSchema, SignupSchema } from "@/lib/validation/schemas";
-import { postLoginRedirectUrl } from "@/lib/auth/post-login";
+import { isSafeNextPath, postLoginRedirectUrl } from "@/lib/auth/post-login";
 import { MFA_PAGE } from "@/lib/auth/mfa-plugin";
 import { endSession } from "@/lib/auth/sessions";
 import { rateLimit, resetRateLimit } from "@/lib/security/rate-limit";
@@ -111,7 +111,10 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
 
   // Right password: stop counting against this account.
   await resetRateLimit(emailKey);
-  if ("mfaRequired" in res && res.mfaRequired) redirect(MFA_PAGE);
+  if ("mfaRequired" in res && res.mfaRequired) {
+    const next = String(formData.get("next") ?? "");
+    redirect(isSafeNextPath(next) ? `${MFA_PAGE}?next=${encodeURIComponent(next)}` : MFA_PAGE);
+  }
   const userId = (res as { user: { id: string } }).user.id;
   redirect(await postLoginRedirectUrl(userId, String(formData.get("next") ?? "")));
 }

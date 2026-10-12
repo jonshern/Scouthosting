@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import { completeMfaLoginAction, type ActionState } from "@/server-actions/auth";
 
-export function MfaLoginForm({ csrf }: { csrf: React.ReactNode }) {
+export function MfaLoginForm({ csrf, next }: { csrf: React.ReactNode; next?: string }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(
     completeMfaLoginAction,
     null,
@@ -11,6 +11,7 @@ export function MfaLoginForm({ csrf }: { csrf: React.ReactNode }) {
   return (
     <form action={formAction} className="space-y-4" noValidate>
       {csrf}
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       <div>
         <label className="label" htmlFor="code">
           Code

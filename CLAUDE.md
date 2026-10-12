@@ -105,6 +105,24 @@ stable):
    `DELETE /api/v1/auth/token/current` (sign-out) revokes the token
    that calls it; `DELETE /api/v1/auth/token/<id>` revokes any of yours.
 
+Passkeys work in that in-app browser too: `/login` offers "Sign in with
+a passkey", and the passkey must belong to the host the app opened
+(`src/lib/auth/passkeys.ts#relyingPartyForHost`):
+
+- the apex and every `<slug>.<apex>` subdomain share one relying-party
+  ID, the apex, so a passkey made on `troop100.compass.app` works on
+  `compass.app` and every other unit;
+- an `Org.customDomain` is its own relying party, so its passkeys only
+  work there;
+- outside production, `localhost` and `*.localhost` use `localhost`;
+- `PASSKEY_EXTRA_HOSTS` (comma-separated) adds hosts that are their own
+  relying party, such as the Mac's Tailscale name. Browsers require
+  https for those.
+
+Any other host gets no passkey button. Changing `APEX_HOST` or a custom
+domain strands the passkeys made on the old one; people sign in another
+way and add a new one.
+
 ### 5. pg-boss v12 needs `createQueue` before `work`
 
 v12 introduced a stricter queue model. `src/lib/jobs/index.ts` calls
@@ -199,6 +217,17 @@ Google/Apple, email verification). Passwords live on the `Account` row
 with `providerId = "credential"`, not on `User`. Compass's TOTP + backup
 codes stay in `User`/`BackupCode`; `src/lib/auth/mfa-plugin.ts` swaps a
 new session for a signed challenge cookie until the code is checked.
+Passkeys (`src/lib/auth/passkeys.ts`, `@simplewebauthn/server`, table
+`Passkey`) are added on `/account/security` within an hour of signing
+in. Signing in with one is complete on its own (the device checks a
+fingerprint, face or PIN), so it isn't held for a second step or for
+the admin SSO rule. After a password or Google/Apple sign-in, the
+second step is asked for when the user has an authenticator app, or is
+a leader/admin with a passkey; either one satisfies the leader/admin
+two-step rule, and `mfaLocked` stops them removing the last one.
+Challenges are single-use `Verification` rows; the plugin endpoints are
+blocked over HTTP and called from `src/server-actions/passkeys.ts`.
+`src/lib/auth/soft-authenticator.ts` is a software passkey for tests.
 Server code reads the user with `getSession()` from
 `src/lib/auth/session.ts`. The DB-backed auth tests in
 `src/lib/auth/auth.db.test.ts` run only when `TEST_DATABASE_URL` is set.

@@ -163,3 +163,13 @@ for s in blue green; do launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/
 1. On the new Mac: Docker Desktop, Node 22, clone Scouthosting, `make install db-up db-wait`.
 2. Copy `.env` from the password manager or the old Mac (same `MASTER_KEY`).
 3. `scripts/host/restore.sh --replace <latest backup>`, then `make host-install` and `make deploy`.
+
+## Passkeys on the Mac
+
+Browsers only allow passkeys on `localhost` (and `*.localhost`) or over https. Signing in from the Mac's own browser at `localhost:3000` works with no setup. From a phone over Tailscale, serve Compass over https (`tailscale serve --bg 3000` gives `https://<mac>.<tailnet>.ts.net`) and add that name to `.env`:
+
+```
+PASSKEY_EXTRA_HOSTS=<mac>.<tailnet>.ts.net
+```
+
+then `make deploy`. Passkeys made on `localhost` don't work on the Tailscale name and the other way round; each is its own site. Lost passkey: see "Someone lost their passkey" in `docs/runbooks-gcp.md` (the SQL is the same against the Mac's database).

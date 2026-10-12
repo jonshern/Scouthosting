@@ -261,6 +261,7 @@ model User {
   posts                 Post[]
   comments              Comment[]
   accounts              Account[]
+  passkeys              Passkey[]
   rsvps                 Rsvp[]
   slotAssignments       SlotAssignment[]
   newsletters           Newsletter[]
@@ -322,6 +323,29 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([providerId, accountId])
+  @@index([userId])
+}
+
+// A WebAuthn passkey (src/lib/auth/passkeys.ts). credentialId is the
+// authenticator's id, base64url. rpId is the relying party it was made
+// for: the apex for the apex and every <slug> subdomain, or an org's
+// custom domain. A passkey only works on hosts with the same rpId.
+model Passkey {
+  id           String    @id @default(cuid())
+  userId       String
+  name         String
+  credentialId String    @unique
+  publicKey    Bytes
+  counter      BigInt    @default(0)
+  transports   String[]
+  deviceType   String
+  backedUp     Boolean   @default(false)
+  rpId         String
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 
