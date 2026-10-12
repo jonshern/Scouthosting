@@ -31,7 +31,7 @@ describe.skipIf(!url)("broadcast email", () => {
   let orgId = "";
   let userId = "";
   const sent: MailMessage[] = [];
-  const recipients = ["a", "b", "c"].map((n) => ({ name: n, email: `${n}-${tag}@example.invalid` }));
+  const recipients = ["a", "b", "c"].map((n) => ({ memberId: null, name: n, email: `${n}-${tag}@example.invalid` }));
 
   beforeAll(async () => {
     const org = await prisma.org.create({
