@@ -26,7 +26,7 @@ import { fontFamilies, palette, radius, spacing } from '../../theme/tokens';
 import type { ChatStackParamList } from '../../navigation/types';
 import { useAuth } from '../../state/AuthContext';
 import { listChannels } from '../../api/channels';
-import type { ChannelDto, ChannelKind } from '../../api/types';
+import { channelTitle, type ChannelDto, type ChannelKind } from '../../api/types';
 
 type SectionKey = 'yours' | 'events' | 'leaders';
 type Section = { key: SectionKey; title: string; items: ChannelDto[] };
@@ -40,6 +40,8 @@ const KIND_META: Record<ChannelKind, KindMeta> = {
   leaders: { color: palette.raspberry, glyph: '🔒' },
   event: { color: palette.ember, glyph: '⛺' },
   custom: { color: palette.teal, glyph: '#' },
+  dm: { color: palette.inkSoft, glyph: '✉' },
+  broadcast: { color: palette.primary, glyph: '📣' },
 };
 
 function memberSummary(c: ChannelDto): string {
@@ -207,7 +209,7 @@ function ChannelListRow({
   isLast: boolean;
   onPress: () => void;
 }) {
-  const meta = KIND_META[channel.kind];
+  const meta = KIND_META[channel.kind] ?? KIND_META.custom;
   const isYouth = channel.kind === 'patrol' || channel.kind === 'troop' || channel.kind === 'event';
   const isEvent = channel.kind === 'event';
   const isLeader = channel.kind === 'leaders';
@@ -229,7 +231,7 @@ function ChannelListRow({
         <View style={styles.headerLine}>
           <View style={styles.nameLine}>
             <Text style={styles.name} numberOfLines={1}>
-              {channel.name}
+              {channelTitle(channel)}
             </Text>
             {isEvent ? (
               <View style={styles.eventTag}>

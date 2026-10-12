@@ -28,7 +28,7 @@ import { serverAddress } from '../../api/config';
 import { getChannel, sendMessage, toggleReaction, votePoll, setRsvpResponse } from '../../api/channels';
 import type { RsvpResponse } from '../../api/types';
 import { ApiError } from '../../api/client';
-import type { ChannelDto, ChannelKind, MessageDto } from '../../api/types';
+import { channelTitle, type ChannelDto, type ChannelKind, type MessageDto } from '../../api/types';
 
 const POLL_INTERVAL_MS = 5000;
 
@@ -39,6 +39,8 @@ const CHANNEL_GLYPH: Record<ChannelKind, { color: string; glyph: string }> = {
   leaders: { color: palette.raspberry, glyph: '🔒' },
   event: { color: palette.ember, glyph: '⛺' },
   custom: { color: palette.teal, glyph: '#' },
+  dm: { color: palette.inkSoft, glyph: '✉' },
+  broadcast: { color: palette.primary, glyph: '📣' },
 };
 
 function channelMemberSummary(c: ChannelDto): string {
@@ -324,7 +326,7 @@ export default function ThreadScreen() {
 
   const canPost = channel?.canPost ?? false;
   const youthChannel = !!channel && (channel.kind === 'patrol' || channel.kind === 'troop' || channel.kind === 'event');
-  const meta = channel ? CHANNEL_GLYPH[channel.kind] : { color: palette.primary, glyph: '#' };
+  const meta = channel ? (CHANNEL_GLYPH[channel.kind] ?? CHANNEL_GLYPH.custom) : { color: palette.primary, glyph: '#' };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -334,7 +336,7 @@ export default function ThreadScreen() {
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.title} numberOfLines={1}>
-            {channel?.name || route.params.channelName}
+            {channel ? channelTitle(channel) : route.params.channelName}
           </Text>
           <Text style={styles.subtitle} numberOfLines={1}>
             {channel ? channelMemberSummary(channel) : 'Loading…'}

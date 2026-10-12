@@ -30,6 +30,24 @@ export async function loadReadableChannel(rawId: unknown, userId: string) {
   return channel;
 }
 
+/**
+ * For DM channels, the other person's name and id, so the app can show
+ * "Pat Lee" instead of the channel's internal "dm:<id>:<id>" name.
+ */
+export async function dmCounterparts(channels: { id: string; kind: string }[], userId: string) {
+  const ids = channels.filter((c) => c.kind === "dm").map((c) => c.id);
+  const out = new Map<string, { userId: string; displayName: string }>();
+  if (!ids.length) return out;
+  const rows = await prisma.channelMember.findMany({
+    where: { channelId: { in: ids }, userId: { not: userId } },
+    select: { channelId: true, user: { select: { id: true, displayName: true } } },
+  });
+  for (const r of rows) {
+    if (!out.has(r.channelId)) out.set(r.channelId, { userId: r.user.id, displayName: r.user.displayName });
+  }
+  return out;
+}
+
 export async function loadMessagePage(channelId: string, before?: Date, viewerId?: string) {
   const rows = await prisma.message.findMany({
     where: {

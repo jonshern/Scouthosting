@@ -1,7 +1,7 @@
-// Home screen — fetches the dashboard view-model from
-// /api/v1/orgs/:orgId/dashboard and renders the locked AdminBalanced-
-// shaped greeting card + stats + activity. Pull-to-refresh, optimistic
-// loading, friendly error.
+// Home screen — the next event, a few counts (unread chats, what's
+// coming up, permission slips waiting on you), recent posts and the
+// rest of the upcoming events. Data from /api/v1/orgs/:orgId/dashboard
+// and /api/v1/me/scouts. Pull-to-refresh, friendly error.
 
 import React, { useCallback, useEffect, useState } from 'react';
 import {
@@ -20,7 +20,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Avatar, Icon, IconName } from '../theme/atoms';
 import { EventCard } from '../components/EventCard';
 import { useAuth } from '../state/AuthContext';
-import { fetchDashboard, type DashboardModel } from '../api/dashboard';
+import { fetchDashboard, greetingFor, type DashboardModel } from '../api/dashboard';
+import { fetchMyScouts, type MyScout } from '../api/scouts';
 import { fontFamilies, palette, radius, spacing } from '../theme/tokens';
 import type { HomeStackParamList } from '../navigation/types';
 
@@ -31,35 +32,13 @@ const MONTH_SHORT = [
   'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
 ];
 
-function paletteFor(key: string): string {
-  switch (key) {
-    case 'accent':     return palette.accent;
-    case 'sky':        return palette.sky;
-    case 'ember':      return palette.ember;
-    case 'raspberry':  return palette.raspberry;
-    case 'butter':     return palette.butter;
-    case 'plum':       return palette.plum;
-    case 'teal':       return palette.teal;
-    case 'primary':
-    default:           return palette.primary;
-  }
-}
-
-function iconForActivity(icon: string): IconName {
-  switch (icon) {
-    case 'check': return 'check';
-    case 'cash':  return 'flag';
-    case 'post':  return 'pin';
-    default:      return 'bell';
-  }
-}
-
 type QuickAction = { label: string; tint: string; icon: IconName; onPress: () => void };
 
 export function HomeScreen() {
   const auth = useAuth();
   const navigation = useNavigation<HomeNav>();
   const [model, setModel] = useState<DashboardModel | null>(null);
+  const [scouts, setScouts] = useState<MyScout[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,11 +47,14 @@ export function HomeScreen() {
     if (!auth.session) return;
     setError(null);
     try {
-      const m = await fetchDashboard(
-        { orgSlug: auth.session.orgSlug, token: auth.session.token },
-        auth.session.orgId,
-      );
+      const client = { orgSlug: auth.session.orgSlug, token: auth.session.token };
+      const [m, mine] = await Promise.all([
+        fetchDashboard(client, auth.session.orgId),
+        // Slips are a nice-to-have on this screen; don't fail it over them.
+        fetchMyScouts(client).catch(() => ({ scouts: [] as MyScout[], emailVerified: false })),
+      ]);
       setModel(m);
+      setScouts(mine.scouts.filter((sc) => sc.orgId === auth.session?.orgId));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : "Couldn't load the home view.");
     } finally {
@@ -108,10 +90,16 @@ export function HomeScreen() {
     );
   }
 
-  const nextEvent = model.events[0] || null;
+  const nextEvent = model.upcomingEvents[0] || null;
+  const laterEvents = model.upcomingEvents.slice(1);
+  const slipsToSign = scouts.flatMap((sc) =>
+    sc.upcoming
+      .filter((u) => u.requiresPermissionSlip && !u.slipSigned)
+      .map((u) => ({ scoutName: sc.scoutName, ...u })),
+  );
   const quickActions: QuickAction[] = [
     {
-      label: 'RSVP\n& pay',
+      label: 'RSVP\nnext event',
       tint: palette.accent,
       icon: 'check',
       onPress: () => nextEvent && navigation.navigate('EventDetail', { eventId: nextEvent.id }),
@@ -130,8 +118,7 @@ export function HomeScreen() {
     },
   ];
 
-  const greeting = `${model.greeting.day}`;
-  const phase = model.greeting.phase.replace(/\.$/, '');
+  const { day: greeting, phase } = greetingFor(new Date());
   const initials = (auth.session?.displayName || auth.session?.email || 'U')
     .split(/\s+/)
     .map((p) => p[0])
@@ -151,7 +138,7 @@ export function HomeScreen() {
             <Text style={styles.heroLine}>
               <Text style={styles.heroAccent}>{phase}.</Text>
             </Text>
-            <Text style={styles.heroSub}>{summaryLine(model)}</Text>
+            <Text style={styles.heroSub}>{summaryLine(model, slipsToSign.length)}</Text>
           </View>
           <Avatar initials={initials} size={44} bg={palette.primary} />
         </View>
@@ -163,8 +150,8 @@ export function HomeScreen() {
               month={MONTH_SHORT[new Date(nextEvent.startsAt).getMonth()]!}
               day={String(new Date(nextEvent.startsAt).getDate()).padStart(2, '0')}
               title={nextEvent.title}
-              subtitle={`${nextEvent.yes} of ${nextEvent.capacity || '—'} replied`}
-              warning={nextEvent.category ? `Category · ${nextEvent.category}` : undefined}
+              subtitle={eventWhen(nextEvent.startsAt) + (nextEvent.location ? ` · ${nextEvent.location}` : '')}
+              warning={nextEvent.signupRequired ? 'Sign-up needed' : undefined}
               style={{ marginBottom: spacing.xxl }}
             />
           </Pressable>
@@ -186,58 +173,89 @@ export function HomeScreen() {
         </View>
 
         <View style={styles.statsRow}>
-          {(['scouts', 'rsvps', 'treasurer', 'messages'] as const).map((k) => {
-            const stat = model.stats[k];
-            const c = paletteFor(stat.color);
-            return (
-              <View key={k} style={[styles.statCard, { borderTopColor: c }]}>
-                <Text style={[styles.statLabel, { color: c }]}>{k.toUpperCase()}</Text>
-                <Text style={styles.statValue}>{String(stat.value)}</Text>
-                <Text style={styles.statHint}>{stat.hint}</Text>
-              </View>
-            );
-          })}
+          {[
+            { label: 'UNREAD CHATS', value: model.unreadChannels, color: palette.primary, onPress: () => navigation.getParent()?.navigate('Chat') },
+            { label: 'COMING UP', value: model.upcomingEvents.length, color: palette.teal, onPress: () => navigation.getParent()?.navigate('Calendar') },
+            { label: 'SLIPS TO SIGN', value: slipsToSign.length, color: slipsToSign.length ? palette.ember : palette.inkMuted, onPress: undefined },
+          ].map((stat) => (
+            <Pressable key={stat.label} onPress={stat.onPress} disabled={!stat.onPress} style={[styles.statCard, { borderTopColor: stat.color }]}>
+              <Text style={[styles.statLabel, { color: stat.color }]}>{stat.label}</Text>
+              <Text style={styles.statValue}>{String(stat.value)}</Text>
+            </Pressable>
+          ))}
         </View>
+
+        {slipsToSign.length > 0 && (
+          <View style={{ marginBottom: spacing.xxl }}>
+            <Text style={[styles.sectionLabel, { marginBottom: spacing.md }]}>NEEDS YOUR SIGNATURE</Text>
+            {slipsToSign.map((u, i) => (
+              <Pressable
+                key={`${u.eventId}-${u.scoutName}-${i}`}
+                onPress={() => navigation.navigate('EventDetail', { eventId: u.eventId })}
+                style={styles.activityRow}
+              >
+                <View style={[styles.activityIcon, { backgroundColor: `${palette.ember}22` }]}>
+                  <Icon name="flag" size={18} color={palette.ember} strokeWidth={2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.activityTitle}>
+                    <Text style={{ fontWeight: '700' }}>{u.scoutName}</Text>{' '}
+                    <Text style={{ color: palette.inkSoft }}>· {u.title}</Text>
+                  </Text>
+                  <Text style={styles.activitySub}>{eventWhen(u.startsAt)} · permission slip</Text>
+                </View>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {laterEvents.length > 0 && (
+          <View style={{ marginBottom: spacing.xxl }}>
+            <Text style={[styles.sectionLabel, { marginBottom: spacing.md }]}>ALSO COMING UP</Text>
+            {laterEvents.map((e) => (
+              <EventCard
+                key={e.id}
+                month={MONTH_SHORT[new Date(e.startsAt).getMonth()]!}
+                day={String(new Date(e.startsAt).getDate()).padStart(2, '0')}
+                title={e.title}
+                subtitle={eventWhen(e.startsAt) + (e.location ? ` · ${e.location}` : '')}
+                onPress={() => navigation.navigate('EventDetail', { eventId: e.id })}
+                style={{ marginBottom: spacing.sm }}
+              />
+            ))}
+          </View>
+        )}
 
         <Pressable
           onPress={() => navigation.navigate('Activity')}
           style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: spacing.md }}
         >
-          <Text style={styles.sectionLabel}>RECENTLY</Text>
+          <Text style={styles.sectionLabel}>RECENT POSTS</Text>
           <Text style={{ fontFamily: fontFamilies.ui, fontSize: 12, color: palette.primary, fontWeight: '600' }}>
             See all →
           </Text>
         </Pressable>
-        {model.activity.length === 0 ? (
-          <Text style={styles.muted}>No recent activity yet.</Text>
+        {model.recentPosts.length === 0 ? (
+          <Text style={styles.muted}>No posts yet.</Text>
         ) : (
-          model.activity.map((a, i) => {
-            const iconName = iconForActivity(a.icon);
-            const c = paletteFor(a.color);
-            return (
-              <View
-                key={`${a.kind}-${i}`}
-                style={[
-                  styles.activityRow,
-                  i < model.activity.length - 1 && {
-                    borderBottomColor: palette.lineSoft,
-                    borderBottomWidth: 1,
-                  },
-                ]}
-              >
-                <View style={[styles.activityIcon, { backgroundColor: `${c}22` }]}>
-                  <Icon name={iconName} size={18} color={c} strokeWidth={2} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.activityTitle}>
-                    <Text style={{ fontWeight: '700' }}>{a.who}</Text>{' '}
-                    <Text style={{ color: palette.inkSoft }}>{a.what}</Text>
-                  </Text>
-                  <Text style={styles.activitySub}>{relativeTime(a.at)}</Text>
-                </View>
+          model.recentPosts.map((p, i) => (
+            <Pressable
+              key={p.id}
+              onPress={() => navigation.navigate('Activity')}
+              style={[
+                styles.activityRow,
+                i < model.recentPosts.length - 1 && { borderBottomColor: palette.lineSoft, borderBottomWidth: 1 },
+              ]}
+            >
+              <View style={[styles.activityIcon, { backgroundColor: `${palette.primary}22` }]}>
+                <Icon name="pin" size={18} color={palette.primary} strokeWidth={2} />
               </View>
-            );
-          })
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activityTitle}>{p.title || 'Untitled post'}</Text>
+                <Text style={styles.activitySub}>{relativeTime(p.publishedAt)}</Text>
+              </View>
+            </Pressable>
+          ))
         )}
 
         <View style={{ height: 40 }} />
@@ -246,18 +264,20 @@ export function HomeScreen() {
   );
 }
 
-function summaryLine(model: DashboardModel): string {
+function summaryLine(model: DashboardModel, slips: number): string {
   const parts: string[] = [];
-  const e = model.events[0];
+  const e = model.upcomingEvents[0];
   if (e) {
     const d = new Date(e.startsAt).toLocaleString('en-US', { month: 'short', day: 'numeric' });
     parts.push(`Next up · ${e.title} on ${d}`);
   }
-  if (model.stats.treasurer.value !== '$0') {
-    parts.push(`${model.stats.treasurer.value} ${model.stats.treasurer.hint}`);
-  }
-  if (!parts.length) parts.push('A quiet week — nothing urgent.');
+  if (slips) parts.push(`${slips} permission slip${slips === 1 ? '' : 's'} to sign`);
+  if (!parts.length) parts.push('A quiet week. Nothing on the calendar yet.');
   return parts.join(' · ');
+}
+
+function eventWhen(iso: string): string {
+  return new Date(iso).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 function relativeTime(iso: string): string {
@@ -361,7 +381,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xxl,
   },
   statCard: {
-    flexBasis: '47%',
+    flexBasis: '30%',
     flexGrow: 1,
     backgroundColor: palette.surface,
     borderWidth: 1,

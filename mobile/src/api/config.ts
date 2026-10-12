@@ -58,3 +58,18 @@ export function hostForOrg(_orgSlug: string, config: ApiConfig = DEFAULT_API_CON
 export function apexBaseUrl(config: ApiConfig = DEFAULT_API_CONFIG): string {
   return base(config);
 }
+
+/**
+ * Image source for an uploaded photo. /uploads checks the bearer token
+ * for members-only albums (the app can't share the browser's cookie).
+ */
+export function uploadSource(
+  filename: string,
+  token: string | null | undefined,
+): { uri: string; headers?: Record<string, string> } {
+  const path = filename.split("/").map(encodeURIComponent).join("/");
+  return {
+    uri: `${serverAddress()}/uploads/${path}`,
+    ...(token ? { headers: { Authorization: `Bearer ${token}` } } : {}),
+  };
+}
