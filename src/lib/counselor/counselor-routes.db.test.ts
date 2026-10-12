@@ -406,6 +406,23 @@ describe.skipIf(!db)("counselor /api/v1 routes (Postgres)", () => {
       ).toBe(1);
       expect(await prisma.requirementProgressEvent.count({ where: { memberId: f.scoutA } })).toBe(4);
     });
+
+    it("a family update racing a sign-off never undoes it", async () => {
+      // In either order the sign-off stands: the family's "done" lands
+      // first and is then signed off, or it lands second and is refused.
+      for (const req of ["7", "8", "9", "10", "11"].map((n) => `badge:plumbing#${n}`)) {
+        const [family, counselor] = await Promise.all([
+          put(f.scout.token, f.scoutA, [{ requirementId: req, status: "done" }]),
+          put(f.counselor.token, f.scoutA, [{ requirementId: req, status: "signed_off" }]),
+        ]);
+        expect(counselor.status).toBe(200);
+        expect([200, 403]).toContain(family.status);
+        const row = await prisma.requirementProgress.findUniqueOrThrow({
+          where: { memberId_requirementId: { memberId: f.scoutA, requirementId: req } },
+        });
+        expect(row).toMatchObject({ status: "signed_off", signedOffById: f.counselor.id });
+      }
+    });
   });
 
   describe("counselor meetings", () => {
