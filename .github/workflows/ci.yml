@@ -111,7 +111,8 @@ jobs:
         env:
           BACKUP_DIR: ${{ runner.temp }}/backups
         run: |
-          export MASTER_KEY="$(openssl rand -hex 32)"
+          MASTER_KEY="$(openssl rand -hex 32)"
+          export MASTER_KEY
           npm run db:seed
           scripts/host/backup.sh
           scripts/host/restore.sh --drill
@@ -143,7 +144,12 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npx playwright install --with-deps chromium
-      - run: npm run build
+      # next/font/google downloads the fonts during the build, and that
+      # fetch sometimes fails on the runner ("Can't resolve
+      # '@vercel/turbopack-next/internal/font/google/font'"). Try once more
+      # before failing; a real build error fails both times.
+      - name: Build
+        run: npm run build || { echo "::warning::Build failed, retrying once (Google Fonts fetch)"; npm run build; }
         env:
           APEX_HOST: localhost
       - run: npx playwright test
