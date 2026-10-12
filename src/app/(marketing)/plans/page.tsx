@@ -9,36 +9,23 @@ type Feature = [label: string, value: React.ReactNode | null, inherited?: boolea
 
 // Everything is in the one plan (lib/billing/pricing.ts).
 const INCLUDED: Feature[] = [
-  ["Public site", "Unlimited pages, six themes, custom domain at no markup."],
-  ["Calendar & events", "Unlimited. RSVP, permission slips, payment links."],
-  ["Members & roster", "Unlimited. Two-deep YPT enforced on messaging."],
+  ["Website", "As many pages as you want, six themes, your own domain."],
+  ["Calendar & events", "RSVPs, permission slips, payment links."],
+  ["Roster", "Unlimited. A parent is copied on every message to a scout."],
   [
-    "Group email",
+    "Email",
     <>
-      Per-org sender aligned with your domain — emails come from{" "}
-      <strong className="text-ink">scoutmaster@yourtroop.org</strong>, not ours.
+      Sent from <strong className="text-ink">scoutmaster@yourtroop.org</strong>, not from us.
     </>,
   ],
-  [
-    "Photo library",
-    <>
-      <strong className="text-ink">15 GB included</strong> — auto-resize on upload, ~7,500
-      web-quality images. Per-scout privacy controls.
-    </>,
-  ],
-  ["Trip + meal planner", "Headcount-driven recipe scaling and printable shopping lists."],
-  ["Custom forms", "Permission slips, sign-ups, surveys."],
-  ["Migration", "White-glove import from TroopWebHost, ScoutLander, TroopTrack, CSVs."],
-  [
-    "Push + DMs",
-    "Native push notifications + 1:1 messaging in the parent mobile app.",
-  ],
-  [
-    "Channels",
-    "Patrol, den, parents, leaders. Two-deep audit on every leader↔youth thread.",
-  ],
-  ["Waypoint", "Merit badge counseling, worksheets, and badge days with staff rosters."],
-  ["Lantern", "Each scout's own path to Eagle, with a grown-up mode for parents."],
+  ["Photos", <><strong className="text-ink">15 GB</strong>, with privacy settings per scout.</>],
+  ["Trips & meals", "Recipes scale to headcount. Printable shopping lists."],
+  ["Forms", "Permission slips, sign-ups, surveys."],
+  ["Moving in", "We'll help bring over your old site."],
+  ["Family app", "Push notifications and messages on their phone."],
+  ["Chats", "Patrols, dens, parents, leaders. Logged."],
+  ["Waypoint", "Merit badge kits and badge days."],
+  ["Lantern", "Each scout's path to Eagle."],
 ];
 
 function FeatureRow({ feat, dark = false }: { feat: Feature; dark?: boolean }) {
@@ -83,9 +70,9 @@ export default function PlansPage() {
       {/* Header band */}
       <section className="mx-auto max-w-content px-6 pt-10 pb-12">
         <div className="border-t-2 border-ink pt-4 grid md:grid-cols-2 gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-soft mb-10">
-          <span>§ Plans & pricing</span>
+          <span>Pricing</span>
           <span className="md:text-right">
-            No per-scout fees. No platform cut. Cancel anytime.
+            No per-scout fees. Cancel any time.
           </span>
         </div>
 
@@ -93,30 +80,27 @@ export default function PlansPage() {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full bg-sky text-white px-3 py-1.5 text-[11px] font-bold tracking-[0.14em] uppercase mb-6">
               <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-white" />
-              30 days free · no card required
+              30 days free · no card
             </span>
             <h1 className="font-display text-[44px] md:text-[72px] font-normal leading-[0.95] tracking-[-0.025em]">
               One plan,{" "}
-              <em className="text-sky font-normal">no commodity markups.</em>
+              <em className="text-sky font-normal">one price.</em>
             </h1>
             <p className="mt-6 max-w-2xl text-slate-soft text-[16px] leading-[1.65]">
-              {PRICES.year.long} or {PRICES.month.long} per unit, and your first month is
-              free. Custom domains, BYO email, 15 GB photo storage, messaging, and the
-              Waypoint and Lantern apps are{" "}
-              <strong className="text-ink">all included</strong> — we don't charge $25
-              extra for the things our hosts charge us pennies for.
+              {PRICES.year.long} or {PRICES.month.long} per unit. First month is free.
+              Everything&apos;s included, Waypoint and Lantern too.
             </p>
           </div>
 
           <div className="bg-white border border-line rounded-xl p-5">
             <div className="text-[11px] uppercase tracking-[0.08em] text-slate-muted font-bold mb-3">
-              What's settled
+              The short version
             </div>
             {[
-              "First month free, no card needed",
-              "Custom domain, no markup",
-              "White-glove migration included",
-              "Stripe fees passed through at cost",
+              "First month free, no card",
+              "Your own domain, no extra charge",
+              "Help moving your old site",
+              "Card fees at cost",
             ].map((s) => (
               <div
                 key={s}
@@ -155,7 +139,7 @@ export default function PlansPage() {
               <span className="text-white/60 text-[14px]">/ year</span>
             </div>
             <div className="text-[12px] text-white/75 mt-2 leading-[1.5]">
-              Flat per unit — pack, troop, crew, ship, or post. First month free. Cancel anytime.
+              Per unit. First month free.
             </div>
             <Link
               href="/start"
@@ -174,7 +158,7 @@ export default function PlansPage() {
               <span className="text-slate-muted text-[14px]">/ month</span>
             </div>
             <div className="text-[12px] text-slate-soft mt-2 leading-[1.5]">
-              Flat per unit. First month free. Cancel anytime.
+              Per unit. First month free. Cancel any time.
             </div>
             <Link
               href="/start"
@@ -187,7 +171,7 @@ export default function PlansPage() {
 
         <div className="mt-8 rounded-[14px] bg-white border border-line p-7 md:p-8">
           <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-muted">
-            Both include everything
+            Both get everything
           </div>
           <ul className="list-none p-0 mt-4 grid md:grid-cols-2 gap-x-10">
             {INCLUDED.map((f) => (
@@ -202,17 +186,13 @@ export default function PlansPage() {
       <section className="bg-surface-alt border-y border-line">
         <div className="mx-auto max-w-content px-6 py-16 grid md:grid-cols-[1fr_1.4fr] gap-12 items-start">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
-              § What's actually included
-            </div>
             <h3 className="font-display text-[32px] md:text-[40px] font-normal leading-[1.05] tracking-[-0.025em] mb-4">
-              The legacy hosts charge a markup{" "}
-              <em className="text-sky font-normal">on basically everything.</em>
+              Other hosts charge extra{" "}
+              <em className="text-sky font-normal">for the basics.</em>
             </h3>
             <p className="text-slate-soft text-[15px] leading-[1.65]">
-              Custom domains cost $0.02/yr at the registry. Email-on-your-domain costs
-              ~$9/yr at Postmark. Most platforms charge $25/yr extra for each. Compass
-              passes them through free.
+              Your own domain and email on it shouldn&apos;t cost extra. Most hosts
+              charge for each. We don&apos;t.
             </p>
           </div>
           <div className="bg-white border border-line rounded-xl overflow-hidden">
@@ -220,7 +200,7 @@ export default function PlansPage() {
               <thead>
                 <tr className="bg-surface-alt text-slate-muted text-[11px] uppercase tracking-[0.06em]">
                   <th className="px-4 py-3 text-left font-bold">Item</th>
-                  <th className="px-4 py-3 text-right font-bold">Legacy host</th>
+                  <th className="px-4 py-3 text-right font-bold">Other hosts</th>
                   <th className="px-4 py-3 text-right font-bold">Compass</th>
                 </tr>
               </thead>
@@ -230,7 +210,7 @@ export default function PlansPage() {
                   ["Email on your domain", "+$9–25/yr", "Included"],
                   ["Photo storage", "10 GB", "15 GB"],
                   ["Per-scout fees", "$0–$3/yr", "None"],
-                  ["Migration", "DIY", "White-glove"],
+                  ["Moving your old site", "On your own", "We help"],
                 ].map(([k, l, c]) => (
                   <tr key={k}>
                     <td className="px-4 py-3 font-medium text-ink">{k}</td>
@@ -247,11 +227,11 @@ export default function PlansPage() {
       {/* Footer note */}
       <section className="mx-auto max-w-content px-6 py-12 text-center">
         <p className="text-[14px] text-slate-soft">
-          Need bulk provisioning or SSO across many units?{" "}
+          Running a lot of units?{" "}
           <a href="mailto:hello@compass.app" className="underline text-ink font-medium">
             Talk to us
-          </a>{" "}
-          — we'll figure out a council deal.
+          </a>
+          .
         </p>
       </section>
     </main>

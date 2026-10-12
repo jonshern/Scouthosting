@@ -46,18 +46,16 @@ export default async function StartPage() {
     <section className="mx-auto grid max-w-content gap-12 px-6 py-14 md:grid-cols-[1fr_440px]">
       <div className="max-w-[520px]">
         <span className="inline-flex items-center gap-2 rounded-full bg-sky px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
-          {TRIAL_DAYS} days free · no card required
+          {TRIAL_DAYS} days free · no card
         </span>
         <h1 className="mt-6 font-display text-[44px] font-normal leading-[1.02] tracking-[-0.02em] md:text-[56px]">
           Set up your unit{" "}
           <em className="font-normal text-sky">in about five minutes.</em>
         </h1>
         <p className="mt-6 text-[16px] leading-[1.6] text-slate-soft">
-          One account covers the whole family: Compass for your troop or pack&apos;s site and
-          calendar, Waypoint for merit badge counselors and badge days, and Lantern for each
-          scout&apos;s path. Your first month is free. If it works for your unit, keep it for{" "}
-          {PRICES.year.long} or {PRICES.month.long}, billed automatically after the trial. If
-          not, do nothing and nothing is charged.
+          One login gets you Compass, Waypoint and Lantern. The first month is free. If you keep
+          it, it&apos;s {PRICES.year.long} or {PRICES.month.long}. If not, do nothing and you
+          won&apos;t be charged.
         </p>
         <ol className="mt-8 space-y-3 text-sm">
           <Step n={1} label="Create your adult account" active={!user} />
