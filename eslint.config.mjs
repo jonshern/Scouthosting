@@ -17,6 +17,7 @@ const config = [
   {
     ignores: [
       ".next/**",
+      ".next-demo/**",
       "node_modules/**",
       "mobile/**",
       "playwright-report/**",

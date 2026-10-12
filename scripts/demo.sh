@@ -26,6 +26,8 @@ set +a
 # Same server and login as dev, different database name.
 DATABASE_URL="$(printf '%s' "$DATABASE_URL" | sed -E "s#/[^/?]+(\\?|\$)#/${DEMO_DB}\\1#")"
 export DATABASE_URL DEMO_MODE=1 PORT="$DEMO_PORT" DISABLE_INVITE_GATE=1 JOBS_DISABLED=1
+# Its own build folder, so it runs beside `make dev` from the same checkout.
+export NEXT_DIST_DIR=.next-demo
 
 case "${1:-up}" in
   up)

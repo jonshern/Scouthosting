@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const config: NextConfig = {
   reactStrictMode: true,
+  // scripts/demo.sh builds into .next-demo so `make demo` can run beside
+  // `make dev` (Next allows one dev server per build folder).
+  distDir: process.env.NEXT_DIST_DIR || ".next",
   // Dev only: lets `next dev` serve its scripts and HMR to a Mac
   // exposed over `tailscale serve` (<mac>.<tailnet>.ts.net).
   allowedDevOrigins: ["*.ts.net"],
