@@ -12,6 +12,6 @@ test-results/
 playwright-report/
 playwright/.cache/
 tests/e2e/.*.storage.json
-.local-uploads/
+.local-uploads*/
 tsconfig.tsbuildinfo
 next-env.d.ts
