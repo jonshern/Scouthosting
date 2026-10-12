@@ -17,28 +17,35 @@ What to do when something happens in production on Google Cloud (see [gcp-deploy
 
 ## Deploy
 
-Merging to `main` deploys. The *Deploy* workflow:
+Deploys are **blue-green**: the new version starts next to the live one, gets checked on its own address, and only then takes the traffic. The old version stays ready to take it back in seconds.
 
-1. builds one server image tagged with the commit,
-2. runs migrations on staging (`prisma migrate deploy`, then row-only grants for the server's login), deploys staging, and smoke-tests `/health`,
-3. does the same for production (after your approval, if the `production` environment requires a reviewer).
+Merging to `main` deploys. The *Deploy* workflow (`scripts/deploy-api.sh`) builds one server image tagged with the commit, then for staging and afterwards production (after your approval, if the `production` environment requires a reviewer):
 
-If any smoke test fails, the script sends traffic back to the previous revision and the workflow goes red. To redeploy an older commit, open *Actions → Deploy → Run workflow* and pick the commit's branch or tag.
+1. **Migrate.** The `core-migrate-<env>` job runs `prisma migrate deploy` and the row-only grants. The live revision (blue) keeps serving; migrations are expand-only, so it still works on the new schema.
+2. **Green.** The image is deployed as a new Cloud Run revision with **no traffic**, tagged `green`, at its own URL (`https://green---core-<env>-…run.app`).
+3. **Check green.** `/health` (database reachable) and `/login` must answer on green. If not, the workflow goes red and live traffic never moved.
+4. **Flip.** 100% of traffic moves to green, and the live URL is checked again. If that fails, traffic goes straight back to blue.
+
+The previous revision stays deployed (scaled to zero) so a rollback is one traffic change. To redeploy an older commit, open *Actions → Deploy → Run workflow* and pick the commit's branch or tag.
 
 The image never migrates on its own: it only runs `next start`. Wherever it runs, `scripts/migrate.sh` (as the schema owner) must finish before a new version starts. On Google Cloud that is the `core-migrate-<env>` job above; in bluecard's local stack on Jon's Mac it is the `migrate` service, which `scripts/local.sh up` runs before `seed` and `server`. Running `npm run dev` from a checkout is different: apply migrations there with `npx prisma migrate deploy` after pulling.
 
-Database changes: keep each migration compatible with the server version before it (add a column, ship, backfill, then drop in a later release), because the old version serves traffic while the migration runs.
+### Migrations are expand-only
+
+Blue and green share one database, and a rollback returns to blue without touching the schema. So a migration may **add** tables, nullable columns or columns with a default, and indexes. It may not drop, rename or retype anything the running version reads. The *Expand-only migrations* CI check (`scripts/check-migrations.sh`) fails a PR whose new migration has `DROP TABLE`, `DROP COLUMN`, a rename, a type change or `SET NOT NULL`.
+
+To remove or reshape something, take three releases: add the new shape and write to both; switch reads and backfill; then, once no deployed revision uses the old shape, a **contract** migration drops it. Mark that last file with a line `-- contract: <why no live revision needs it>` so the check lets it through, and don't roll back past it.
 
 ## Roll back
 
-**Server (seconds):**
+**Server (seconds):** *Actions → Rollback → Run workflow*, pick the environment, and leave the revision blank to go back one. From a laptop:
 
 ```sh
-gcloud run revisions list --service core-prod --limit 5
-gcloud run services update-traffic core-prod --to-revisions <previous-revision>=100
+scripts/rollback-api.sh prod            # the revision before the live one
+scripts/rollback-api.sh prod <revision> # a specific one (gcloud run revisions list --service core-prod)
 ```
 
-The next merge to `main` sends traffic to the newest revision again, so fix forward or revert the commit before merging anything else.
+Nothing is rebuilt and no migration runs. The next merge to `main` deploys a new green and flips to it, so fix forward or revert the commit before merging anything else.
 
 **Waypoint or Summit website:** Firebase console → Hosting → the app's site (`<project>-waypoint`, `<project>-summit`) → Release history → the previous release → *Rollback*. Those sites are published from their own repositories.
 

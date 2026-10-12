@@ -1,6 +1,7 @@
 # GCP deploy of the core service (Compass). Does nothing until the
 # GCP_PROJECT_ID repository variable is set.
-# main -> build one image -> staging (migrate, roll out, smoke test)
+# main -> build one image -> staging (migrate, blue-green: new revision
+#      with no traffic, smoke test it, flip traffic, check again)
 #      -> prod (same image; waits for approval if the "production"
 #         environment has required reviewers).
 name: Deploy

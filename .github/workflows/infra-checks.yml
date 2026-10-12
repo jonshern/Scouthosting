@@ -4,10 +4,10 @@ name: Infra checks
 
 on:
   pull_request:
-    paths: ["infra/**", "scripts/*.sh", ".github/workflows/deploy.yml", ".github/workflows/preview.yml", ".github/workflows/infra.yml", ".github/workflows/infra-checks.yml", ".github/actions/**"]
+    paths: ["infra/**", "scripts/*.sh", ".github/workflows/deploy.yml", ".github/workflows/preview.yml", ".github/workflows/infra.yml", ".github/workflows/infra-checks.yml", ".github/workflows/rollback.yml", ".github/actions/**"]
   push:
     branches: [main]
-    paths: ["infra/**", "scripts/*.sh", ".github/workflows/deploy.yml", ".github/workflows/preview.yml", ".github/workflows/infra.yml", ".github/workflows/infra-checks.yml", ".github/actions/**"]
+    paths: ["infra/**", "scripts/*.sh", ".github/workflows/deploy.yml", ".github/workflows/preview.yml", ".github/workflows/infra.yml", ".github/workflows/infra-checks.yml", ".github/workflows/rollback.yml", ".github/actions/**"]
 
 permissions:
   contents: read
@@ -37,6 +37,6 @@ jobs:
       - name: actionlint
         run: |
           bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
-          ./actionlint -color .github/workflows/deploy.yml .github/workflows/preview.yml .github/workflows/infra.yml .github/workflows/infra-checks.yml
+          ./actionlint -color .github/workflows/deploy.yml .github/workflows/preview.yml .github/workflows/infra.yml .github/workflows/infra-checks.yml .github/workflows/rollback.yml .github/workflows/ci.yml
       - name: shellcheck
-        run: shellcheck scripts/deploy-api.sh scripts/set-github-vars.sh scripts/migrate.sh
+        run: shellcheck scripts/deploy-api.sh scripts/rollback-api.sh scripts/check-migrations.sh scripts/set-github-vars.sh scripts/migrate.sh
