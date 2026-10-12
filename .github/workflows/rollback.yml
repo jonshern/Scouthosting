@@ -1,0 +1,41 @@
+# One-click rollback of the core service (Compass): send all traffic back
+# to an earlier Cloud Run revision. Nothing is rebuilt and no migration
+# runs (migrations are expand-only, so the old revision still fits the
+# schema). Same as scripts/rollback-api.sh from a laptop.
+name: Rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment
+        type: choice
+        options: [prod, staging]
+        default: prod
+      revision:
+        description: Revision to restore (blank = the one before the live revision)
+        type: string
+        required: false
+
+permissions:
+  contents: read
+  id-token: write # keyless GCP auth
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    if: vars.GCP_PROJECT_ID != ''
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment == 'prod' && 'production' || 'staging' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/gcp-auth
+        with:
+          workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOYER_SA }}
+          region: ${{ vars.GCP_REGION || 'us-central1' }}
+      - run: ./scripts/rollback-api.sh "${{ inputs.environment }}" "${{ inputs.revision }}"

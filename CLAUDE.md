@@ -9,7 +9,7 @@ this lean.
 - Node 22 · Next.js 16 · React 19 · Prisma 5 · Postgres 16 · Better Auth · argon2id · pg-boss · Tailwind
 - Mobile: Expo / React Native (talks to `/api/v1/*` over HTTPS)
 - Local infra: `docker-compose.yml` runs Postgres only; Next runs as a host Node process via `npm run dev`
-- Deploy: `Dockerfile` at the repo root builds an image that runs `next start` on port 3000 (no npm in the image; migrations are a separate step, `scripts/migrate.sh`). Target is Cloud Run (`infra/`, `docs/gcp-deployment.md`); until the GCP project exists Compass runs on Jon's Mac. fly.io is shut down.
+- Deploy: `Dockerfile` at the repo root builds an image that runs `next start` on port 3000 (no npm in the image; migrations are a separate step, `scripts/migrate.sh`). Target is Cloud Run, deployed blue-green (`scripts/deploy-api.sh`, rollback with `scripts/rollback-api.sh`) (`infra/`, `docs/gcp-deployment.md`); until the GCP project exists Compass runs on Jon's Mac. fly.io is shut down.
 
 ## Layout
 
@@ -171,6 +171,15 @@ CI runs `prisma migrate diff --exit-code` after applying migrations, so
 a schema change without a matching migration fails the build. Back up
 the database before deploying any migration that deletes rows (for
 example `20261011130000_align_constraint_names` clears orphaned rows).
+
+Migrations must be **expand-only**: deploys are blue-green, so the
+previous revision runs on the new schema until traffic flips and again
+after a rollback. Add tables, nullable or defaulted columns and indexes;
+don't drop, rename, retype or `SET NOT NULL` in the same release that
+stops using something. CI's *Expand-only migrations* job
+(`scripts/check-migrations.sh`) fails those; a later contract migration
+carries a `-- contract: <reason>` line. Also give a new migration a
+timestamp later than every migration on `main`.
 
 ### 11. CI
 
