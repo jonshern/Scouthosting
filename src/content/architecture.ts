@@ -40,6 +40,7 @@ export const ENCRYPTED_FIELDS: ReadonlyArray<EncryptedField> = [
   { model: "Member", field: "zip", notes: "Encrypted; postal code." },
   { model: "Photo", field: "<bytes>", notes: "File contents encrypted before storage put; decrypted on /uploads/<key> serve." },
   { model: "Photo", field: "originalName", notes: "Original filename hidden from on-disk path." },
+  { model: "JourneyScout", field: "name", notes: "Lantern scout's first name. Not in an org, so keyed per owner by HKDF of MASTER_KEY (lib/journey/crypto.ts); re-encrypt on master-key rotation." },
 ] as const;
 
 export const PLAINTEXT_BY_DESIGN: ReadonlyArray<{ model: string; field: string; reason: string }> = [

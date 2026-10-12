@@ -282,6 +282,7 @@ model User {
   counselorBadges       CounselorBadge[]
   counselorAssignments  CounselorAssignment[] @relation("AssignedCounselor")
   counselorMeetings     CounselorMeeting[]
+  journeyScouts         JourneyScout[]
 }
 
 // One-time-use 2FA backup codes. Generated at enrollment (10 per user),
@@ -508,6 +509,7 @@ model Member {
   requirementProgress  RequirementProgress[]
   requirementEvents    RequirementProgressEvent[]
   counselorMeetings    CounselorMeetingScout[]
+  journeyScouts        JourneyScout[]
 
   @@index([orgId])
   @@index([orgId, lastNameLc1])
@@ -2870,4 +2872,48 @@ model StripeWebhookReceipt {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// Lantern: a scout a parent follows from their own account, whether or
+// not the scout's troop uses Compass. Scouts never sign in; the owner
+// is always an adult. encName is the scout's first name, encrypted with
+// a key derived from MASTER_KEY for the owner (src/lib/journey/crypto.ts).
+// path is the ordered list of ranks and badges on the scout's trail
+// ("rank:first-class", "badge:camping", "custom:<id>"); custom holds the
+// owner's own steps. memberId optionally links a troop roster entry the
+// owner is a linked parent of; the link is re-checked on every read, and
+// it only brings the troop's sign-offs in (Lantern never writes them).
+model JourneyScout {
+  id          String   @id @default(cuid())
+  ownerUserId String
+  encName     Bytes
+  path        Json     @default("[]")
+  custom      Json     @default("{}")
+  memberId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner    User              @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  member   Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  progress JourneyProgress[]
+
+  @@index([ownerUserId])
+  @@index([memberId])
+}
+
+// One checked-off step on a JourneyScout's trail. key is a requirement
+// ("rank:second-class#1a", "badge:plumbing#6b", "custom:<id>#2") or a
+// whole rank or badge marked complete ("rank:scout"). A row exists only
+// while the step is checked; unchecking deletes it. doneOn is the day it
+// was checked ("2026-10-11"), null when that isn't known.
+model JourneyProgress {
+  id        String   @id @default(cuid())
+  scoutId   String
+  key       String
+  doneOn    String?
+  updatedAt DateTime @updatedAt
+
+  scout JourneyScout @relation(fields: [scoutId], references: [id], onDelete: Cascade)
+
+  @@unique([scoutId, key])
 }
