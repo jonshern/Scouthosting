@@ -154,6 +154,7 @@ module "environment" {
   sql_instance   = google_sql_database_instance.main
   mail_from      = var.mail_from
   mail_driver    = lookup(var.mail_drivers, each.key, "console")
+  stripe_prices  = lookup(var.stripe_prices, each.key, { yearly = "", monthly = "" })
   cron_schedule  = var.cron_schedule
   app_domain     = lookup(var.app_domains, each.key, "")
   web_apps       = var.web_apps

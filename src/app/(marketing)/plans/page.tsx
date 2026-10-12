@@ -1,12 +1,14 @@
 // Pricing — design idiom from design_handoff_compass/designs/plans.jsx,
-// shipped with concrete Standard / Premium pricing instead of the TBD
-// working-doc framing in the mock.
+// shipped as one plan paid yearly or monthly (lib/billing/pricing.ts)
+// instead of the TBD working-doc framing in the mock.
 
 import Link from "next/link";
+import { PRICES, PRICE_LINE, YEARLY_SAVINGS_USD } from "@/lib/billing/pricing";
 
 type Feature = [label: string, value: React.ReactNode | null, inherited?: boolean];
 
-const STANDARD: Feature[] = [
+// Everything is in the one plan (lib/billing/pricing.ts).
+const INCLUDED: Feature[] = [
   ["Public site", "Unlimited pages, six themes, custom domain at no markup."],
   ["Calendar & events", "Unlimited. RSVP, permission slips, payment links."],
   ["Members & roster", "Unlimited. Two-deep YPT enforced on messaging."],
@@ -27,14 +29,6 @@ const STANDARD: Feature[] = [
   ["Trip + meal planner", "Headcount-driven recipe scaling and printable shopping lists."],
   ["Custom forms", "Permission slips, sign-ups, surveys."],
   ["Migration", "White-glove import from TroopWebHost, ScoutLander, TroopTrack, CSVs."],
-];
-
-const PREMIUM: Feature[] = [
-  ["Everything in Standard", null, true],
-  [
-    "Group SMS broadcasts",
-    "Twilio-backed urgent alerts. 7am cancellations actually arrive on time.",
-  ],
   [
     "Push + DMs",
     "Native push notifications + 1:1 messaging in the parent mobile app.",
@@ -43,10 +37,9 @@ const PREMIUM: Feature[] = [
     "Channels",
     "Patrol, den, parents, leaders. Two-deep audit on every leader↔youth thread.",
   ],
-  ["Priority support", "First-line response within one business day."],
+  ["Waypoint", "Merit badge counseling, worksheets, and badge days with staff rosters."],
+  ["Lantern", "Each scout's own path to Eagle, with a grown-up mode for parents."],
 ];
-
-const NOT_INCLUDED_STANDARD = ["Group SMS", "Mobile push", "DMs / channels"];
 
 function FeatureRow({ feat, dark = false }: { feat: Feature; dark?: boolean }) {
   const [label, value, inherited] = feat;
@@ -100,18 +93,18 @@ export default function PlansPage() {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full bg-sky text-white px-3 py-1.5 text-[11px] font-bold tracking-[0.14em] uppercase mb-6">
               <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-white" />
-              60 days free · no card required
+              30 days free · no card required
             </span>
             <h1 className="font-display text-[44px] md:text-[72px] font-normal leading-[0.95] tracking-[-0.025em]">
-              Two flavors,{" "}
+              One plan,{" "}
               <em className="text-sky font-normal">no commodity markups.</em>
             </h1>
             <p className="mt-6 max-w-2xl text-slate-soft text-[16px] leading-[1.65]">
-              Custom domains, BYO email, and 15 GB photo storage are{" "}
-              <strong className="text-ink">included on every plan</strong> — we don't
-              charge $25 extra for the things our hosts charge us pennies for. The only
-              premium add-on is messaging (SMS, push, DMs) because Twilio actually costs
-              money.
+              {PRICES.year.long} or {PRICES.month.long} per unit, and your first month is
+              free. Custom domains, BYO email, 15 GB photo storage, messaging, and the
+              Waypoint and Lantern apps are{" "}
+              <strong className="text-ink">all included</strong> — we don't charge $25
+              extra for the things our hosts charge us pennies for.
             </p>
           </div>
 
@@ -120,9 +113,8 @@ export default function PlansPage() {
               What's settled
             </div>
             {[
-              "60-day money-back guarantee",
+              "First month free, no card needed",
               "Custom domain, no markup",
-              "501(c)(3) discount: 20% off",
               "White-glove migration included",
               "Stripe fees passed through at cost",
             ].map((s) => (
@@ -148,99 +140,61 @@ export default function PlansPage() {
         </div>
       </section>
 
-      {/* Tier grid — Premium dark + ribboned, Standard light */}
+      {/* Two ways to pay for the same plan */}
       <section className="mx-auto max-w-content px-6 pb-20">
         <div className="grid md:grid-cols-2 gap-5 items-stretch">
-          {/* Premium */}
-          <div className="relative rounded-[14px] bg-surface-dark text-white p-7 md:p-8 flex flex-col shadow-[0_0_0_4px_rgba(245,158,11,0.10),0_12px_32px_rgba(245,158,11,0.10)] border-2 border-amber">
+          <div className="relative rounded-[14px] bg-surface-dark text-white p-7 md:p-8 flex flex-col border-2 border-amber">
             <span className="absolute -top-3 left-7 bg-amber text-white text-[10px] font-bold tracking-[0.08em] uppercase px-2.5 py-1 rounded">
-              Most units pick this
+              Saves ${YEARLY_SAVINGS_USD}
             </span>
-            <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-white/55">
-              Premium
-            </div>
-            <div className="font-display italic text-[19px] font-medium mt-1.5 leading-[1.3]">
-              Everything in Standard, plus the messaging stack — SMS, push, DMs,
-              channels.
-            </div>
+            <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-white/55">Yearly</div>
             <div className="mt-6 flex items-baseline gap-2">
               <span className="font-display text-[56px] font-normal tracking-[-0.02em] leading-[0.9]">
-                $119
+                {PRICES.year.short}
               </span>
-              <span className="text-white/60 text-[14px]">/ month</span>
+              <span className="text-white/60 text-[14px]">/ year</span>
             </div>
             <div className="text-[12px] text-white/75 mt-2 leading-[1.5]">
-              Flat per unit — pack, troop, crew, ship, or post. 60-day free trial.
-              Cancel anytime.
+              Flat per unit — pack, troop, crew, ship, or post. First month free. Cancel anytime.
             </div>
             <Link
-              href="/signup?plan=premium"
+              href="/start"
               className="mt-5 inline-flex items-center justify-center w-full rounded-md bg-amber text-white px-4 py-3 text-[14px] font-semibold hover:opacity-90"
             >
-              Start Premium — 60 days free →
+              Start your free month →
             </Link>
-            <ul className="list-none p-0 mt-7 space-y-0">
-              {PREMIUM.map((f) => (
-                <FeatureRow key={f[0]} feat={f} dark />
-              ))}
-            </ul>
           </div>
 
-          {/* Standard */}
           <div className="rounded-[14px] bg-white border border-line p-7 md:p-8 flex flex-col">
-            <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-muted">
-              Standard
-            </div>
-            <div className="font-display italic text-[19px] font-medium mt-1.5 leading-[1.3]">
-              Everything most units need to ship a real public site and run a real
-              calendar.
-            </div>
+            <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-muted">Monthly</div>
             <div className="mt-6 flex items-baseline gap-2">
               <span className="font-display text-[56px] font-normal tracking-[-0.02em] leading-[0.9]">
-                $99
+                {PRICES.month.short}
               </span>
               <span className="text-slate-muted text-[14px]">/ month</span>
             </div>
             <div className="text-[12px] text-slate-soft mt-2 leading-[1.5]">
-              Flat per unit. 60-day free trial. Cancel anytime.
+              Flat per unit. First month free. Cancel anytime.
             </div>
             <Link
-              href="/signup?plan=standard"
+              href="/start"
               className="mt-5 inline-flex items-center justify-center w-full rounded-md border-[1.5px] border-ink text-ink px-4 py-3 text-[14px] font-semibold hover:bg-ink hover:text-white transition-colors"
             >
-              Start Standard — 60 days free →
+              Start your free month →
             </Link>
-            <ul className="list-none p-0 mt-7 space-y-0">
-              {STANDARD.map((f) => (
-                <FeatureRow key={f[0]} feat={f} />
-              ))}
-            </ul>
-            <div className="mt-5 pt-5 border-t border-line-soft">
-              <div className="text-[11px] uppercase tracking-[0.08em] text-slate-muted font-bold mb-2">
-                Not in Standard
-              </div>
-              {NOT_INCLUDED_STANDARD.map((n) => (
-                <div
-                  key={n}
-                  className="flex items-center gap-2.5 py-1 text-[12px] text-slate-muted"
-                >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    className="shrink-0"
-                  >
-                    <line x1="18" y1="6" x2="6" y2="18" />
-                    <line x1="6" y1="6" x2="18" y2="18" />
-                  </svg>
-                  {n} — upgrade to Premium for messaging.
-                </div>
-              ))}
-            </div>
           </div>
+        </div>
+
+        <div className="mt-8 rounded-[14px] bg-white border border-line p-7 md:p-8">
+          <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-muted">
+            Both include everything
+          </div>
+          <ul className="list-none p-0 mt-4 grid md:grid-cols-2 gap-x-10">
+            {INCLUDED.map((f) => (
+              <FeatureRow key={f[0]} feat={f} />
+            ))}
+          </ul>
+          <p className="mt-6 text-[13px] text-slate-muted">{PRICE_LINE}.</p>
         </div>
       </section>
 

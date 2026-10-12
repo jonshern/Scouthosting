@@ -41,6 +41,12 @@ variable "mail_driver" {
   default     = "console"
 }
 
+variable "stripe_prices" {
+  description = "Stripe Price IDs for the unit subscription; empty keeps billing off."
+  type        = object({ yearly = string, monthly = string })
+  default     = { yearly = "", monthly = "" }
+}
+
 variable "web_apps" {
   description = "Static web apps that get a Firebase Hosting site, e.g. [\"waypoint\", \"lantern\"]."
   type        = list(string)

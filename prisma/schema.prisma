@@ -38,8 +38,8 @@ enum Plan {
 }
 
 // Stripe subscription state, snapshotted from webhook events. `trialing`
-// is the default for a freshly-provisioned org (60-day trial set in
-// provision.js); `expired` is the post-trial state when the org never
+// is the default for a freshly-provisioned org (30-day trial set in
+// lib/billing/trial.ts); `expired` is the post-trial state when the org never
 // converted (distinct from `canceled`, which means they had a paid
 // subscription and stopped).
 enum SubscriptionStatus {
@@ -123,6 +123,10 @@ model Org {
   trialEndsAt                   DateTime?
   currentPeriodEnd              DateTime?
   cancelAtPeriodEnd             Boolean            @default(false)
+  // `created` time of the newest Stripe event applied to the fields
+  // above. Older events that arrive late are skipped so a stale
+  // subscription.updated can't undo a newer one (lib/billing/stripe.ts).
+  stripeEventAt                 DateTime?
   // Treasury Stripe (per-org member-payment account, distinct from
   // the platform billing fields above). Both ciphertexts are wrapped
   // with the org's DEK so the master key alone can't decrypt them.

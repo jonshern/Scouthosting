@@ -92,6 +92,7 @@ function buildSecondary(slug: string): NavItem[] {
     { href: `${o}/admin/pages`, label: "Pages" },
     { href: `${o}/admin/security`, label: "Security" },
     { href: `${o}/admin/domain`, label: "Domain" },
+    { href: `${o}/admin/billing`, label: "Billing" },
   ];
 }
 

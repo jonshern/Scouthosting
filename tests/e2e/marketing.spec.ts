@@ -14,14 +14,14 @@ test.describe("apex marketing", () => {
     await expect(page.getByRole("link", { name: /sign in/i }).first()).toBeVisible();
   });
 
-  test("plans page lists Standard and Premium tiers", async ({ page }) => {
+  test("plans page shows the yearly and monthly price", async ({ page }) => {
     await page.goto("/plans");
-    await expect(page.getByRole("heading", { level: 1 })).toContainText(/two flavors/i);
-    for (const name of ["Standard", "Premium"]) {
+    await expect(page.getByRole("heading", { level: 1 })).toContainText(/one plan/i);
+    for (const name of ["Yearly", "Monthly", "$99", "$10"]) {
       await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     }
-    // 60-day free trial chip is present.
-    await expect(page.getByText(/60 days free/i).first()).toBeVisible();
+    // 30-day free trial chip is present.
+    await expect(page.getByText(/30 days free/i).first()).toBeVisible();
   });
 
   test("security page lists trust pillars", async ({ page }) => {

@@ -3,6 +3,7 @@
 // the design file; if the design copy changes, update it here.
 
 import Link from "next/link";
+import { PRICES, PRICE_LINE, YEARLY_SAVINGS_USD } from "@/lib/billing/pricing";
 
 const FEATURES = [
   {
@@ -39,7 +40,7 @@ const STATS = [
   { n: "AES-256", l: "encryption at rest & in transit", c: "#1d4ed8" },
   { n: "99.9%", l: "uptime, US data residency", c: "#0891b2" },
   { n: "Daily", l: "encrypted off-site backups", c: "#f59e0b" },
-  { n: "$99", l: "flat per troop, per year", c: "#475569" },
+  { n: PRICES.year.short, l: `per unit, per year (or ${PRICES.month.long})`, c: "#475569" },
 ];
 
 const IMPORT_SOURCES = [
@@ -108,8 +109,8 @@ export default function MarketingHome() {
               with Scouting.org and Scoutbook.
             </p>
             <div className="flex flex-wrap gap-3">
-              <Link href="/signup" className="btn-primary text-base px-5 py-3">
-                Start 60-day free trial →
+              <Link href="/start" className="btn-primary text-base px-5 py-3">
+                Start your free month →
               </Link>
               <Link href="/plans" className="btn-secondary text-base px-5 py-3">
                 See every feature
@@ -235,7 +236,7 @@ export default function MarketingHome() {
         </div>
       </section>
 
-      {/* Pricing — Unit + Unit-with-Messaging, both per year */}
+      {/* Pricing — one plan, paid yearly or monthly (lib/billing/pricing.ts) */}
       <section className="mx-auto max-w-content px-6 py-20">
         <div className="mb-12">
           <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
@@ -248,20 +249,34 @@ export default function MarketingHome() {
         </div>
 
         <div className="grid gap-4 md:grid-cols-[1fr_1.4fr]">
-          {/* Unit — base tier */}
-          <div className="rounded-xl border-2 border-line bg-surface-alt p-8">
-            <div className="font-display italic text-[24px] text-sky mb-2">Unit</div>
-            <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
-              $99
+          <div className="rounded-xl border-2 border-line bg-surface-alt p-8 flex flex-col">
+            <div className="font-display italic text-[24px] text-sky mb-2">Every unit</div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
+                  {PRICES.year.short}
+                </div>
+                <div className="text-xs text-slate-muted mt-1">per year · saves ${YEARLY_SAVINGS_USD}</div>
+              </div>
+              <div>
+                <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
+                  {PRICES.month.short}
+                </div>
+                <div className="text-xs text-slate-muted mt-1">per month</div>
+              </div>
             </div>
-            <div className="text-xs text-slate-muted mt-1 mb-6">
-              per year, flat · 60-day free trial
-            </div>
-            <p className="text-sm text-slate-soft mb-6 pb-6 border-b border-line">
-              Everything most units need: public site, calendar, photos, email
-              digests, payments, forms, mobile app.
+            <p className="text-sm text-slate-soft mt-6 mb-7 pb-6 border-b border-line">
+              First month free, no card needed. Keep it and it renews automatically;
+              cancel any time. One subscription covers Compass, Waypoint and Lantern.
             </p>
-            <ul className="space-y-2.5 text-sm mb-7">
+            <Link href="/start" className="btn-primary w-full justify-center mt-auto">
+              Start your free month →
+            </Link>
+          </div>
+
+          <div className="rounded-xl border-2 border-ink bg-surface-dark text-white p-8">
+            <div className="font-display italic text-[24px] text-sky mb-2">Everything included</div>
+            <ul className="grid gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
               {[
                 "Public website + custom subdomain",
                 "Calendar with RSVPs, permission slips, and Stripe payments",
@@ -269,48 +284,12 @@ export default function MarketingHome() {
                 "Photo library (15 GB) with per-scout privacy",
                 "Carpool & ride coordination",
                 "Forms, surveys & online dues",
-                "Scoutbook deep-links",
-                "White-glove migration from your old site",
-              ].map((f) => (
-                <li key={f} className="flex gap-2.5 leading-snug">
-                  <span className="text-sky font-bold shrink-0">✓</span>
-                  {f}
-                </li>
-              ))}
-            </ul>
-            <Link href="/signup" className="btn-secondary w-full justify-center">
-              Start 60-day free trial →
-            </Link>
-          </div>
-
-          {/* Unit + Messaging — featured tier */}
-          <div className="relative rounded-xl border-2 border-ink bg-surface-dark text-white p-8">
-            <span className="absolute -top-3 left-7 bg-sky text-white text-[10px] font-bold tracking-[0.12em] uppercase px-2.5 py-1 rounded">
-              Most troops
-            </span>
-            <div className="font-display italic text-[24px] text-sky mb-2">
-              Unit + Messaging
-            </div>
-            <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
-              $119
-            </div>
-            <div className="text-xs text-white/60 mt-1 mb-6">
-              per year, flat · 60-day free trial
-            </div>
-            <p className="text-sm text-white/85 mb-6 pb-6 border-b border-white/15">
-              Everything in Unit, plus group chat, SMS broadcasts, and the
-              moderated parent feed. The full communications stack.
-            </p>
-            <ul className="space-y-2.5 text-sm mb-7">
-              {[
-                "Everything in Unit",
                 "Group chat for dens, patrols, and committees",
                 "Two-deep enforced on every message",
-                "SMS broadcasts for time-sensitive alerts",
-                "Moderated parent feed (photos, polls, news)",
-                "Push notifications",
-                "Tamper-evident audit log of every message",
-                "Leader oversight view",
+                "Push notifications and the family app",
+                "Merit badge counseling and badge days (Waypoint)",
+                "Each scout's path to Eagle (Lantern)",
+                "White-glove migration from your old site",
               ].map((f) => (
                 <li key={f} className="flex gap-2.5 leading-snug text-white/90">
                   <span className="text-sky font-bold shrink-0">✓</span>
@@ -318,18 +297,11 @@ export default function MarketingHome() {
                 </li>
               ))}
             </ul>
-            <Link
-              href="/signup"
-              className="inline-flex w-full items-center justify-center rounded-md bg-sky px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-white hover:text-ink"
-            >
-              Start 60-day free trial →
-            </Link>
           </div>
         </div>
 
         <p className="mt-7 text-center text-[13px] text-slate-muted">
-          60-day free trial on every plan · No per-scout, per-leader, or
-          setup fees · 501(c)(3)? Automatic 20% off · Stripe fees
+          {PRICE_LINE} · No per-scout, per-leader, or setup fees · Stripe fees
           passed through at cost.
         </p>
       </section>
@@ -557,14 +529,14 @@ export default function MarketingHome() {
       {/* CTA */}
       <section className="mx-auto max-w-content px-6 py-24 text-center">
         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sky text-white text-[11px] font-bold tracking-[0.14em] uppercase mb-6">
-          Free for 60 days
+          First month free
         </span>
         <h2 className="font-display text-[44px] md:text-[72px] font-normal leading-[0.98] tracking-[-0.03em] max-w-3xl mx-auto mb-8">
           Set up your troop&apos;s home base{" "}
           <em className="text-sky font-normal">before next week&apos;s meeting.</em>
         </h2>
         <div className="flex flex-wrap gap-3 justify-center mb-6">
-          <Link href="/signup" className="btn-primary text-[15px] px-7 py-4 rounded-full">
+          <Link href="/start" className="btn-primary text-[15px] px-7 py-4 rounded-full">
             Start free trial →
           </Link>
           <Link

@@ -46,11 +46,12 @@ async function resolveCustomDomainSlug(domain: string): Promise<string | null | 
 // Paths that should NOT be rewritten under a tenant subdomain.
 // /o/ — already org-scoped (avoid double-rewrite).
 // /login, /signup, /logout — apex marketing pages; reuse them for tenant sign-in.
+// /start — self-serve sign-up for a new unit; the marketing header links it.
 // /api/events/ — public event sign-ups (addressed by a global slug) and
 //   the event staff invite answer (POST /api/events/staff-rsvp).
 // /staff-rsvp — the staff invite page; the link may be built on whichever
 //   host the leader sent it from.
-const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/api/events/", "/staff-rsvp"];
+const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/api/events/", "/staff-rsvp"];
 const CSRF_COOKIE = "compass_csrf";
 
 // Pre-launch apex gate. Visitors without a valid `compass_invite`
@@ -69,6 +70,7 @@ const APEX_INVITE_ALLOWLIST = new Set<string>([
   "/login",
   "/logout",
   "/signup",
+  "/start",       // self-serve sign-up; the unit form needs a signed-in adult
 ]);
 const APEX_INVITE_PREFIXES = [
   "/api/",        // server actions / route handlers (the form needs this)

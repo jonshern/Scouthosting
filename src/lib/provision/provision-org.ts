@@ -9,6 +9,7 @@ import { provisionTreasury } from "@/lib/treasury/provision";
 import { prisma } from "@/lib/db";
 import { UNIT_TYPES, buildSeedBroadcastChannels, type UnitType } from "@/lib/auth/org-roles";
 import { provisionOrgVault } from "@/lib/encryption";
+import { trialEndsAtFrom } from "@/lib/billing/trial";
 
 const REQUIRED = [
   "unitType",
@@ -22,7 +23,7 @@ const REQUIRED = [
 
 const VALID_PLANS = ["patrol", "troop", "council"] as const;
 
-const RESERVED_SLUGS = new Set([
+export const RESERVED_SLUGS = new Set([
   "www", "admin", "api", "app", "assets", "blog", "console",
   "dashboard", "demo", "docs", "help", "login", "mail", "marketing",
   "compass", "scouthosting", "signup", "static", "status", "support",
@@ -65,6 +66,9 @@ export type ProvisionInput = {
   // form. The recovery code we generate gets returned to the caller
   // and shown once — see provisionOrg's return shape.
   passphrase: string;
+  // Overrides the derived `troop100`-style slug, for when two units
+  // share a number (lib/provision/self-serve.ts picks one).
+  slug?: string;
 };
 
 export function validateProvisionInput(body: Partial<ProvisionInput>): string[] {
@@ -127,7 +131,10 @@ export async function provisionOrg(input: ProvisionInput): Promise<{
   org: Awaited<ReturnType<typeof prisma.org.create>>;
   recoveryCode: string;
 }> {
-  const slug = deriveSlug(input.unitType, input.unitNumber);
+  const slug = input.slug ?? deriveSlug(input.unitType, input.unitNumber);
+  if (!/^[a-z0-9][a-z0-9-]{1,48}[a-z0-9]$/.test(slug)) {
+    throw new Error("Site address must be lowercase letters, numbers, and dashes.");
+  }
 
   if (RESERVED_SLUGS.has(slug)) {
     throw new Error(`The slug "${slug}" is reserved. Please contact support.`);
@@ -147,8 +154,7 @@ export async function provisionOrg(input: ProvisionInput): Promise<{
 
   const charterOrg = input.charterOrg.trim();
 
-  const TRIAL_DAYS = 60;
-  const trialEndsAt = new Date(Date.now() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+  const trialEndsAt = trialEndsAtFrom();
 
   const org = await prisma.org.create({
     data: {

@@ -134,6 +134,7 @@ For technical incidents (an account taken over, data seen by the wrong person, a
 | Session and token secrets (`-session-secret`, `-rsvp-secret`, `-unsub-secret`, `-tracking-secret`, `-invite-secret`, `-auth-token-secret`, `-perm-slip-secret`) | `terraform -chdir=infra apply -replace='module.environment["prod"].random_id.generated["SESSION_SECRET"]'` (pick the one), then redeploy. A new session secret signs everyone out; a new RSVP, unsubscribe or permission-slip secret breaks links already emailed |
 | Scheduler token (`-tasks-token`) | Same, with `random_id.generated["TASKS_TOKEN"]`; the scheduler job picks up the new value in the same apply |
 | Resend key | Create a new key in Resend, then `printf '%s' "$KEY" \| gcloud secrets versions add core-prod-resend-api-key --data-file=-`, redeploy, and delete the old key in Resend |
+| Stripe key and webhook secret (`-stripe-secret-key`, `-stripe-webhook-secret`) | Roll the key (or the endpoint's signing secret) in Stripe, add the new value the same way as the Resend key, redeploy, then expire the old one. Setup is in `docs/billing.md` |
 | GitHub → GCP access | Nothing to rotate: there are no stored keys. To cut it off, remove the `github-deployer` binding in `infra/bootstrap` or disable the workload identity pool |
 
 Generated secrets also live in the Terraform state bucket, so treat `<project>-tfstate` as sensitive. Only you and the deployer account can read it.
