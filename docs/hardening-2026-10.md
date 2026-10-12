@@ -18,43 +18,38 @@ next ones to take, in order.
 | 8 | Phishing | Click-tracking route redirected anywhere when its token didn't verify; emailed links built from the client-controlled Host header and broken when sent from a troop subdomain | Interstitial instead of a blind redirect; links from `APEX_HOST` (#158) |
 | 9 | Access | Admin pages relied on the layout's check, which an RSC request can skip | Every admin page checks itself (#157, code health thread); every server action reaches a role check or is listed with a reason, enforced by `src/server-actions/access.test.ts` (#158) |
 | 10 | Lost data | Retention purge deleted a parent's sign-ups that shared the scout's email | Email match only when no one else in the unit uses the address (#159) |
+| 11 | Silent outage | Production mail fell back to the console driver when the Resend key was missing; verification email failures were ignored | Refuse to start with a half-set mail config; `/health` reports the driver; send failures are captured (#161) |
+| 12 | Lost mail | Broadcasts sent inline in the request; a big send could time out halfway with no record | One queued job per recipient; the composer shows "Sending to N" and the mail log fills in as jobs finish (#165) |
+| 13 | Lost records | A family's progress update racing a counselor's sign-off could undo the sign-off | Member row lock around read, permission check and write (#166) |
+| 14 | Access | Invite `maxUses`, TOTP codes and backup codes were read-then-write; two requests could both use one | Conditional updates claim each use once (#168) |
+| 15 | Wrong money | Cancelling a paid sales order kept the money in the ledger | Cancel or reopen reverses every posting tied to the order (#171) |
+| 16 | Outage | A database blip on the custom-domain lookup in middleware turned every request into a 500; a double tap on a slot claim showed an error | Stale cache or a 503 with Retry-After; idempotent web claims (#173) |
+| 17 | Overbooking | Event capacity was never checked on RSVP; equipment loans ignored quantity; a slot that grew kept its waitlist | Row-locked checks on all three RSVP paths and on loans; growing slots promote and email the waitlist (#175) |
+| 18 | Outage | pg-boss opened 10 connections per process; prod, staging and a green revision could exhaust Cloud SQL's 50; public albums loaded every photo | Pools of 4 + 2 per process, budget in `docs/gcp-deployment.md`; albums show 60 per page (#176) |
+| 19 | Downtime on the Mac | A `brew upgrade` could move Node to a new major; reboots and macOS updates left Compass down until someone signed in | `make deploy` refuses a Node major other than `.nvmrc`; "Upgrades and reboots" in `docs/runbooks-mac.md` (auto-login, wake settings, Docker at sign-in, Postgres major moves) (#177) |
 
 ## Open, in order
 
-1. **Production mail silently falls back to the console driver** when the
-   Resend key is missing, and the sign-up verification email's result is
-   ignored. Families would just never get mail. Fail at boot in
-   production, surface send failures.
-2. **Broadcast email runs inline in the request.** A large send can time
-   out halfway with no record of who got it. `enqueueJob` exists but has
-   no callers; move broadcasts onto pg-boss.
-3. **Counselor sign-off overwrite race** (`api/v1/scouts/[id]/progress`):
-   two counselors saving at once, last write wins silently. Use a version
-   check.
-4. **Paid sales order cancelled without a reversal.** The ledger keeps
-   the money. Reverse the postings on paid → cancelled.
-5. **Invite code `maxUses` and MFA code replay** are read-then-write;
-   two requests at once can both succeed. Conditional update.
-6. **Signed-in slot claim on the web lacks `idempotent: true`** (the
-   phone path has it), so a double tap shows an error.
-7. **Capacity**: equipment loans aren't checked against quantity; event
-   capacity isn't enforced on RSVP; raising a slot's capacity by import
-   doesn't promote the waitlist.
-8. **Middleware DB lookup on custom domains** has no error handling; a
-   database blip turns every custom-domain request into a 500.
-9. **Unbounded reads**: nested `take` missing in the v1 chat and photos
-   endpoints; album pages unpaginated; no `connection_limit` on the
-   Prisma URL.
-10. **Dead code**: `trackEmail` in `src/lib/comms/tracked-message.ts`
-    has no callers, so `/t/c` and `/t/o` serve nothing today. Wire it up
-    or delete it; if wired, those paths need to pass the invite gate and
-    tenant rewrites in `src/middleware.ts`.
-11. **Dependency and configuration drift**: not yet reviewed.
+1. **Admin album pages load every photo.** The public page pages at 60
+   (#176); the admin page is left until the code health thread's
+   admin-page auth change (#157) lands, to avoid a conflict.
+2. **Dead code**: `trackEmail` in `src/lib/comms/tracked-message.ts`
+   has no callers, so `/t/c` and `/t/o` serve nothing today. Wire it up
+   or delete it; if wired, those paths need to pass the invite gate and
+   tenant rewrites in `src/middleware.ts`.
+3. **Postgres versions differ**: the Mac and CI run 16, Cloud SQL runs
+   17. Nothing in the schema depends on the difference today; move the
+   Mac and CI to 17 together before the cloud goes live (steps in
+   `docs/runbooks-mac.md`, "Upgrades and reboots").
+4. **Dev-only advisories**: `npm audit` reports vitest's mocker
+   (moderate, fixed in vitest 5) and esbuild's Windows dev server (low).
+   Neither ships in the production build. Upgrade vitest when it's a
+   quiet day; it's a major version.
 
 ## Checks that keep these fixed
 
 - `scripts/check-migrations-schema.sh` (CI job "Expand-only migrations")
-- `src/lib/treasury/money-races.db.test.ts`
+- `src/lib/treasury/money-races.db.test.ts`, `src/lib/rsvp/capacity.db.test.ts`, `src/lib/auth/one-time-codes.db.test.ts`
 - `src/server-actions/access.test.ts`, `src/lib/admin/guard.test.ts`
 - `src/lib/http/request-host.test.ts`
 - CI step that seeds, backs up and runs the restore drill
