@@ -36,6 +36,7 @@ async function call(handler: unknown, opts: { token: string; params?: Record<str
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
   const res = await (handler as Handler)(req, { params: Promise.resolve(opts.params ?? {}) });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- response bodies are checked field by field
   return { status: res.status, json: (await res.json().catch(() => ({}))) as Record<string, any> };
 }
 
