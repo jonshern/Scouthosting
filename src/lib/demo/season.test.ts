@@ -6,6 +6,7 @@ import {
   ANNOUNCEMENTS,
   BADGE_DAY_FILE,
   BADGE_DAY_SIGNUPS,
+  BADGE_DAY_STAFF,
   COH_AWARDS,
   COUNSELOR_ASSIGNMENTS,
   COUNSELOR_BADGES,
@@ -144,6 +145,16 @@ describe("demo season data", () => {
       if (seats.waitlist?.length) expect(seats.taken.length).toBe(slot!.capacity);
       const people = key.startsWith("station:") ? scoutKeys : adultKeys;
       for (const k of [...seats.taken, ...(seats.waitlist ?? [])]) expect(people.has(k), `${key}: ${k}`).toBe(true);
+    }
+    // Every station has someone on staff for it, and staff are real people.
+    for (const st of BADGE_DAY_FILE.stations) {
+      expect(BADGE_DAY_STAFF.some((x) => x.station === `station:${st.id}`), st.id).toBe(true);
+    }
+    for (const x of BADGE_DAY_STAFF) {
+      expect(!!x.adult !== !!x.counselor).toBe(true);
+      if (x.adult) expect(adultKeys.has(x.adult), x.adult).toBe(true);
+      if (x.counselor) expect(COUNSELOR_LIST.some((c) => c.name === x.counselor), x.counselor).toBe(true);
+      if (x.station) expect(byKey.has(x.station), x.station).toBe(true);
     }
     // At least one full station with a waitlist, to show how that looks.
     expect(Object.values(BADGE_DAY_SIGNUPS).some((s) => s.waitlist?.length)).toBe(true);

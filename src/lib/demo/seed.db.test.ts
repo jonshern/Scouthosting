@@ -82,6 +82,11 @@ describe.skipIf(!db)("seedDemo (db)", () => {
     const stations = await prisma.signupSlot.count({ where: { orgId: org.id, key: { startsWith: "station:" } } });
     expect(stations).toBe(6);
 
+    // Badge day staff, with a staff channel.
+    const staff = await prisma.eventStaff.count({ where: { orgId: org.id } });
+    expect(staff).toBeGreaterThanOrEqual(6);
+    expect(await prisma.channel.count({ where: { orgId: org.id, kind: "event", audience: "staff" } })).toBe(1);
+
     // Treasury balances match the ledger.
     const funds = await prisma.fund.findMany({ where: { orgId: org.id } });
     for (const f of funds) {

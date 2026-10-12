@@ -13,6 +13,7 @@ import { DEMO_ACCOUNTS, DEMO_PASSWORD, type DemoRole } from "./mode";
 import {
   ANNOUNCEMENTS,
   BADGE_DAY_FILE,
+  BADGE_DAY_STAFF,
   BADGE_DAY_SIGNUPS,
   BADGE_DAY_SLUG,
   COH_AWARDS,
@@ -31,6 +32,7 @@ import {
   demoEmail,
   type DemoAdult,
   type DemoEvent,
+  type MessageChannel,
 } from "./season";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -364,15 +366,69 @@ export async function seedDemo(opts: SeedOptions = {}): Promise<SeedSummary> {
     await prisma.location.create({ data: { orgId: org.id, ...loc } });
   }
 
+  const counselorIdByName = new Map<string, string>();
+  for (const c of COUNSELOR_LIST) {
+    const row = await prisma.meritBadgeCounselor.create({
+      data: {
+        orgId: org.id,
+        name: c.name,
+        email: c.adult ? adultEmail(adultByKey.get(c.adult)!) : demoEmail(...(c.name.split(" ") as [string, string])),
+        badges: c.badges,
+        memberId: c.adult ? memberOf(c.adult) : null,
+        notes: c.notes,
+      },
+      select: { id: true },
+    });
+    counselorIdByName.set(c.name, row.id);
+  }
+
+  // --- badge day staff ------------------------------------------------------
+  const badgeDayId = eventIdByKey.get("badgeday");
+  if (badgeDayId) {
+    const slots = await prisma.signupSlot.findMany({ where: { eventId: badgeDayId }, select: { id: true, key: true } });
+    for (const st of BADGE_DAY_STAFF) {
+      const adult = st.adult ? adultByKey.get(st.adult) : undefined;
+      const listed = COUNSELOR_LIST.find((c) => c.name === st.counselor || (adult && c.adult === adult.key));
+      const name = adult ? fullName(adult) : st.counselor!;
+      await prisma.eventStaff.create({
+        data: {
+          orgId: org.id,
+          eventId: badgeDayId,
+          userId: adult ? userOf(adult.key) : null,
+          counselorId: listed ? counselorIdByName.get(listed.name) ?? null : null,
+          name,
+          email: adult ? adultEmail(adult) : demoEmail(...(name.split(" ") as [string, string])),
+          phone: adult?.phone ?? null,
+          role: st.role,
+          slotId: st.station ? slots.find((x) => x.key === st.station)?.id ?? null : null,
+          status: st.status,
+          notes: st.notes ?? null,
+          respondedAt: st.status === "invited" ? null : new Date(now.getTime() - 2 * DAY_MS),
+        },
+      });
+    }
+  }
+
   // --- chat -----------------------------------------------------------------
   const standing = await provisionStandingChannels({ org, prismaClient: prisma });
+  if (badgeDayId) {
+    await provisionEventChannel({
+      event: { id: badgeDayId, title: DEMO_EVENTS.find((e) => e.key === "badgeday")!.title },
+      org,
+      audience: "staff",
+      prismaClient: prisma,
+    });
+  }
   const eventChannels = await prisma.channel.findMany({
     where: { orgId: org.id, kind: "event" },
-    select: { id: true, eventId: true },
+    select: { id: true, eventId: true, audience: true },
   });
-  const channelFor = (key: (typeof MESSAGES)[number]["channel"]): string => {
+  const channelFor = (key: MessageChannel): string => {
     if (key === "troop" || key === "parents" || key === "leaders") return standing[key].id;
-    const ch = eventChannels.find((c) => c.eventId === eventIdByKey.get(key));
+    const [eventKey, audience] = key === "badgeday-staff" ? ["badgeday", "staff"] : [key, "families"];
+    const ch = eventChannels.find(
+      (c) => c.eventId === eventIdByKey.get(eventKey) && (c.audience ?? "families") === audience,
+    );
     if (!ch) throw new Error(`no channel for ${key}`);
     return ch.id;
   };
@@ -483,19 +539,6 @@ export async function seedDemo(opts: SeedOptions = {}): Promise<SeedSummary> {
   await prisma.counselorMeetingScout.createMany({
     data: ["max", "ben"].map((k) => ({ meetingId: meeting.id, memberId: memberOf(k) })),
   });
-  for (const c of COUNSELOR_LIST) {
-    await prisma.meritBadgeCounselor.create({
-      data: {
-        orgId: org.id,
-        name: c.name,
-        email: c.adult ? adultEmail(adultByKey.get(c.adult)!) : demoEmail(...(c.name.split(" ") as [string, string])),
-        badges: c.badges,
-        memberId: c.adult ? memberOf(c.adult) : null,
-        notes: c.notes,
-      },
-    });
-  }
-
   const [messages, transactions] = await Promise.all([
     prisma.message.count({ where: { channel: { orgId: org.id } } }),
     prisma.transaction.count({ where: { orgId: org.id } }),

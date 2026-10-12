@@ -354,12 +354,39 @@ export const COUNSELOR_LIST = [
   { name: "Ray Castellano", badges: ["Robotics", "Electronics"], notes: "District counselor; meets at the library makerspace." },
   { name: "Hannah Brandt", badges: ["Cybersecurity", "Digital Technology"], notes: "Prefers group sessions." },
   { name: "Walt Jorgensen", badges: ["Woodwork", "Pioneering"], notes: "Has a shop; two-scout minimum." },
+  { name: "Marisol Vega", badges: ["Cooking", "Chemistry"], notes: "New to the district list this fall." },
+];
+
+/**
+ * Badge day staff: who runs each station and who helps. `adult` is a
+ * roster adult; `counselor` names someone on COUNSELOR_LIST who isn't.
+ */
+export const BADGE_DAY_STAFF: ReadonlyArray<{
+  adult?: string;
+  counselor?: string;
+  role: "counselor" | "staff" | "volunteer" | "lead";
+  station?: string;
+  status: "yes" | "maybe" | "invited";
+  notes?: string;
+}> = [
+  { adult: "ellis", role: "lead", status: "yes", notes: "Event lead; runs the morning briefing." },
+  { adult: "whitfield", role: "counselor", station: "station:firstaid", status: "yes" },
+  { counselor: "Marisol Vega", role: "counselor", station: "station:cooking", status: "maybe", notes: "Confirming she can get the school kitchen." },
+  { counselor: "Ray Castellano", role: "counselor", station: "station:robotics", status: "yes" },
+  { adult: "shah", role: "counselor", station: "station:camping", status: "yes" },
+  { counselor: "Hannah Brandt", role: "counselor", station: "station:cyber", status: "yes" },
+  { counselor: "Walt Jorgensen", role: "counselor", station: "station:woodwork", status: "invited" },
+  { adult: "okafor", role: "volunteer", status: "yes", notes: "Check-in table." },
+  { adult: "brooks", role: "volunteer", status: "yes", notes: "Lunch crew." },
+  { adult: "haddad", role: "volunteer", status: "maybe", notes: "Lunch crew." },
 ];
 
 // ---------------------------------------------------------------------------
 // Chat. Channel kinds match Compass's standing channels; `ago` is minutes before the reset.
 
-export const MESSAGES: ReadonlyArray<{ channel: "troop" | "parents" | "leaders" | "campout" | "badgeday"; from: string; ago: number; body: string }> = [
+export type MessageChannel = "troop" | "parents" | "leaders" | "campout" | "badgeday" | "badgeday-staff";
+
+export const MESSAGES: ReadonlyArray<{ channel: MessageChannel; from: string; ago: number; body: string }> = [
   { channel: "troop", from: "ellis", ago: 60 * 24 * 3, body: "Great turnout at the park cleanup. 8 scouts, 24 service hours logged. Thank you!" },
   { channel: "troop", from: "shah", ago: 60 * 24 * 2, body: "Campout sign-ups are open. Permission slips are on the event page this year, no paper." },
   { channel: "troop", from: "ellis", ago: 60 * 5, body: "Reminder: bring your Scout handbook Monday. We're doing map and compass in patrols." },
@@ -373,6 +400,9 @@ export const MESSAGES: ReadonlyArray<{ channel: "troop" | "parents" | "leaders" 
   { channel: "campout", from: "whitfield", ago: 60 * 10, body: "I'll bring the patrol first aid kits for a quick check before we leave." },
   { channel: "badgeday", from: "whitfield", ago: 60 * 6, body: "First Aid station has 6 seats left. Do the prereq worksheet before you come." },
   { channel: "badgeday", from: "ellis", ago: 60 * 3, body: "Cooking filled up fast. Max is first on the waitlist." },
+  { channel: "badgeday-staff", from: "ellis", ago: 60 * 8, body: "Staff: doors open 7:45. Station signs and passports are in the blue bins." },
+  { channel: "badgeday-staff", from: "whitfield", ago: 60 * 7, body: "First Aid needs two tables and an outlet for the CPR video." },
+  { channel: "badgeday-staff", from: "shah", ago: 60 * 2, body: "Camping station will be outside by the flagpole if it's dry." },
 ];
 
 // ---------------------------------------------------------------------------
