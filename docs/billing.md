@@ -4,7 +4,7 @@ How a new unit finds Compass, tries it for 30 days, and keeps paying if
 it likes it. The price is **$99 a year or $10 a month per unit, first
 month free** (`src/lib/billing/pricing.ts`, which the marketing pages and
 the billing page read). One subscription covers the whole family:
-Compass, Waypoint and Summit all read the same unit's status.
+Compass, Waypoint and Lantern all read the same unit's status.
 
 ## How it works
 
@@ -38,7 +38,7 @@ arrive out of order, so each write checks the event's `created` time
 against `Org.stripeEventAt` and an older event is skipped
 (`reason: "stale"`); replaying the same event writes the same values.
 Waypoint and
-Summit read the same state with
+Lantern read the same state with
 `GET /api/v1/orgs/<slug>/subscription` (any member's token), which returns
 `status`, `trialDaysLeft`, `trialEndsAt`, `currentPeriodEnd`,
 `cancelAtPeriodEnd`, `subscribed` and `locked`.

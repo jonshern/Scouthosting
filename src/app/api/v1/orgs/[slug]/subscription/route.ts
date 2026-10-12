@@ -1,5 +1,5 @@
 // GET /api/v1/orgs/[id-or-slug]/subscription — the unit's trial and
-// subscription state, for Waypoint and Summit to show the same trial
+// subscription state, for Waypoint and Lantern to show the same trial
 // countdown and lock as Compass. Any member may read it; changing it
 // happens in Compass's billing page (admin/billing) and Stripe.
 

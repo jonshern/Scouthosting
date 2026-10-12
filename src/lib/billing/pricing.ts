@@ -1,6 +1,6 @@
 // The one price list, shared by the marketing pages and the billing
 // page. Each unit pays one of two ways for everything (Compass,
-// Waypoint, Summit); the first month is the free trial either way. The
+// Waypoint, Lantern); the first month is the free trial either way. The
 // Stripe Price IDs live in env (STRIPE_PRICE_YEARLY / _MONTHLY) and
 // must match these amounts (docs/billing.md).
 

@@ -267,7 +267,7 @@ export default function MarketingHome() {
             </div>
             <p className="text-sm text-slate-soft mt-6 mb-7 pb-6 border-b border-line">
               First month free, no card needed. Keep it and it renews automatically;
-              cancel any time. One subscription covers Compass, Waypoint and Summit.
+              cancel any time. One subscription covers Compass, Waypoint and Lantern.
             </p>
             <Link href="/start" className="btn-primary w-full justify-center mt-auto">
               Start your free month →
@@ -288,7 +288,7 @@ export default function MarketingHome() {
                 "Two-deep enforced on every message",
                 "Push notifications and the family app",
                 "Merit badge counseling and badge days (Waypoint)",
-                "Each scout's path to Eagle (Summit)",
+                "Each scout's path to Eagle (Lantern)",
                 "White-glove migration from your old site",
               ].map((f) => (
                 <li key={f} className="flex gap-2.5 leading-snug text-white/90">

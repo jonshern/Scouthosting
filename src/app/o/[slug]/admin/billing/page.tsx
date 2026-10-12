@@ -109,7 +109,7 @@ export default async function BillingPage({
           {canSubscribe && (
             <p className="mt-2 text-sm text-ink">
               {PRICES.year.long} or {PRICES.month.long} per unit, covering Compass, Waypoint and
-              Summit. Yearly saves ${YEARLY_SAVINGS_USD}. Cancel any time.
+              Lantern. Yearly saves ${YEARLY_SAVINGS_USD}. Cancel any time.
             </p>
           )}
         </div>

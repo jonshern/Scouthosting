@@ -1,6 +1,6 @@
 // Free trial and the billing summary every surface reads (the admin
 // banner and billing page, and GET /api/v1/orgs/:slug/subscription for
-// Waypoint and Summit). Pure functions; the webhook in
+// Waypoint and Lantern). Pure functions; the webhook in
 // lib/billing/stripe.ts is the only writer of the Stripe fields.
 
 import { deriveBillingStatus, type BillingGate, type BillingStatus, type OrgLikeForBilling } from "./state";

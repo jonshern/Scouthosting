@@ -38,7 +38,7 @@ const INCLUDED: Feature[] = [
     "Patrol, den, parents, leaders. Two-deep audit on every leader↔youth thread.",
   ],
   ["Waypoint", "Merit badge counseling, worksheets, and badge days with staff rosters."],
-  ["Summit", "Each scout's own path to Eagle, with a grown-up mode for parents."],
+  ["Lantern", "Each scout's own path to Eagle, with a grown-up mode for parents."],
 ];
 
 function FeatureRow({ feat, dark = false }: { feat: Feature; dark?: boolean }) {
@@ -102,7 +102,7 @@ export default function PlansPage() {
             <p className="mt-6 max-w-2xl text-slate-soft text-[16px] leading-[1.65]">
               {PRICES.year.long} or {PRICES.month.long} per unit, and your first month is
               free. Custom domains, BYO email, 15 GB photo storage, messaging, and the
-              Waypoint and Summit apps are{" "}
+              Waypoint and Lantern apps are{" "}
               <strong className="text-ink">all included</strong> — we don't charge $25
               extra for the things our hosts charge us pennies for.
             </p>

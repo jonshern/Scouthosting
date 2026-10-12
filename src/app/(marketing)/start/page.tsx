@@ -54,7 +54,7 @@ export default async function StartPage() {
         </h1>
         <p className="mt-6 text-[16px] leading-[1.6] text-slate-soft">
           One account covers the whole family: Compass for your troop or pack&apos;s site and
-          calendar, Waypoint for merit badge counselors and badge days, and Summit for each
+          calendar, Waypoint for merit badge counselors and badge days, and Lantern for each
           scout&apos;s path. Your first month is free. If it works for your unit, keep it for{" "}
           {PRICES.year.long} or {PRICES.month.long}, billed automatically after the trial. If
           not, do nothing and nothing is charged.
