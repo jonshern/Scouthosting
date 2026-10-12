@@ -336,6 +336,7 @@ model Verification {
   updatedAt  DateTime @updatedAt
 
   @@index([identifier])
+  @@index([expiresAt])
 }
 
 // Better Auth's rate-limit counters. Kept in Postgres so the limits hold
@@ -384,6 +385,7 @@ model Session {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([expiresAt])
 }
 
 // ------------------------------------------------------------------
@@ -511,6 +513,8 @@ model Member {
   @@index([orgId, lastNameLc1])
   @@index([orgId, status])
   @@index([orgId, deletedAt])
+  // "My scouts" finds a parent's roster entries across units by email.
+  @@index([email])
 }
 
 model Event {
@@ -666,6 +670,8 @@ model Rsvp {
   @@unique([eventId, userId])
   @@unique([eventId, email])
   @@index([orgId, eventId])
+  @@index([memberId])
+  @@index([userId])
 }
 
 model Album {
@@ -725,6 +731,9 @@ model Photo {
 
   @@index([orgId, albumId, sortOrder])
   @@index([orgId, messageId])
+  // /uploads/<key> looks photos up by filename on every image request.
+  @@index([filename])
+  @@index([albumId, sortOrder])
 }
 
 model Form {
@@ -776,6 +785,8 @@ model MailLog {
   recipients Json
 
   events MailEvent[]
+
+  @@index([orgId, sentAt])
 }
 
 // Per-recipient tracking events for a MailLog row: image-pixel "open"s
@@ -1932,6 +1943,7 @@ model Message {
   // been emailed yet — narrow index supports that scan without a full
   // table scan.
   @@index([emailReminderSentAt, createdAt])
+  @@index([authorId])
 }
 
 // Emoji reaction. Composite primary key (messageId, userId, emoji) so a

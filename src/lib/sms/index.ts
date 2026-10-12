@@ -44,6 +44,7 @@ async function twilioSend({ to, body }: SmsMessage): Promise<SmsResult> {
   const params = new URLSearchParams({ From: FROM, To: to, Body: body });
   const r = await fetch(url, {
     method: "POST",
+    signal: AbortSignal.timeout(15_000),
     headers: {
       Authorization: `Basic ${Buffer.from(`${sid}:${token}`).toString("base64")}`,
       "Content-Type": "application/x-www-form-urlencoded",

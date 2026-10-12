@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
@@ -9,6 +8,7 @@ import { canManageTreasury, TREASURY_FORBIDDEN } from "@/lib/auth/treasury-acces
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 import { sendBalancesForOrg } from "@/lib/treasury/send-balances";
+import { apexPublicOrigin } from "@/lib/tenancy/resolve";
 
 const Schema = z.object({ orgSlug: z.string().min(1) });
 
@@ -17,12 +17,6 @@ export type SendBalancesState =
   | { error: string }
   | null;
 
-async function originForRequest(): Promise<string> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  const host = h.get("host") ?? "localhost:3000";
-  return `${proto}://${host}`;
-}
 
 export async function sendAllBalances(
   _prev: SendBalancesState,
@@ -39,7 +33,7 @@ export async function sendAllBalances(
   if (!org) return { error: "Org not found." };
   if (!(await canManageTreasury(user, org.id))) return { error: TREASURY_FORBIDDEN };
 
-  const baseUrl = await originForRequest();
+  const baseUrl = apexPublicOrigin();
   const summary = await sendBalancesForOrg(org, baseUrl);
 
   audit({

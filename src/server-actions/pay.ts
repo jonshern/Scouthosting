@@ -1,13 +1,13 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { dollarsToCents } from "@/lib/treasury/money";
 import { createMemberPaymentSession } from "@/lib/treasury/stripe";
+import { apexPublicOrigin } from "@/lib/tenancy/resolve";
 
 const Schema = z.object({
   orgSlug: z.string().min(1),
@@ -16,12 +16,6 @@ const Schema = z.object({
   description: z.string().trim().min(1).max(500),
 });
 
-async function originForRequest(): Promise<string> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  const host = h.get("host") ?? "localhost:3000";
-  return `${proto}://${host}`;
-}
 
 export async function startMemberPayment(
   _prev: { error?: string } | null,
@@ -55,7 +49,7 @@ export async function startMemberPayment(
   const cents = dollarsToCents(parsed.data.amount);
   if (cents < 50) return { error: "Minimum payment is $0.50." };
 
-  const baseUrl = await originForRequest();
+  const baseUrl = apexPublicOrigin();
   let session;
   try {
     session = await createMemberPaymentSession({
