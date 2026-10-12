@@ -132,6 +132,20 @@ async function purgeOne(
     : null;
   const userId = login?.userId ?? null;
 
+  // RSVPs and slot sign-ups made without a login carry only an email.
+  // Families often share one address, so match by email only when no
+  // one else in the unit uses it; otherwise a parent's or sibling's
+  // sign-ups would go with the scout.
+  const emailIsTheScouts =
+    !!email &&
+    (await db.member.count({
+      where: { orgId: m.orgId, id: { not: m.id }, email: { equals: email, mode: "insensitive" } },
+    })) === 0 &&
+    (await db.orgMembership.count({
+      where: { orgId: m.orgId, role: { not: "scout" }, user: { email: { equals: email, mode: "insensitive" } } },
+    })) === 0;
+  const byEmail = emailIsTheScouts ? [{ email }] : [];
+
   const orgChannel = { channel: { orgId: m.orgId } };
   const photos = userId
     ? await db.photo.findMany({
@@ -153,18 +167,10 @@ async function purgeOne(
       await tx.channelMember.deleteMany({ where: { userId, ...orgChannel } });
       await tx.orgMembership.deleteMany({ where: { userId, orgId: m.orgId, role: "scout" } });
     }
-    const who = [
-      { memberId: m.id },
-      ...(userId ? [{ userId }] : []),
-      ...(email ? [{ email }] : []),
-    ];
+    const who = [{ memberId: m.id }, ...(userId ? [{ userId }] : []), ...byEmail];
     await tx.rsvp.deleteMany({ where: { orgId: m.orgId, OR: who } });
-    await tx.slotAssignment.deleteMany({
-      where: {
-        orgId: m.orgId,
-        OR: [...(userId ? [{ userId }] : []), ...(email ? [{ email }] : [])],
-      },
-    });
+    const slotWho = [...(userId ? [{ userId }] : []), ...byEmail];
+    if (slotWho.length) await tx.slotAssignment.deleteMany({ where: { orgId: m.orgId, OR: slotWho } });
     // Signed slips go with the scout, but leave a trace that consent
     // existed: event, signing time, signer role. No names or emails.
     const slips = await tx.permissionSlip.findMany({
