@@ -105,6 +105,10 @@ jobs:
         env:
           APEX_HOST: localhost
       - run: npx playwright test
+        env:
+          # links.spec.ts also HEAD/GET-checks every external link it finds
+          # (404/410 fails; bot walls and timeouts are reported as warnings).
+          LINKCHECK_EXTERNAL: "1"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
