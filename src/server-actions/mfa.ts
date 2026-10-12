@@ -14,6 +14,7 @@ import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 import { verifyMfaCodeForUser } from "@/lib/auth/mfa-verify";
 import { accountStanding, mfaLocked } from "@/lib/auth/requirements";
+import { DEMO_LOCKED_MESSAGE, isDemoMode } from "@/lib/demo/mode";
 
 export type MfaState = { error?: string; ok?: true } | null;
 
@@ -43,6 +44,7 @@ export async function enrollMfa(formData: FormData): Promise<EnrollResult> {
 
   const { user } = await getSession();
   if (!user) return { ok: false, error: "Not signed in." };
+  if (isDemoMode()) return { ok: false, error: DEMO_LOCKED_MESSAGE };
 
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },

@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mfaLocked, mfaRequiredForOrganizers, requirementRedirect, withNext } from "./requirements";
 
 const env = process.env as Record<string, string | undefined>;
-const saved = { NODE_ENV: env.NODE_ENV, ALLOW_ADMIN_WITHOUT_MFA: env.ALLOW_ADMIN_WITHOUT_MFA };
+const saved = {
+  NODE_ENV: env.NODE_ENV,
+  ALLOW_ADMIN_WITHOUT_MFA: env.ALLOW_ADMIN_WITHOUT_MFA,
+  DEMO_MODE: env.DEMO_MODE,
+};
 
 afterEach(() => {
   for (const [k, v] of Object.entries(saved)) {
@@ -56,6 +60,14 @@ describe("requirementRedirect", () => {
     expect(mfaRequiredForOrganizers()).toBe(false);
     env.ALLOW_ADMIN_WITHOUT_MFA = "true";
     expect(mfaRequiredForOrganizers()).toBe(true);
+  });
+
+  it("is off on a demo deployment, where the accounts are shared", () => {
+    env.NODE_ENV = "production";
+    delete env.ALLOW_ADMIN_WITHOUT_MFA;
+    env.DEMO_MODE = "1";
+    expect(mfaRequiredForOrganizers()).toBe(false);
+    expect(requirementRedirect(organizer, { organizerSurface: true })).toBeNull();
   });
 });
 

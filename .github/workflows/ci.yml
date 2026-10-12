@@ -15,6 +15,19 @@ permissions:
   contents: read
 
 jobs:
+  # Blue-green deploys keep the old revision serving on the new schema,
+  # so new migrations must be expand-only (scripts/check-migrations.sh).
+  migrations:
+    name: Expand-only migrations
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: scripts/check-migrations.sh "origin/${{ github.base_ref }}"
+
   check:
     name: Typecheck, lint, unit tests
     runs-on: ubuntu-latest

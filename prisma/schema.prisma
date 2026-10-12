@@ -2831,3 +2831,18 @@ model RateLimitBucket {
 
   @@index([resetAt])
 }
+
+// Demo deployments only (DEMO_MODE=1, src/lib/demo): every email and
+// text the app would have sent, shown on /demo/outbox instead of going
+// out. Wiped with the rest of the demo data on each reset.
+model DemoOutboxMessage {
+  id        String   @id @default(cuid())
+  kind      String // email | sms
+  to        String
+  toName    String?
+  subject   String?
+  body      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

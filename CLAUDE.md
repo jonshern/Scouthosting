@@ -9,7 +9,7 @@ this lean.
 - Node 22 · Next.js 16 · React 19 · Prisma 5 · Postgres 16 · Better Auth · argon2id · pg-boss · Tailwind
 - Mobile: Expo / React Native (talks to `/api/v1/*` over HTTPS)
 - Local infra: `docker-compose.yml` runs Postgres only; Next runs as a host Node process via `npm run dev`
-- Deploy: `Dockerfile` at the repo root builds an image that runs `next start` on port 3000 (no npm in the image; migrations are a separate step, `scripts/migrate.sh`). Target is Cloud Run (`infra/`, `docs/gcp-deployment.md`); until the GCP project exists Compass runs on Jon's Mac. fly.io is shut down.
+- Deploy: `Dockerfile` at the repo root builds an image that runs `next start` on port 3000 (no npm in the image; migrations are a separate step, `scripts/migrate.sh`). Target is Cloud Run, deployed blue-green (`scripts/deploy-api.sh`, rollback with `scripts/rollback-api.sh`) (`infra/`, `docs/gcp-deployment.md`); until the GCP project exists Compass runs on Jon's Mac. fly.io is shut down.
 
 ## Layout
 
@@ -178,6 +178,15 @@ a schema change without a matching migration fails the build. Back up
 the database before deploying any migration that deletes rows (for
 example `20261011130000_align_constraint_names` clears orphaned rows).
 
+Migrations must be **expand-only**: deploys are blue-green, so the
+previous revision runs on the new schema until traffic flips and again
+after a rollback. Add tables, nullable or defaulted columns and indexes;
+don't drop, rename, retype or `SET NOT NULL` in the same release that
+stops using something. CI's *Expand-only migrations* job
+(`scripts/check-migrations.sh`) fails those; a later contract migration
+carries a `-- contract: <reason>` line. Also give a new migration a
+timestamp later than every migration on `main`.
+
 ### 11. CI
 
 `.github/workflows/ci.yml` runs typecheck, lint, unit + `*.db.test.ts`
@@ -216,6 +225,18 @@ variable (`RSVP_SECRET`, `PERM_SLIP_SECRET`, `UNSUB_SECRET`,
 throws instead of falling back; the built-in keys are for dev and tests
 only. The pre-launch invite cookie (`src/lib/invite/cookie.ts`) follows
 the same rule with static reads because it runs in middleware.
+
+### 15. Demo mode is a whole deployment, not an org
+
+`DEMO_MODE=1` (`src/lib/demo/`, `docs/demo.md`) turns a deployment into
+the public demo: sample Troop 42, four shared accounts (password
+`TryTheDemo42!`), mail and SMS captured to `/demo/outbox`, sign-up and
+password/email/two-step changes refused, and a wipe-and-reseed of every
+table on a schedule. It needs its own database; the reset refuses if any
+`Org.isDemo = false` row exists. `Org.isDemo` alone (the troop100 seed)
+only skips billing. New code that sends mail or texts must go through
+`sendMail` / `sendSms` so the demo catches it. `make demo` runs it on
+:3100 against `compass_demo`.
 
 ## Demo accounts (test DB)
 

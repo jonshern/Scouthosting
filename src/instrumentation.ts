@@ -4,6 +4,8 @@
 //     isn't set; lazy-loads the SDK packages so they're optional)
 //   - process-level fatal-error handlers (lib/ops/error-tracker)
 //   - the pg-boss jobs runtime (no-op in tests / when JOBS_DISABLED=1)
+//   - on a demo deployment (DEMO_MODE=1), the demo reset check: seed an
+//     empty database at boot, then reset once a day (src/lib/demo)
 
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
@@ -24,5 +26,18 @@ export async function register() {
       // eslint-disable-next-line no-console
       console.error("startJobsRuntime failed", err);
     });
+  }
+
+  if (process.env.DEMO_MODE === "1") {
+    const { maybeResetDemo } = await import("@/lib/demo/reset");
+    const check = () =>
+      maybeResetDemo().catch((err) => {
+        console.error("demo reset failed", err);
+      });
+    void check();
+    // Hourly while the process is up (the Mac, or an always-on
+    // instance). On Cloud Run the scheduler's /api/cron/run tick does
+    // the same check.
+    setInterval(check, 60 * 60 * 1000).unref();
   }
 }

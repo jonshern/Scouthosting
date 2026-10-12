@@ -60,6 +60,10 @@ flowchart LR
 
 Staging and previews skip the pre-launch invite gate and let admins in without two-step sign-in; production requires both. Previews never migrate staging; the PR's migrations run on staging when it merges.
 
+## Blue-green deploys
+
+Every deploy of the core service is blue-green. The live revision (blue) keeps serving while the migrate job runs; the new image starts as a separate revision (green) with no traffic and its own URL; `/health` and `/login` are checked on green; then all traffic flips to green in one step, and flips back if the live check fails. The old revision stays deployed, so rolling back is one traffic change with nothing rebuilt. This only works if both versions can run on the same database, so migrations are expand-only, enforced in CI (details in [runbooks-gcp.md](runbooks-gcp.md#migrations-are-expand-only)). Waypoint and Summit websites get the same property from Firebase Hosting, where every release is atomic and the previous one is a click away.
+
 ## What's in the repo
 
 | Path | What it is |
@@ -68,10 +72,12 @@ Staging and previews skip the pre-launch invite gate and let admins in without t
 | `infra/` | Everything else, applied by the *Infra* workflow: database, service, migrate job, hosting sites, bucket, secrets, scheduler, monitoring |
 | `infra/modules/environment/` | The per-environment pieces, stamped out for `staging` and `prod` |
 | `scripts/migrate.sh` | The migrate job: `prisma migrate deploy`, then row-only grants for the server's login |
-| `scripts/deploy-api.sh` | Migrate, roll out, smoke test `/health`, roll back on failure |
+| `scripts/deploy-api.sh` | Blue-green rollout: migrate, start the new revision with no traffic, check it, flip traffic, flip back on failure |
+| `scripts/rollback-api.sh` | Send traffic back to an earlier revision (also the *Rollback* workflow) |
+| `scripts/check-migrations.sh` | CI check that new migrations are expand-only, so the previous revision keeps working |
 | `scripts/set-github-vars.sh` | Copies Terraform outputs into GitHub variables on all three repositories |
 | `src/app/api/cron/run/` | The endpoint Cloud Scheduler calls |
-| `.github/workflows/deploy.yml`, `preview.yml`, `infra.yml` | The GCP workflows |
+| `.github/workflows/deploy.yml`, `rollback.yml`, `preview.yml`, `infra.yml` | The GCP workflows |
 | [`runbooks-gcp.md`](runbooks-gcp.md) | Rollback, restore, every alert, incident response, secret rotation |
 
 ## Before the first apply
@@ -125,8 +131,8 @@ You need `gcloud`, `terraform` (1.9 or newer) and `gh`.
 
 | I want to... | Do this |
 |---|---|
-| Ship a change | Merge the PR. Staging, then prod. |
-| Roll back | Re-run *Deploy* on an older commit, or send 100% traffic to the previous revision in Cloud Run. |
+| Ship a change | Merge the PR. Staging, then prod, each blue-green. |
+| Roll back | *Actions → Rollback* (or `scripts/rollback-api.sh prod`): traffic returns to the previous revision in seconds. |
 | Change infrastructure | Edit `infra/`, open a PR (plan in the *Infra* job summary), merge to apply. |
 | Keep prod warm for an event | `prod = { min_instances = 1, ... }` in `environments`, apply, set back after. |
 | Monitor a web app | Add it to `monitored_web_apps` after its first publish. |

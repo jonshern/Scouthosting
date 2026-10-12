@@ -53,4 +53,14 @@ describe("passwordLoginAllowedForRole", () => {
     env.NODE_ENV = "test";
     expect(passwordLoginAllowedForRole({ privileged: true })).toBe(true);
   });
+
+  it("lets the shared demo accounts use their password on a demo deployment", () => {
+    env.NODE_ENV = "production";
+    env.DEMO_MODE = "1";
+    try {
+      expect(passwordLoginAllowedForRole({ privileged: true })).toBe(true);
+    } finally {
+      delete env.DEMO_MODE;
+    }
+  });
 });

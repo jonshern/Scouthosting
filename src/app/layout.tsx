@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Inter_Tight, Source_Serif_4, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { DemoBanner } from "@/components/demo/DemoBanner";
+import { isDemoMode } from "@/lib/demo/mode";
 
 // Type stack per design_handoff_compass_cms — Source Serif 4 for
 // display, Inter Tight for chrome, JetBrains Mono for IDs / dates.
@@ -37,7 +39,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="en"
       className={`${interTight.variable} ${sourceSerif.variable} ${jetbrainsMono.variable}`}
     >
-      <body className="font-sans">{children}</body>
+      <body className="font-sans">
+        {isDemoMode() ? <DemoBanner /> : null}
+        {children}
+      </body>
     </html>
   );
 }

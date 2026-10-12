@@ -10,9 +10,13 @@
 // or Apple OAuth isn't worth the effort. Never set in real production —
 // it defeats the SSO requirement that's the whole point of the check.
 
+import { isDemoMode } from "@/lib/demo/mode";
+
 export function passwordLoginAllowedForRole({ privileged }: { privileged: boolean }): boolean {
   if (!privileged) return true;
   if (process.env.NODE_ENV !== "production") return true;
+  // The demo's shared admin account signs in with its published password.
+  if (isDemoMode()) return true;
   if (process.env.ALLOW_ADMIN_PASSWORD_LOGIN === "1") return true;
   return false;
 }
