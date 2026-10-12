@@ -100,11 +100,11 @@ export async function startJobsRuntime(opts: { databaseUrl?: string } = {}): Pro
   }
   if (process.env.NODE_ENV === "test") return null;
 
-  let PgBoss: new (opts: { connectionString: string }) => PgBossLike;
+  let PgBoss: new (opts: { connectionString: string; max?: number }) => PgBossLike;
   try {
     const mod = (await import("pg-boss")) as {
-      PgBoss?: new (opts: { connectionString: string }) => PgBossLike;
-      default?: new (opts: { connectionString: string }) => PgBossLike;
+      PgBoss?: new (opts: { connectionString: string; max?: number }) => PgBossLike;
+      default?: new (opts: { connectionString: string; max?: number }) => PgBossLike;
     };
     const Ctor = mod.PgBoss || mod.default;
     if (typeof Ctor !== "function") {
@@ -118,7 +118,9 @@ export async function startJobsRuntime(opts: { databaseUrl?: string } = {}): Pro
     return null;
   }
 
-  const boss = new PgBoss({ connectionString: databaseUrl });
+  // pg-boss defaults to a pool of 10 per process, which alone would
+  // exhaust the Cloud SQL budget (see src/lib/db.ts).
+  const boss = new PgBoss({ connectionString: databaseUrl, max: jobsPoolSize() });
   boss.on("error", (err) => log.error("pg-boss error", { err: err.message }));
   await boss.start();
 
@@ -182,3 +184,7 @@ void registerHandler;
 // init. Kept at the bottom so the registry above is fully exported by
 // the time handlers.ts evaluates.
 import "./handlers";
+
+export function jobsPoolSize(env: Record<string, string | undefined> = process.env): number {
+  return Math.max(1, Math.floor(Number(env.JOBS_POOL_SIZE)) || 2);
+}
