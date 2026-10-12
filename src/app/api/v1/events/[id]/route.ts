@@ -4,6 +4,7 @@
 
 import { prisma } from "@/lib/db";
 import { json, notFound, parseId, requireOrgAccessForResource, v1Route } from "@/lib/api/v1";
+import { effectiveSlipText } from "@/lib/permission-slips";
 
 export const runtime = "nodejs";
 
@@ -46,6 +47,11 @@ export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
       category: event.category,
       signupRequired: event.signupRequired,
       rrule: event.rrule,
+      // What a parent agrees to when signing from the app
+      // (POST /api/v1/events/<id>/permission-slips).
+      permissionSlip: event.requiresPermissionSlip
+        ? { required: true, text: effectiveSlipText(event.permissionSlipText) }
+        : { required: false, text: null },
       rsvpSummary: {
         yes: event.rsvps.filter((r) => r.response === "yes").length,
         no: event.rsvps.filter((r) => r.response === "no").length,

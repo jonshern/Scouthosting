@@ -18,6 +18,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 import { Avatar, Icon } from "../theme/atoms";
 import { useAuth } from "../state/AuthContext";
+import { ServerSection } from "../components/ServerSection";
 import { fontFamilies, palette, radius, spacing } from "../theme/tokens";
 import type { ProfileStackParamList } from "../navigation/types";
 
@@ -115,6 +116,10 @@ export function ProfileScreen() {
             </View>
           </View>
         )}
+
+        <View style={styles.section}>
+          <ServerSection signedIn />
+        </View>
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>SETTINGS</Text>

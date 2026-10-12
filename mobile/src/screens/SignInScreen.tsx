@@ -16,6 +16,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -24,10 +25,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { fontFamilies, palette, radius, spacing } from "../theme/tokens";
 import { useAuth } from "../state/AuthContext";
+import { ServerSection } from "../components/ServerSection";
 
 export default function SignInScreen() {
   const auth = useAuth();
   const [busy, setBusy] = useState(false);
+  const [showServer, setShowServer] = useState(false);
 
   const onSubmit = async () => {
     setBusy(true);
@@ -40,7 +43,7 @@ export default function SignInScreen() {
           ? "This account isn't on a unit roster yet. Ask a leader to add you."
           : e?.message?.includes("cancelled")
             ? "Sign-in was cancelled."
-            : "Something went wrong. Check your connection and try again.",
+            : `Something went wrong reaching ${auth.server.address}. Check your connection, or the server address below, and try again.`,
       );
     } finally {
       setBusy(false);
@@ -53,7 +56,7 @@ export default function SignInScreen() {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         style={styles.flex}
       >
-        <View style={styles.body}>
+        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <Text style={styles.kicker}>Compass</Text>
           <Text style={styles.headline}>
             Sign in to your <Text style={styles.italic}>unit.</Text>
@@ -80,10 +83,17 @@ export default function SignInScreen() {
           </Pressable>
 
           <Text style={styles.fine}>
-            Don't have an account? Visit compass.app on your laptop to start a
-            unit's site.
+            Don't have an account? Visit {auth.server.address.replace(/^https?:\/\//, "")} on
+            your laptop to start a unit's site.
           </Text>
-        </View>
+
+          <Pressable onPress={() => setShowServer((v) => !v)} style={styles.serverToggle}>
+            <Text style={styles.serverToggleText}>
+              {showServer ? "Hide server" : `Server: ${auth.server.address.replace(/^https?:\/\//, "")}`}
+            </Text>
+          </Pressable>
+          {showServer && <ServerSection signedIn={false} />}
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -92,7 +102,7 @@ export default function SignInScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: palette.bg },
   flex: { flex: 1 },
-  body: { flex: 1, padding: spacing.xl, justifyContent: "center" },
+  body: { flexGrow: 1, padding: spacing.xl, justifyContent: "center" },
   kicker: {
     fontFamily: fontFamilies.ui,
     fontSize: 11,
@@ -135,6 +145,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: palette.bg,
   },
+  serverToggle: { alignItems: "center", paddingVertical: spacing.md, marginTop: spacing.lg },
+  serverToggleText: { fontFamily: fontFamilies.ui, fontSize: 13, color: palette.inkMuted, textDecorationLine: "underline" },
   fine: {
     fontFamily: fontFamilies.ui,
     fontSize: 13,

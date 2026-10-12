@@ -1,36 +1,60 @@
-// API config. EXPO_PUBLIC_COMPASS_BASE_URL is read at build time; default
-// matches the unit subdomain pattern parents will most commonly use. The
-// org slug is stored alongside the token after sign-in so the mobile app
-// can hit `https://<slug>.<apex>` directly.
+// Which Compass server the app talks to.
 //
-// In dev: set EXPO_PUBLIC_COMPASS_BASE_URL=http://localhost:3000 in .env.
-// In TestFlight / prod: leave unset and the app uses the per-org host
-// captured at sign-in.
+// Every /api/v1 route is host-agnostic (bearer token, org from the path),
+// so the app talks to one server for everything, like Waypoint and
+// Lantern. The address is, in order:
+//
+//   1. one set on this phone (Profile > Server, the sign-in screen, or a
+//      compass://connect?url=… link). AuthContext loads it at launch and
+//      calls setServerAddress().
+//   2. EXPO_PUBLIC_COMPASS_BASE_URL at build time (eas.json sets it per
+//      build profile; scripts/phone.sh writes it to .env.local).
+//   3. https://<EXPO_PUBLIC_COMPASS_APEX or compass.app>.
+//
+// See docs/phone.md.
+
+import { normalizeServerUrl } from "./serverUrl";
 
 export type ApiConfig = {
-  // Optional override (dev). When set, every request goes to this host
-  // regardless of the user's org subdomain.
+  // Optional override. When set, requests go to this host instead of the
+  // current server address (tests use it).
   baseUrl?: string;
-};
-
-export const DEFAULT_API_CONFIG: ApiConfig = {
-  baseUrl: process.env.EXPO_PUBLIC_COMPASS_BASE_URL,
 };
 
 export const APEX_DOMAIN = process.env.EXPO_PUBLIC_COMPASS_APEX || "compass.app";
 
-/** Resolve the host for a given org slug. */
-export function hostForOrg(orgSlug: string, config: ApiConfig = DEFAULT_API_CONFIG): string {
-  if (config.baseUrl) return config.baseUrl.replace(/\/$/, "");
-  return `https://${orgSlug}.${APEX_DOMAIN}`;
+/** The address the build carries, before anything is set on the phone. */
+export const BUILT_IN_SERVER =
+  normalizeServerUrl(process.env.EXPO_PUBLIC_COMPASS_BASE_URL) || `https://${APEX_DOMAIN}`;
+
+let current = BUILT_IN_SERVER;
+
+/** The server every request goes to right now. */
+export function serverAddress(): string {
+  return current;
+}
+
+/** Point the app at another server; null goes back to the built-in one. */
+export function setServerAddress(address: string | null): void {
+  current = (address && normalizeServerUrl(address)) || BUILT_IN_SERVER;
+}
+
+export const DEFAULT_API_CONFIG: ApiConfig = {};
+
+function base(config: ApiConfig): string {
+  return (config.baseUrl || current).replace(/\/$/, "");
 }
 
 /**
- * Resolve the apex (org-less) base URL. Used for sign-in: the apex
- * /auth/mobile/begin endpoint accepts any signed-in user regardless of
- * org — org selection happens client-side after /api/v1/auth/me.
+ * Host for an org's API calls. The org is in the path, not the host, so
+ * this is the current server whatever the org. Kept as a function so the
+ * callers don't change if per-org hosts ever come back.
  */
+export function hostForOrg(_orgSlug: string, config: ApiConfig = DEFAULT_API_CONFIG): string {
+  return base(config);
+}
+
+/** Base URL for sign-in (/auth/mobile/begin works without an org). */
 export function apexBaseUrl(config: ApiConfig = DEFAULT_API_CONFIG): string {
-  if (config.baseUrl) return config.baseUrl.replace(/\/$/, "");
-  return `https://${APEX_DOMAIN}`;
+  return base(config);
 }
