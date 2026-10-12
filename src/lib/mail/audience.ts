@@ -18,6 +18,9 @@ export type EventAudienceSelector = {
   scope: EventAudienceScope;
   // for scope === "station": the station's SignupSlot
   slotId?: string | null;
+  // staff/station only: also reach staff who haven't answered their
+  // invite yet (setup reminders). Staff who said no are never included.
+  includeUnanswered?: boolean;
 };
 
 export type AudienceSelector = OrgAudienceSelector | EventAudienceSelector;
@@ -166,7 +169,8 @@ export function missingParentIds(
 
 export function describeAudience(selector: AudienceSelector, eventTitle?: string | null): string {
   if (selector.kind === "event") {
-    const label = EVENT_SCOPE_LABELS[selector.scope];
+    const base = EVENT_SCOPE_LABELS[selector.scope];
+    const label = selector.includeUnanswered && selector.scope !== "families" ? `${base}, including unanswered` : base;
     return eventTitle ? `${label}: ${eventTitle}` : label;
   }
   if (selector.kind === "patrol") {
@@ -209,7 +213,8 @@ export function mergeEventRecipients(
 /**
  * Email audience for one event:
  *
- *   staff    — EventStaff rows that said yes or maybe
+ *   staff    — EventStaff rows that said yes or maybe (plus those
+ *              still invited when includeUnanswered is set)
  *   station  — the same, limited to one station (SignupSlot)
  *   families — yes/maybe RSVPs plus sign-up slot takers (public
  *              sign-ups reach the guardian who signed the scout up);
@@ -238,7 +243,7 @@ export async function buildEventAudience(
       where: {
         eventId: event.id,
         orgId,
-        status: { in: ["yes", "maybe"] },
+        status: { in: selector.includeUnanswered ? ["yes", "maybe", "invited"] : ["yes", "maybe"] },
         ...(selector.scope === "station" ? { slotId: selector.slotId } : {}),
       },
       orderBy: { name: "asc" },

@@ -291,6 +291,14 @@ export function AnnounceForm({
             </select>
           </div>
         )}
+        {scope !== "families" && (
+          <div className="flex items-center gap-2 md:col-span-2">
+            <input id="announce-unanswered" name="includeUnanswered" type="checkbox" />
+            <label htmlFor="announce-unanswered" className="text-sm">
+              Also email staff who haven&apos;t answered yet (good for setup reminders)
+            </label>
+          </div>
+        )}
         <div className="md:col-span-2">
           <label className="label" htmlFor="announce-subject">Subject</label>
           <input id="announce-subject" name="subject" required maxLength={200} className="field" />
