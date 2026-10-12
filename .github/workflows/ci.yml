@@ -16,17 +16,34 @@ permissions:
 
 jobs:
   # Blue-green deploys keep the old revision serving on the new schema,
-  # so new migrations must be expand-only (scripts/check-migrations.sh).
+  # so new migrations must be expand-only. check-migrations.sh looks for
+  # the keywords; check-migrations-schema.sh applies the migrations to
+  # the base schema and fails on anything they take away, however the
+  # SQL is written.
   migrations:
     name: Expand-only migrations
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: compass
+          POSTGRES_PASSWORD: compass
+          POSTGRES_DB: compass
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U compass"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://compass:compass@localhost:5432/compass
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
       - run: scripts/check-migrations.sh "origin/${{ github.base_ref }}"
+      - run: scripts/check-migrations-schema.sh "origin/${{ github.base_ref }}"
 
   check:
     name: Typecheck, lint, unit tests
