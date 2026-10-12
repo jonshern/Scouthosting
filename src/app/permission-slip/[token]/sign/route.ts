@@ -5,7 +5,7 @@
 // edits to the event's consent language don't retroactively change
 // what the parent agreed to.
 
-import { NextResponse } from "next/server";
+import { redirectTo } from "@/lib/http/redirect";
 import { prisma } from "@/lib/db";
 import { verifyPermSlipToken } from "@/lib/security/perm-slip-token";
 import { canSignSlip, effectiveSlipText } from "@/lib/permission-slips";
@@ -24,20 +24,17 @@ export async function POST(
   const { token } = await params;
   const claims = verifyPermSlipToken(token);
   if (!claims) {
-    return NextResponse.redirect(new URL(`/permission-slip/${token}?error=expired`, req.url), 303);
+    return redirectTo(`/permission-slip/${token}?error=expired`, 303);
   }
 
   const form = await req.formData().catch(() => null);
   if (!form) {
-    return NextResponse.redirect(new URL(`/permission-slip/${token}?error=invalid`, req.url), 303);
+    return redirectTo(`/permission-slip/${token}?error=invalid`, 303);
   }
   const signedByName = String(form.get("signedByName") ?? "").trim().slice(0, 200);
   const notes = String(form.get("notes") ?? "").trim().slice(0, 2000) || null;
   if (!signedByName) {
-    return NextResponse.redirect(
-      new URL(`/permission-slip/${token}?error=Please+type+your+name`, req.url),
-      303,
-    );
+    return redirectTo(`/permission-slip/${token}?error=Please+type+your+name`, 303);
   }
 
   const [event, member, existing] = await Promise.all([
@@ -55,7 +52,7 @@ export async function POST(
     }),
   ]);
   if (!event || event.orgId !== claims.orgId) {
-    return NextResponse.redirect(new URL(`/permission-slip/${token}?error=missing`, req.url), 303);
+    return redirectTo(`/permission-slip/${token}?error=missing`, 303);
   }
   const parents = member?.parentIds.length
     ? await prisma.member.findMany({
@@ -72,10 +69,7 @@ export async function POST(
     alreadySigned: !!existing,
   });
   if (!decision.ok) {
-    return NextResponse.redirect(
-      new URL(`/permission-slip/${token}?error=${encodeURIComponent(decision.message)}`, req.url),
-      303,
-    );
+    return redirectTo(`/permission-slip/${token}?error=${encodeURIComponent(decision.message)}`, 303);
   }
 
   const slipTextSnapshot = effectiveSlipText(event.permissionSlipText);
@@ -103,5 +97,5 @@ export async function POST(
     },
   });
 
-  return NextResponse.redirect(new URL(`/permission-slip/${token}?signed=1`, req.url), 303);
+  return redirectTo(`/permission-slip/${token}?signed=1`, 303);
 }
