@@ -14,12 +14,15 @@
 //     ALLOW_ADMIN_WITHOUT_MFA=1. Never set it in real production.
 
 import { prisma } from "@/lib/db";
+import { isDemoMode } from "@/lib/demo/mode";
 
 export const CONFIRM_ADULT_PAGE = "/account/confirm-adult";
 export const MFA_SETUP_PAGE = "/account/security?required=1";
 
 export function mfaRequiredForOrganizers(): boolean {
   if (process.env.NODE_ENV !== "production") return false;
+  // Demo accounts are shared, so none of them can hold a second factor.
+  if (isDemoMode()) return false;
   if (process.env.ALLOW_ADMIN_WITHOUT_MFA === "1") return false;
   return true;
 }

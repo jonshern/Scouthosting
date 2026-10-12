@@ -7,6 +7,9 @@
  * SMTP land as parallel modules; admin code calls `send()` either way.
  */
 
+import { isDemoMode } from "@/lib/demo/mode";
+import { captureOutbound, plainText } from "@/lib/demo/outbox";
+
 export type MailMessage = {
   to: string;
   toName?: string | null;
@@ -101,6 +104,17 @@ export function _setMailDriverForTests(d: MailDriver | null): void {
 }
 
 export async function sendMail(msg: MailMessage): Promise<MailResult> {
+  // A demo deployment never sends real mail (src/lib/demo/mode.ts).
+  if (isDemoMode()) {
+    const messageId = await captureOutbound({
+      kind: "email",
+      to: msg.to,
+      toName: msg.toName,
+      subject: msg.subject,
+      body: msg.text ?? plainText(msg.html),
+    });
+    return { ok: true, messageId };
+  }
   return getMailDriver().send(msg);
 }
 

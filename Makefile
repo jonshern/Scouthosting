@@ -15,7 +15,7 @@ PORT       ?= $(shell . ./.env 2>/dev/null; echo $${PORT:-3000})
 
 .DEFAULT_GOAL := help
 
-.PHONY: help bootstrap dev redeploy seed test e2e clean mobile mobile-build \
+.PHONY: help bootstrap dev redeploy seed test e2e clean mobile mobile-build demo demo-reset \
         install db-up db-wait migrate wipe pull dev-bg dev-stop down \
         ensure-master-key
 
@@ -53,6 +53,12 @@ redeploy: dev-stop _redeploy_pull ensure-master-key wipe dev-bg e2e ## Pull, wip
 	@echo "demo logins (password: AdminPasswordTest123!):"
 	@echo "  super@example.invalid          → http://localhost:$(PORT)/super-admin"
 	@echo "  scoutmaster@example.invalid    → http://troop100.localhost:$(PORT)/admin"
+
+demo: db-up db-wait ensure-master-key ## Run the public demo (sample Troop 42, demo accounts) on :3100 with its own database.
+	@scripts/demo.sh up
+
+demo-reset: ## Put the demo from `make demo` back to its starting point.
+	@scripts/demo.sh reset
 
 seed: ## Re-run the demo seed against the existing database.
 	$(NPM) run db:seed
