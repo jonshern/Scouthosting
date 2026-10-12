@@ -37,9 +37,12 @@ export async function consumeInviteCode(rawInput: string): Promise<InviteValidat
     return { ok: false, reason: "Code has been used up." };
   }
 
-  await prisma.inviteCode.update({
-    where: { id: code.id },
+  // Count the use only while there's one left, so a last use can't be
+  // taken twice by requests arriving together.
+  const { count } = await prisma.inviteCode.updateMany({
+    where: { id: code.id, ...(code.maxUses > 0 ? { usedCount: { lt: code.maxUses } } : {}) },
     data: { usedCount: { increment: 1 } },
   });
+  if (count === 0) return { ok: false, reason: "Code has been used up." };
   return { ok: true, codeId: code.id };
 }
