@@ -20,6 +20,7 @@ import { startUnitTrial } from "@/lib/provision/self-serve";
 import { createCheckoutSession, setStripeClientForTests, syncFromStripeEvent } from "./stripe";
 import { createStripeRestClient } from "./stripe-rest";
 import { billingSummary } from "./trial";
+import { applyStripeOnce, stripeKey } from "./stripe-idempotency";
 import * as subscription from "@/app/api/v1/orgs/[slug]/subscription/route";
 
 const db = !!process.env.TEST_DATABASE_URL;
@@ -68,6 +69,7 @@ describe.skipIf(!db)("self-serve trial and billing (Postgres)", () => {
   afterAll(async () => {
     setStripeClientForTests(null);
     await prisma.org.deleteMany({ where: { id: { in: f.orgIds } } });
+    await prisma.stripeWebhookReceipt.deleteMany({ where: { eventId: { startsWith: `evt_${S}` } } });
     await prisma.user.deleteMany({ where: { id: { in: [f.owner?.id, f.outsider?.id].filter(Boolean) } } });
   });
 
@@ -192,5 +194,25 @@ describe.skipIf(!db)("self-serve trial and billing (Postgres)", () => {
     expect(await updated(t + 60, "active")).toEqual({ ok: true });
     org = await prisma.org.findUniqueOrThrow({ where: { id: orgId } });
     expect(org.subscriptionStatus).toBe("active");
+  });
+
+  it("applies a redelivered subscription event once", async () => {
+    const orgId = f.orgIds[1]!;
+    const event = {
+      id: `evt_${S}_redelivered`,
+      type: "customer.subscription.updated",
+      created: Math.floor(Date.now() / 1000) + 3600,
+      data: { object: { id: `sub_${S}_late`, status: "past_due", metadata: { orgId } } },
+    };
+    const deliver = () =>
+      applyStripeOnce({ key: stripeKey("event", event.id), eventId: event.id, eventType: event.type }, (tx) =>
+        syncFromStripeEvent(event, tx),
+      );
+    expect(await deliver()).toEqual({ duplicate: false, result: { ok: true } });
+    expect(await deliver()).toEqual({ duplicate: true });
+    const audits = await prisma.auditLog.count({
+      where: { orgId, action: "billing.subscription_updated", summary: { startsWith: "Status=past_due" } },
+    });
+    expect(audits).toBe(1);
   });
 });

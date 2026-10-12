@@ -33,7 +33,7 @@ The image never migrates on its own: it only runs `next start`. Wherever it runs
 
 ### Migrations are expand-only
 
-Blue and green share one database, and a rollback returns to blue without touching the schema. So a migration may **add** tables, nullable columns or columns with a default, and indexes. It may not drop, rename or retype anything the running version reads. The *Expand-only migrations* CI check (`scripts/check-migrations.sh`) fails a PR whose new migration has `DROP TABLE`, `DROP COLUMN`, a rename, a type change or `SET NOT NULL`.
+Blue and green share one database, and a rollback returns to blue without touching the schema. So a migration may **add** tables, nullable columns or columns with a default, and indexes. It may not drop, rename or retype anything the running version reads. The *Expand-only migrations* CI check fails a PR whose new migration has `DROP TABLE`, `DROP COLUMN`, a rename, a type change or `SET NOT NULL` (`scripts/check-migrations.sh`), or whose effect on the base schema removes a table, column, key, unique index or enum value, or retypes, tightens or un-defaults a column, however it's written (`scripts/check-migrations-schema.sh`).
 
 To remove or reshape something, take three releases: add the new shape and write to both; switch reads and backfill; then, once no deployed revision uses the old shape, a **contract** migration drops it. Mark that last file with a line `-- contract: <why no live revision needs it>` so the check lets it through, and don't roll back past it.
 

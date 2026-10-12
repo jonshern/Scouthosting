@@ -101,6 +101,26 @@ decryptable.
 `make wipe` (or `make redeploy`) does the same against the dev DB
 plus restarts the dev server.
 
+## Flow specs and the link crawler
+
+- `links.spec.ts` crawls every same-origin link from the apex (signed
+  out) and troop100 (signed out, and signed in as the admin): each page
+  must return < 400 with no uncaught page error. Known-broken links live
+  in its `KNOWN_BROKEN` list, one entry per open bug; remove the entry
+  when the bug is fixed (the crawl fails if a listed link starts
+  working). External links are only fetched when `LINKCHECK_EXTERNAL=1`
+  (CI sets it); a 404/410 fails, other errors are warnings.
+- `events-rsvp`, `slots-waitlist`, `permission-slips`, `roles` and
+  `youth-protection` drive those flows through the UI. Shared helpers
+  are in `tests/e2e/helpers/`; `helpers/db.ts` holds the few direct DB
+  writes for state with no screen yet (org roles, sign-up slots, chat
+  channels) and mints the permission-slip link the email would carry.
+- `account-security` covers two-step sign-in, phone-app sign-in, API
+  token expiry/revocation, password change and email change.
+  `mfa-required` checks the organizer two-step rule against a second
+  server on **:3001** that playwright.config.ts starts without
+  `ALLOW_ADMIN_WITHOUT_MFA` (same build, same database).
+
 ## Adding a new test
 
 - **Unit / integration**: drop `foo.test.ts` next to the module

@@ -280,7 +280,21 @@ export type CronTickResult = {
   trashedMembersPurged: number;
   scoutRecordsPurged: number;
   channelsSuspended: number;
+  authRowsPurged: number;
 };
+
+/** Delete expired sessions and verifications, and sign-in rate-limit
+ *  rows idle for a day. Returns the number of rows removed. */
+export async function pruneAuthRows(args: { now: Date; prismaClient: PrismaClient }): Promise<number> {
+  const { now, prismaClient } = args;
+  const dayAgo = BigInt(now.getTime() - DAY_MS);
+  const [sessions, verifications, limits] = await Promise.all([
+    prismaClient.session.deleteMany({ where: { expiresAt: { lt: now } } }),
+    prismaClient.verification.deleteMany({ where: { expiresAt: { lt: now } } }),
+    prismaClient.rateLimit.deleteMany({ where: { lastRequest: { lt: dayAgo } } }),
+  ]);
+  return sessions.count + verifications.count + limits.count;
+}
 
 export async function runCronTick(opts: {
   now?: Date;
@@ -394,6 +408,18 @@ export async function runCronTick(opts: {
     });
   }
 
+  // Sign-in housekeeping. Better Auth deletes an expired session only
+  // when it's presented again, so abandoned ones (and used sign-in
+  // tokens, and per-IP sign-in rate-limit rows) would pile up forever.
+  let authRowsPurged = 0;
+  try {
+    authRowsPurged = await pruneAuthRows({ now, prismaClient });
+  } catch (err) {
+    logger.warn("auth housekeeping failed", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   return {
     schedulesDrafted,
     schedulesSkipped,
@@ -402,5 +428,6 @@ export async function runCronTick(opts: {
     trashedMembersPurged,
     scoutRecordsPurged,
     channelsSuspended,
+    authRowsPurged,
   };
 }

@@ -182,9 +182,13 @@ Migrations must be **expand-only**: deploys are blue-green, so the
 previous revision runs on the new schema until traffic flips and again
 after a rollback. Add tables, nullable or defaulted columns and indexes;
 don't drop, rename, retype or `SET NOT NULL` in the same release that
-stops using something. CI's *Expand-only migrations* job
-(`scripts/check-migrations.sh`) fails those; a later contract migration
-carries a `-- contract: <reason>` line. Also give a new migration a
+stops using something. CI's *Expand-only migrations* job fails those
+two ways: `scripts/check-migrations.sh` greps for the keywords, and
+`scripts/check-migrations-schema.sh` applies the new migrations to the
+base branch's schema and fails if any column, table, key, unique index
+or enum value disappears or a column changes type, gains NOT NULL or
+loses its default, however the SQL is written. A later contract
+migration carries a `-- contract: <reason>` line. Also give a new migration a
 timestamp later than every migration on `main`.
 
 ### 11. CI
