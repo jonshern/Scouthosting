@@ -87,7 +87,17 @@ describe.skipIf(!url)("scout retention against Postgres", () => {
     const parent = await prisma.user.create({ data: { email: shared, displayName: "Parent" } });
     await prisma.orgMembership.create({ data: { userId: parent.id, orgId, role: "parent" } });
 
+    // The parent answered an RSVP from the family address without
+    // signing in; the scout's own RSVP is tied to their member row.
+    const event = await prisma.event.create({ data: { orgId, title: "Court of Honor", startsAt: new Date("2026-12-01") } });
+    const scout = await prisma.member.findFirstOrThrow({ where: { orgId, email: shared } });
+    await prisma.rsvp.create({ data: { orgId, eventId: event.id, name: "Parent", email: shared, response: "yes" } });
+    await prisma.rsvp.create({ data: { orgId, eventId: event.id, memberId: scout.id, name: "Scout", response: "yes" } });
+
     await purgeExpiredScoutRecords({ now, prismaClient: prisma, orgId });
     expect(await prisma.orgMembership.count({ where: { userId: parent.id, orgId } })).toBe(1);
+    expect(await prisma.member.count({ where: { id: scout.id } })).toBe(0);
+    const left = await prisma.rsvp.findMany({ where: { eventId: event.id }, select: { name: true } });
+    expect(left).toEqual([{ name: "Parent" }]);
   });
 });
