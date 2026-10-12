@@ -6,7 +6,7 @@ import type { Org, SalesCampaign } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
-import { postTransferWithin, postWithin, type Tx } from "@/lib/treasury/posting";
+import { postTransferWithin, postWithin, reverseWithin, type Tx } from "@/lib/treasury/posting";
 import { SCOUT_ACCOUNTS } from "@/lib/treasury/money";
 
 export function slugify(s: string): string {
@@ -127,6 +127,9 @@ export async function settleSalesOrderAsPaid(args: {
     if (!order || order.orgId !== args.orgId) throw new Error("Order not found.");
     if (order.status === "paid" || order.status === "delivered") return { settled: false };
     if (order.depositTransactionId) return { settled: false };
+    // A late or retried Stripe event mustn't revive an order a leader
+    // cancelled (and refunded); a leader can still mark it paid by hand.
+    if (order.status === "cancelled" && args.paymentSource === "stripe") return { settled: false };
 
     const campaign = order.campaign;
     const grossCents = order.totalCents;
@@ -159,6 +162,7 @@ export async function settleSalesOrderAsPaid(args: {
           toFundId: scoutAcctsFund.id,
           amountCents: scoutShareCents,
           description: `Sale split → scout (${order.id.slice(0, 8)})`,
+          salesOrderId: order.id,
         });
         // Credit the scout's subaccount.
         await postWithin(tx, {
@@ -183,6 +187,59 @@ export async function settleSalesOrderAsPaid(args: {
       },
     });
     return { settled: true };
+  });
+}
+
+/**
+ * Move an order back to "placed" or "cancelled". A paid or delivered
+ * order's postings (deposit, split transfer, scout credit) are
+ * reversed in the same transaction, so the ledger and the scout's
+ * account no longer count money that went back to the buyer. Locks the
+ * order like settleSalesOrderAsPaid, so the two can't interleave.
+ */
+export async function unsettleSalesOrder(args: {
+  orgId: string;
+  orderId: string;
+  status: "placed" | "cancelled";
+  createdById?: string | null;
+}): Promise<{ reversed: number }> {
+  return prisma.$transaction(async (stx) => {
+    const tx = stx as unknown as Tx;
+    await stx.$queryRaw`SELECT id FROM "SalesOrder" WHERE id = ${args.orderId} FOR UPDATE`;
+    const order = await stx.salesOrder.findUnique({ where: { id: args.orderId } });
+    if (!order || order.orgId !== args.orgId) throw new Error("Order not found.");
+
+    const id8 = order.id.slice(0, 8);
+    const postings = await stx.transaction.findMany({
+      where: {
+        orgId: args.orgId,
+        reversesId: null,
+        reversedBy: { none: {} },
+        OR: [
+          { salesOrderId: order.id },
+          // Split transfers posted before they carried salesOrderId.
+          {
+            salesOrderId: null,
+            type: { in: ["transfer-out", "transfer-in"] },
+            description: `Sale split → scout (${id8})`,
+          },
+        ],
+      },
+      orderBy: { createdAt: "asc" },
+    });
+    for (const t of postings) {
+      await reverseWithin(tx, {
+        orgId: args.orgId,
+        originalId: t.id,
+        description: `Order ${id8} ${args.status}: reversal of ${t.description}`,
+        createdById: args.createdById ?? null,
+      });
+    }
+    await stx.salesOrder.update({
+      where: { id: order.id },
+      data: { status: args.status, paidAt: null, deliveredAt: null, depositTransactionId: null },
+    });
+    return { reversed: postings.length };
   });
 }
 
