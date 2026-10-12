@@ -144,12 +144,9 @@ jobs:
       - run: npm ci
       - run: npx prisma generate
       - run: npx playwright install --with-deps chromium
-      # next/font/google downloads the fonts during the build, and that
-      # fetch sometimes fails on the runner ("Can't resolve
-      # '@vercel/turbopack-next/internal/font/google/font'"). Try once more
-      # before failing; a real build error fails both times.
+      # The fonts are bundled (src/app/fonts), so the build needs no network.
       - name: Build
-        run: npm run build || { echo "::warning::Build failed, retrying once (Google Fonts fetch)"; npm run build; }
+        run: npm run build
         env:
           APEX_HOST: localhost
       # Outside links are checked daily by the Outside links workflow, not
