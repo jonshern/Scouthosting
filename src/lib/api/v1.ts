@@ -10,13 +10,17 @@
 //   5. one error shape for every failure: `{ error: "<code>", ... }`
 //      with the right status. Handlers throw `ApiError` (or a ZodError
 //      from the helpers below) instead of building responses by hand,
-//      and anything unexpected becomes a logged 500 `{ error: "internal" }`
-//      that never echoes internals to the client.
+//      Prisma unique / missing-row / foreign-key errors become 409
+//      `conflict` / 404 `not_found` / 409 `conflict`; anything else
+//      becomes a logged 500 `{ error: "internal" }` (also kept in the
+//      super-admin error log) that never echoes internals to the client.
 //
 // The mobile client branches on `error` (mobile/src/api/client.ts), so
 // codes are part of the contract: add new ones, don't rename old ones.
 
 import { NextResponse, type NextRequest } from "next/server";
+import { Prisma } from "@prisma/client";
+import { captureError } from "@/lib/ops/error-tracker";
 import { z, ZodError, type ZodTypeAny } from "zod";
 import { prisma } from "@/lib/db";
 import { withBearerAuth } from "@/lib/auth/api-bearer";
@@ -95,7 +99,18 @@ export function errorResponse(err: unknown): Response {
       { status: 400 },
     );
   }
-  log.error("unhandled error in v1 route", { err });
+  // Database outcomes a client can cause or race into are not server
+  // faults: a double-tap that loses the race to create the same row, or
+  // a row another request deleted a moment ago.
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    if (err.code === "P2002") return json({ error: "conflict" }, { status: 409 });
+    if (err.code === "P2025") return json({ error: "not_found" }, { status: 404 });
+    if (err.code === "P2003") return json({ error: "conflict" }, { status: 409 });
+  }
+  log.error("unhandled error in v1 route", {
+    err: err instanceof Error ? { name: err.name, message: err.message } : String(err),
+  });
+  void captureError(err, null, { service: "compass-api" }).catch(() => {});
   return json({ error: "internal" }, { status: 500 });
 }
 

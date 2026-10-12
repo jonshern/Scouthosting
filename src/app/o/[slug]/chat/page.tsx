@@ -53,10 +53,12 @@ export default async function ChatPage({
     ? channels.find((c) => c.id === activeId) || null
     : null;
 
+  // The newest 200, shown oldest first. (Ordering ascending with a limit
+  // showed the first 200 ever posted and hid every newer message.)
   const messages = activeChannel
     ? await prisma.message.findMany({
         where: { channelId: activeChannel.id, deletedAt: null },
-        orderBy: { createdAt: "asc" },
+        orderBy: { createdAt: "desc" },
         take: 200,
         select: {
           id: true,
@@ -65,7 +67,7 @@ export default async function ChatPage({
           authorId: true,
           author: { select: { displayName: true } },
         },
-      })
+      }).then((rows) => rows.reverse())
     : [];
 
   return (

@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("@/lib/ops/error-tracker", () => ({ captureError: vi.fn(async () => {}) }));
 import { NextRequest } from "next/server";
 import { z } from "zod";
+import { Prisma } from "@prisma/client";
 import { ApiError, errorResponse, parseId, readJson, readQuery, IsoDate } from "./v1";
 
 const post = (body: string, headers: Record<string, string> = {}) =>
@@ -27,6 +30,15 @@ describe("errorResponse", () => {
     const body = await errorResponse(err).json();
     expect(body.error).toBe("invalid_request");
     expect(body.issues[0].path).toBe("n");
+  });
+
+  it("maps races on the database to 409 / 404, not 500", async () => {
+    const known = (code: string) =>
+      new Prisma.PrismaClientKnownRequestError("x", { code, clientVersion: "5" });
+    expect((await errorResponse(known("P2002"))).status).toBe(409);
+    expect(await errorResponse(known("P2002")).json()).toEqual({ error: "conflict" });
+    expect((await errorResponse(known("P2025"))).status).toBe(404);
+    expect((await errorResponse(known("P2003"))).status).toBe(409);
   });
 
   it("never leaks internals for unexpected errors", async () => {

@@ -48,6 +48,9 @@ class ResendDriver implements MailDriver {
     try {
       const res = await fetch("https://api.resend.com/emails", {
         method: "POST",
+        // A hung provider must not hold the request (and a group send's
+        // whole loop) open until the platform kills it.
+        signal: AbortSignal.timeout(15_000),
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${this.apiKey}`,
