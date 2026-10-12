@@ -19,12 +19,13 @@ locals {
     # var.mail_driver once the Resend key is in Secret Manager.
     MAIL_DRIVER = var.mail_driver
     MAIL_FROM   = var.mail_from
-    # Billing stays off until this and the two Stripe secrets below are real.
-    STRIPE_PRICE_ID = var.stripe_price_id
-    SMS_DRIVER      = "console" # no SMS: youth protection rules out texting scouts
-    PUSH_DRIVER     = "console"
-    JOBS_DISABLED   = "1" # jobs run inside the request; no always-on worker to pay for
-    LOG_LEVEL       = "info"
+    # Billing stays off until these and the Stripe secrets below are real.
+    STRIPE_PRICE_YEARLY  = var.stripe_prices.yearly
+    STRIPE_PRICE_MONTHLY = var.stripe_prices.monthly
+    SMS_DRIVER           = "console" # no SMS: youth protection rules out texting scouts
+    PUSH_DRIVER          = "console"
+    JOBS_DISABLED        = "1" # jobs run inside the request; no always-on worker to pay for
+    LOG_LEVEL            = "info"
     # Cloud Run appends the caller's IP as the last X-Forwarded-For hop;
     # Compass's rate limits trust only that one.
     CLIENT_IP_HEADER   = "x-forwarded-for"

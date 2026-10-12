@@ -1,8 +1,10 @@
 # Sign-up, free trial and billing
 
 How a new unit finds Compass, tries it for 30 days, and keeps paying if
-it likes it. One subscription per unit covers the whole family: Compass,
-Waypoint and Summit all read the same unit's status.
+it likes it. The price is **$99 a year or $10 a month per unit, first
+month free** (`src/lib/billing/pricing.ts`, which the marketing pages and
+the billing page read). One subscription covers the whole family:
+Compass, Waypoint and Summit all read the same unit's status.
 
 ## How it works
 
@@ -17,7 +19,7 @@ Waypoint and Summit all read the same unit's status.
    sign-in, as for every admin.
 2. **Trial.** The admin pages show how many days are left, warning in
    the last week. `Admin → Billing` (`/o/<slug>/admin/billing`) has
-   **Add a card**, which opens Stripe Checkout. If they subscribe during
+   **Pay yearly** and **Pay monthly**, which open Stripe Checkout. If they subscribe during
    the trial, Checkout passes the trial's end date to Stripe as
    `trial_end`, so nothing is charged until the day the trial would have
    ended. (Stripe needs at least 48 hours of trial left; in the last two
@@ -38,7 +40,8 @@ Summit read the same state with
 `cancelAtPeriodEnd`, `subscribed` and `locked`.
 
 **Billing is off until Stripe is set up.** With no real keys
-(`isConfigured()` wants an `sk_`/`rk_` key and a `price_` ID), the trial
+(`isConfigured()` wants an `sk_`/`rk_` key and at least one `price_` ID;
+the billing page offers only the plans that have one), the trial
 still counts down but nothing locks, since there is no way to pay. Units
 made before self-serve sign-up have no trial end date and are never
 locked; demo units are never billed.
@@ -49,10 +52,12 @@ Stripe charges a fee per payment; there's no monthly fee for the account.
 
 1. Create an account at <https://dashboard.stripe.com/register>. Stay in
    **Test mode** (toggle top right) until you've tried it end to end.
-2. **Product and price.** Product catalog → Add product. Name it
-   "Compass unit subscription", recurring, and set the price and period
-   you want (the marketing pages currently say Standard $99 and Premium
-   $119). Copy the price's ID (`price_…`).
+2. **Product and prices.** Product catalog → Add product. Name it
+   "Compass unit subscription" and give it two recurring prices in USD:
+   **$99 yearly** and **$10 monthly**. Don't set a trial on the prices;
+   Compass passes the free month itself. Copy both price IDs (`price_…`).
+   If you change an amount, change `PRICES` in
+   `src/lib/billing/pricing.ts` to match, since that's what the site shows.
 3. **API key.** Developers → API keys → copy the **Secret key**
    (`sk_test_…`). A restricted key (`rk_…`) with write access to Checkout
    Sessions, Customer portal and Subscriptions also works.
@@ -74,8 +79,7 @@ Stripe charges a fee per payment; there's no monthly fee for the account.
 |---|---|---|
 | Secret key | `STRIPE_SECRET_KEY` | Secret `core-<env>-stripe-secret-key` |
 | Webhook signing secret | `STRIPE_WEBHOOK_SECRET` | Secret `core-<env>-stripe-webhook-secret` |
-| Price ID | `STRIPE_PRICE_ID` | `stripe_price_ids = { prod = "price_…" }` in `infra/terraform.tfvars` |
-| Price shown on the billing page (optional) | `BILLING_PRICE_LABEL`, e.g. `$99 a year` | not wired yet |
+| Yearly and monthly price IDs | `STRIPE_PRICE_YEARLY`, `STRIPE_PRICE_MONTHLY` | `stripe_prices = { prod = { yearly = "price_…", monthly = "price_…" } }` in `infra/terraform.tfvars` |
 
 For a cloud secret:
 `printf '%s' "$KEY" | gcloud secrets versions add core-prod-stripe-secret-key --data-file=-`,
@@ -83,14 +87,14 @@ then redeploy.
 
 ### Trying it locally
 
-1. Put the three test values in `.env` and restart `make dev`.
+1. Put the four test values in `.env` and restart `make dev`.
 2. Forward webhooks to your machine with the Stripe CLI:
    `stripe login`, then
    `stripe listen --forward-to localhost:3000/api/webhooks/stripe`.
    It prints a `whsec_…` for this session; use that as
    `STRIPE_WEBHOOK_SECRET` while testing.
 3. Go to `http://localhost:3000/start`, sign up, create a unit, then
-   Billing → Add a card. Use card `4242 4242 4242 4242`, any future date,
+   Billing → Pay monthly (or yearly). Use card `4242 4242 4242 4242`, any future date,
    any CVC. Back on Billing it should say "Subscribed" with the renewal
    date at the end of the trial.
 4. To see the end of a trial without waiting, set the unit's
@@ -99,7 +103,7 @@ then redeploy.
    subscription to its first charge.
 
 Going live: switch the dashboard to Live mode, repeat steps 2 to 6 there
-(live keys and IDs are different), and replace the three values.
+(live keys and IDs are different), and replace the four values.
 
 ## Runbook
 
@@ -108,5 +112,6 @@ Going live: switch the dashboard to Live mode, repeat steps 2 to 6 there
 | Unit paid but still shows the trial or the lock | Stripe → Developers → Webhooks → the endpoint → look for failed deliveries and **Resend**. A 401 means `STRIPE_WEBHOOK_SECRET` doesn't match the endpoint's signing secret. The unit's audit log shows each `billing.*` event that was applied |
 | A unit needs more time | Super-admin: set the org's `trialEndsAt` later in the database (it only matters while the status is `trialing`). If they already subscribed, extend the trial on the subscription in the Stripe dashboard instead |
 | Refund or cancel for a unit | Do it in the Stripe dashboard; the webhook updates Compass |
-| Turn billing off | Unset `STRIPE_PRICE_ID` (or the key). Nothing locks; the trial banner still shows |
+| Turn billing off | Unset both price IDs (or the key). Nothing locks; the trial banner still shows |
+| A unit wants to switch yearly ↔ monthly | Manage billing → Stripe's portal can switch plans if you allow it under Customer portal → Subscriptions → "Customers can switch plans" with both prices listed; otherwise change it on the subscription in the Stripe dashboard |
 | Rotate the Stripe key | Roll the key in Stripe, add the new secret version, redeploy, then expire the old key |

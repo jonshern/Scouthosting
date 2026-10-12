@@ -10,7 +10,8 @@ vi.hoisted(() => {
   delete process.env.CLIENT_IP_HEADER;
   delete process.env.K_SERVICE;
   process.env.STRIPE_SECRET_KEY = "sk_test_unit";
-  process.env.STRIPE_PRICE_ID = "price_unit";
+  process.env.STRIPE_PRICE_YEARLY = "price_year";
+  process.env.STRIPE_PRICE_MONTHLY = "price_month";
 });
 
 import { prisma } from "@/lib/db";
@@ -104,13 +105,14 @@ describe.skipIf(!db)("self-serve trial and billing (Postgres)", () => {
     const org = await prisma.org.findFirstOrThrow({ where: { id: f.orgIds[0] } });
 
     const out = await createCheckoutSession(org, { email: f.owner.email }, {
+      interval: "month",
       successUrl: "https://x/ok",
       cancelUrl: "https://x/no",
     });
     expect(out.url).toBe("https://stripe.test/cs_1");
     const body = new URLSearchParams(String((fetchImpl.mock.calls[0] as unknown as [string, RequestInit])[1].body));
     expect(body.get("mode")).toBe("subscription");
-    expect(body.get("line_items[0][price]")).toBe("price_unit");
+    expect(body.get("line_items[0][price]")).toBe("price_month");
     expect(body.get("subscription_data[metadata][orgId]")).toBe(org.id);
     expect(Number(body.get("subscription_data[trial_end]"))).toBe(Math.floor(org.trialEndsAt!.getTime() / 1000));
     expect(body.get("customer_email")).toBe(f.owner.email);
@@ -138,7 +140,7 @@ describe.skipIf(!db)("self-serve trial and billing (Postgres)", () => {
           customer,
           status: "trialing",
           cancel_at_period_end: false,
-          items: { data: [{ price: { id: "price_unit" }, current_period_end: periodEnd }] },
+          items: { data: [{ price: { id: "price_month" }, current_period_end: periodEnd }] },
         },
       },
     });

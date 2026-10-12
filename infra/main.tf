@@ -146,20 +146,20 @@ module "environment" {
     google-beta = google-beta
   }
 
-  name            = each.key
-  project_id      = var.project_id
-  region          = var.region
-  min_instances   = each.value.min_instances
-  max_instances   = each.value.max_instances
-  sql_instance    = google_sql_database_instance.main
-  mail_from       = var.mail_from
-  mail_driver     = lookup(var.mail_drivers, each.key, "console")
-  stripe_price_id = lookup(var.stripe_price_ids, each.key, "")
-  cron_schedule   = var.cron_schedule
-  app_domain      = lookup(var.app_domains, each.key, "")
-  web_apps        = var.web_apps
-  site_prefix     = var.site_prefix != "" ? var.site_prefix : var.project_id
-  custom_domains  = lookup(var.custom_domains, each.key, {})
+  name           = each.key
+  project_id     = var.project_id
+  region         = var.region
+  min_instances  = each.value.min_instances
+  max_instances  = each.value.max_instances
+  sql_instance   = google_sql_database_instance.main
+  mail_from      = var.mail_from
+  mail_driver    = lookup(var.mail_drivers, each.key, "console")
+  stripe_prices  = lookup(var.stripe_prices, each.key, { yearly = "", monthly = "" })
+  cron_schedule  = var.cron_schedule
+  app_domain     = lookup(var.app_domains, each.key, "")
+  web_apps       = var.web_apps
+  site_prefix    = var.site_prefix != "" ? var.site_prefix : var.project_id
+  custom_domains = lookup(var.custom_domains, each.key, {})
 
   depends_on = [google_firebase_project.this, google_project_service.apis]
 }

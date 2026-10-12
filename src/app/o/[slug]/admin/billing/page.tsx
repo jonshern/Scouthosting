@@ -7,7 +7,8 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { canManageBilling } from "@/lib/billing/access";
-import { isConfigured } from "@/lib/billing/stripe";
+import { availableIntervals, isConfigured } from "@/lib/billing/stripe";
+import { PRICES, YEARLY_SAVINGS_USD, intervalForPriceId } from "@/lib/billing/pricing";
 import { billingSummary } from "@/lib/billing/trial";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
@@ -44,7 +45,8 @@ export default async function BillingPage({
 
   const configured = isConfigured();
   const s = billingSummary(org, { stripeConfigured: configured });
-  const priceLabel = process.env.BILLING_PRICE_LABEL;
+  const intervals = availableIntervals();
+  const currentPlan = intervalForPriceId(org.stripePriceId);
   const csrf = <CsrfTokenInput />;
 
   let headline: string;
@@ -54,9 +56,13 @@ export default async function BillingPage({
     body = "Demo units have every feature and are never billed.";
   } else if (s.status === "trialing") {
     headline = `${s.trialDaysLeft} day${s.trialDaysLeft === 1 ? "" : "s"} left in your free trial`;
-    body = `Your trial ends ${day(s.trialEndsAt)}. Add a card any time; the first charge lands when the trial ends, not before.`;
+    body = `Your trial ends ${day(s.trialEndsAt)}. Choose yearly or monthly any time; your card isn't charged until the trial ends.`;
   } else if (s.status === "active" && s.subscribed) {
-    headline = s.cancelAtPeriodEnd ? "Subscription ending" : "Subscribed";
+    headline = s.cancelAtPeriodEnd
+      ? "Subscription ending"
+      : currentPlan
+        ? `Subscribed: ${PRICES[currentPlan].long}`
+        : "Subscribed";
     body = s.cancelAtPeriodEnd
       ? `Your subscription stops on ${day(s.currentPeriodEnd)}. Turn renewal back on from Manage billing.`
       : s.currentPeriodEnd
@@ -100,8 +106,11 @@ export default async function BillingPage({
         <div>
           <h2 className="font-display text-2xl">{headline}</h2>
           <p className="mt-1 text-sm text-slate-soft">{body}</p>
-          {priceLabel && canSubscribe && (
-            <p className="mt-2 text-sm text-ink">Price: {priceLabel} per unit. Cancel any time.</p>
+          {canSubscribe && (
+            <p className="mt-2 text-sm text-ink">
+              {PRICES.year.long} or {PRICES.month.long} per unit, covering Compass, Waypoint and
+              Summit. Yearly saves ${YEARLY_SAVINGS_USD}. Cancel any time.
+            </p>
           )}
         </div>
         {!configured && !org.isDemo ? (
@@ -110,13 +119,17 @@ export default async function BillingPage({
           </p>
         ) : (
           <div className="flex flex-wrap gap-3">
-            {canSubscribe && (
-              <SubscribeButton
-                csrf={csrf}
-                slug={slug}
-                label={s.status === "trialing" ? "Add a card" : "Subscribe"}
-              />
-            )}
+            {canSubscribe &&
+              intervals.map((interval) => (
+                <SubscribeButton
+                  key={interval}
+                  csrf={csrf}
+                  slug={slug}
+                  interval={interval}
+                  primary={interval === "year"}
+                  label={`${interval === "year" ? "Pay yearly" : "Pay monthly"}: ${PRICES[interval].long}`}
+                />
+              ))}
             {org.stripeCustomerId && <ManageBillingButton csrf={csrf} slug={slug} />}
           </div>
         )}

@@ -14,6 +14,7 @@ function ActionButton({
   label,
   pendingLabel,
   primary,
+  extra,
 }: {
   action: (prev: BillingActionState, fd: FormData) => Promise<BillingActionState>;
   csrf: React.ReactNode;
@@ -21,12 +22,16 @@ function ActionButton({
   label: string;
   pendingLabel: string;
   primary?: boolean;
+  extra?: Record<string, string>;
 }) {
   const [state, formAction, pending] = useActionState<BillingActionState, FormData>(action, null);
   return (
     <form action={formAction} className="space-y-2">
       {csrf}
       <input type="hidden" name="orgSlug" value={slug} />
+      {Object.entries(extra ?? {}).map(([k, v]) => (
+        <input key={k} type="hidden" name={k} value={v} />
+      ))}
       <button type="submit" disabled={pending} className={primary ? "btn-primary" : "btn-secondary"}>
         {pending ? pendingLabel : label}
       </button>
@@ -39,7 +44,19 @@ function ActionButton({
   );
 }
 
-export function SubscribeButton({ csrf, slug, label }: { csrf: React.ReactNode; slug: string; label: string }) {
+export function SubscribeButton({
+  csrf,
+  slug,
+  label,
+  interval,
+  primary,
+}: {
+  csrf: React.ReactNode;
+  slug: string;
+  label: string;
+  interval: "year" | "month";
+  primary?: boolean;
+}) {
   return (
     <ActionButton
       action={startSubscriptionAction}
@@ -47,7 +64,8 @@ export function SubscribeButton({ csrf, slug, label }: { csrf: React.ReactNode; 
       slug={slug}
       label={label}
       pendingLabel="Opening Stripe…"
-      primary
+      primary={primary}
+      extra={{ interval }}
     />
   );
 }

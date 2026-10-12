@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth/session";
 import { accountStanding, CONFIRM_ADULT_PAGE, withNext } from "@/lib/auth/requirements";
 import { prisma } from "@/lib/db";
 import { TRIAL_DAYS } from "@/lib/billing/trial";
+import { PRICES } from "@/lib/billing/pricing";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { SignupForm } from "@/components/auth/SignupForm";
 import { StartTrialForm } from "@/components/auth/StartTrialForm";
@@ -54,9 +55,9 @@ export default async function StartPage() {
         <p className="mt-6 text-[16px] leading-[1.6] text-slate-soft">
           One account covers the whole family: Compass for your troop or pack&apos;s site and
           calendar, Waypoint for merit badge counselors and badge days, and Summit for each
-          scout&apos;s path. Try everything for {TRIAL_DAYS} days. If it works for your unit, add a
-          card and you&apos;re billed automatically after the trial. If not, do nothing and
-          nothing is charged.
+          scout&apos;s path. Your first month is free. If it works for your unit, keep it for{" "}
+          {PRICES.year.long} or {PRICES.month.long}, billed automatically after the trial. If
+          not, do nothing and nothing is charged.
         </p>
         <ol className="mt-8 space-y-3 text-sm">
           <Step n={1} label="Create your adult account" active={!user} />

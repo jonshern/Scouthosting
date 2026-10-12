@@ -1,5 +1,5 @@
-// Stripe integration for the platform subscription (one price per
-// unit per month). Deployments without billing keys (dev / self-hosted)
+// Stripe integration for the platform subscription (one product, a
+// yearly and a monthly price; lib/billing/pricing.ts). Deployments without billing keys (dev / self-hosted)
 // keep working: every call 503s through `stripe_not_configured`.
 //
 // The free trial starts at sign-up with no card (Org.trialEndsAt, see
@@ -14,6 +14,7 @@ import { prisma } from "@/lib/db";
 import { logger } from "@/lib/log";
 import { createStripeRestClient } from "./stripe-rest";
 import { stripeTrialEnd } from "./trial";
+import { stripePriceIdFor, type BillingInterval } from "./pricing";
 
 const log = logger.child("stripe");
 
@@ -42,8 +43,12 @@ export function setStripeClientForTests(client: StripeLike | null): void {
 // whose trial ends with no way to pay.
 export function isConfigured(): boolean {
   const key = process.env.STRIPE_SECRET_KEY ?? "";
-  const price = process.env.STRIPE_PRICE_ID ?? "";
-  return /^(sk|rk)_(test|live)_/.test(key) && price.startsWith("price_");
+  return /^(sk|rk)_(test|live)_/.test(key) && availableIntervals().length > 0;
+}
+
+/** The plans this server can sell (a price ID is set for each). */
+export function availableIntervals(): BillingInterval[] {
+  return (["year", "month"] as const).filter((i) => stripePriceIdFor(i));
 }
 
 export async function createCheckoutSession(
@@ -55,11 +60,11 @@ export async function createCheckoutSession(
     trialEndsAt?: Date | null;
   },
   user: { email?: string | null } | null,
-  opts: { successUrl: string; cancelUrl: string; now?: Date },
+  opts: { interval: BillingInterval; successUrl: string; cancelUrl: string; now?: Date },
 ): Promise<{ url: string | null; sessionId: string }> {
   const stripe = await getStripe();
   if (!stripe) throw new Error("stripe_not_configured");
-  const priceId = process.env.STRIPE_PRICE_ID;
+  const priceId = stripePriceIdFor(opts.interval);
   if (!priceId) throw new Error("stripe_price_id_missing");
 
   const customerArgs = org.stripeCustomerId
@@ -78,7 +83,7 @@ export async function createCheckoutSession(
     allow_promotion_codes: false,
     billing_address_collection: "auto",
     client_reference_id: org.id,
-    metadata: { orgId: org.id, orgSlug: org.slug },
+    metadata: { orgId: org.id, orgSlug: org.slug, interval: opts.interval },
     subscription_data: {
       metadata: { orgId: org.id, orgSlug: org.slug },
       ...(trialEnd ? { trial_end: trialEnd } : {}),

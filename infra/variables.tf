@@ -49,9 +49,9 @@ variable "mail_drivers" {
   default     = {}
 }
 
-variable "stripe_price_ids" {
-  description = "Stripe Price ID for the unit subscription per environment, e.g. { prod = \"price_...\" }. Billing stays off where unset (docs/billing.md)."
-  type        = map(string)
+variable "stripe_prices" {
+  description = "Stripe Price IDs for the unit subscription per environment, e.g. { prod = { yearly = \"price_...\", monthly = \"price_...\" } }. Billing stays off where unset (docs/billing.md)."
+  type        = map(object({ yearly = string, monthly = string }))
   default     = {}
 }
 

@@ -159,11 +159,12 @@ and chat membership lookups don't need an unlock ceremony.
 `/start` creates an adult account and a unit with a 30-day trial and no
 card (`src/lib/provision/self-serve.ts`); `admin/billing` sends admins
 to Stripe Checkout, which carries the rest of the trial over as
-`trial_end`. `src/lib/billing/stripe-rest.ts` calls Stripe's HTTPS API
+`trial_end`. Prices ($99/yr, $10/mo) live in `src/lib/billing/pricing.ts`
+and must match `STRIPE_PRICE_YEARLY` / `_MONTHLY`. `src/lib/billing/stripe-rest.ts` calls Stripe's HTTPS API
 directly, so there's no `stripe` package. Webhooks are the only writer
 of the Org's Stripe fields. `billingSummary` (`src/lib/billing/trial.ts`)
 decides the admin lock; nothing locks unless `isConfigured()` sees a real
-`sk_`/`rk_` key and `price_` ID, and orgs with no `trialEndsAt` (made
+`sk_`/`rk_` key and a `price_` ID, and orgs with no `trialEndsAt` (made
 before self-serve) never lock. Setup and runbook: `docs/billing.md`.
 
 ### 10. Commit every migration folder

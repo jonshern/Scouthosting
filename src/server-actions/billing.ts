@@ -15,6 +15,7 @@ const log = logger.child("billing-actions");
 export type BillingActionState = { error?: string } | null;
 
 const Schema = z.object({ orgSlug: z.string().min(1) });
+const IntervalSchema = z.enum(["year", "month"]);
 
 async function originForRequest(): Promise<string> {
   const h = await headers();
@@ -46,10 +47,14 @@ export async function startSubscriptionAction(
     return { error: "This unit already has a subscription. Use Manage billing." };
   }
 
+  const interval = IntervalSchema.safeParse(formData.get("interval"));
+  if (!interval.success) return { error: "Pick yearly or monthly." };
+
   const base = `${await originForRequest()}/o/${a.org.slug}/admin/billing`;
   let url: string | null;
   try {
     ({ url } = await createCheckoutSession(a.org, a.user, {
+      interval: interval.data,
       successUrl: `${base}?checkout=success`,
       cancelUrl: `${base}?checkout=cancel`,
     }));

@@ -41,10 +41,10 @@ variable "mail_driver" {
   default     = "console"
 }
 
-variable "stripe_price_id" {
-  description = "Stripe Price ID for the unit subscription; empty keeps billing off."
-  type        = string
-  default     = ""
+variable "stripe_prices" {
+  description = "Stripe Price IDs for the unit subscription; empty keeps billing off."
+  type        = object({ yearly = string, monthly = string })
+  default     = { yearly = "", monthly = "" }
 }
 
 variable "web_apps" {
