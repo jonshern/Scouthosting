@@ -19,6 +19,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { Avatar, Icon } from "../theme/atoms";
 import { useAuth } from "../state/AuthContext";
 import { ServerSection } from "../components/ServerSection";
+import { DeleteAccountSection } from "../components/DeleteAccountSection";
 import { fontFamilies, palette, radius, spacing } from "../theme/tokens";
 import type { ProfileStackParamList } from "../navigation/types";
 
@@ -154,6 +155,10 @@ export function ProfileScreen() {
               <Icon name="chevron" size={16} color={palette.inkMuted} strokeWidth={2} />
             </Pressable>
           </View>
+        </View>
+
+        <View style={styles.section}>
+          <DeleteAccountSection email={session.email} />
         </View>
 
         <Text style={styles.footer}>

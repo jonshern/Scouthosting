@@ -25,6 +25,7 @@ const NO_ORG_ROLE: Record<string, string> = {
   "account.ts revokeApiToken": "token row must belong to the user",
   "account.ts resendVerificationEmail": "signed-in user's own email",
   "account.ts confirmAdult": "signed-in user's own attestation",
+  "delete-account.ts deleteMyAccount": "signed-in user's own account",
   "auth.ts signupAction": "public sign-up",
   "billing.ts startSubscriptionAction": "canManageBilling (lib/billing/access.ts): owner, admin or super-admin",
   "billing.ts openBillingPortalAction": "canManageBilling (lib/billing/access.ts): owner, admin or super-admin",

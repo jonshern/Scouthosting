@@ -251,6 +251,17 @@ only skips billing. New code that sends mail or texts must go through
 `sendMail` / `sendSms` so the demo catches it. `make demo` runs it on
 :3100 against `compass_demo`.
 
+### 16. Deleting an account anonymizes the User row
+
+`/account/delete` and `DELETE /api/v1/me` (`src/lib/account/delete.ts`)
+keep the `User` row, renamed "Former member" with an undeliverable
+address, so unit records (chat logs, RSVPs, staffing, counselor
+meetings, sign-offs) keep their foreign keys. They delete what's personal
+to the account: sign-ins, sessions, tokens, devices, memberships,
+reactions, the counselor listing, Lantern trails. A new table holding a
+user's own data should be added to that list; one holding a unit's
+records shouldn't cascade from `User`.
+
 ## Demo accounts (test DB)
 
 Password for all seeded accounts: `AdminPasswordTest123!`

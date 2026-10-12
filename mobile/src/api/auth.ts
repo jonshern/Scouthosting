@@ -12,7 +12,7 @@
 // signOut() revokes the bearer token server-side (best-effort) and then
 // drops all locally-stored creds.
 
-import { apiRequest, type ClientOptions } from "./client";
+import { ApiError, apiRequest, type ClientOptions } from "./client";
 import { apexBaseUrl, type ApiConfig } from "./config";
 import type { MeDto } from "./types";
 import type { SecureStorage, StoredProfile } from "./storage";
@@ -124,4 +124,29 @@ export async function signOut(opts: ClientOptions, storage: SecureStorage): Prom
   }
   await storage.clearToken();
   await storage.clearProfile();
+}
+
+/**
+ * Delete the signed-in account (DELETE /api/v1/me). `confirm` is the
+ * account's email, typed by the person. Returns the reasons it can't be
+ * deleted yet (only admin of a unit, …), or null once it's gone, with the
+ * sign-in forgotten here. Other failures throw ApiError.
+ */
+export async function deleteAccount(
+  opts: ClientOptions,
+  confirm: string,
+  storage: SecureStorage,
+): Promise<string[] | null> {
+  try {
+    await apiRequest(opts, "/me", { method: "DELETE", body: { confirm } });
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "account_deletion_blocked") {
+      const blockers = (e.extra.blockers ?? []) as { message?: string }[];
+      return blockers.map((b) => b.message ?? "This account can't be deleted yet.");
+    }
+    throw e;
+  }
+  await storage.clearToken();
+  await storage.clearProfile();
+  return null;
 }
