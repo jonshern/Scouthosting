@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
+import { lendIfAvailable } from "@/lib/equipment/lend";
 import { getSession } from "@/lib/auth/session";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
@@ -114,15 +115,21 @@ export async function loanEquipment(
   if (!eq || eq.orgId !== auth.org.id) return { error: "Equipment not found." };
   if (!member || member.orgId !== auth.org.id) return { error: "Member not found." };
 
-  await prisma.equipmentLoan.create({
-    data: {
-      orgId: auth.org.id,
-      equipmentId: eq.id,
-      memberId: member.id,
-      dueAt: d.dueAt ? new Date(d.dueAt) : null,
-      loanNotes: d.loanNotes?.trim() || null,
-    },
+  const lent = await lendIfAvailable({
+    orgId: auth.org.id,
+    equipmentId: eq.id,
+    memberId: member.id,
+    dueAt: d.dueAt ? new Date(d.dueAt) : null,
+    loanNotes: d.loanNotes?.trim() || null,
   });
+  if (!lent.ok) {
+    return {
+      error:
+        eq.quantity === 1
+          ? `${eq.name} is already checked out.`
+          : `All ${eq.quantity} of ${eq.name} are checked out.`,
+    };
+  }
   audit({
     orgId: auth.org.id,
     userId: auth.user.id,

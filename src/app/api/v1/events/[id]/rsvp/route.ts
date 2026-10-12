@@ -7,7 +7,9 @@ import { prisma } from "@/lib/db";
 import { logger } from "@/lib/log";
 import { memberForUserInOrg, settleEventChargeForRsvp } from "@/lib/treasury/event-charge";
 import { reconcileEventChannels } from "@/lib/chat";
+import { EventFullError, assertRsvpFits } from "@/lib/rsvp/capacity";
 import {
+  ApiError,
   LIMITS,
   json,
   notFound,
@@ -45,31 +47,34 @@ export const POST = v1Route<{ id: string }>(
     // Rsvp is unique on (eventId, userId) and on (eventId, email): an
     // RSVP made earlier from the public link with this email is the
     // same person, so adopt it rather than tripping the constraint.
-    const findExisting = async () =>
-      (await prisma.rsvp.findUnique({
-        where: { eventId_userId: { eventId: event.id, userId: user.id } },
-        select: { id: true, memberId: true },
-      })) ??
-      (await prisma.rsvp.findFirst({
-        where: {
+    const write = () =>
+      prisma.$transaction(async (tx) => {
+        const existing =
+          (await tx.rsvp.findUnique({
+            where: { eventId_userId: { eventId: event.id, userId: user.id } },
+            select: { id: true, memberId: true },
+          })) ??
+          (await tx.rsvp.findFirst({
+            where: {
+              eventId: event.id,
+              email: { equals: user.email, mode: "insensitive" },
+              userId: null,
+            },
+            select: { id: true, memberId: true },
+          }));
+        await assertRsvpFits(tx, {
           eventId: event.id,
-          email: { equals: user.email, mode: "insensitive" },
-          userId: null,
-        },
-        select: { id: true, memberId: true },
-      }));
-    const update = (row: { id: string; memberId: string | null }) =>
-      prisma.rsvp.update({
-        where: { id: row.id },
-        data: { ...data, userId: user.id, memberId: row.memberId ?? memberId },
-      });
-    const existing = await findExisting();
-    let rsvp;
-    if (existing) {
-      rsvp = await update(existing);
-    } else {
-      try {
-        rsvp = await prisma.rsvp.create({
+          existingId: existing?.id ?? null,
+          response: input.response,
+          guests: input.guests,
+        });
+        if (existing) {
+          return tx.rsvp.update({
+            where: { id: existing.id },
+            data: { ...data, userId: user.id, memberId: existing.memberId ?? memberId },
+          });
+        }
+        return tx.rsvp.create({
           data: {
             orgId: event.orgId,
             eventId: event.id,
@@ -80,13 +85,22 @@ export const POST = v1Route<{ id: string }>(
             ...data,
           },
         });
+      });
+    let rsvp;
+    try {
+      try {
+        rsvp = await write();
       } catch (err) {
-        // A double-tap: the other request created it a moment ago.
+        // A double-tap: the other request created it a moment ago, so
+        // the retry finds and updates it.
         if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) throw err;
-        const row = await findExisting();
-        if (!row) throw err;
-        rsvp = await update(row);
+        rsvp = await write();
       }
+    } catch (err) {
+      if (err instanceof EventFullError) {
+        throw new ApiError(409, "event_full", { spotsLeft: err.spotsLeft });
+      }
+      throw err;
     }
     const chargeMember = rsvp.memberId;
     if (chargeMember) {
