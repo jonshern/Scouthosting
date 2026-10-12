@@ -6,7 +6,7 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { MfaSettings } from "@/components/account/MfaSettings";
 import { AddPasskey } from "@/components/account/PasskeySettings";
 import { isSafeNextPath } from "@/lib/auth/post-login";
-import { relyingPartyFor } from "@/lib/auth/passkeys";
+import { relyingPartyForRequest } from "@/lib/auth/passkeys";
 import { readCsrfToken } from "@/lib/security/csrf";
 import { removePasskey } from "@/server-actions/passkeys";
 
@@ -38,7 +38,7 @@ export default async function AccountSecurityPage({
       orderBy: { createdAt: "asc" },
       select: { id: true, name: true, rpId: true, createdAt: true, lastUsedAt: true, backedUp: true },
     }),
-    headers().then((h) => relyingPartyFor(h.get("host"))),
+    headers().then(relyingPartyForRequest),
     readCsrfToken(),
   ]);
   const enrolled = !!dbUser?.totpEnrolledAt;

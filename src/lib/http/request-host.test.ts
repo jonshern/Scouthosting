@@ -30,6 +30,7 @@ const HOST_READERS = new Set([
   "src/middleware.ts", // tenant routing
   "src/lib/security/csrf.ts", // Origin must match Host
   "src/lib/security/same-origin.ts", // same
+  "src/lib/auth/passkeys.ts", // which site's passkeys apply; the signed origin must match
   "src/app/super-admin/layout.tsx", // apex-only console
   "src/app/o/[slug]/admin/site/page.tsx", // preview iframe on the admin's own host
 ]);

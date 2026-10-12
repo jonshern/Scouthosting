@@ -26,7 +26,7 @@ import {
   PASSKEY_FRESH_SESSION_MS,
   registerPasskey,
   registrationOptions,
-  relyingPartyFor,
+  relyingPartyForRequest,
 } from "@/lib/auth/passkeys";
 import { accountStanding, mfaLocked } from "@/lib/auth/requirements";
 import { rateLimit } from "@/lib/security/rate-limit";
@@ -151,7 +151,7 @@ export async function passkeyRegistrationOptions(
   if (isDemoMode()) return { ok: false, error: DEMO_LOCKED_MESSAGE };
   const s = await freshSessionUser();
   if ("error" in s) return { ok: false, error: s.error! };
-  const rp = await relyingPartyFor((await headers()).get("host"));
+  const rp = await relyingPartyForRequest(await headers());
   if (!rp) return UNAVAILABLE;
   const options = await registrationOptions(s.user, rp);
   return { ok: true, options };
@@ -168,7 +168,7 @@ export async function passkeyRegister(
   const s = await freshSessionUser();
   if ("error" in s) return { ok: false, error: s.error! };
   const { user } = s;
-  const rp = await relyingPartyFor((await headers()).get("host"));
+  const rp = await relyingPartyForRequest(await headers());
   if (!rp) return UNAVAILABLE;
   const result = await registerPasskey(user.id, rp, response, name);
   if (!result.ok) {

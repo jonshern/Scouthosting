@@ -96,6 +96,15 @@ export async function relyingPartyFor(rawHost: string | null | undefined): Promi
   return org ? relyingPartyForHost(rawHost, { ...base, isCustomDomain: true }) : null;
 }
 
+/**
+ * The relying party for the site the browser is on. The Host header only
+ * picks which site's passkeys apply, and the browser signs the origin it
+ * really used, which verification checks against this.
+ */
+export async function relyingPartyForRequest(headers: Headers | null | undefined): Promise<RelyingParty | null> {
+  return relyingPartyFor(headers?.get("host"));
+}
+
 // ---- challenges (Verification rows, single use) ----
 
 export async function saveChallenge(identifier: string, challenge: string): Promise<void> {

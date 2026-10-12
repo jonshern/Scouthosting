@@ -37,7 +37,7 @@ import {
   authenticationOptions,
   PASSKEY_CHALLENGE_SECONDS,
   randomId,
-  relyingPartyFor,
+  relyingPartyForRequest,
   verifyPasskeyAssertion,
 } from "./passkeys";
 import { accountStanding } from "./requirements";
@@ -59,12 +59,7 @@ const CHALLENGE_PREFIX = "mfa-";
 const mfaPasskeyKey = (id: string) => `mfa-passkey-${id}`;
 const signInPasskeyKey = (id: string) => `passkey-auth-${id}`;
 
-type EndpointCtx = { headers?: Headers; request?: Request };
-function requestHost(ctx: EndpointCtx): string | null {
-  const h = ctx.headers?.get("host");
-  if (h) return h;
-  return ctx.request ? new URL(ctx.request.url).host : null;
-}
+
 
 const PasskeyBody = z.object({ response: z.record(z.unknown()) });
 
@@ -257,7 +252,7 @@ export const compassMfa = () =>
       // site, then the browser's answer.
       compassMfaPasskeyOptions: createAuthEndpoint("/mfa/passkey/options", { method: "POST" }, async (ctx) => {
         const { id, challenge, expired } = await liveChallenge(ctx);
-        const rp = await relyingPartyFor(requestHost(ctx));
+        const rp = await relyingPartyForRequest(ctx.headers);
         if (!rp) throw new APIError("BAD_REQUEST", { code: "PASSKEY_UNAVAILABLE", message: "Passkeys don't work on this address." });
         const options = await authenticationOptions(mfaPasskeyKey(id), rp, challenge.value);
         if (options.allowCredentials?.length === 0) throw expired();
@@ -268,7 +263,7 @@ export const compassMfa = () =>
         { method: "POST", body: PasskeyBody },
         async (ctx) => {
           const { id, challenge, expired } = await liveChallenge(ctx);
-          const rp = await relyingPartyFor(requestHost(ctx));
+          const rp = await relyingPartyForRequest(ctx.headers);
           if (!rp) throw expired();
           const result = await verifyPasskeyAssertion(
             mfaPasskeyKey(id),
@@ -286,7 +281,7 @@ export const compassMfa = () =>
       // browser holds for this site, then the browser's answer. The
       // challenge id rides in a signed cookie so it's tied to this browser.
       compassPasskeySignInOptions: createAuthEndpoint("/passkey/sign-in/options", { method: "POST" }, async (ctx) => {
-        const rp = await relyingPartyFor(requestHost(ctx));
+        const rp = await relyingPartyForRequest(ctx.headers);
         if (!rp) throw new APIError("BAD_REQUEST", { code: "PASSKEY_UNAVAILABLE", message: "Passkeys don't work on this address." });
         const id = randomId();
         const options = await authenticationOptions(signInPasskeyKey(id), rp);
@@ -301,7 +296,7 @@ export const compassMfa = () =>
           const cookie = ctx.context.createAuthCookie(PASSKEY_COOKIE);
           const id = await ctx.getSignedCookie(cookie.name, ctx.context.secret);
           expireCookie(ctx, cookie);
-          const rp = await relyingPartyFor(requestHost(ctx));
+          const rp = await relyingPartyForRequest(ctx.headers);
           const failed = () =>
             new APIError("UNAUTHORIZED", { code: "PASSKEY_FAILED", message: "That passkey didn't work. Try again." });
           if (!id || !rp) throw failed();
@@ -329,7 +324,7 @@ export const compassMfa = () =>
         if (!id || !id.startsWith(CHALLENGE_PREFIX)) return ctx.json(none);
         const challenge = await ctx.context.internalAdapter.findVerificationValue(id);
         if (!challenge || challenge.expiresAt <= new Date()) return ctx.json(none);
-        const rp = await relyingPartyFor(requestHost(ctx));
+        const rp = await relyingPartyForRequest(ctx.headers);
         const [user, passkeys] = await Promise.all([
           prisma.user.findUnique({ where: { id: challenge.value }, select: { totpEnrolledAt: true } }),
           rp ? prisma.passkey.count({ where: { userId: challenge.value, rpId: rp.rpID } }) : 0,
