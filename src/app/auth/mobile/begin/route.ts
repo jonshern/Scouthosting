@@ -12,6 +12,7 @@
 // link with ?token=...&userId=...&displayName=... .
 
 import { NextResponse, type NextRequest } from "next/server";
+import { redirectTo } from "@/lib/http/redirect";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { issueToken } from "@/lib/auth/api-token";
@@ -31,14 +32,12 @@ export async function GET(req: NextRequest) {
 
   const { user } = await getSession();
   if (!user) {
-    return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(self)}`, req.url));
+    return redirectTo(`/login?next=${encodeURIComponent(self)}`);
   }
   const gate = requirementRedirect(await accountStanding(user.id), { organizerSurface: true });
-  if (gate) return NextResponse.redirect(new URL(withNext(gate, self), req.url));
+  if (gate) return redirectTo(withNext(gate, self));
 
-  return NextResponse.redirect(
-    new URL(`/auth/mobile/confirm?redirect=${encodeURIComponent(redirectRaw)}`, req.url),
-  );
+  return redirectTo(`/auth/mobile/confirm?redirect=${encodeURIComponent(redirectRaw)}`);
 }
 
 export async function POST(req: NextRequest) {

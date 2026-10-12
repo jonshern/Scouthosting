@@ -86,7 +86,8 @@ jobs:
         env:
           BACKUP_DIR: ${{ runner.temp }}/backups
         run: |
-          export MASTER_KEY="$(openssl rand -hex 32)"
+          MASTER_KEY="$(openssl rand -hex 32)"
+          export MASTER_KEY
           npm run db:seed
           scripts/host/backup.sh
           scripts/host/restore.sh --drill

@@ -30,6 +30,7 @@ export async function submitFeedback(formData: FormData): Promise<void> {
 
   const org = await prisma.org.findUnique({ where: { slug: parsed.data.orgSlug } });
   if (!org) throw new Error("Org not found.");
+  if (!(await roleInOrg(user.id, org.id)) && !user.isSuperAdmin) throw new Error("Not authorized.");
 
   await prisma.feedbackRequest.create({
     data: {

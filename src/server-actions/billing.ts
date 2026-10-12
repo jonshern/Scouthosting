@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
@@ -9,6 +8,7 @@ import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { canManageBilling } from "@/lib/billing/access";
 import { createBillingPortalSession, createCheckoutSession, isConfigured } from "@/lib/billing/stripe";
 import { logger } from "@/lib/log";
+import { orgPublicOrigin } from "@/lib/tenancy/resolve";
 
 const log = logger.child("billing-actions");
 
@@ -17,11 +17,10 @@ export type BillingActionState = { error?: string } | null;
 const Schema = z.object({ orgSlug: z.string().min(1) });
 const IntervalSchema = z.enum(["year", "month"]);
 
-async function originForRequest(): Promise<string> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  const host = h.get("host") ?? "localhost:3000";
-  return `${proto}://${host}`;
+// Stripe sends the admin back to the unit's own address, never one
+// taken from the request's Host header.
+function billingUrl(org: { slug: string; customDomain: string | null }): string {
+  return `${orgPublicOrigin(org)}/admin/billing`;
 }
 
 async function authorize(formData: FormData) {
@@ -50,7 +49,7 @@ export async function startSubscriptionAction(
   const interval = IntervalSchema.safeParse(formData.get("interval"));
   if (!interval.success) return { error: "Pick yearly or monthly." };
 
-  const base = `${await originForRequest()}/o/${a.org.slug}/admin/billing`;
+  const base = billingUrl(a.org);
   let url: string | null;
   try {
     ({ url } = await createCheckoutSession(a.org, a.user, {
@@ -77,7 +76,7 @@ export async function openBillingPortalAction(
   let url: string;
   try {
     ({ url } = await createBillingPortalSession(a.org, {
-      returnUrl: `${await originForRequest()}/o/${a.org.slug}/admin/billing`,
+      returnUrl: billingUrl(a.org),
     }));
   } catch (e) {
     log.warn("portal session failed", { orgId: a.org.id, err: e instanceof Error ? e.message : String(e) });
