@@ -9,7 +9,10 @@ const config: NextConfig = {
   // exposed over `tailscale serve` (<mac>.<tailnet>.ts.net).
   allowedDevOrigins: ["*.ts.net"],
   experimental: {
-    serverActions: { bodySizeLimit: "2mb" },
+    // Photo uploads allow 10 MB per file and form attachments 25 MB
+    // (src/server-actions/photos.ts, forms.ts); a lower limit rejects a
+    // phone photo before the action can say anything useful.
+    serverActions: { bodySizeLimit: "30mb" },
   },
   async headers() {
     return [

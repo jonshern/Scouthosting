@@ -13,8 +13,11 @@ export async function GET(
   if (!org) {
     return new NextResponse("Not found", { status: 404 });
   }
+  // Calendar apps poll this feed for every family, so leave out events
+  // long past. Recurring series stay: they may still be running.
+  const since = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000);
   const events = await prisma.event.findMany({
-    where: { orgId: org.id },
+    where: { orgId: org.id, OR: [{ startsAt: { gte: since } }, { rrule: { not: null } }] },
     orderBy: { startsAt: "asc" },
   });
 
