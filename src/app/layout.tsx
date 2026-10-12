@@ -1,27 +1,31 @@
 import type { Metadata } from "next";
-import { Inter_Tight, Source_Serif_4, JetBrains_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { DemoBanner } from "@/components/demo/DemoBanner";
 import { isDemoMode } from "@/lib/demo/mode";
 
 // Type stack per design_handoff_compass_cms — Source Serif 4 for
 // display, Inter Tight for chrome, JetBrains Mono for IDs / dates.
-const interTight = Inter_Tight({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
+// The font files live in ./fonts (see README there) instead of coming
+// from next/font/google: that fetched them from Google during every
+// build, and a failed fetch failed the build, in CI and in `make deploy`.
+const interTight = localFont({
+  src: "./fonts/inter-tight-latin-wght-normal.woff2",
+  weight: "100 900",
   variable: "--font-ui",
   display: "swap",
 });
-const sourceSerif = Source_Serif_4({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
+const sourceSerif = localFont({
+  src: [
+    { path: "./fonts/source-serif-4-latin-wght-normal.woff2", weight: "200 900", style: "normal" },
+    { path: "./fonts/source-serif-4-latin-wght-italic.woff2", weight: "200 900", style: "italic" },
+  ],
   variable: "--font-display",
   display: "swap",
 });
-const jetbrainsMono = JetBrains_Mono({
-  subsets: ["latin"],
-  weight: ["400"],
+const jetbrainsMono = localFont({
+  src: "./fonts/jetbrains-mono-latin-400-normal.woff2",
+  weight: "400",
   variable: "--font-mono",
   display: "swap",
 });
