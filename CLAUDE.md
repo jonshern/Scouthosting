@@ -220,6 +220,18 @@ throws instead of falling back; the built-in keys are for dev and tests
 only. The pre-launch invite cookie (`src/lib/invite/cookie.ts`) follows
 the same rule with static reads because it runs in middleware.
 
+### 15. Demo mode is a whole deployment, not an org
+
+`DEMO_MODE=1` (`src/lib/demo/`, `docs/demo.md`) turns a deployment into
+the public demo: sample Troop 42, four shared accounts (password
+`TryTheDemo42!`), mail and SMS captured to `/demo/outbox`, sign-up and
+password/email/two-step changes refused, and a wipe-and-reseed of every
+table on a schedule. It needs its own database; the reset refuses if any
+`Org.isDemo = false` row exists. `Org.isDemo` alone (the troop100 seed)
+only skips billing. New code that sends mail or texts must go through
+`sendMail` / `sendSms` so the demo catches it. `make demo` runs it on
+:3100 against `compass_demo`.
+
 ## Demo accounts (test DB)
 
 Password for all seeded accounts: `AdminPasswordTest123!`

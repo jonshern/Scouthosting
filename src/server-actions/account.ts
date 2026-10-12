@@ -12,6 +12,7 @@ import { isSafeNextPath } from "@/lib/auth/post-login";
 import { CONFIRM_ADULT_PAGE } from "@/lib/auth/requirements";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { rateLimit } from "@/lib/security/rate-limit";
+import { DEMO_LOCKED_MESSAGE, isDemoMode } from "@/lib/demo/mode";
 
 const ProfileSchema = z.object({
   displayName: z.string().trim().min(1).max(120),
@@ -44,6 +45,7 @@ export async function updateProfile(formData: FormData): Promise<void> {
   // change-email flow does the swap (and marks it verified) on click.
   const newEmail = parsed.data.email.toLowerCase();
   if (newEmail !== user.email.toLowerCase()) {
+    if (isDemoMode()) throw new Error(DEMO_LOCKED_MESSAGE);
     if (!(await rateLimit(`change-email:${user.id}`, 3, 10 * 60_000)).ok) {
       throw new Error("Too many emails. Try again in a few minutes.");
     }
@@ -61,6 +63,7 @@ export async function changePassword(formData: FormData): Promise<void> {
   if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) throw new Error("Bad CSRF.");
   const { user } = await getSession();
   if (!user) redirect("/login");
+  if (isDemoMode()) throw new Error(DEMO_LOCKED_MESSAGE);
   const parsed = PasswordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid input.");
 

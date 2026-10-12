@@ -13,6 +13,7 @@ import { rateLimit, resetRateLimit } from "@/lib/security/rate-limit";
 import { clientIp } from "@/lib/security/client-ip";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { checkHoneypot, honeypotField, honeypotTimingField } from "@/lib/security/honeypot";
+import { isDemoMode } from "@/lib/demo/mode";
 
 export type ActionState = { error?: string; ok?: true } | null;
 
@@ -42,6 +43,9 @@ function errorCode(e: unknown): string | null {
 export async function signupAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   const fail = await preFlight(formData);
   if (fail) return fail;
+  if (isDemoMode()) {
+    return { error: "Sign-up is off in the demo. Pick one of the demo accounts on the demo page." };
+  }
   const h = await headers();
   const ip = clientIp(h) ?? "unknown";
   if (!(await rateLimit(clientKey(`signup:${ip}`), 30, 60_000)).ok) return TOO_MANY;

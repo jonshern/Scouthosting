@@ -8,6 +8,8 @@
 // targeting. Falls back to console with a warning if env vars missing.
 
 import { logger } from "@/lib/log";
+import { isDemoMode } from "@/lib/demo/mode";
+import { captureOutbound } from "@/lib/demo/outbox";
 
 const log = logger.child("sms");
 
@@ -81,6 +83,10 @@ export async function sendSms(msg: SmsMessage): Promise<SmsResult> {
   if (!msg.body) return { ok: false, error: "Missing body" };
   const phone = normalisePhone(msg.to);
   if (!phone) return { ok: false, error: `Invalid phone: ${msg.to}` };
+  // A demo deployment never sends real texts (src/lib/demo/mode.ts).
+  if (isDemoMode()) {
+    return { ok: true, id: await captureOutbound({ kind: "sms", to: phone, body: msg.body }) };
+  }
   const d = driver();
   switch (d) {
     case "console":

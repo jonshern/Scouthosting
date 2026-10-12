@@ -14,6 +14,7 @@ What to do when something happens in production on Google Cloud (see [gcp-deploy
 | "Youth-protection refusal" alert | [Youth-protection alert](#youth-protection-alert) |
 | A concern about a scout's safety, a leaked account, or exposed data | [Incident response](#incident-response) |
 | A secret may be exposed | [Rotate secrets](#rotate-secrets) |
+| The public demo is down, stale or misbehaving | [demo.md](demo.md#when-somethings-wrong) |
 
 ## Deploy
 
