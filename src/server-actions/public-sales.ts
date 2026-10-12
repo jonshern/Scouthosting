@@ -1,12 +1,12 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { createMemberPaymentSession } from "@/lib/treasury/stripe";
 import { centsToDollars } from "@/lib/treasury/money";
+import { apexPublicOrigin } from "@/lib/tenancy/resolve";
 
 // Public-page checkout. Visitor fills a cart on /sell/[slug] (or
 // /sell/[slug]/[scoutSlug]); we create a SalesOrder in "placed"
@@ -25,12 +25,6 @@ const Schema = z.object({
   items: z.string().min(1),
 });
 
-async function originForRequest(): Promise<string> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  const host = h.get("host") ?? "localhost:3000";
-  return `${proto}://${host}`;
-}
 
 export async function startPublicCheckout(
   _prev: { error?: string } | null,
@@ -110,7 +104,7 @@ export async function startPublicCheckout(
     },
   });
 
-  const baseUrl = await originForRequest();
+  const baseUrl = apexPublicOrigin();
   let session;
   try {
     session = await createMemberPaymentSession({

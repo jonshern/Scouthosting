@@ -1,13 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { headers } from "next/headers";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { dispatchPermissionSlips } from "@/lib/permission-slips/dispatch";
+import { apexPublicOrigin } from "@/lib/tenancy/resolve";
 
 const Schema = z.object({
   orgSlug: z.string().min(1),
@@ -19,12 +19,6 @@ export type SlipDispatchState =
   | { error: string }
   | null;
 
-async function originForRequest(): Promise<string> {
-  const h = await headers();
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  const host = h.get("host") ?? "localhost:3000";
-  return `${proto}://${host}`;
-}
 
 export async function sendPermissionSlips(
   _prev: SlipDispatchState,
@@ -54,7 +48,7 @@ export async function sendPermissionSlips(
   });
   if (!event) return { error: "Event not found." };
 
-  const baseUrl = await originForRequest();
+  const baseUrl = apexPublicOrigin();
   const summary = await dispatchPermissionSlips(org, event, baseUrl);
 
   revalidatePath(`/o/${org.slug}/admin/events/${event.id}/permission-slips`);

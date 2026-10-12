@@ -39,6 +39,23 @@ export async function resolveOrgFromHost(rawHost: string | null | undefined) {
  * and env only, never from a request's Host header (which the client
  * controls).
  */
+/**
+ * The apex origin (`https://<APEX_HOST>`), for links to pages that
+ * only live on the apex: /account, /sell, /permission-slip. A tenant
+ * host rewrites those paths under /o/<slug>, where they don't exist.
+ * Built from env only, never from the request's Host header.
+ */
+export function apexPublicOrigin(
+  opts: { apexHost?: string; production?: boolean; port?: string | undefined } = {},
+): string {
+  const production = opts.production ?? process.env.NODE_ENV === "production";
+  const scheme = production ? "https" : "http";
+  const apex = (opts.apexHost ?? env.APEX_HOST).replace(/\/+$/, "");
+  const hasPort = /:\d+$/.test(apex);
+  const port = production || hasPort ? "" : `:${opts.port ?? process.env.PORT ?? "3000"}`;
+  return `${scheme}://${apex}${port}`;
+}
+
 export function orgPublicOrigin(
   org: { slug: string; customDomain?: string | null },
   opts: { apexHost?: string; production?: boolean; port?: string | undefined } = {},
