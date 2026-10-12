@@ -3,16 +3,15 @@
 // because Next 16 only allows cookie mutation from Route Handlers
 // and Server Actions.
 
-import { NextResponse } from "next/server";
 import { endSession } from "@/lib/auth/sessions";
+import { redirectTo } from "@/lib/http/redirect";
 
-export async function GET(req: Request) {
+export async function GET() {
   await endSession();
-  const url = new URL("/", req.url);
-  return NextResponse.redirect(url);
+  return redirectTo("/");
 }
 
-export async function POST(req: Request) {
+export async function POST() {
   // Some clients submit a form POST to /logout; treat the same as GET.
-  return GET(req);
+  return GET();
 }
