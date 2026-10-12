@@ -100,11 +100,11 @@ describe.skipIf(!db)("/api/v1 slot take/release (Postgres)", () => {
     const soon = new Date(Date.now() + 7 * 86400_000);
     f.event = (await prisma.event.create({ data: { orgId: f.org, title: "Campout", startsAt: soon } })).id;
     f.otherEvent = (await prisma.event.create({ data: { orgId: f.org, title: "Other", startsAt: soon } })).id;
-    const slot = (eventId: string, title: string, capacity: number, allowWaitlist = true) =>
+    const slot = (eventId: string, title: string, capacity: number, allowWaitlist = true, key?: string) =>
       prisma.signupSlot
-        .create({ data: { orgId: f.org, eventId, title, capacity, allowWaitlist } })
+        .create({ data: { orgId: f.org, eventId, title, capacity, allowWaitlist, key } })
         .then((s) => s.id);
-    f.one = await slot(f.event, "Driver", 1);
+    f.one = await slot(f.event, "Driver", 1, true, "role:driver");
     f.noWait = await slot(f.event, "Cook", 1, false);
     f.otherSlot = await slot(f.otherEvent, "Other", 5);
   });
@@ -133,8 +133,10 @@ describe.skipIf(!db)("/api/v1 slot take/release (Postgres)", () => {
     expect((await call(take.POST as Handler, f.b.token, P(f.one), {})).json).toEqual({ ok: true, waitlisted: true });
 
     const detail = await call(eventDetail.GET as Handler, f.b.token, { id: f.event }, undefined, "GET");
-    const slots = (detail.json.event as { slots: { id: string; mine: string | null }[] }).slots;
+    const slots = (detail.json.event as { slots: { id: string; key: string | null; mine: string | null }[] }).slots;
     expect(slots.find((s) => s.id === f.one)?.mine).toBe("waitlisted");
+    expect(slots.find((s) => s.id === f.one)?.key).toBe("role:driver");
+    expect(slots.find((s) => s.id === f.noWait)?.key).toBeNull();
 
     const rel = await call(release.POST as Handler, f.a.token, P(f.one));
     expect(rel.status).toBe(200);

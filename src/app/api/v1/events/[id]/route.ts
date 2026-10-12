@@ -57,6 +57,9 @@ export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
         : null,
       slots: event.slots.map((s) => ({
         id: s.id,
+        // "station:<id>" or "role:<id>" for slots imported from a Waypoint
+        // event file; null for slots made by hand in Compass.
+        key: s.key,
         title: s.title,
         description: s.description,
         capacity: s.capacity,
