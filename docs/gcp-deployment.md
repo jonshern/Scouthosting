@@ -64,6 +64,10 @@ Staging and previews skip the pre-launch invite gate and let admins in without t
 
 Every deploy of the core service is blue-green. The live revision (blue) keeps serving while the migrate job runs; the new image starts as a separate revision (green) with no traffic and its own URL; `/health` and `/login` are checked on green; then all traffic flips to green in one step, and flips back if the live check fails. The old revision stays deployed, so rolling back is one traffic change with nothing rebuilt. This only works if both versions can run on the same database, so migrations are expand-only, enforced in CI (details in [runbooks-gcp.md](runbooks-gcp.md#migrations-are-expand-only)). Waypoint and Lantern websites get the same property from Firebase Hosting, where every release is atomic and the previous one is a click away.
 
+## Database connections
+
+`core-pg` allows 50 connections (the `max_connections` flag in `infra/main.tf`), shared by staging, prod, previews and the migrate job. Each Compass process opens at most `DB_POOL_SIZE` (default 4) for queries and `JOBS_POOL_SIZE` (default 2) for the job queue, so 6 per instance. At the configured maximums (prod 4, staging 2) that is 36, which leaves room for a green revision during a deploy, a preview being checked, and a `psql` session. Raising `max_instances` means checking this sum first; an explicit `connection_limit=` in `DATABASE_URL` overrides `DB_POOL_SIZE`.
+
 ## What's in the repo
 
 | Path | What it is |
