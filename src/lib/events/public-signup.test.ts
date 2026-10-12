@@ -9,7 +9,7 @@ import {
   SignupBodySchema,
   submitPublicSignup,
 } from "./public-signup";
-import { slotsFromEventFile } from "./waypoint-file";
+import { publicSlugForEventFile, slotsFromEventFile } from "./waypoint-file";
 
 const body = (over: Record<string, unknown> = {}) => ({
   eventSlug: "spring-badge-day",
@@ -139,5 +139,34 @@ describe("slotsFromEventFile", () => {
     expect(
       slotsFromEventFile(JSON.stringify({ stations: [{ id: "x", badge: "B", capacity: 0 }] })),
     ).toHaveProperty("error");
+  });
+});
+
+describe("publicSlugForEventFile", () => {
+  it("uses the file's name without .json, as Waypoint does", () => {
+    expect(publicSlugForEventFile("2026-11-14-scout-tech-fair.json")).toBe("2026-11-14-scout-tech-fair");
+    expect(publicSlugForEventFile("C:\\events\\2026-11-14-scout-tech-fair.JSON")).toBe("2026-11-14-scout-tech-fair");
+  });
+
+  it("falls back to the date and title the name is built from", () => {
+    expect(publicSlugForEventFile("", "2026-11-14", "Scout Tech Fair")).toBe("2026-11-14-scout-tech-fair");
+    expect(publicSlugForEventFile("my file (1).json", "2026-11-14", "Scout Tech Fair!")).toBe(
+      "2026-11-14-scout-tech-fair",
+    );
+  });
+
+  it("returns null when nothing gives a usable slug", () => {
+    expect(publicSlugForEventFile(undefined)).toBeNull();
+    expect(publicSlugForEventFile("a.json", "2026", undefined)).toBeNull();
+  });
+
+  it("comes back with the parsed file", () => {
+    const text = JSON.stringify({
+      date: "2026-11-14",
+      title: "Scout Tech Fair",
+      stations: [{ id: "fa", badge: "First Aid", capacity: 4 }],
+    });
+    expect(slotsFromEventFile(text)).toMatchObject({ publicSlug: "2026-11-14-scout-tech-fair" });
+    expect(slotsFromEventFile(text, "spring-day.json")).toMatchObject({ publicSlug: "spring-day" });
   });
 });

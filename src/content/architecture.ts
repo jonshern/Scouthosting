@@ -21,7 +21,7 @@ export const STACK_MANIFEST: ReadonlyArray<StackEntry> = [
   { layer: "Object storage", tool: "STORAGE_DRIVER (local/s3/gcs)", why: "Driver-agnostic put/get; encrypted bytes layered above the driver." },
   { layer: "Realtime", tool: "src/lib/realtime/bus.ts (in-process)", why: "LISTEN/NOTIFY upgrade pending; works in single-pod." },
   { layer: "Mobile", tool: "Expo / React Native", why: "Talks to /api/v1 over HTTPS; no wildcard DNS needed." },
-  { layer: "Deploy", tool: "Dockerfile → Fly.io", why: "Single image; runs prisma migrate deploy at boot." },
+  { layer: "Deploy", tool: "Dockerfile → Cloud Run (runs on Jon's Mac for now)", why: "Single image; starts next only. Migrations are a separate step (scripts/migrate.sh / the migrate job)." },
 ] as const;
 
 export type EncryptedField = {

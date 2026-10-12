@@ -17,7 +17,6 @@ vi.hoisted(() => {
   );
   /* eslint-enable @typescript-eslint/no-require-imports */
   delete process.env.CLIENT_IP_HEADER;
-  delete process.env.FLY_APP_NAME;
   delete process.env.K_SERVICE;
 });
 
@@ -495,7 +494,7 @@ describe.skipIf(!db)("/api/v1 (Postgres)", () => {
     });
 
     it("limits per client IP using only the trusted platform header", async () => {
-      process.env.CLIENT_IP_HEADER = "fly-client-ip";
+      process.env.CLIENT_IP_HEADER = "cf-connecting-ip";
       const ip = `198.51.100.${(process.pid % 250) + 1}`;
       await prisma.rateLimitBucket.upsert({
         where: { key: `v1:ip:${ip}` },
@@ -503,16 +502,16 @@ describe.skipIf(!db)("/api/v1 (Postgres)", () => {
         update: { count: 600, resetAt: new Date(Date.now() + 60_000) },
       });
       try {
-        const blocked = await call(me.GET as Handler, { token: f.parent.token, headers: { "fly-client-ip": ip } });
+        const blocked = await call(me.GET as Handler, { token: f.parent.token, headers: { "cf-connecting-ip": ip } });
         expect(blocked.status).toBe(429);
         // A forged X-Forwarded-For doesn't move the caller to a new bucket…
         const forged = await call(me.GET as Handler, {
           token: f.parent.token,
-          headers: { "fly-client-ip": ip, "x-forwarded-for": "10.9.8.7" },
+          headers: { "cf-connecting-ip": ip, "x-forwarded-for": "10.9.8.7" },
         });
         expect(forged.status).toBe(429);
         // …but a different real client is unaffected.
-        const other = await call(me.GET as Handler, { token: f.parent.token, headers: { "fly-client-ip": "198.51.100.251" } });
+        const other = await call(me.GET as Handler, { token: f.parent.token, headers: { "cf-connecting-ip": "198.51.100.251" } });
         expect(other.status).toBe(200);
       } finally {
         delete process.env.CLIENT_IP_HEADER;

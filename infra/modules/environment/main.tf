@@ -251,7 +251,7 @@ resource "google_secret_manager_secret_iam_member" "runtime" {
 
 # --- Uploads (photos, paperwork) ---------------------------------------------
 # Private bucket; the server encrypts photo bytes and hands out short-lived
-# signed URLs. Replaces the fly volume.
+# signed URLs.
 
 resource "google_storage_bucket" "uploads" {
   name                        = "${var.project_id}-${var.name}-uploads"
@@ -305,9 +305,8 @@ resource "google_cloud_run_v2_service" "api" {
 
     containers {
       image = local.bootstrap_image
-      # The image's own CMD migrates on boot for fly.io. Here the migrate job
-      # does that with the owner login, and the server only starts.
-      command = ["npm", "run", "start"]
+      # The image's CMD starts Next only (no npm in the image, no migrate on
+      # boot); the migrate job applies migrations with the owner login.
 
       ports {
         container_port = 3000
@@ -389,7 +388,7 @@ resource "google_cloud_run_v2_service_iam_member" "public" {
 # --- Migrations --------------------------------------------------------------
 # Same image, different command. CI executes this job and waits for it before
 # shifting traffic, so a bad migration never takes the live site down (the
-# fly.io setup runs migrations on boot, which tangled with health checks).
+# server never migrates on boot, so migrations can't tangle with health checks).
 
 resource "google_service_account" "migrate" {
   account_id   = "core-${var.name}-migrate"

@@ -3,7 +3,7 @@
 // slots Compass needs, keyed so public sign-ups can find them.
 
 import { z } from "zod";
-import { ExternalIdSchema, roleKey, stationKey } from "./public-signup";
+import { ExternalIdSchema, PublicSlugSchema, roleKey, stationKey } from "./public-signup";
 
 const Station = z.object({
   id: ExternalIdSchema,
@@ -21,6 +21,7 @@ const Role = z.object({
 
 const EventFile = z.object({
   title: z.string().optional(),
+  date: z.string().optional(),
   blocks: z.array(z.object({ id: z.string(), label: z.string() })).optional(),
   stations: z.array(Station).max(500).default([]),
   volunteerRoles: z.array(Role).max(100).default([]),
@@ -34,8 +35,35 @@ export type SlotSpec = {
   sortOrder: number;
 };
 
+/**
+ * The public slug Waypoint uses for this file: its name without
+ * `.json` (events/2026-11-14-scout-tech-fair.json opens at
+ * /e/2026-11-14-scout-tech-fair and sends that as eventSlug). Without a
+ * file name, rebuild it from the file's date and title, which is how
+ * those names are made. Null when neither gives a valid slug.
+ */
+export function publicSlugForEventFile(fileName: string | null | undefined, date?: string, title?: string): string | null {
+  const fromName = fileName?.split(/[\\/]/).pop()?.replace(/\.json$/i, "");
+  const fromContent =
+    date && title
+      ? `${date}-${title}`
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-+|-+$/g, "")
+      : undefined;
+  for (const candidate of [fromName, fromContent]) {
+    if (!candidate) continue;
+    const r = PublicSlugSchema.safeParse(candidate);
+    if (r.success) return r.data;
+  }
+  return null;
+}
+
 /** Parse the file's JSON text into slot specs, or a message for the leader. */
-export function slotsFromEventFile(text: string): { slots: SlotSpec[] } | { error: string } {
+export function slotsFromEventFile(
+  text: string,
+  fileName?: string | null,
+): { slots: SlotSpec[]; publicSlug: string | null } | { error: string } {
   let raw: unknown;
   try {
     raw = JSON.parse(text);
@@ -77,5 +105,5 @@ export function slotsFromEventFile(text: string): { slots: SlotSpec[] } | { erro
     });
   }
   if (!slots.length) return { error: "The file has no stations or volunteer roles." };
-  return { slots };
+  return { slots, publicSlug: publicSlugForEventFile(fileName, f.date, f.title) };
 }

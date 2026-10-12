@@ -4,6 +4,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
+import { canManageTreasury } from "@/lib/auth/treasury-access";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 
 export default async function RefundsPage({
@@ -16,11 +17,7 @@ export default async function RefundsPage({
   if (!user) redirect(`/login?next=/o/${slug}/admin/refunds`);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) return null;
-  const m = await prisma.orgMembership.findFirst({
-    where: { orgId: org.id, userId: user.id },
-    select: { role: true },
-  });
-  if (!m || (m.role !== "leader" && m.role !== "admin")) {
+  if (!(await canManageTreasury(user, org.id))) {
     return <p className="p-12">Not authorized.</p>;
   }
 

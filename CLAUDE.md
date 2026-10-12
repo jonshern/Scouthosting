@@ -9,7 +9,7 @@ this lean.
 - Node 22 · Next.js 16 · React 19 · Prisma 5 · Postgres 16 · Better Auth · argon2id · pg-boss · Tailwind
 - Mobile: Expo / React Native (talks to `/api/v1/*` over HTTPS)
 - Local infra: `docker-compose.yml` runs Postgres only; Next runs as a host Node process via `npm run dev`
-- Deploy: `Dockerfile` at the repo root builds and runs `prisma migrate deploy && next start` on port 3000
+- Deploy: `Dockerfile` at the repo root builds an image that runs `next start` on port 3000 (no npm in the image; migrations are a separate step, `scripts/migrate.sh`). Target is Cloud Run (`infra/`, `docs/gcp-deployment.md`); until the GCP project exists Compass runs on Jon's Mac. fly.io is shut down.
 
 ## Layout
 
@@ -112,10 +112,10 @@ v12 introduced a stricter queue model. `src/lib/jobs/index.ts` calls
 handler. Tests run with `JOBS_DISABLED=1` so the worker never spins
 up against `compass_test`.
 
-### 6. Photos / uploads on Fly are ephemeral when storage=local
+### 6. Photos / uploads in a container are ephemeral when storage=local
 
 `STORAGE_DRIVER=local` writes to `/app/var/uploads/*` which doesn't
-survive container restart on Fly. Use `STORAGE_DRIVER=s3` (or `gcs`)
+survive a container restart (Cloud Run instances have no disk). Use `STORAGE_DRIVER=s3` (or `gcs`)
 with a real bucket in production. The drivers lazy-load
 `@aws-sdk/client-s3` / `@google-cloud/storage` so the deps are only
 required when actually used.
@@ -190,6 +190,27 @@ Server code reads the user with `getSession()` from
 `src/lib/auth/session.ts`. The DB-backed auth tests in
 `src/lib/auth/auth.db.test.ts` run only when `TEST_DATABASE_URL` is set.
 
+### 13. Treasury is for admins and the treasurer, not every leader
+
+`src/lib/auth/treasury-access.ts#canManageTreasury` gates the treasury
+pages (`admin/treasury/layout.tsx`), its CSV routes, refunds,
+reimbursements and every treasury server action. A `leader` gets in only
+when their roster entry (Member matched by email) has a treasurer
+position (Treasurer, Purser, Cookie Manager, …; see
+`src/lib/auth/permissions.ts`). New money surfaces must call it too;
+layouts don't cover route handlers.
+
+### 14. Signed links never use a key from the source code in production
+
+RSVP, permission-slip, unsubscribe, invite and click-tracking links get
+their HMAC key from `src/lib/security/link-secret.ts`: the link's own
+variable (`RSVP_SECRET`, `PERM_SLIP_SECRET`, `UNSUB_SECRET`,
+`INVITE_SECRET`, `TRACKING_SECRET`), then `SESSION_SECRET`, then
+`BETTER_AUTH_SECRET`. In production a missing or short (< 32 chars) key
+throws instead of falling back; the built-in keys are for dev and tests
+only. The pre-launch invite cookie (`src/lib/invite/cookie.ts`) follows
+the same rule with static reads because it runs in middleware.
+
 ## Demo accounts (test DB)
 
 Password for all seeded accounts: `AdminPasswordTest123!`
@@ -252,4 +273,4 @@ to point the simulator at the host machine.
 - TestFlight pipeline (gated on Apple Developer enrollment)
 - OTel SDK init in `src/instrumentation.ts` (currently only fatal
   handlers + jobs runtime)
-- Persistent uploads on Fly via `STORAGE_DRIVER=s3` + a real bucket
+- Persistent uploads in production via `STORAGE_DRIVER=gcs` + the Terraform bucket

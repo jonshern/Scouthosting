@@ -211,6 +211,10 @@ model Org {
   salesOrders          SalesOrder[]
   boothSales           BoothSale[]
   eventStaff           EventStaff[]
+  counselorAssignments CounselorAssignment[]
+  requirementProgress  RequirementProgress[]
+  requirementEvents    RequirementProgressEvent[]
+  counselorMeetings    CounselorMeeting[]
   owner                User?                 @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([plan])
@@ -275,6 +279,9 @@ model User {
   errorLogs             ErrorLog[]
   publishedPageVersions PageVersion[]
   eventStaff            EventStaff[]
+  counselorBadges       CounselorBadge[]
+  counselorAssignments  CounselorAssignment[] @relation("AssignedCounselor")
+  counselorMeetings     CounselorMeeting[]
 }
 
 // One-time-use 2FA backup codes. Generated at enrollment (10 per user),
@@ -495,6 +502,10 @@ model Member {
   salesOrders          SalesOrder[]
   scoutSalesLinks      ScoutSalesLink[]
   patrolsLed           Patrol[] @relation("PatrolLeader")
+  counselorAssignments CounselorAssignment[]
+  requirementProgress  RequirementProgress[]
+  requirementEvents    RequirementProgressEvent[]
+  counselorMeetings    CounselorMeetingScout[]
 
   @@index([orgId])
   @@index([orgId, lastNameLc1])
@@ -1507,6 +1518,157 @@ model EventStaff {
   @@index([userId])
   @@index([email])
   @@index([slotId])
+}
+
+// ------------------------------------------------------------------
+// Merit badge counseling (Waypoint app, /api/v1 counselor routes)
+// ------------------------------------------------------------------
+//
+// MeritBadgeCounselor above is a leader-maintained, per-org directory
+// of names (often people with no Compass account). The models below
+// are the signed-in side: a User who counsels badges, which scouts a
+// unit has assigned to them, requirement progress and sign-offs, and
+// counselor meetings. Badge slugs and requirement ids follow the
+// scout-core catalog (src/lib/counselor/ids.ts).
+
+// Badges a signed-in adult counsels. Per user, not per org: counselors
+// register with the council and serve every unit, so one list follows
+// them across orgs. Units still decide who counsels their scouts
+// through CounselorAssignment.
+model CounselorBadge {
+  userId    String
+  badgeSlug String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, badgeSlug])
+  @@index([badgeSlug])
+}
+
+// A unit admin/leader assigns a counselor (an adult org member) to a
+// scout for one badge. This is what lets the counselor see the scout
+// on their roster and sign off that badge's requirements.
+model CounselorAssignment {
+  id              String   @id @default(cuid())
+  orgId           String
+  counselorUserId String
+  memberId        String // the scout (Member.isYouth)
+  badgeSlug       String
+  createdById     String?
+  createdAt       DateTime @default(now())
+
+  org       Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  counselor User   @relation("AssignedCounselor", fields: [counselorUserId], references: [id], onDelete: Cascade)
+  member    Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([counselorUserId, memberId, badgeSlug])
+  @@index([orgId, memberId])
+  @@index([orgId, counselorUserId])
+}
+
+// Current state of one requirement for one scout. requirementId is a
+// scout-core id like "badge:plumbing#6b". status is one of
+// not_started | in_progress | done | signed_off; signedOffById/At are
+// set by the server when status becomes signed_off and cleared when it
+// leaves it. Every change also appends a RequirementProgressEvent.
+model RequirementProgress {
+  id            String    @id @default(cuid())
+  orgId         String
+  memberId      String
+  requirementId String
+  status        String
+  note          String?
+  signedOffById String?
+  signedOffAt   DateTime?
+  updatedById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  org    Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@unique([memberId, requirementId])
+  @@index([orgId])
+}
+
+// Append-only history of requirement changes: who moved which
+// requirement from what to what, and when. Never updated or deleted by
+// the app (rows go only when the scout or org is removed).
+model RequirementProgressEvent {
+  id            String   @id @default(cuid())
+  orgId         String
+  memberId      String
+  requirementId String
+  fromStatus    String?
+  toStatus      String
+  note          String?
+  actorUserId   String?
+  createdAt     DateTime @default(now())
+
+  org    Org    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  member Member @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@index([memberId, requirementId, createdAt])
+  @@index([orgId, createdAt])
+}
+
+// A counselor meeting with one or more scouts. Youth protection: the
+// meeting stores who must be notified (CounselorMeetingNotify): every
+// linked parent of every scout, plus any other adults the counselor
+// named. Each scout needs a parent contact or another adult on the
+// meeting, or creating it is refused. Compass
+// doesn't send meeting notifications yet; whatever sends them must use
+// this list so parents are always copied, and never email a scout
+// directly.
+model CounselorMeeting {
+  id              String    @id @default(cuid())
+  orgId           String
+  counselorUserId String
+  badgeSlug       String
+  startsAt        DateTime
+  endsAt          DateTime?
+  place           String
+  notes           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  org       Org                      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  counselor User                     @relation(fields: [counselorUserId], references: [id], onDelete: Cascade)
+  scouts    CounselorMeetingScout[]
+  notify    CounselorMeetingNotify[]
+
+  @@index([counselorUserId, startsAt])
+  @@index([orgId, startsAt])
+}
+
+model CounselorMeetingScout {
+  meetingId String
+  memberId  String
+
+  meeting CounselorMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  member  Member           @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  @@id([meetingId, memberId])
+  @@index([memberId])
+}
+
+// Who a meeting notification goes to. kind "parent": a scout's linked
+// parent Member (forMemberId is the scout). kind "adult": another
+// adult org member, by userId. References only; contact details are
+// read from Member/User at send time so they stay current and PII
+// isn't copied.
+model CounselorMeetingNotify {
+  id          String  @id @default(cuid())
+  meetingId   String
+  kind        String
+  memberId    String?
+  forMemberId String?
+  userId      String?
+
+  meeting CounselorMeeting @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+
+  @@index([meetingId])
 }
 
 // Reimbursement request — a member submits an expense, the treasurer

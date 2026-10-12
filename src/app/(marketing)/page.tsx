@@ -23,7 +23,7 @@ const FEATURES = [
     num: "03",
     kw: "Security",
     title: "Encryption, audit logs, and serious uptime.",
-    body: "AES-256 field-level encryption, per-org keys, argon2id for passphrases. Tamper-evident audit log on every admin action. Cloud-hosted on Fly.io with daily Postgres snapshots — no server in someone's basement, no Tuesday-night outage.",
+    body: "AES-256 field-level encryption, per-org keys, argon2id for passphrases. Tamper-evident audit log on every admin action. Cloud-hosted with daily Postgres snapshots — no server in someone's basement, no Tuesday-night outage.",
     accent: "#0f172a",
   },
   {

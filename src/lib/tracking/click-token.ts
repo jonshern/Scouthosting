@@ -14,11 +14,12 @@
 // open-redirect-safe.
 
 import crypto from "node:crypto";
+import { linkSecret } from "@/lib/security/link-secret";
 
 const DEFAULT_TTL_DAYS = 365;
 
 function secretFor(): string {
-  return process.env.TRACKING_SECRET || "dev-tracking-secret-do-not-use-in-prod";
+  return linkSecret(["TRACKING_SECRET"], "dev-tracking-secret-do-not-use-in-prod");
 }
 
 function b64u(buf: Buffer): string {

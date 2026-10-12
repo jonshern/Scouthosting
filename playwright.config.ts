@@ -38,7 +38,7 @@ export default defineConfig({
       // Tests sign in as a seeded admin (scoutmaster). The policy gate
       // (lib/auth/policy.ts) blocks admin password login when
       // NODE_ENV=production unless this bypass is set — same convention
-      // as Compass staging on Fly.
+      // as Compass staging.
       ALLOW_ADMIN_PASSWORD_LOGIN: "1",
       // The seeded admin has no two-step sign-in; production requires it
       // for organizers (lib/auth/requirements.ts) unless this is set.

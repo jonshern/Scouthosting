@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
+import { canManageTreasury, TREASURY_FORBIDDEN } from "@/lib/auth/treasury-access";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 
@@ -27,13 +28,7 @@ export async function issueRefund(formData: FormData): Promise<void> {
 
   const org = await prisma.org.findUnique({ where: { slug: parsed.data.orgSlug } });
   if (!org) throw new Error("Org not found.");
-  const m = await prisma.orgMembership.findFirst({
-    where: { orgId: org.id, userId: user.id },
-    select: { role: true },
-  });
-  if (!m || (m.role !== "leader" && m.role !== "admin")) {
-    throw new Error("Forbidden.");
-  }
+  if (!(await canManageTreasury(user, org.id))) throw new Error(TREASURY_FORBIDDEN);
 
   const amountCents = Math.round(parseFloat(parsed.data.amount) * 100);
   if (!Number.isFinite(amountCents) || amountCents <= 0) {

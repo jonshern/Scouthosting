@@ -73,8 +73,10 @@ deep-link callback with a bearer token), then talks to `/api/v1/*`.
 ## Deploying
 
 `Dockerfile` is the runtime. Build it, push to your registry, run on
-any orchestrator (Cloud Run, Fly machines, ECS, plain docker compose).
-The image runs `prisma migrate deploy` on boot, then `next start`.
+any orchestrator (Cloud Run, ECS, plain docker compose). The image
+runs `next start` only and has no npm/npx; apply migrations first with
+`scripts/migrate.sh` (same image), and seed with
+`node_modules/.bin/tsx prisma/seed.ts`.
 
 Required env at runtime:
 - `DATABASE_URL` — Postgres

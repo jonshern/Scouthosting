@@ -5,17 +5,23 @@
 // portable surface that works in both edge and node.
 //
 // The cookie payload is `${codeId}.${exp}.${sig}` where sig is
-// HMAC-SHA256 over `${codeId}.${exp}` using SESSION_SECRET. exp is
+// HMAC-SHA256 over `${codeId}.${exp}` using SESSION_SECRET (or
+// BETTER_AUTH_SECRET). exp is
 // a unix-seconds timestamp.
 
 export const INVITE_COOKIE = "compass_invite";
 export const INVITE_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
 
+// Same rule as lib/security/link-secret.ts, written out with static
+// process.env reads because this runs in middleware: never sign with a
+// key from the source code in production.
 function getSecret(): string {
-  return (
-    process.env.SESSION_SECRET ||
-    "dev-only-not-secret-replace-in-prod-0123456789abcdef"
-  );
+  const v = process.env.SESSION_SECRET || process.env.BETTER_AUTH_SECRET;
+  if (v) return v;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("No secret for the invite cookie: set SESSION_SECRET (openssl rand -hex 32).");
+  }
+  return "dev-only-not-secret-replace-in-prod-0123456789abcdef";
 }
 
 function bytesToBase64Url(bytes: Uint8Array): string {

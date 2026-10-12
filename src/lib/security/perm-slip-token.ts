@@ -5,16 +5,12 @@
 // the same generic signed-token primitive.
 
 import { makeSignedToken, verifySignedToken } from "./signed-token";
+import { linkSecret } from "./link-secret";
 
 const DEFAULT_TTL_DAYS = 90;
 
 function secretFor(): string {
-  return (
-    process.env.PERM_SLIP_SECRET ||
-    process.env.RSVP_SECRET ||
-    process.env.SESSION_SECRET ||
-    "dev-perm-slip-secret-do-not-use-in-prod"
-  );
+  return linkSecret(["PERM_SLIP_SECRET", "RSVP_SECRET"], "dev-perm-slip-secret-do-not-use-in-prod");
 }
 
 export type PermSlipClaims = {

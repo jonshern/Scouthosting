@@ -7,15 +7,12 @@
 // Stateless: the token IS the RSVP authorization.
 
 import { makeSignedToken, verifySignedToken } from "./signed-token";
+import { linkSecret } from "./link-secret";
 
 const DEFAULT_TTL_DAYS = 60;
 
 function secretFor(): string {
-  return (
-    process.env.RSVP_SECRET ||
-    process.env.SESSION_SECRET ||
-    "dev-rsvp-secret-do-not-use-in-prod"
-  );
+  return linkSecret(["RSVP_SECRET"], "dev-rsvp-secret-do-not-use-in-prod");
 }
 
 export type RsvpClaims = {

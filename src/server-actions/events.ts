@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth/session";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { ownedIdOrNull, ownedIds } from "@/lib/tenancy/owned";
+import { deleteEventWithSlipTrace } from "@/lib/events/delete";
 import { PublicSlugSchema } from "@/lib/events/public-signup";
 import { slotsFromEventFile } from "@/lib/events/waypoint-file";
 
@@ -145,9 +146,12 @@ export async function deleteEvent(_prev: unknown, formData: FormData) {
   if (!parsed.success) return { error: "Invalid input." };
   const auth = await authorize(parsed.data.orgSlug);
   if ("error" in auth) return { error: auth.error };
-  await prisma.event.delete({
-    where: { id: parsed.data.id, orgId: auth.org.id },
+  const deleted = await deleteEventWithSlipTrace({
+    orgId: auth.org.id,
+    eventId: parsed.data.id,
+    user: auth.user,
   });
+  if (!deleted) return { error: "Event not found." };
   revalidatePath(`/o/${auth.org.slug}/admin/events`);
   revalidatePath(`/o/${auth.org.slug}/calendar`);
   updateTag("public-events");
@@ -160,9 +164,19 @@ const ImportSlotsSchema = z.object({
   orgSlug: z.string().min(1),
   eventId: z.string().min(1),
   file: z.string().min(1, "Paste the event file.").max(500_000, "That file is too large."),
+  fileName: z.string().max(255).optional(),
 });
 
-export type ImportSlotsState = { error?: string; ok?: true; created?: number; updated?: number } | null;
+export type ImportSlotsState = {
+  error?: string;
+  ok?: true;
+  created?: number;
+  updated?: number;
+  /** The event's public slug after the import, when it has one. */
+  publicSlug?: string | null;
+  /** Set when the slug Waypoint will send can't be used as-is. */
+  slugWarning?: string;
+} | null;
 
 /**
  * Create or update this event's sign-up slots from a Waypoint event
@@ -170,6 +184,10 @@ export type ImportSlotsState = { error?: string; ok?: true; created?: number; up
  * ("role:<id>"). Re-importing an edited file updates titles and
  * capacities in place; slots missing from the file are left alone so
  * nobody's seat is deleted by an import.
+ *
+ * Waypoint sends the event file's name as the public slug, so an event
+ * without one takes it from the file here; an event that already has a
+ * different one keeps it and the leader is told they differ.
  */
 export async function importEventSlots(
   _prev: ImportSlotsState,
@@ -184,10 +202,13 @@ export async function importEventSlots(
   if ("error" in auth) return { error: auth.error };
   const { org } = auth;
 
-  const event = await prisma.event.findFirst({ where: { id: d.eventId, orgId: org.id }, select: { id: true } });
+  const event = await prisma.event.findFirst({
+    where: { id: d.eventId, orgId: org.id },
+    select: { id: true, publicSlug: true },
+  });
   if (!event) return { error: "Event not found." };
 
-  const spec = slotsFromEventFile(d.file);
+  const spec = slotsFromEventFile(d.file, d.fileName);
   if ("error" in spec) return { error: spec.error };
 
   const existing = await prisma.signupSlot.findMany({
@@ -205,8 +226,32 @@ export async function importEventSlots(
     ),
   );
 
+  let publicSlug = event.publicSlug;
+  let slugWarning: string | undefined;
+  const wanted = spec.publicSlug;
+  if (!wanted) {
+    if (!publicSlug) {
+      slugWarning =
+        "Couldn't tell the file's name. Set the public sign-up slug below to the file's name without .json.";
+    }
+  } else if (!publicSlug) {
+    const taken = await prisma.event.findFirst({ where: { publicSlug: wanted }, select: { id: true } });
+    if (taken) {
+      slugWarning = `Another event already uses the public slug "${wanted}", so this one wasn't set.`;
+    } else {
+      try {
+        await prisma.event.update({ where: { id: event.id }, data: { publicSlug: wanted } });
+        publicSlug = wanted;
+      } catch {
+        slugWarning = `Another event already uses the public slug "${wanted}", so this one wasn't set.`;
+      }
+    }
+  } else if (publicSlug !== wanted) {
+    slugWarning = `This event's public slug is "${publicSlug}" but Waypoint will send "${wanted}". Change the slug below to match or sign-ups will be refused.`;
+  }
+
   revalidatePath(`/o/${org.slug}/admin/events/${event.id}`);
   revalidatePath(`/o/${org.slug}/calendar`);
   const updated = spec.slots.filter((s) => have.has(s.key)).length;
-  return { ok: true, created: spec.slots.length - updated, updated };
+  return { ok: true, created: spec.slots.length - updated, updated, publicSlug, slugWarning };
 }

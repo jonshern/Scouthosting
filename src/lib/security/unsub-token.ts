@@ -3,16 +3,12 @@
 // in 2030. Privilege grant is narrow (one bit on one member).
 
 import { makeSignedToken, verifySignedToken } from "./signed-token";
+import { linkSecret } from "./link-secret";
 
 const TEN_YEARS = 60 * 60 * 24 * 365 * 10;
 
 function secretFor(): string {
-  return (
-    process.env.UNSUB_SECRET ||
-    process.env.RSVP_SECRET ||
-    process.env.SESSION_SECRET ||
-    "dev-secret-do-not-use-in-prod"
-  );
+  return linkSecret(["UNSUB_SECRET", "RSVP_SECRET"], "dev-secret-do-not-use-in-prod");
 }
 
 export type UnsubClaims = {
