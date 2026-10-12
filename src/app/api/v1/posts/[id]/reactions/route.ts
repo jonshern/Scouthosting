@@ -4,7 +4,7 @@
 
 import { z } from "zod";
 import { prisma } from "@/lib/db";
-import { decideToggle, normaliseReactionKind } from "@/lib/posts/reactions";
+import { decideToggle, normaliseReactionKind, summariseReactions } from "@/lib/posts/reactions";
 import {
   LIMITS,
   badRequest,
@@ -54,7 +54,18 @@ export const POST = v1Route<{ id: string }>(
     } else {
       await prisma.postReaction.deleteMany({ where: { postId, userId: user.id, kind } });
     }
-    return json({ ok: true, kind, action: op });
+    // The post's counts after the toggle, so the app can redraw them.
+    const rows = await prisma.postReaction.findMany({
+      where: { postId },
+      select: { postId: true, userId: true, kind: true },
+    });
+    const counts = summariseReactions(rows, user.id).get(postId) ?? {
+      likes: 0,
+      bookmarks: 0,
+      youLiked: false,
+      youBookmarked: false,
+    };
+    return json({ ok: true, kind, action: op, postId, ...counts });
   },
   { limits: [LIMITS.reaction] },
 );

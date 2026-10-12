@@ -6,6 +6,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { IdSchema, json, readQuery, v1Route } from "@/lib/api/v1";
+import { dmCounterparts } from "@/lib/api/v1-chat";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,8 @@ export const GET = v1Route(async (req, { user }) => {
     },
   });
 
+  const dms = await dmCounterparts(rows, user.id);
+
   return json({
     channels: rows.map((c) => {
       const lastMessage = c.messages[0];
@@ -68,6 +71,8 @@ export const GET = v1Route(async (req, { user }) => {
         isLeaderOnly: c.kind === "leaders",
         canPost: !c.isSuspended && !c.archivedAt,
         youAreChannelOwner: myMembership?.role === "owner",
+        dmCounterpartyName: dms.get(c.id)?.displayName ?? null,
+        dmCounterpartyUserId: dms.get(c.id)?.userId ?? null,
         lastMessage: lastMessage
           ? {
               body: lastMessage.body,

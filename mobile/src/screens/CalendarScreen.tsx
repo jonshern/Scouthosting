@@ -119,9 +119,15 @@ export default function CalendarScreen() {
     if (!auth.session) return;
     setError(null);
     try {
+      // The month on screen plus a week either side (the grid shows
+      // the edges of the neighbouring months), and on to two months
+      // ahead for the list view.
+      const from = new Date(cursor.year, cursor.month, 1 - 7);
+      const to = new Date(cursor.year, cursor.month + 2, 7);
       const res = await fetchEvents(
         { orgSlug: auth.session.orgSlug, token: auth.session.token },
         auth.session.orgId,
+        { from, to },
       );
       setEvents(res.events);
     } catch (e: unknown) {
@@ -130,7 +136,7 @@ export default function CalendarScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [auth.session]);
+  }, [auth.session, cursor.year, cursor.month]);
 
   useEffect(() => {
     setLoading(true);

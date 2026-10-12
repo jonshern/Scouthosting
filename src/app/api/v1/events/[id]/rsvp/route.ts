@@ -1,5 +1,7 @@
 // POST /api/v1/events/[id]/rsvp — submit an RSVP for the
-// authenticated user. Body: { response?, guests?, notes? }.
+// authenticated user. Body: { response?, guests?, notes? }. Leaving out
+// guests or notes keeps what's already on the RSVP (a phone tap on
+// "Going" shouldn't wipe the notes entered on the website).
 
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
@@ -23,7 +25,7 @@ export const runtime = "nodejs";
 
 const Body = z.object({
   response: z.enum(["yes", "no", "maybe"], { message: "bad_response" }).default("yes"),
-  guests: z.number().int().min(0).max(20).default(0),
+  guests: z.number().int().min(0).max(20).optional(),
   notes: z.string().trim().max(1000).optional().nullable(),
 });
 
@@ -38,7 +40,11 @@ export const POST = v1Route<{ id: string }>(
     await requireOrgAccessForResource(event.orgId, user.id, { write: true });
 
     const input = await readJson(req, Body);
-    const data = { response: input.response, guests: input.guests, notes: input.notes || null };
+    const data = {
+      response: input.response,
+      ...(input.guests !== undefined ? { guests: input.guests } : {}),
+      ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
+    };
 
     // The roster entry this user is, so a paid event charges the same
     // family account as an RSVP on the website does.
@@ -82,6 +88,7 @@ export const POST = v1Route<{ id: string }>(
             memberId,
             name: user.displayName,
             email: user.email,
+            guests: 0,
             ...data,
           },
         });
@@ -120,7 +127,7 @@ export const POST = v1Route<{ id: string }>(
     }
     // Families channels follow yes/maybe RSVPs.
     await reconcileEventChannels(event.id, { prismaClient: prisma });
-    return json({ rsvp: { id: rsvp.id, response: rsvp.response, guests: rsvp.guests } });
+    return json({ rsvp: { id: rsvp.id, response: rsvp.response, guests: rsvp.guests, notes: rsvp.notes } });
   },
   { limits: [LIMITS.rsvp] },
 );
