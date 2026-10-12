@@ -28,8 +28,18 @@ export const AnnounceSchema = z
     slotId: IdSchema.nullable().optional(),
     subject: z.string().trim().min(1, "missing_subject").max(200, "subject_too_long"),
     body: z.string().trim().min(1, "missing_body").max(50_000, "body_too_long"),
+    // Staff/station: also email staff still at "invited". The admin form
+    // posts a checkbox ("on"); the API takes a boolean.
+    includeUnanswered: z
+      .union([z.boolean(), z.literal("on"), z.literal("true"), z.literal("false")])
+      .optional()
+      .transform((v) => v === true || v === "on" || v === "true"),
   })
-  .refine((o) => o.scope !== "station" || !!o.slotId, { message: "missing_slot", path: ["slotId"] });
+  .refine((o) => o.scope !== "station" || !!o.slotId, { message: "missing_slot", path: ["slotId"] })
+  .refine((o) => o.scope !== "families" || !o.includeUnanswered, {
+    message: "unanswered_staff_only",
+    path: ["includeUnanswered"],
+  });
 export type AnnounceInput = z.output<typeof AnnounceSchema>;
 
 async function stationSlot(eventId: string, slotId: string | null | undefined, db: Db) {
@@ -125,6 +135,7 @@ export async function announceToEvent(
     eventId: event.id,
     scope: input.scope,
     slotId: slot?.id ?? null,
+    includeUnanswered: input.includeUnanswered,
   };
   const recipients = await buildEmailAudience(event.orgId, selector);
   const label = describeAudience(selector, slot ? `${event.title} — ${slot.title}` : event.title);

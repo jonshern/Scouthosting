@@ -151,6 +151,13 @@ describe("messaging schemas", () => {
     expect(code(AnnounceSchema.safeParse({ scope: "station", subject: "s", body: "b" }))).toBe("missing_slot");
     expect(code(AnnounceSchema.safeParse({ scope: "staff", subject: "", body: "b" }))).toBe("missing_subject");
     expect(AnnounceSchema.safeParse({ scope: "families", subject: "s", body: "b" }).success).toBe(true);
+    expect(code(AnnounceSchema.safeParse({ scope: "families", subject: "s", body: "b", includeUnanswered: true }))).toBe(
+      "unanswered_staff_only",
+    );
+    const fromForm = AnnounceSchema.safeParse({ scope: "staff", subject: "s", body: "b", includeUnanswered: "on" });
+    expect(fromForm.success && fromForm.data.includeUnanswered).toBe(true);
+    const fromApi = AnnounceSchema.safeParse({ scope: "staff", subject: "s", body: "b" });
+    expect(fromApi.success && fromApi.data.includeUnanswered).toBe(false);
   });
 });
 

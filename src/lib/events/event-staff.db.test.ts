@@ -537,6 +537,32 @@ describe.skipIf(!db)("event staff + messaging (Postgres)", () => {
       expect(log).toMatchObject({ orgId: f.org.id, authorId: f.leader.id, audienceLabel: "Event staff: Badge Day", recipientCount: 2 });
     });
 
+    it("staff with includeUnanswered: also reaches invited staff, never those who said no", async () => {
+      const pending = `pending-${S}@example.invalid`;
+      const declined = `declined-${S}@example.invalid`;
+      await prisma.eventStaff.createMany({
+        data: [
+          { orgId: f.org.id, eventId: f.event, name: "Pending", email: pending, status: "invited" },
+          { orgId: f.org.id, eventId: f.event, name: "Declined", email: declined, status: "no" },
+        ],
+      });
+      try {
+        const plain = await announce({ scope: "staff" });
+        expect(plain.to).not.toContain(pending);
+        const { r, to } = await announce({ scope: "staff", includeUnanswered: true });
+        expect(r.status).toBe(200);
+        expect(to).toContain(pending);
+        expect(to).not.toContain(declined);
+        expect(to).toEqual(expect.arrayContaining(plain.to));
+        const log = await prisma.mailLog.findUniqueOrThrow({
+          where: { id: (r.json.announcement as { mailLogId: string }).mailLogId },
+        });
+        expect(log.audienceLabel).toBe("Event staff, including unanswered: Badge Day");
+      } finally {
+        await prisma.eventStaff.deleteMany({ where: { eventId: f.event, email: { in: [pending, declined] } } });
+      }
+    });
+
     it("station: only that station", async () => {
       const { r, to } = await announce({ scope: "station", slotId: f.slotA });
       expect(to).toEqual([f.counselor.email]);
