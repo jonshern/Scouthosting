@@ -6,7 +6,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import { ApiError, apiRequest } from '../src/api/client';
 import { apexBaseUrl, APEX_DOMAIN, BUILT_IN_SERVER, hostForOrg, serverAddress, setServerAddress } from '../src/api/config';
 import { listChannels, getChannel, sendMessage } from '../src/api/channels';
-import { parseCallback, persistSignIn, signOut } from '../src/api/auth';
+import { deleteAccount, parseCallback, persistSignIn, signOut } from '../src/api/auth';
 import { createMemoryStorage } from '../src/api/storage';
 import type { ChannelsListResponse, ChannelDetailResponse, MeDto } from '../src/api/types';
 
@@ -92,6 +92,37 @@ describe('signOut', () => {
     const fn = (async () => { throw new TypeError('Network request failed'); }) as unknown as typeof fetch;
     await signOut(opts({ fetchImpl: fn }), storage);
     expect(await storage.getToken()).toBeNull();
+  });
+});
+
+describe('deleteAccount', () => {
+  const at = { baseUrl: 'http://localhost:3000' };
+
+  it('sends the typed email and forgets the sign-in once the account is gone', async () => {
+    const storage = createMemoryStorage();
+    await storage.setToken('compass_pat_test');
+    const { fn, calls } = makeFetch(() => ({ body: { ok: true } }));
+    expect(await deleteAccount(opts({ fetchImpl: fn, config: at }), 'pat@example.com', storage)).toBeNull();
+    expect(calls[0]!.url).toBe('http://localhost:3000/api/v1/me');
+    expect(calls[0]!.init.method).toBe('DELETE');
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ confirm: 'pat@example.com' });
+    expect(await storage.getToken()).toBeNull();
+  });
+
+  it('returns why it can\'t be deleted yet and stays signed in', async () => {
+    const storage = createMemoryStorage();
+    await storage.setToken('compass_pat_test');
+    const { fn } = makeFetch(() => ({
+      status: 409,
+      body: {
+        error: 'account_deletion_blocked',
+        blockers: [{ kind: 'only_admin', orgName: 'Troop 12', message: "You're the only admin of Troop 12." }],
+      },
+    }));
+    expect(await deleteAccount(opts({ fetchImpl: fn, config: at }), 'pat@example.com', storage)).toEqual([
+      "You're the only admin of Troop 12.",
+    ]);
+    expect(await storage.getToken()).toBe('compass_pat_test');
   });
 });
 

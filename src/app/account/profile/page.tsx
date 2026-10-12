@@ -74,6 +74,11 @@ export default async function ProfilePage({
           </button>
         </form>
       )}
+      <p className="mt-10 text-sm">
+        <a href="/account/delete" className="text-red-700 underline">
+          Delete my account
+        </a>
+      </p>
     </main>
   );
 }

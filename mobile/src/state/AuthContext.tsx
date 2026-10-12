@@ -5,7 +5,13 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "../api/client";
-import { fetchMe, signIn as signInFlow, persistSignIn, signOut as signOutFlow } from "../api/auth";
+import {
+  deleteAccount as deleteAccountFlow,
+  fetchMe,
+  signIn as signInFlow,
+  persistSignIn,
+  signOut as signOutFlow,
+} from "../api/auth";
 import {
   createSecureStorage,
   type SecureStorage,
@@ -40,6 +46,12 @@ type AuthContextValue = {
    */
   session: ActiveSession | null;
   server: ServerState;
+  /**
+   * Delete this account on the server (confirm = its email). Resolves to
+   * the reasons it can't be deleted yet, or null once it's gone and the
+   * app is signed out.
+   */
+  deleteAccount: (confirm: string) => Promise<string[] | null>;
 };
 
 export type ServerState = {
@@ -242,6 +254,15 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status === "loading"]);
 
+  const deleteAccount = useCallback(async (confirm: string) => {
+    if (state.status !== "signed-in") return null;
+    const client = { orgSlug: state.activeOrg.orgSlug, token: state.token };
+    await unregisterPushToken(client);
+    const blockers = await deleteAccountFlow(client, confirm, storage);
+    if (!blockers) setState({ status: "signed-out" });
+    return blockers;
+  }, [state, storage]);
+
   const switchOrg = useCallback(async (orgId: string) => {
     if (state.status !== "signed-in") return;
     const next = state.profile.orgs.find((o) => o.orgId === orgId);
@@ -285,7 +306,8 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
     client,
     session,
     server,
-  }), [state, signIn, signOut, switchOrg, client, session, server]);
+    deleteAccount,
+  }), [state, signIn, signOut, switchOrg, client, session, server, deleteAccount]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

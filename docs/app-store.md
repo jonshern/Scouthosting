@@ -18,10 +18,9 @@ What's specific to Compass:
   another server from the sign-in screen or Profile > Server.
 - **Permissions**: photo library only (adding photos to an album) and
   notifications. Camera and microphone are turned off.
-- **Account deletion**: Apple requires a way to start deleting your
-  account from inside the app. Compass has no self-serve account
-  deletion yet; it has to exist (on the website, linked from Profile)
-  before App Store review.
+- **Account deletion**, which Apple requires, is on Profile > Delete my
+  account (`DELETE /api/v1/me`) and on the website at `/account/delete`.
+  What's removed and what the unit keeps is in `src/lib/account/delete.ts`.
 - **Universal links** (`https://<domain>/...` opening the app) are off
   until there's a domain. Turning them on needs `ios.associatedDomains`
   and `android.intentFilters` in `app.json` plus the
