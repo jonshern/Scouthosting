@@ -86,7 +86,8 @@ jobs:
         env:
           BACKUP_DIR: ${{ runner.temp }}/backups
         run: |
-          export MASTER_KEY="$(openssl rand -hex 32)"
+          MASTER_KEY="$(openssl rand -hex 32)"
+          export MASTER_KEY
           npm run db:seed
           scripts/host/backup.sh
           scripts/host/restore.sh --drill
@@ -121,11 +122,9 @@ jobs:
       - run: npm run build
         env:
           APEX_HOST: localhost
+      # Outside links are checked daily by the Outside links workflow, not
+      # here, so another site moving a page never fails a build.
       - run: npx playwright test
-        env:
-          # links.spec.ts also HEAD/GET-checks every external link it finds
-          # (404/410 fails; bot walls and timeouts are reported as warnings).
-          LINKCHECK_EXTERNAL: "1"
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
