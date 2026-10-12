@@ -74,6 +74,13 @@ export default async function ProfilePage({
           </button>
         </form>
       )}
+      <p className="mt-10 text-sm text-slate-muted">
+        Signed-in phones and apps, and Claude:{" "}
+        <a href="/account/api-tokens" className="underline">
+          API tokens and Claude connections
+        </a>
+        .
+      </p>
     </main>
   );
 }
