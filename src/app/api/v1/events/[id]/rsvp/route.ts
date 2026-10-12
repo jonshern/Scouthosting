@@ -58,7 +58,7 @@ export const POST = v1Route<{ id: string }>(
         const existing =
           (await tx.rsvp.findUnique({
             where: { eventId_userId: { eventId: event.id, userId: user.id } },
-            select: { id: true, memberId: true },
+            select: { id: true, memberId: true, guests: true },
           })) ??
           (await tx.rsvp.findFirst({
             where: {
@@ -66,13 +66,13 @@ export const POST = v1Route<{ id: string }>(
               email: { equals: user.email, mode: "insensitive" },
               userId: null,
             },
-            select: { id: true, memberId: true },
+            select: { id: true, memberId: true, guests: true },
           }));
         await assertRsvpFits(tx, {
           eventId: event.id,
           existingId: existing?.id ?? null,
           response: input.response,
-          guests: input.guests,
+          guests: input.guests ?? existing?.guests ?? 0,
         });
         if (existing) {
           return tx.rsvp.update({
