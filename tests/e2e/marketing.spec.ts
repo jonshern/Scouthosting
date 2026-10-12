@@ -4,9 +4,9 @@ test.describe("apex marketing", () => {
   test("home page renders the hero and CTAs", async ({ page }) => {
     await page.goto("/");
     // Magazine-cover hero per design-handoff/marketing-balanced.jsx —
-    // headline is "Modern, secure software for your scouting unit."
+    // headline is "Your troop, without the reply-all."
     await expect(page.getByRole("heading", { level: 1 })).toContainText(
-      /modern.*secure software.*scouting unit/i,
+      /your troop.*without the.*reply-all/i,
     );
     await expect(
       page.getByRole("link", { name: /start.*free trial/i }).first(),

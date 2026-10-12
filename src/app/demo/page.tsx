@@ -45,10 +45,9 @@ export default async function DemoPage({
           Try Compass with a <span className="italic text-accent">sample troop.</span>
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-[1.6] text-ink-muted">
-          {unit?.displayName ?? "Troop 42"} of Maple Ridge is made up, and so is everyone in it. It has a fall
-          season under way: a campout with sign-up slots and a waitlist, a merit badge day, patrol chats, dues and
-          scout accounts, and scouts working on their next rank. Sign in as any of the people below and click around.
-          Nothing you do here reaches a real person.
+          {unit?.displayName ?? "Troop 42"} of Maple Ridge is made up, and so is everyone in it. There&rsquo;s a
+          campout, a badge day, patrol chats and dues going. Sign in as anyone below and click around. Nothing here
+          reaches a real person.
         </p>
 
         {error && ERRORS[error] ? (
@@ -113,8 +112,8 @@ export default async function DemoPage({
           <div>
             <h3 className="font-medium">Shared accounts</h3>
             <p className="mt-1 text-sm leading-[1.55] text-ink-muted">
-              Other visitors may be signed in too, so passwords, email addresses and two-step sign-in can&rsquo;t be
-              changed here. Don&rsquo;t enter real names or contact details.
+              Other people may be signed in too, so you can&rsquo;t change passwords or emails here. Don&rsquo;t
+              enter real names or contact info.
             </p>
           </div>
         </section>
@@ -132,8 +131,8 @@ export default async function DemoPage({
         ) : null}
 
         <p className="mt-12 text-xs leading-[1.55] text-ink-muted">
-          Compass is independent software and is not affiliated with or endorsed by any scouting organization. Every
-          person, unit and place in this demo is fictional.
+          Compass is independent and not affiliated with or endorsed by any scouting organization. Everyone in this
+          demo is made up.
         </p>
       </div>
     </main>

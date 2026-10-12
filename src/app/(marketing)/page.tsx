@@ -1,6 +1,6 @@
-// Marketing home — port of design-handoff/marketing-balanced.jsx.
-// Slate & Sky / "balanced" palette. Copy is the source of truth in
-// the design file; if the design copy changes, update it here.
+// Marketing home — layout ported from design-handoff/marketing-balanced.jsx,
+// Slate & Sky / "balanced" palette. Copy is written short and plain, the
+// way Jon talks (voice notes in bluecard marketing/README.md).
 
 import Link from "next/link";
 import { PRICES, PRICE_LINE, YEARLY_SAVINGS_USD } from "@/lib/billing/pricing";
@@ -9,38 +9,38 @@ const FEATURES = [
   {
     num: "01",
     kw: "Calendar",
-    title: "A calendar that handles RSVPs, money, and rides.",
-    body: "Publish a campout, attach the permission slip, accept payment, and assign carpools — without a single PDF email.",
+    title: "RSVPs, permission slips and rides in one spot.",
+    body: "Post the campout, attach the slip, collect the money, sort out carpools. No PDF emails.",
     accent: "#1d4ed8",
   },
   {
     num: "02",
     kw: "Website",
-    title: "A public homepage that recruits new families.",
-    body: "Pick from six templates, drop in your troop number, and you're live on a custom subdomain. Scouts can edit it during a Tuesday meeting.",
+    title: "A troop website that doesn't look like 2008.",
+    body: "Pick a theme, add your troop number, done. Scouts can edit it at a meeting.",
     accent: "#f59e0b",
   },
   {
     num: "03",
     kw: "Security",
-    title: "Encryption, audit logs, and serious uptime.",
-    body: "AES-256 field-level encryption, per-org keys, argon2id for passphrases. Tamper-evident audit log on every admin action. Cloud-hosted with daily Postgres snapshots — no server in someone's basement, no Tuesday-night outage.",
+    title: "Kids' info stays locked down.",
+    body: "It's encrypted, every admin action is logged, and leaders use two-step sign-in.",
     accent: "#0f172a",
   },
   {
     num: "04",
-    kw: "Communication",
-    title: "Email, push, and text — one composer.",
-    body: "Send a Sunday email digest, a mobile push for the 7am cancellation, or an SMS broadcast when a campout reroutes. Threaded replies, two-deep enforced, every message logged. No more “did you get the flier?”",
+    kw: "Messages",
+    title: "Email and push from one place.",
+    body: "Send the Sunday update or the 7am cancellation. A parent is copied on anything sent to a scout, and every message is logged.",
     accent: "#475569",
   },
 ];
 
 const STATS = [
-  { n: "AES-256", l: "encryption at rest & in transit", c: "#1d4ed8" },
-  { n: "99.9%", l: "uptime, US data residency", c: "#0891b2" },
-  { n: "Daily", l: "encrypted off-site backups", c: "#f59e0b" },
-  { n: PRICES.year.short, l: `per unit, per year (or ${PRICES.month.long})`, c: "#475569" },
+  { n: PRICES.year.short, l: "a year per unit", c: "#1d4ed8" },
+  { n: PRICES.month.short, l: "a month, if you'd rather", c: "#0891b2" },
+  { n: "1 month", l: "free, no card", c: "#f59e0b" },
+  { n: "$0", l: "per scout", c: "#475569" },
 ];
 
 const IMPORT_SOURCES = [
@@ -50,9 +50,6 @@ const IMPORT_SOURCES = [
   "Wix / Squarespace",
   "Google Sites",
   "CSV / Excel",
-  "Scoutbook export",
-  "Internet Advancement",
-  "A shared Drive folder",
 ];
 
 function PhotoTile({ tone, label }: { tone: string; label: string }) {
@@ -80,40 +77,32 @@ export default function MarketingHome() {
     <>
       {/* Hero — kicker masthead + oversized italic headline */}
       <section className="mx-auto max-w-content px-6 pt-6 pb-14">
-        <div className="border-t-2 border-ink pt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-soft mb-8">
-          <span>Volume 1 · Issue 04</span>
-          <span className="hidden md:block">The Compass Field Notes</span>
-          <span className="hidden md:block">Modern Software for Volunteer Units</span>
-          <span className="hidden md:block">Independent · Not affiliated with BSA</span>
+        <div className="border-t-2 border-ink pt-4 flex flex-wrap justify-between gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-soft mb-8">
+          <span>For troops, packs and crews</span>
+          <span>Independent · Not affiliated with any scouting organization</span>
         </div>
 
         <div className="grid gap-12 md:grid-cols-[1.3fr_0.7fr] items-end">
           <h1 className="font-display font-normal leading-[0.92] tracking-[-0.035em] text-[64px] md:text-[96px] lg:text-[116px]">
-            Modern,
+            Your troop,
             <br />
-            secure software
+            without the
             <br />
             <span className="inline bg-sky text-white italic font-medium px-3 md:px-4 py-1">
-              for your scouting unit.
+              reply-all.
             </span>
           </h1>
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-ink text-white px-3 py-1.5 text-[11px] font-semibold tracking-[0.08em] mb-5">
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-sky" />
-              SECURITY · EASE OF USE · EVERY FEATURE YOU NEED
-            </span>
             <p className="text-slate-soft text-[17px] leading-[1.55] mb-6">
-              A calendar, public site, photo library, and parent app — designed
-              for the volunteer leaders who keep things running. Sign in with
-              Google or Apple, encrypted by default, and built to play nicely
-              with Scouting.org and Scoutbook.
+              Calendar, website, photos and a family app for your troop. Built
+              by a scout dad who got tired of chasing RSVPs.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link href="/start" className="btn-primary text-base px-5 py-3">
                 Start your free month →
               </Link>
               <Link href="/plans" className="btn-secondary text-base px-5 py-3">
-                See every feature
+                See pricing
               </Link>
             </div>
           </div>
@@ -156,12 +145,9 @@ export default function MarketingHome() {
       {/* Features — editorial blocks alternating image/text */}
       <section className="mx-auto max-w-content px-6 py-20">
         <div className="mb-12">
-          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
-            § The Product
-          </div>
           <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-3xl">
-            Built around the four things{" "}
-            <em className="text-sky font-normal">volunteers actually need.</em>
+            The stuff you{" "}
+            <em className="text-sky font-normal">actually use.</em>
           </h2>
         </div>
 
@@ -208,18 +194,12 @@ export default function MarketingHome() {
       <section className="border-y-2 border-ink bg-surface-alt">
         <div className="mx-auto max-w-content px-6 py-16 grid gap-12 md:grid-cols-[1fr_1.4fr] items-center">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
-              § Migration
-            </div>
             <h3 className="font-display text-[32px] md:text-[44px] font-normal leading-[1.05] tracking-[-0.025em] mb-4">
-              Bring your <em className="text-sky font-normal">18 years</em> of troop
-              history with you.
+              Bring your <em className="text-sky font-normal">old site</em> with you.
             </h3>
             <p className="text-slate-soft text-[15px] leading-relaxed">
-              We import from TroopWebHost, ScoutLander, TroopTrack, and a folder
-              of CSVs you found on the old committee chair&apos;s laptop.
-              White-glove migration is included on every plan — book a 30-minute
-              call and we&apos;ll have you running by Sunday.
+              Send us what you have, even a folder of spreadsheets, and we&apos;ll
+              help move it over.
             </p>
           </div>
           <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
@@ -239,12 +219,9 @@ export default function MarketingHome() {
       {/* Pricing — one plan, paid yearly or monthly (lib/billing/pricing.ts) */}
       <section className="mx-auto max-w-content px-6 py-20">
         <div className="mb-12">
-          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
-            § Pricing
-          </div>
           <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-4xl">
-            One price per unit — pack, troop, crew, ship, or post.{" "}
-            <em className="text-sky font-normal">No per-scout</em> fees, ever.
+            One price per unit.{" "}
+            <em className="text-sky font-normal">No per-scout fees.</em>
           </h2>
         </div>
 
@@ -266,8 +243,8 @@ export default function MarketingHome() {
               </div>
             </div>
             <p className="text-sm text-slate-soft mt-6 mb-7 pb-6 border-b border-line">
-              First month free, no card needed. Keep it and it renews automatically;
-              cancel any time. One subscription covers Compass, Waypoint and Lantern.
+              First month free, no card. Covers Compass, Waypoint and Lantern.
+              Cancel any time.
             </p>
             <Link href="/start" className="btn-primary w-full justify-center mt-auto">
               Start your free month →
@@ -278,18 +255,16 @@ export default function MarketingHome() {
             <div className="font-display italic text-[24px] text-sky mb-2">Everything included</div>
             <ul className="grid gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
               {[
-                "Public website + custom subdomain",
-                "Calendar with RSVPs, permission slips, and Stripe payments",
-                "Email digests sent from your domain",
-                "Photo library (15 GB) with per-scout privacy",
-                "Carpool & ride coordination",
-                "Forms, surveys & online dues",
-                "Group chat for dens, patrols, and committees",
-                "Two-deep enforced on every message",
-                "Push notifications and the family app",
-                "Merit badge counseling and badge days (Waypoint)",
-                "Each scout's path to Eagle (Lantern)",
-                "White-glove migration from your old site",
+                "Troop website",
+                "Calendar, RSVPs and permission slips",
+                "Email from your own domain",
+                "Photos (15 GB)",
+                "Carpools, forms and dues",
+                "Patrol and committee chats",
+                "Family phone app",
+                "Badges and badge days (Waypoint)",
+                "Path to Eagle (Lantern)",
+                "Help moving your old site",
               ].map((f) => (
                 <li key={f} className="flex gap-2.5 leading-snug text-white/90">
                   <span className="text-sky font-bold shrink-0">✓</span>
@@ -301,8 +276,7 @@ export default function MarketingHome() {
         </div>
 
         <p className="mt-7 text-center text-[13px] text-slate-muted">
-          {PRICE_LINE} · No per-scout, per-leader, or setup fees · Stripe fees
-          passed through at cost.
+          {PRICE_LINE}. No per-scout or setup fees.
         </p>
       </section>
 
@@ -310,17 +284,13 @@ export default function MarketingHome() {
       <section className="bg-surface-dark text-white">
         <div className="mx-auto max-w-content px-6 py-20">
           <div className="mb-10">
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
-              § The status quo
-            </div>
             <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-3xl">
-              The site your families see{" "}
-              <em className="text-sky font-normal">is your front door.</em>
+              Your website is the first thing{" "}
+              <em className="text-sky font-normal">new families see.</em>
             </h2>
             <p className="mt-5 max-w-2xl text-base leading-[1.6] text-white/75">
-              Recruiting families compare your unit to the soccer club, the Y, the
-              music school. If your homepage looks like a 2008 phpBB install,
-              you&apos;re losing scouts before the first parent night.
+              Parents compare you to the soccer club and the Y. If the site looks
+              old, some of them won&apos;t show up to the first meeting.
             </p>
           </div>
 
@@ -432,9 +402,8 @@ export default function MarketingHome() {
               </div>
               <p className="mt-3 text-xs leading-relaxed text-white/70">
                 <span className="font-bold text-red-500">●</span> Broken on
-                phones. No HTTPS-only enforcement. Tables for layout. Member
-                roster behind a single shared password. Photos uploaded to a
-                public Google Drive folder.
+                phones. One shared password for the roster. Photos in a public
+                Drive folder.
               </p>
             </div>
 
@@ -516,10 +485,9 @@ export default function MarketingHome() {
                 </div>
               </div>
               <p className="mt-3 text-xs leading-relaxed text-white/85">
-                <span className="font-bold text-sky">●</span> Mobile-first.
-                HTTPS-only. Encrypted at rest & in transit. Daily encrypted
-                backups. Role-based access with audit logs. Migrates from your
-                old hosting in an afternoon.
+                <span className="font-bold text-sky">●</span> Works on
+                phones. Private roster. Encrypted, with every admin action
+                logged.
               </p>
             </div>
           </div>
@@ -532,7 +500,7 @@ export default function MarketingHome() {
           First month free
         </span>
         <h2 className="font-display text-[44px] md:text-[72px] font-normal leading-[0.98] tracking-[-0.03em] max-w-3xl mx-auto mb-8">
-          Set up your troop&apos;s home base{" "}
+          Get your troop set up{" "}
           <em className="text-sky font-normal">before next week&apos;s meeting.</em>
         </h2>
         <div className="flex flex-wrap gap-3 justify-center mb-6">
@@ -547,7 +515,7 @@ export default function MarketingHome() {
           </Link>
         </div>
         <p className="text-[13px] text-slate-muted">
-          No credit card · cancel anytime · we&apos;ll migrate your old site for free
+          No card. Cancel any time.
         </p>
       </section>
     </>
