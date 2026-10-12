@@ -5,7 +5,7 @@
 #   2. keyless GitHub Actions auth (Workload Identity Federation)
 #   3. the service accounts GitHub Actions deploys as: one for this
 #      repository (everything), one for the web apps' repositories
-#      (Waypoint, Summit), which can only publish to Firebase Hosting
+#      (Waypoint, Lantern), which can only publish to Firebase Hosting
 # plus an optional monthly budget alert.
 #
 # State for this stack stays local (terraform.tfstate here, gitignored).
@@ -146,11 +146,11 @@ resource "google_service_account_iam_member" "github_impersonates_deployer" {
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.github_repository}"
 }
 
-# Waypoint's and Summit's repositories publish their websites and nothing
+# Waypoint's and Lantern's repositories publish their websites and nothing
 # else: no Cloud Run, database, secrets or Terraform state.
 resource "google_service_account" "web_deployer" {
   account_id   = "github-web-deployer"
-  display_name = "GitHub Actions web publisher (Waypoint, Summit)"
+  display_name = "GitHub Actions web publisher (Waypoint, Lantern)"
   depends_on   = [google_project_service.bootstrap]
 }
 

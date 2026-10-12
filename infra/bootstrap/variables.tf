@@ -1,5 +1,5 @@
 variable "project_id" {
-  description = "GCP project that hosts the family: Compass, Waypoint and Summit (create it and link billing first)."
+  description = "GCP project that hosts the family: Compass, Waypoint and Lantern (create it and link billing first)."
   type        = string
 }
 

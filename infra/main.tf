@@ -127,7 +127,7 @@ resource "google_sql_database_instance" "main" {
   depends_on = [google_project_service.apis]
 }
 
-# --- Firebase (web hosting for Waypoint and Summit) --------------------------
+# --- Firebase (web hosting for Waypoint and Lantern) --------------------------
 
 resource "google_firebase_project" "this" {
   provider   = google-beta
