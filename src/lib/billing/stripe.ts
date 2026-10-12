@@ -9,7 +9,7 @@
 // Stripe renews monthly from there.
 
 import crypto from "node:crypto";
-import type { SubscriptionStatus } from "@prisma/client";
+import type { Prisma, SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/log";
 import { createStripeRestClient } from "./stripe-rest";
@@ -193,8 +193,11 @@ const HANDLED_EVENTS = new Set([
   "invoice.payment_succeeded",
 ]);
 
-type StripeEvent = {
+export type StripeEvent = {
+  id?: string;
   type?: string;
+  // Seconds since the epoch when Stripe created the event.
+  created?: number;
   data?: {
     object?: {
       id?: string;
@@ -226,17 +229,45 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
   const orgId = await resolveOrgIdFromEvent(event);
   if (!orgId) return { ok: false, reason: "no_org_match" };
 
+  // Stripe doesn't promise delivery order, so each write only lands if
+  // this event is at least as new as the last one applied. A late
+  // subscription.updated can't undo a newer cancel or payment failure.
+  const created = event.created ? new Date(event.created * 1000) : null;
+  const apply = async (
+    data: Prisma.OrgUpdateManyMutationInput,
+    extra: Prisma.OrgWhereInput = {},
+  ): Promise<boolean> => {
+    const fresh: Prisma.OrgWhereInput = created
+      ? { OR: [{ stripeEventAt: null }, { stripeEventAt: { lte: created } }] }
+      : {};
+    const { count } = await prisma.org.updateMany({
+      where: { id: orgId, ...fresh, ...extra },
+      data: created ? { ...data, stripeEventAt: created } : data,
+    });
+    return count > 0;
+  };
+  const stale: SyncResult = { ok: true, ignored: true, reason: "stale" };
+
   switch (event.type) {
     case "checkout.session.completed": {
-      await prisma.org.update({
-        where: { id: orgId },
-        data: {
-          stripeCustomerId: obj.customer || undefined,
-          stripeSubscriptionId: obj.subscription || undefined,
-          subscriptionStatus: "active" as SubscriptionStatus,
-          cancelAtPeriodEnd: false,
-        },
+      const done = await apply({
+        stripeCustomerId: obj.customer || undefined,
+        stripeSubscriptionId: obj.subscription || undefined,
+        subscriptionStatus: "active" as SubscriptionStatus,
+        cancelAtPeriodEnd: false,
       });
+      if (!done) {
+        // Keep the customer and subscription ids even when a newer event
+        // already set the status; the portal needs the customer id.
+        await prisma.org.update({
+          where: { id: orgId },
+          data: {
+            stripeCustomerId: obj.customer || undefined,
+            stripeSubscriptionId: obj.subscription || undefined,
+          },
+        });
+        return stale;
+      }
       await stripeAudit(orgId, "billing.checkout_completed", `Subscription started (${obj.id}).`);
       return { ok: true };
     }
@@ -244,16 +275,14 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
     case "customer.subscription.updated": {
       const status = mapStripeStatus(obj.status);
       const cancelAtPeriodEnd = !!obj.cancel_at_period_end;
-      await prisma.org.update({
-        where: { id: orgId },
-        data: {
-          stripeSubscriptionId: obj.id || undefined,
-          stripePriceId: obj.items?.data?.[0]?.price?.id || undefined,
-          subscriptionStatus: status as SubscriptionStatus,
-          currentPeriodEnd: periodEnd(obj),
-          cancelAtPeriodEnd,
-        },
+      const done = await apply({
+        stripeSubscriptionId: obj.id || undefined,
+        stripePriceId: obj.items?.data?.[0]?.price?.id || undefined,
+        subscriptionStatus: status as SubscriptionStatus,
+        currentPeriodEnd: periodEnd(obj),
+        cancelAtPeriodEnd,
       });
+      if (!done) return stale;
       await stripeAudit(
         orgId,
         "billing.subscription_updated",
@@ -262,35 +291,29 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
       return { ok: true };
     }
     case "customer.subscription.deleted": {
-      await prisma.org.update({
-        where: { id: orgId },
-        data: {
-          subscriptionStatus: "canceled" as SubscriptionStatus,
-          cancelAtPeriodEnd: false,
-          currentPeriodEnd: periodEnd(obj),
-        },
+      const done = await apply({
+        subscriptionStatus: "canceled" as SubscriptionStatus,
+        cancelAtPeriodEnd: false,
+        currentPeriodEnd: periodEnd(obj),
       });
+      if (!done) return stale;
       await stripeAudit(orgId, "billing.subscription_deleted", `Subscription ${obj.id} ended.`);
       return { ok: true };
     }
     case "invoice.payment_failed": {
-      await prisma.org.update({
-        where: { id: orgId },
-        data: { subscriptionStatus: "past_due" as SubscriptionStatus },
-      });
+      const done = await apply({ subscriptionStatus: "past_due" as SubscriptionStatus });
+      if (!done) return stale;
       await stripeAudit(orgId, "billing.payment_failed", `Invoice ${obj.id} payment failed.`);
       return { ok: true };
     }
     case "invoice.payment_succeeded": {
-      const org = await prisma.org.findUnique({
-        where: { id: orgId },
-        select: { subscriptionStatus: true },
-      });
-      if (org?.subscriptionStatus === "past_due") {
-        await prisma.org.update({
-          where: { id: orgId },
-          data: { subscriptionStatus: "active" as SubscriptionStatus },
-        });
+      // Only a past-due unit changes; a paid invoice on an active unit
+      // is the normal renewal and needs no write.
+      const done = await apply(
+        { subscriptionStatus: "active" as SubscriptionStatus },
+        { subscriptionStatus: "past_due" as SubscriptionStatus },
+      );
+      if (done) {
         await stripeAudit(
           orgId,
           "billing.payment_recovered",

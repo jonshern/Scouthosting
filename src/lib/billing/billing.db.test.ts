@@ -20,6 +20,7 @@ import { startUnitTrial } from "@/lib/provision/self-serve";
 import { createCheckoutSession, setStripeClientForTests, syncFromStripeEvent } from "./stripe";
 import { createStripeRestClient } from "./stripe-rest";
 import { billingSummary } from "./trial";
+import { withStripeEventOnce } from "./webhook-events";
 import * as subscription from "@/app/api/v1/orgs/[slug]/subscription/route";
 
 const db = !!process.env.TEST_DATABASE_URL;
@@ -68,6 +69,7 @@ describe.skipIf(!db)("self-serve trial and billing (Postgres)", () => {
   afterAll(async () => {
     setStripeClientForTests(null);
     await prisma.org.deleteMany({ where: { id: { in: f.orgIds } } });
+    await prisma.stripeWebhookEvent.deleteMany({ where: { id: { startsWith: `evt_${S}` } } });
     await prisma.user.deleteMany({ where: { id: { in: [f.owner?.id, f.outsider?.id].filter(Boolean) } } });
   });
 
@@ -169,5 +171,44 @@ describe.skipIf(!db)("self-serve trial and billing (Postgres)", () => {
 
     const no = await getSubscription(org.slug, f.outsider.token);
     expect(no.status).toBe(403);
+  });
+
+  it("runs a redelivered event once, and again only if the first run failed", async () => {
+    const event = { id: `evt_${S}_once`, type: "customer.subscription.updated" };
+    const fn = vi.fn(async () => "done");
+    expect(await withStripeEventOnce(event, "platform", fn)).toEqual({ duplicate: false, result: "done" });
+    expect(await withStripeEventOnce(event, "platform", fn)).toEqual({ duplicate: true });
+    expect(fn).toHaveBeenCalledTimes(1);
+
+    const failing = { id: `evt_${S}_retry`, type: "invoice.payment_failed" };
+    await expect(
+      withStripeEventOnce(failing, "platform", async () => {
+        throw new Error("db down");
+      }),
+    ).rejects.toThrow("db down");
+    expect(await withStripeEventOnce(failing, "platform", fn)).toEqual({ duplicate: false, result: "done" });
+  });
+
+  it("skips a subscription event that arrives after a newer one", async () => {
+    const orgId = f.orgIds[1]!;
+    const sub = `sub_${S}_late`;
+    const t = Math.floor(Date.now() / 1000);
+    const updated = (created: number, status: string) =>
+      syncFromStripeEvent({
+        id: `evt_${S}_${created}`,
+        type: "customer.subscription.updated",
+        created,
+        data: { object: { id: sub, status, metadata: { orgId } } },
+      });
+
+    expect(await updated(t, "canceled")).toEqual({ ok: true });
+    expect(await updated(t - 60, "active")).toEqual({ ok: true, ignored: true, reason: "stale" });
+    let org = await prisma.org.findUniqueOrThrow({ where: { id: orgId } });
+    expect(org.subscriptionStatus).toBe("canceled");
+    expect(org.stripeEventAt?.getTime()).toBe(t * 1000);
+
+    expect(await updated(t + 60, "active")).toEqual({ ok: true });
+    org = await prisma.org.findUniqueOrThrow({ where: { id: orgId } });
+    expect(org.subscriptionStatus).toBe("active");
   });
 });
