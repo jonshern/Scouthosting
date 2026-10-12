@@ -74,6 +74,14 @@ curl -s localhost:3000/health  # {"ok":true,"version":"…","mail":"console"}
 
 `tailscale serve --bg 3000` keeps pointing at the switch; nothing changes for phones.
 
+To let Waypoint's website sign in, add its address to `.env` and deploy again. It must be the exact https origin the browser shows for Waypoint (scheme, host and port), for example the `tailscale serve` address you gave it:
+
+```sh
+WEB_SIGNIN_ORIGINS=https://<the Mac's *.ts.net name>:8443
+```
+
+Separate several with commas. Plain `http://` addresses are refused in production mode, and nothing but `<origin>/signed-in` can receive a token.
+
 Production mode applies the production rules: leaders and admins must use two-step sign-in, and admin password sign-in is refused unless `ALLOW_ADMIN_PASSWORD_LOGIN=1` (see CLAUDE.md, trap 3). Until Google or Apple sign-in is configured for this host, that flag is how an admin signs in.
 
 For phone alerts, set `ALERT_WEBHOOK` in `.env` to a URL that accepts a POSTed message, for example an [ntfy](https://ntfy.sh) topic URL with the ntfy app on your phone. Without it, alerts are macOS notifications only.
