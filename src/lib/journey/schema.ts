@@ -3,7 +3,8 @@
 //
 // Keys follow the scout-core requirement ids, plus Lantern's own steps:
 //   item:  "rank:first-class", "badge:camping", "custom:k3x9a1"
-//   step:  "<item>#<number>", e.g. "rank:second-class#1a", "badge:plumbing#6b"
+//   step:  "<item>#<number>", e.g. "rank:second-class#1a", "badge:plumbing#6b",
+//          or "badge:cooking#2a~2" where Lantern numbers a repeated id
 // A progress key is a step, or an item on its own meaning "marked
 // complete as a whole".
 
@@ -11,7 +12,7 @@ import { z } from "zod";
 
 export const ITEM_KEY_PATTERN = /^(rank|badge|award|custom):[a-z0-9]+(?:-[a-z0-9]+)*$/;
 export const PROGRESS_KEY_PATTERN =
-  /^(rank|badge|award|custom):[a-z0-9]+(?:-[a-z0-9]+)*(?:#[0-9][0-9A-Za-z.]*(?:-[0-9A-Za-z.]+)*)?$/;
+  /^(rank|badge|award|custom):[a-z0-9]+(?:-[a-z0-9]+)*(?:#[0-9A-Za-z][0-9A-Za-z.~-]*)?$/;
 
 export const MAX_SCOUTS_PER_OWNER = 12;
 export const MAX_PATH = 400;

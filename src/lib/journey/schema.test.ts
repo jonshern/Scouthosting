@@ -20,13 +20,14 @@ describe("journey keys", () => {
       "award:arrow-of-light#2",
       "custom:k3x9a1",
       "custom:k3x9a1#2",
+      "badge:cooking#2a~2",
     ]) {
       expect(ProgressKey.safeParse(k).success, k).toBe(true);
     }
   });
 
   it("rejects anything else", () => {
-    for (const k of ["", "rank", "rank:", "Rank:scout", "rank:Scout", "rank:scout#", "rank:scout#a1", "merit:camping", "rank:scout#1 a", "badge:x#1/2"]) {
+    for (const k of ["", "rank", "rank:", "Rank:scout", "rank:Scout", "rank:scout#", "merit:camping", "rank:scout#1 a", "badge:x#1/2"]) {
       expect(ProgressKey.safeParse(k).success, k).toBe(false);
     }
   });
