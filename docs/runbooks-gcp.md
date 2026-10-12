@@ -48,13 +48,13 @@ scripts/rollback-api.sh prod <revision> # a specific one (gcloud run revisions l
 
 Nothing is rebuilt and no migration runs. The next merge to `main` deploys a new green and flips to it, so fix forward or revert the commit before merging anything else.
 
-**Waypoint or Summit website:** Firebase console → Hosting → the app's site (`<project>-waypoint`, `<project>-summit`) → Release history → the previous release → *Rollback*. Those sites are published from their own repositories.
+**Waypoint or Lantern website:** Firebase console → Hosting → the app's site (`<project>-waypoint`, `<project>-lantern`) → Release history → the previous release → *Rollback*. Those sites are published from their own repositories.
 
 **Database:** migrations do not roll back on their own. Write a new migration that undoes the change, or [restore](#restore-the-database).
 
 ## Site is down
 
-1. Check whether it's everything or one part: open `https://<server-url>/health` (process up and database reachable), then the Waypoint and Summit websites.
+1. Check whether it's everything or one part: open `https://<server-url>/health` (process up and database reachable), then the Waypoint and Lantern websites.
 2. No answer at all: look at the service logs (`gcloud run services logs read core-prod --limit 100`). A crash right after a deploy means [roll back](#roll-back).
 3. `/health` answers with a database error: the database is the problem. Check Cloud SQL in the console (state, maintenance, CPU, connections). The instance restarts on its own after maintenance. If it's stuck, *Restart* in the console.
 4. A website alone is down: check the Firebase Hosting status page and the latest release.

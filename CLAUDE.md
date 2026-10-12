@@ -86,13 +86,13 @@ It's passed through un-rewritten on tenant hosts.
 `/auth/mobile/begin` is also apex-friendly (works without `req.org`)
 so the mobile in-app browser can sign in at the apex.
 
-Phone sign-in (Compass, Waypoint and Summit apps all use it; keep it
+Phone sign-in (Compass, Waypoint and Lantern apps all use it; keep it
 stable):
 
 1. The app opens `/auth/mobile/begin?redirect=<scheme>://auth/callback`
    in an in-app browser. Production accepts only the schemes in
    `src/lib/auth/mobile-redirect.ts` (`compass`, `bluecard`, `waypoint`,
-   `emmettjourney`, `summit`); dev also accepts `exp://` and localhost.
+   `emmettjourney`, `lantern`); dev also accepts `exp://` and localhost.
 2. Signed out → `/login?next=…`, then back to step 1. A brand-new
    Google/Apple account confirms it's an adult first, and a leader or
    admin without two-step sign-in is sent to set it up

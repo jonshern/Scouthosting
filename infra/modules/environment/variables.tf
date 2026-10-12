@@ -48,7 +48,7 @@ variable "stripe_prices" {
 }
 
 variable "web_apps" {
-  description = "Static web apps that get a Firebase Hosting site, e.g. [\"waypoint\", \"summit\"]."
+  description = "Static web apps that get a Firebase Hosting site, e.g. [\"waypoint\", \"lantern\"]."
   type        = list(string)
   default     = []
 }

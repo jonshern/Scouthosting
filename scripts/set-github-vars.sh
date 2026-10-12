@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Copy Terraform outputs into GitHub Actions repository variables so the
 # workflows know where to deploy: this repository gets the full deployer,
-# Waypoint's and Summit's repositories get the web-only publisher.
+# Waypoint's and Lantern's repositories get the web-only publisher.
 # Run after `terraform apply` in infra/bootstrap and again after the first apply of infra/.
 #
 # Needs: terraform, jq, gh (signed in with access to the repo).

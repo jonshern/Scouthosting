@@ -1,6 +1,6 @@
 locals {
   # The family's one core service: Compass's app is both the troop site and
-  # the API Waypoint and Summit call.
+  # the API Waypoint and Lantern call.
   service = "core-${var.name}"
   # Cloud Run's placeholder until the first CI deploy pushes a real image.
   bootstrap_image = "us-docker.pkg.dev/cloudrun/container/hello"
@@ -72,7 +72,7 @@ locals {
     { for env, id in local.manual_secrets : env => google_secret_manager_secret.manual[env].secret_id },
   )
 
-  # Waypoint and Summit's websites, one Firebase Hosting site each. Their
+  # Waypoint and Lantern's websites, one Firebase Hosting site each. Their
   # own repositories build and publish to these (scripts/deploy-web.sh there).
   web_sites = { for app in var.web_apps : app => var.name == "prod" ? "${var.site_prefix}-${app}" : "${var.site_prefix}-${app}-${var.name}" }
   web_urls = { for app, site in local.web_sites :
@@ -488,7 +488,7 @@ resource "google_cloud_scheduler_job" "cron" {
   }
 }
 
-# --- Web hosting (Waypoint, Summit) -----------------------------------------
+# --- Web hosting (Waypoint, Lantern) -----------------------------------------
 # Each site rewrites /api/** to this service in its own firebase.json.
 
 resource "google_firebase_hosting_site" "web" {

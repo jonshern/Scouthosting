@@ -19,6 +19,6 @@ export function allowedMobileRedirect(raw: string, production: boolean): URL | n
 }
 
 // Compass (troops), Waypoint (merit badges; its builds still use the
-// bluecard scheme) and Summit (scouts; today Emmett's Journey).
-const APP_SCHEMES = new Set(["compass:", "bluecard:", "waypoint:", "emmettjourney:", "summit:"]);
+// bluecard scheme) and Lantern (scouts; today Emmett's Journey).
+const APP_SCHEMES = new Set(["compass:", "bluecard:", "waypoint:", "emmettjourney:", "lantern:"]);
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);

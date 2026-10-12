@@ -15,7 +15,7 @@ output "runtime_service_account" {
 }
 
 output "web_sites" {
-  description = "Firebase Hosting site per web app (Waypoint, Summit)."
+  description = "Firebase Hosting site per web app (Waypoint, Lantern)."
   value       = { for app, site in google_firebase_hosting_site.web : app => site.site_id }
 }
 

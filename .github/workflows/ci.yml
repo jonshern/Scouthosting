@@ -62,6 +62,17 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
+      - run: shellcheck -x -S warning scripts/host/*.sh
+      # The host Mac's backup and restore scripts, end to end: seed,
+      # back up, restore into a scratch database and verify it.
+      - name: Backup and restore drill
+        env:
+          BACKUP_DIR: ${{ runner.temp }}/backups
+        run: |
+          export MASTER_KEY="$(openssl rand -hex 32)"
+          npm run db:seed
+          scripts/host/backup.sh
+          scripts/host/restore.sh --drill
 
   e2e:
     name: Browser tests

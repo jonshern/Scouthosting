@@ -4,7 +4,7 @@ import { allowedMobileRedirect } from "./mobile-redirect";
 describe("allowedMobileRedirect", () => {
   it("accepts the app's deep link everywhere", () => {
     expect(allowedMobileRedirect("compass://auth/callback", true)?.href).toBe("compass://auth/callback");
-    for (const scheme of ["bluecard", "waypoint", "emmettjourney", "summit"]) {
+    for (const scheme of ["bluecard", "waypoint", "emmettjourney", "lantern"]) {
       expect(allowedMobileRedirect(`${scheme}://auth/callback`, true)?.protocol).toBe(`${scheme}:`);
     }
   });

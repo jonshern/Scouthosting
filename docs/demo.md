@@ -1,6 +1,6 @@
 # The public demo
 
-A prospective unit can try Compass, Waypoint and Summit before signing up by signing in to a sample troop. The demo is a separate Compass deployment with `DEMO_MODE=1` and its own database; it never shares a database with real units.
+A prospective unit can try Compass, Waypoint and Lantern before signing up by signing in to a sample troop. The demo is a separate Compass deployment with `DEMO_MODE=1` and its own database; it never shares a database with real units.
 
 | What | Where |
 |---|---|
@@ -51,9 +51,9 @@ make demo          # http://localhost:3100/demo
 make demo-reset    # back to the starting point
 ```
 
-`make demo` uses the same Postgres container as `make dev` with a separate `compass_demo` database, so dev data is untouched and both can run at once (dev on :3000, demo on :3100). `DEMO_PORT` and `DEMO_DB` move it.
+`make demo` uses the same Postgres container as `make dev` with a separate `compass_demo` database, so dev data is untouched. It also builds into its own `.next-demo` folder (Next allows one dev server per build folder), so `make dev` and `make demo` run side by side from the same checkout: dev on :3000, demo on :3100. `DEMO_PORT` and `DEMO_DB` move it.
 
-Waypoint against the demo: in bluecard, `scripts/local.sh demo` runs the whole local stack (Compass + Waypoint website) in demo mode; see that repo's README. Summit has a sample scout mode; see emmett-scouting's app README.
+Waypoint against the demo: in bluecard, `scripts/local.sh demo` runs the whole local stack (Compass + Waypoint website) in demo mode; see that repo's README. Lantern has a sample scout mode; see emmett-scouting's app README.
 
 ## Run it on Google Cloud
 
