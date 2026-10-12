@@ -12,6 +12,7 @@
 // 7. Signup creates a fresh account
 
 import { expect, test, type Page } from "@playwright/test";
+import { showPasswordSignIn } from "./helpers/flows";
 
 const EMAIL = "scoutmaster@example.invalid";
 const PASSWORD = "AdminPasswordTest123!";
@@ -20,6 +21,7 @@ const TENANT = "http://troop100.localhost:3000";
 
 async function signInApex(page: Page) {
   await page.goto(`${APEX}/login`);
+  await showPasswordSignIn(page);
   await page.getByLabel("Email").fill(EMAIL);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.waitForTimeout(1700);

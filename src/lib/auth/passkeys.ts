@@ -108,7 +108,18 @@ export async function relyingPartyForRequest(headers: Headers | null | undefined
 // ---- challenges (Verification rows, single use) ----
 
 export async function saveChallenge(identifier: string, challenge: string): Promise<void> {
-  await prisma.verification.deleteMany({ where: { identifier } });
+  // Sign-in challenges are keyed per browser and most are never answered
+  // (autofill starts one on every visit to /login), so clear out expired
+  // ones as new ones are made.
+  await prisma.verification.deleteMany({
+    where: {
+      OR: [
+        { identifier },
+        { identifier: { startsWith: "passkey-" }, expiresAt: { lt: new Date() } },
+        { identifier: { startsWith: "mfa-passkey-" }, expiresAt: { lt: new Date() } },
+      ],
+    },
+  });
   await prisma.verification.create({
     data: {
       identifier,

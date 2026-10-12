@@ -20,7 +20,16 @@ function guessDeviceName(): string {
   return "Passkey";
 }
 
-export function AddPasskey({ csrf }: { csrf: string }) {
+export function AddPasskey({
+  csrf,
+  continueTo,
+  label = "Add a passkey",
+}: {
+  csrf: string;
+  /** After adding, go here instead of refreshing the list (the post-sign-up prompt). */
+  continueTo?: string;
+  label?: string;
+}) {
   const router = useRouter();
   const supported = useWebAuthnSupport();
   const [name, setName] = useState("");
@@ -54,25 +63,31 @@ export function AddPasskey({ csrf }: { csrf: string }) {
         setError(result.error);
         return;
       }
+      if (continueTo) {
+        router.replace(continueTo);
+        return;
+      }
       setAdded(true);
       router.refresh();
     });
 
   return (
     <div className="space-y-3">
-      <div>
-        <label className="label" htmlFor="passkey-name">
-          Name for this passkey
-        </label>
-        <input
-          id="passkey-name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          maxLength={60}
-          placeholder="e.g. iPhone, Mac"
-          className="field"
-        />
-      </div>
+      {!continueTo && (
+        <div>
+          <label className="label" htmlFor="passkey-name">
+            Name for this passkey
+          </label>
+          <input
+            id="passkey-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={60}
+            placeholder="e.g. iPhone, Mac"
+            className="field"
+          />
+        </div>
+      )}
       {error && (
         <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
@@ -84,7 +99,7 @@ export function AddPasskey({ csrf }: { csrf: string }) {
         </div>
       )}
       <button type="button" onClick={add} disabled={pending} className="btn-primary">
-        {pending ? "Waiting for your device…" : "Add a passkey"}
+        {pending ? "Waiting for your device…" : label}
       </button>
     </div>
   );

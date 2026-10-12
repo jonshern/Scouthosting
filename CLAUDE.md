@@ -105,8 +105,14 @@ stable):
    `DELETE /api/v1/auth/token/current` (sign-out) revokes the token
    that calls it; `DELETE /api/v1/auth/token/<id>` revokes any of yours.
 
-Passkeys work in that in-app browser too: `/login` offers "Sign in with
-a passkey", and the passkey must belong to the host the app opened
+Passkeys are the default sign-in, in that in-app browser too: `/login`
+leads with "Continue with a passkey", then Google/Apple, with email +
+password folded behind "Use email and password instead" (open on
+browsers without passkeys; opening it starts passkey autofill in the
+email field). New accounts land on `/account/passkey`, which offers to
+make one before continuing. E2E specs unfold the password form with
+`showPasswordSignIn()` from `tests/e2e/helpers/flows.ts`. The passkey
+must belong to the host the app opened
 (`src/lib/auth/passkeys.ts#relyingPartyForHost`):
 
 - the apex and every `<slug>.<apex>` subdomain share one relying-party

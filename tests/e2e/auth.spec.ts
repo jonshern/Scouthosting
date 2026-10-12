@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { showPasswordSignIn } from "./helpers/flows";
 
 const SEEDED_EMAIL = "scoutmaster@example.invalid";
 const SEEDED_PASSWORD = "AdminPasswordTest123!";
@@ -33,8 +34,11 @@ test.describe("auth flows", () => {
     await page.getByLabel(/18 or older/).check();
     await page.waitForTimeout(1700);
     await page.getByRole("button", { name: /create account/i }).click();
-    // New account with no org memberships lands on /account/profile per
-    // post-login redirect logic.
+    // A new account is offered a passkey first; skipping lands on
+    // /account/profile (no org memberships) per post-login redirect logic.
+    await page.waitForURL(/\/account\/passkey/);
+    await expect(page.getByRole("heading", { name: "Sign in faster next time" })).toBeVisible();
+    await page.getByRole("link", { name: "Skip for now" }).click();
     await page.waitForURL(/\/account\/profile/);
     const cookies = await page.context().cookies();
     // Named "__Secure-compass_session" when NODE_ENV=production, as here.
@@ -66,6 +70,7 @@ test.describe("auth flows", () => {
 
   test("login with wrong password is rejected", async ({ page }) => {
     await page.goto("/login");
+    await showPasswordSignIn(page);
     await page.getByLabel("Email").fill(SEEDED_EMAIL);
     await page.getByLabel("Password").fill("not-the-password");
     await page.waitForTimeout(1700);

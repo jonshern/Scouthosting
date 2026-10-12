@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { showPasswordSignIn } from "./helpers/flows";
 
 const SEEDED_EMAIL = "scoutmaster@example.invalid";
 const SEEDED_PASSWORD = "AdminPasswordTest123!";
@@ -22,6 +23,7 @@ test.describe("tenant routing (subdomain)", () => {
 
   test("admin allows leader and shows overview", async ({ page }) => {
     await page.goto("http://troop100.localhost:3000/login");
+    await showPasswordSignIn(page);
     await page.getByLabel("Email").fill(SEEDED_EMAIL);
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.waitForTimeout(1700);
@@ -37,6 +39,7 @@ test.describe("tenant routing (subdomain)", () => {
 
   test("admin announcements form posts an announcement", async ({ page }) => {
     await page.goto("http://troop100.localhost:3000/login");
+    await showPasswordSignIn(page);
     await page.getByLabel("Email").fill(SEEDED_EMAIL);
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.waitForTimeout(1700);

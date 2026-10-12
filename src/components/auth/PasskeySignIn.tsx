@@ -1,10 +1,19 @@
 "use client";
 
-// "Sign in with a passkey" on /login, and "Use a passkey" on the
+// "Continue with a passkey" on /login, and "Use a passkey" on the
 // second-step page. The server action redirects on success.
+//
+// On /login, PasswordSignIn below also starts a passkey request in the
+// background when the email field is shown, so browsers that support it
+// offer the saved passkeys right in the field's autofill list.
 
-import { useState, useSyncExternalStore, useTransition } from "react";
-import { browserSupportsWebAuthn, startAuthentication } from "@simplewebauthn/browser";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import {
+  browserSupportsWebAuthn,
+  browserSupportsWebAuthnAutofill,
+  startAuthentication,
+} from "@simplewebauthn/browser";
+import { LoginForm } from "@/components/auth/LoginForm";
 import {
   mfaPasskeyOptions,
   mfaPasskeyVerify,
@@ -58,14 +67,10 @@ export function PasskeySignIn({
         type="button"
         onClick={run}
         disabled={pending}
-        className={
-          mode === "sign-in"
-            ? "inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"
-            : "btn-primary w-full"
-        }
+        className="btn-primary inline-flex w-full items-center justify-center gap-3 py-3"
       >
         <KeyIcon />
-        {pending ? "Waiting for your passkey…" : mode === "sign-in" ? "Sign in with a passkey" : "Use a passkey"}
+        {pending ? "Waiting for your passkey…" : mode === "sign-in" ? "Continue with a passkey" : "Use a passkey"}
       </button>
       {error && (
         <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -90,4 +95,75 @@ const noSubscribe = () => () => {};
 /** False during server rendering, then whether this browser has WebAuthn. */
 export function useWebAuthnSupport(): boolean {
   return useSyncExternalStore(noSubscribe, browserSupportsWebAuthn, () => false);
+}
+
+/**
+ * Email and password sign-in, folded behind a small link when the browser
+ * has passkeys and open when it doesn't. Opening it starts the passkey
+ * autofill request for the email field.
+ */
+export function PasswordSignIn({
+  csrf,
+  csrfInput,
+  next,
+  startOpen = false,
+}: {
+  csrf: string;
+  csrfInput: React.ReactNode;
+  next?: string;
+  startOpen?: boolean;
+}) {
+  // Assume passkeys during server rendering so the form starts folded;
+  // a browser without them unfolds it once it hydrates.
+  const supported = useSyncExternalStore(noSubscribe, browserSupportsWebAuthn, () => true);
+  const [error, setError] = useState<string | null>(null);
+  const started = useRef(false);
+  const open = startOpen || !supported;
+
+  const startAutofill = async () => {
+    if (started.current || !(await browserSupportsWebAuthnAutofill())) return;
+    started.current = true;
+    const token = csrfToken(csrf);
+    const opts = await passkeySignInOptions(token);
+    if (!opts.ok) return;
+    let response;
+    try {
+      response = await startAuthentication({ optionsJSON: opts.options, useBrowserAutofill: true });
+    } catch {
+      // Cancelled, or replaced by the passkey button's own request.
+      started.current = false;
+      return;
+    }
+    const result = await passkeySignIn(token, response, next ?? "");
+    if (result && !result.ok) setError(result.error);
+  };
+
+  useEffect(() => {
+    if (open) void startAutofill();
+    // startAutofill only reads props that don't change on this page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  return (
+    <details
+      id="password-sign-in"
+      open={open}
+      onToggle={(e) => {
+        if ((e.currentTarget as HTMLDetailsElement).open) void startAutofill();
+      }}
+      className="group"
+    >
+      <summary className="cursor-pointer list-none text-center text-sm text-slate-muted underline-offset-2 hover:text-slate-ink hover:underline group-open:hidden">
+        Use email and password instead
+      </summary>
+      <div className="mt-2 space-y-4">
+        {error && (
+          <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+        <LoginForm csrf={csrfInput} next={next} />
+      </div>
+    </details>
+  );
 }

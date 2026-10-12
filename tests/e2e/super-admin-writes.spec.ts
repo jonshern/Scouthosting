@@ -2,12 +2,14 @@
 // (super@example.invalid), exercise plan change + suspend/restore.
 
 import { expect, test, type Page } from "@playwright/test";
+import { showPasswordSignIn } from "./helpers/flows";
 
 const SUPER_EMAIL = "super@example.invalid";
 const PASSWORD = "AdminPasswordTest123!";
 
 async function signInApex(page: Page) {
   await page.goto("/login");
+  await showPasswordSignIn(page);
   await page.getByLabel("Email").fill(SUPER_EMAIL);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.waitForTimeout(1700);

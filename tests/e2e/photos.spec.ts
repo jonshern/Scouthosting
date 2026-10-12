@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { showPasswordSignIn } from "./helpers/flows";
 
 const SEEDED_EMAIL = "scoutmaster@example.invalid";
 const SEEDED_PASSWORD = "AdminPasswordTest123!";
 
 async function login(page: import("@playwright/test").Page) {
   await page.goto("http://troop100.localhost:3000/login");
+  await showPasswordSignIn(page);
   await page.getByLabel("Email").fill(SEEDED_EMAIL);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
   await page.waitForTimeout(1700);

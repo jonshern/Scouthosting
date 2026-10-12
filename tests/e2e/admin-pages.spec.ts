@@ -4,6 +4,7 @@
 // rate limit (30/min).
 
 import { expect, test, type Page } from "@playwright/test";
+import { showPasswordSignIn } from "./helpers/flows";
 
 const EMAIL = "scoutmaster@example.invalid";
 const PASSWORD = "AdminPasswordTest123!";
@@ -65,6 +66,7 @@ test.describe("admin smoke coverage", () => {
     test.setTimeout(180_000);
 
     await page.goto(`${TENANT}/login`);
+    await showPasswordSignIn(page);
     await page.getByLabel("Email").fill(EMAIL);
     await page.getByLabel("Password").fill(PASSWORD);
     await page.waitForTimeout(1700);

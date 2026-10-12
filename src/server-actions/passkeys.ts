@@ -42,11 +42,15 @@ const UNAVAILABLE: Fail = { ok: false, error: "Passkeys don't work on this addre
 const TOO_MANY: Fail = { ok: false, error: "Too many attempts. Try again in a minute." };
 const FAILED: Fail = { ok: false, error: "That passkey didn't work. Try again, or sign in another way." };
 
-async function checkRequest(csrf: string): Promise<Fail | null> {
+// Asking for sign-in options is cheap and happens on most visits to
+// /login (the email field's passkey autofill), so it has its own, larger
+// budget; anything that checks a passkey shares the smaller one.
+async function checkRequest(csrf: string, bucket: "passkey" | "passkey-options" = "passkey"): Promise<Fail | null> {
   if (!(await verifyOrigin())) return { ok: false, error: "Bad origin." };
   if (!(await verifyCsrf(csrf))) return { ok: false, error: "Bad CSRF token. Reload the page." };
   const ip = clientIp(await headers()) ?? "unknown";
-  if (!(await rateLimit(`auth:passkey:${ip}`, 30, 60_000)).ok) return TOO_MANY;
+  const limit = bucket === "passkey" ? 30 : 120;
+  if (!(await rateLimit(`auth:${bucket}:${ip}`, limit, 60_000)).ok) return TOO_MANY;
   return null;
 }
 
@@ -60,7 +64,7 @@ function errorCode(e: unknown): string | null {
 export async function passkeySignInOptions(
   csrf: string,
 ): Promise<{ ok: true; options: PublicKeyCredentialRequestOptionsJSON } | Fail> {
-  const fail = await checkRequest(csrf);
+  const fail = await checkRequest(csrf, "passkey-options");
   if (fail) return fail;
   try {
     const { options } = await auth.api.compassPasskeySignInOptions({ headers: await headers() });

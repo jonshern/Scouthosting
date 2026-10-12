@@ -39,6 +39,16 @@ export function isoLocal(d: Date): string {
 }
 
 /**
+ * /login leads with passkeys and folds email + password behind "Use email
+ * and password instead"; unfold it.
+ */
+export async function showPasswordSignIn(page: Page): Promise<void> {
+  const form = page.locator("details#password-sign-in");
+  await form.waitFor({ state: "attached" });
+  if ((await form.getAttribute("open")) === null) await form.locator("summary").click();
+}
+
+/**
  * Sign in on a host (tenant by default). The login form has a
  * honeypot dwell-time check, hence the wait before submitting.
  */
@@ -49,6 +59,7 @@ export async function signIn(
   host = TENANT,
 ): Promise<void> {
   await page.goto(`${host}/login`);
+  await showPasswordSignIn(page);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.waitForTimeout(1700);
@@ -71,7 +82,14 @@ export async function signUp(
   await page.getByLabel(/18 or older/).check();
   await page.waitForTimeout(1700);
   await page.getByRole("button", { name: /create account/i }).click();
-  await page.waitForURL(/\/(account|admin|select-org)/);
+  await skipPasskeyPrompt(page);
+}
+
+/** New accounts are offered a passkey first (/account/passkey); skip it. */
+export async function skipPasskeyPrompt(page: Page): Promise<void> {
+  await page.waitForURL(/\/account\/passkey/);
+  await page.getByRole("link", { name: "Skip for now" }).click();
+  await page.waitForURL((u) => u.pathname !== "/account/passkey");
 }
 
 /** A fresh, isolated browser context + page (separate cookie jar). */

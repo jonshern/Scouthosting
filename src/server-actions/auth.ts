@@ -79,7 +79,9 @@ export async function signupAction(_prev: ActionState, formData: FormData): Prom
     throw e;
   }
 
-  redirect(await postLoginRedirectUrl(userId, String(formData.get("next") ?? "")));
+  // Offer a passkey before landing them, so the next sign-in skips the password.
+  const target = await postLoginRedirectUrl(userId, String(formData.get("next") ?? ""));
+  redirect(`/account/passkey?next=${encodeURIComponent(target)}`);
 }
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

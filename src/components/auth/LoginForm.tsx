@@ -17,7 +17,7 @@ export function LoginForm({
       {next ? <input type="hidden" name="next" value={next} /> : null}
       <div>
         <label className="label" htmlFor="email">Email</label>
-        <input id="email" name="email" type="email" required className="field" autoComplete="email" />
+        <input id="email" name="email" type="email" required className="field" autoComplete="username webauthn" />
       </div>
       <div>
         <label className="label" htmlFor="password">Password</label>
