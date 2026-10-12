@@ -100,6 +100,12 @@ stable):
 3. Signed in → `/auth/mobile/confirm`, where the user taps Continue
    (same-origin POST with CSRF back to `/auth/mobile/begin`).
 4. 303 to `<redirect>?token=compass_pat_…&userId=…&displayName=…`.
+   A website can use the same flow with `redirect=<origin>/signed-in`
+   when its exact origin is in `WEB_SIGNIN_ORIGINS` (https only in
+   production; any other path or origin is refused). It gets the same
+   values after `#` instead of `?`, so the token stays out of server logs
+   and Referer headers; Waypoint's website reads them from
+   `location.hash`.
    The app sends `Authorization: Bearer <token>` to `/api/v1/*`.
    Tokens expire after 90 days, die when the password changes, and
    `DELETE /api/v1/auth/token/current` (sign-out) revokes the token
