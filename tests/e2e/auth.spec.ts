@@ -58,6 +58,7 @@ test.describe("auth flows", () => {
 
   test("login with seeded credentials succeeds", async ({ page }) => {
     await page.goto("/login");
+    await showPasswordSignIn(page);
     await page.getByLabel("Email").fill(SEEDED_EMAIL);
     await page.getByLabel("Password").fill(SEEDED_PASSWORD);
     await page.waitForTimeout(1700);

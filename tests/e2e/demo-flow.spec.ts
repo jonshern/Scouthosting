@@ -42,6 +42,9 @@ test.describe("demo flow", () => {
   test("2. login page renders with the form", async ({ page }) => {
     test.setTimeout(30_000);
     await page.goto(`${APEX}/login`);
+    // Passkeys lead; email + password unfold from the link below them.
+    await expect(page.getByRole("button", { name: "Continue with a passkey" })).toBeVisible();
+    await showPasswordSignIn(page);
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(

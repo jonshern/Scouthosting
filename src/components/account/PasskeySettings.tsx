@@ -54,8 +54,12 @@ export function AddPasskey({
       let response;
       try {
         response = await startRegistration({ optionsJSON: opts.options });
-      } catch {
-        setError("No passkey was made. Try again.");
+      } catch (e) {
+        setError(
+          (e as { code?: string }).code === "ERROR_AUTHENTICATOR_PREVIOUSLY_REGISTERED"
+            ? "This device already has a passkey for your account."
+            : "No passkey was made. Try again.",
+        );
         return;
       }
       const result = await passkeyRegister(token, response, name.trim() || guessDeviceName());
