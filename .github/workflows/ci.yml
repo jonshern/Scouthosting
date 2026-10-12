@@ -45,6 +45,31 @@ jobs:
       - run: scripts/check-migrations.sh "origin/${{ github.base_ref }}"
       - run: scripts/check-migrations-schema.sh "origin/${{ github.base_ref }}"
 
+  mobile:
+    name: Phone app typecheck, lint, tests, bundle
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+      # Bundles the JavaScript the way a store build does, so a bad
+      # import or a missing native module fails here, not on EAS.
+      - name: iOS and Android bundles build
+        run: npx expo export --platform ios --platform android --output-dir dist
+        env:
+          EXPO_OFFLINE: "1"
+
   check:
     name: Typecheck, lint, unit tests
     runs-on: ubuntu-latest

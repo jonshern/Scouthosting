@@ -310,6 +310,11 @@ export default function ThreadScreen() {
     }
   }, [auth, refresh]);
 
+  const pinned = useMemo(
+    () => messages.filter((m) => m.pinned && !m.deleted).slice(-1)[0] || null,
+    [messages],
+  );
+
   if (!channel && !error) {
     return (
       <SafeAreaView style={styles.safe}>
@@ -321,10 +326,6 @@ export default function ThreadScreen() {
   const canPost = channel?.canPost ?? false;
   const youthChannel = !!channel && (channel.kind === 'patrol' || channel.kind === 'troop' || channel.kind === 'event');
   const meta = channel ? CHANNEL_GLYPH[channel.kind] : { color: palette.primary, glyph: '#' };
-  const pinned = useMemo(
-    () => messages.filter((m) => m.pinned && !m.deleted).slice(-1)[0] || null,
-    [messages],
-  );
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>

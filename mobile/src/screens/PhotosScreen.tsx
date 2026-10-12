@@ -190,7 +190,7 @@ export default function PhotosScreen() {
                       >
                         <Image
                           source={{ uri: uploadsUrl(orgSlug, p.filename) }}
-                          style={StyleSheet.absoluteFillObject}
+                          style={StyleSheet.absoluteFill}
                           resizeMode="cover"
                         />
                         {showOverlay && (
@@ -304,7 +304,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   moreOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(13,19,13,0.55)",
     alignItems: "center",
     justifyContent: "center",

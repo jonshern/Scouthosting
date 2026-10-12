@@ -10,9 +10,9 @@ experience. Part of the Compass rebrand of Scouthosting.
 
 ## Stack
 
-- React Native via Expo SDK 51
+- React Native via Expo SDK 57 (same as Waypoint and Lantern)
 - TypeScript (strict mode)
-- React Navigation 6 (bottom tabs + native stack)
+- React Navigation 7 (bottom tabs + native stack)
 - react-native-svg for the compass-rose mark, photo placeholders, and
   the icon set
 - expo-font for Newsreader (display) + Inter Tight (UI). System
@@ -92,7 +92,7 @@ mobile/
 ├── app.json                # Expo config (name "Compass", slug "compass")
 ├── babel.config.js         # babel-preset-expo + reanimated plugin
 ├── tsconfig.json           # extends expo/tsconfig.base, strict mode
-├── package.json            # Expo SDK 51 + react-navigation + svg
+├── package.json            # Expo SDK 57 + react-navigation + svg
 ├── src/
 │   ├── theme/
 │   │   ├── tokens.ts       # Forest & Ember palette + type + spacing

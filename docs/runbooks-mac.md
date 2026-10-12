@@ -67,8 +67,10 @@ Stop any `make dev` first (the switch wants port 3000), then:
 ```sh
 make host-install              # launchd: switch, both slots, cron, backup, drill, watchdog
 make deploy                    # builds origin/main into blue and points the switch at it
-curl -s localhost:3000/health  # {"ok":true,"version":"…"}
+curl -s localhost:3000/health  # {"ok":true,"version":"…","mail":"console"}
 ```
+
+`"mail":"console"` means email is only written to the server log, nothing reaches families. To send it, add `MAIL_DRIVER=resend`, `RESEND_API_KEY` and `MAIL_FROM` to `.env` and deploy again. A server with `MAIL_DRIVER=resend` and no key refuses to start, so a half-done setup can't drop mail quietly.
 
 `tailscale serve --bg 3000` keeps pointing at the switch; nothing changes for phones.
 

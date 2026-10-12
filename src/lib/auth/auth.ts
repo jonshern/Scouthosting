@@ -21,6 +21,7 @@ import { nextCookies } from "better-auth/next-js";
 import { prisma } from "@/lib/db";
 import { env, isProd } from "@/lib/env";
 import { sendMail } from "@/lib/mail";
+import { captureError } from "@/lib/ops/error-tracker";
 import { hashPassword, verifyPassword } from "./password";
 import { claimOrgsForVerifiedEmail } from "./claim-orgs";
 import { compassMfa } from "./mfa-plugin";
@@ -107,7 +108,7 @@ export const auth = betterAuth({
     autoSignInAfterVerification: false,
     expiresIn: 60 * 60 * 24,
     async sendVerificationEmail({ user, url }) {
-      await sendMail({
+      const sent = await sendMail({
         to: user.email,
         toName: user.name,
         subject: "Confirm your email for Compass",
@@ -117,6 +118,9 @@ export const auth = betterAuth({
           `<p><a href="${escapeHtml(url)}">Confirm my email</a></p>` +
           `<p>The link works for 24 hours. If you didn't create a Compass account, ignore this email.</p>`,
       });
+      // Sign-up still succeeds (they can resend from their account page),
+      // but a failed send must show up where an operator looks.
+      if (!sent.ok) await captureError(new Error(`verification email failed: ${sent.error}`));
     },
     async afterEmailVerification(user) {
       await claimOrgsForVerifiedEmail(user.id, user.email);

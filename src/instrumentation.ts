@@ -27,6 +27,10 @@ export async function register() {
     await import("@/lib/env");
     const { getMasterKey } = await import("@/lib/encryption");
     getMasterKey();
+    const { mailDriverName } = await import("@/lib/mail");
+    if (mailDriverName() === "console") {
+      console.warn("MAIL_DRIVER is not set: email is logged, not sent. Set MAIL_DRIVER=resend and RESEND_API_KEY.");
+    }
   }
 
   const { installFatalHandlers } = await import("@/lib/ops/error-tracker");
