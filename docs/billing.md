@@ -33,12 +33,10 @@ Compass, Waypoint and Summit all read the same unit's status.
    A failed payment gets a 7-day grace period first.
 
 Stripe's webhooks are the only thing that changes a unit's subscription
-fields (`src/lib/billing/stripe.ts#syncFromStripeEvent`). Each event
-runs once: the route records the event id in `StripeWebhookEvent`
-before acting (`src/lib/billing/webhook-events.ts`, shared with any other
-Stripe webhook), so a redelivery is a no-op. Events can arrive out of
-order, so each write checks the event's `created` time against
-`Org.stripeEventAt` and an older event is skipped (`reason: "stale"`).
+fields (`src/lib/billing/stripe.ts#syncFromStripeEvent`). Events can
+arrive out of order, so each write checks the event's `created` time
+against `Org.stripeEventAt` and an older event is skipped
+(`reason: "stale"`); replaying the same event writes the same values.
 Waypoint and
 Summit read the same state with
 `GET /api/v1/orgs/<slug>/subscription` (any member's token), which returns

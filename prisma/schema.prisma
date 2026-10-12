@@ -2825,20 +2825,6 @@ model Patrol {
 
 
 // Fixed-window rate-limit counters, shared across every app instance.
-// Stripe webhook events already handled, keyed by Stripe's event id, so
-// a redelivered or concurrently delivered event runs once
-// (src/lib/billing/webhook-events.ts). `source` is "platform" for the
-// unit subscription webhook, "treasury:<orgId>" for a unit's own
-// Stripe account.
-model StripeWebhookEvent {
-  id        String   @id
-  source    String
-  type      String
-  createdAt DateTime @default(now())
-
-  @@index([createdAt])
-}
-
 // One row per bucket key ("v1:ip:<addr>", "v1:user:<id>:write", ...).
 // Rows are upserted atomically by src/lib/security/rate-limit.ts and
 // swept opportunistically once their window has passed.

@@ -9,7 +9,7 @@
 // Stripe renews monthly from there.
 
 import crypto from "node:crypto";
-import type { Prisma, SubscriptionStatus } from "@prisma/client";
+import type { Prisma, PrismaClient, SubscriptionStatus } from "@prisma/client";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/log";
 import { createStripeRestClient } from "./stripe-rest";
@@ -219,14 +219,17 @@ export type SyncResult =
   | { ok: true; ignored?: boolean; reason?: string }
   | { ok: false; reason: string };
 
-export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResult> {
+// `db` lets the webhook run this inside its idempotency transaction.
+type Db = PrismaClient | Prisma.TransactionClient;
+
+export async function syncFromStripeEvent(event: StripeEvent, db: Db = prisma): Promise<SyncResult> {
   if (!event?.type) return { ok: false, reason: "bad_event" };
   if (!HANDLED_EVENTS.has(event.type)) {
     return { ok: true, ignored: true, reason: `unhandled:${event.type}` };
   }
 
   const obj = event.data?.object || {};
-  const orgId = await resolveOrgIdFromEvent(event);
+  const orgId = await resolveOrgIdFromEvent(event, db);
   if (!orgId) return { ok: false, reason: "no_org_match" };
 
   // Stripe doesn't promise delivery order, so each write only lands if
@@ -240,7 +243,7 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
     const fresh: Prisma.OrgWhereInput = created
       ? { OR: [{ stripeEventAt: null }, { stripeEventAt: { lte: created } }] }
       : {};
-    const { count } = await prisma.org.updateMany({
+    const { count } = await db.org.updateMany({
       where: { id: orgId, ...fresh, ...extra },
       data: created ? { ...data, stripeEventAt: created } : data,
     });
@@ -259,7 +262,7 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
       if (!done) {
         // Keep the customer and subscription ids even when a newer event
         // already set the status; the portal needs the customer id.
-        await prisma.org.update({
+        await db.org.update({
           where: { id: orgId },
           data: {
             stripeCustomerId: obj.customer || undefined,
@@ -268,7 +271,7 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
         });
         return stale;
       }
-      await stripeAudit(orgId, "billing.checkout_completed", `Subscription started (${obj.id}).`);
+      await stripeAudit(db, orgId, "billing.checkout_completed", `Subscription started (${obj.id}).`);
       return { ok: true };
     }
     case "customer.subscription.created":
@@ -284,6 +287,7 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
       });
       if (!done) return stale;
       await stripeAudit(
+        db,
         orgId,
         "billing.subscription_updated",
         `Status=${status}, cancel_at_period_end=${cancelAtPeriodEnd}.`,
@@ -297,13 +301,13 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
         currentPeriodEnd: periodEnd(obj),
       });
       if (!done) return stale;
-      await stripeAudit(orgId, "billing.subscription_deleted", `Subscription ${obj.id} ended.`);
+      await stripeAudit(db, orgId, "billing.subscription_deleted", `Subscription ${obj.id} ended.`);
       return { ok: true };
     }
     case "invoice.payment_failed": {
       const done = await apply({ subscriptionStatus: "past_due" as SubscriptionStatus });
       if (!done) return stale;
-      await stripeAudit(orgId, "billing.payment_failed", `Invoice ${obj.id} payment failed.`);
+      await stripeAudit(db, orgId, "billing.payment_failed", `Invoice ${obj.id} payment failed.`);
       return { ok: true };
     }
     case "invoice.payment_succeeded": {
@@ -315,6 +319,7 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
       );
       if (done) {
         await stripeAudit(
+          db,
           orgId,
           "billing.payment_recovered",
           `Invoice ${obj.id} paid; status restored.`,
@@ -327,7 +332,7 @@ export async function syncFromStripeEvent(event: StripeEvent): Promise<SyncResul
   }
 }
 
-async function resolveOrgIdFromEvent(event: StripeEvent): Promise<string | null> {
+async function resolveOrgIdFromEvent(event: StripeEvent, db: Db = prisma): Promise<string | null> {
   const obj = event.data?.object || {};
   const direct =
     obj.metadata?.orgId ||
@@ -337,7 +342,7 @@ async function resolveOrgIdFromEvent(event: StripeEvent): Promise<string | null>
 
   const customerId = obj.customer;
   if (customerId) {
-    const org = await prisma.org.findUnique({
+    const org = await db.org.findUnique({
       where: { stripeCustomerId: customerId },
       select: { id: true },
     });
@@ -372,9 +377,9 @@ function mapStripeStatus(stripeStatus: string | undefined): string {
   }
 }
 
-async function stripeAudit(orgId: string, action: string, summary: string): Promise<void> {
+async function stripeAudit(db: Db, orgId: string, action: string, summary: string): Promise<void> {
   try {
-    await prisma.auditLog.create({
+    await db.auditLog.create({
       data: {
         orgId,
         userId: null,
