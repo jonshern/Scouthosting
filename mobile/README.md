@@ -3,10 +3,8 @@
 Scaffold for the Compass parent mobile app and the team chat
 experience. Part of the Compass rebrand of Scouthosting.
 
-> Source files are authored against the locked design system + the
-> Compass JSON API. Most screens are wired to real endpoints; install
-> + native build wiring (fonts, real photo uploads, EAS pipeline) is
-> left as TODOs for the reviewer.
+> Every screen talks to the Compass `/api/v1` routes. CI runs the
+> typecheck, lint, unit tests and a bundle build on every PR.
 
 ## Stack
 
@@ -157,14 +155,5 @@ Things that need real-world inputs we can't synthesize:
 - **Push notifications** — registration on launch works via
   `expo-notifications`. Real-device verification (APNs / FCM
   certificates) and badge counts are the remaining pieces.
-- **Submission credentials** — fill in the `REPLACE_WITH_*` fields in
-  `eas.json`'s `submit.production` block before running
-  `eas submit`.
-- **Universal-link verification files** — host the
-  `apple-app-site-association` JSON at
-  `https://compass.app/.well-known/apple-app-site-association` and
-  `assetlinks.json` at
-  `https://compass.app/.well-known/assetlinks.json`. The app config
-  is ready (see `app.json` `ios.associatedDomains` and
-  `android.intentFilters`); the server-side files belong to the apex
-  rather than this repo.
+- **Store release** — accounts, fees, the final bundle id and account
+  deletion are listed in [docs/app-store.md](../docs/app-store.md).
