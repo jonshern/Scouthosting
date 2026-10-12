@@ -14,6 +14,7 @@ import {
 } from "@/components/admin/EventStaffForms";
 import { STAFF_ROLE_LABELS, type StaffRole } from "@/lib/events/staff";
 import { listEventChannels } from "@/lib/events/messaging";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function EditEventPage({
   params,
@@ -21,6 +22,7 @@ export default async function EditEventPage({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const [event, locations] = await Promise.all([

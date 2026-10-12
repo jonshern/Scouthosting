@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth/session";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { deleteForm } from "@/server-actions/forms";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function FormsPage({
   params,
@@ -14,6 +15,7 @@ export default async function FormsPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const { user } = await getSession();
   if (!user) redirect(`/login?next=/o/${slug}/admin/forms`);
   const org = await prisma.org.findUnique({ where: { slug } });

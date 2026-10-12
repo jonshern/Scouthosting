@@ -4,9 +4,11 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { AlbumForm } from "@/components/admin/AlbumForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function AdminPhotosIndex({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({
     where: { slug },
     include: {

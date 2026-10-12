@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { PhotoUploadForm } from "@/components/admin/PhotoUploadForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function AdminAlbumDetail({
   params,
@@ -11,6 +12,7 @@ export default async function AdminAlbumDetail({
   params: Promise<{ slug: string; albumSlug: string }>;
 }) {
   const { slug, albumSlug } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const album = await prisma.album.findUnique({

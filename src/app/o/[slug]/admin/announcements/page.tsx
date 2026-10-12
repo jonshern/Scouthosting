@@ -4,9 +4,11 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { AnnouncementForm } from "@/components/admin/AnnouncementForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DeleteAnnouncementButton } from "@/components/admin/DeleteContentButtons";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function AdminAnnouncements({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({
     where: { slug },
     include: { announcements: { orderBy: { createdAt: "desc" }, take: 20 } },

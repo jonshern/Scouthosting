@@ -5,12 +5,7 @@
 // at 32–40px gutters per the design.
 
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { notFound } from "next/navigation";
-import { prisma } from "@/lib/db";
-import { getSession } from "@/lib/auth/session";
-import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
-import { accountStanding, requirementRedirect, withNext } from "@/lib/auth/requirements";
+import { adminAccess } from "@/lib/admin/guard";
 import { AdminTopNav } from "@/components/admin/AdminTopNav";
 import { ReleasesStrip } from "@/components/site/ReleasesStrip";
 import { BillingGate } from "@/components/admin/BillingGate";
@@ -35,12 +30,10 @@ export default async function AdminLayout({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const org = await prisma.org.findUnique({ where: { slug } });
-  if (!org) notFound();
-  const { user } = await getSession();
-  if (!user) redirect(`/login?next=/o/${slug}/admin`);
-  const role = await roleInOrg(user.id, org.id);
-  if (!isLeaderRole(role) && !user.isSuperAdmin) {
+  // Pages check again themselves (lib/admin/guard.ts): partial RSC
+  // requests can skip this layout.
+  const access = await adminAccess(slug);
+  if (!access.ok) {
     return (
       <section className="mx-auto max-w-content px-6 py-16">
         <h1 className="font-display text-2xl font-semibold">Not authorized</h1>
@@ -48,9 +41,7 @@ export default async function AdminLayout({
       </section>
     );
   }
-  // Admins and organizers must have two-step sign-in on (lib/auth/requirements.ts).
-  const gate = requirementRedirect(await accountStanding(user.id), { organizerSurface: true });
-  if (gate) redirect(withNext(gate, `/o/${slug}/admin`));
+  const { org, user } = access;
   const unitLabel = `${org.unitType ?? ""} ${org.unitNumber ?? ""}`.trim() || org.displayName;
   const billing = billingSummary(org, { stripeConfigured: isConfigured() });
   const canManage = await canManageBilling(user, org);

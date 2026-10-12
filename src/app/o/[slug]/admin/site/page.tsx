@@ -15,6 +15,7 @@ import { CanvasEditor } from "@/components/admin/CanvasEditor";
 import { AdvancedCanvasEditor } from "@/components/admin/AdvancedCanvasEditor";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { PreviewPane } from "@/components/admin/PreviewPane";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function AdminSite({
   params,
@@ -24,6 +25,7 @@ export default async function AdminSite({
   searchParams: Promise<{ mode?: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const { mode } = await searchParams;
   const advanced = mode === "advanced";
   const org = await prisma.org.findUnique({

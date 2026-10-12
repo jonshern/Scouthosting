@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth/session";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { RosterImportForm } from "@/components/admin/RosterImportForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function RosterImportPage({
   params,
@@ -15,6 +16,7 @@ export default async function RosterImportPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const { user } = await getSession();
   if (!user) redirect(`/login?next=/o/${slug}/admin/members/import`);
   const org = await prisma.org.findUnique({ where: { slug } });

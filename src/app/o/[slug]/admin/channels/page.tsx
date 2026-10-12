@@ -9,6 +9,7 @@ import { getSession } from "@/lib/auth/session";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { unsuspendChannelAction, archiveChannelAction } from "@/server-actions/channels";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 const UNSUSPEND_ERRORS: Record<string, string> = {
   "no-current-adults":
@@ -25,6 +26,7 @@ export default async function ChannelsAdminPage({
   searchParams: Promise<{ error?: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const { error } = await searchParams;
   const { user } = await getSession();
   if (!user) redirect(`/login?next=/o/${slug}/admin/channels`);
