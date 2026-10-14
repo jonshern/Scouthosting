@@ -287,6 +287,8 @@ model User {
   counselorAssignments  CounselorAssignment[] @relation("AssignedCounselor")
   counselorMeetings     CounselorMeeting[]
   journeyScouts         JourneyScout[]
+  mcpAuthCodes          McpAuthCode[]
+  mcpTokens             McpToken[]
 }
 
 // One-time-use 2FA backup codes. Generated at enrollment (10 per user),
@@ -2920,4 +2922,75 @@ model JourneyProgress {
   scout JourneyScout @relation(fields: [scoutId], references: [id], onDelete: Cascade)
 
   @@unique([scoutId, key])
+}
+
+// ---------------------------------------------------------------------
+// Claude connector (MCP server at /mcp). Compass is its own OAuth 2.1
+// authorization server for it: clients register themselves (RFC 7591),
+// the signed-in adult approves on /mcp/oauth/consent, and the client
+// trades a single-use code (PKCE S256) for an access + refresh token.
+// Only sha256 hashes of codes and tokens are stored. See src/lib/mcp/.
+
+// A registered MCP client (Claude on the web, Claude Code, ...). Anyone
+// may register one; it can do nothing until a user approves it.
+model McpClient {
+  id           String    @id @default(cuid())
+  clientId     String    @unique
+  clientName   String
+  clientUri    String?
+  redirectUris String[]
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  authCodes McpAuthCode[]
+  tokens    McpToken[]
+}
+
+// An authorization code: lives five minutes and is used once.
+model McpAuthCode {
+  id            String    @id @default(cuid())
+  codeHash      String    @unique
+  clientId      String
+  userId        String
+  redirectUri   String
+  codeChallenge String
+  scope         String
+  resource      String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  // The token family this code was exchanged for, so a replayed code
+  // can revoke what it minted.
+  familyId      String?
+  createdAt     DateTime  @default(now())
+
+  client McpClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// One access token and its refresh token. Refreshing revokes this row
+// and creates the next one in the same family; presenting a refresh
+// token that was already rotated revokes the whole family.
+model McpToken {
+  id               String    @id @default(cuid())
+  familyId         String
+  clientId         String
+  userId           String
+  accessHash       String    @unique
+  refreshHash      String    @unique
+  scope            String
+  resource         String
+  accessExpiresAt  DateTime
+  refreshExpiresAt DateTime
+  revokedAt        DateTime?
+  rotatedAt        DateTime?
+  lastUsedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  client McpClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
 }

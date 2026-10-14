@@ -268,6 +268,19 @@ reactions, the counselor listing, Lantern trails. A new table holding a
 user's own data should be added to that list; one holding a unit's
 records shouldn't cascade from `User`.
 
+### 17. The Claude connector is its own OAuth server
+
+`/mcp` (`src/lib/mcp/`, `docs/mcp.md`) is an MCP server people add to
+Claude by URL. Compass is the OAuth 2.1 server for it, separate from
+Better Auth: `McpClient` / `McpAuthCode` / `McpToken`, hashes only,
+PKCE S256, rotating refresh tokens. Tools run as the signed-in adult and
+see only `accessibleScouts()` (family by confirmed email, units they
+lead, their own Lantern scouts; youth get nothing). New tools must pick
+the scout through `pickScout(accessibleScouts(user), …)` and go through
+`guarded()` for the scope check. Writes preview first and need
+`confirm: true`. `MCP_PUBLIC_URL` must match the URL people paste into
+Claude, or every call is 401. `CATALOG_PATH` loads requirement names.
+
 ## Demo accounts (test DB)
 
 Password for all seeded accounts: `AdminPasswordTest123!`

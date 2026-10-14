@@ -120,6 +120,21 @@ describe.skipIf(!db)("deleting your account (Postgres)", () => {
     });
     await prisma.journeyScout.create({ data: { ownerUserId: parent.id, encName: Buffer.from("x") } });
     await prisma.counselorBadge.create({ data: { userId: parent.id, badgeSlug: "hiking" } });
+    // A Claude connection (lib/mcp).
+    const mcpClient = await prisma.mcpClient.create({ data: { clientId: `mcp_del_${S}`, clientName: "Claude", redirectUris: ["https://claude.ai/cb"] } });
+    await prisma.mcpToken.create({
+      data: {
+        familyId: `fam-${S}`,
+        clientId: mcpClient.clientId,
+        userId: parent.id,
+        scope: "scouts:read",
+        resource: "http://localhost:3000/mcp",
+        accessHash: `a-${S}`,
+        refreshHash: `r-${S}`,
+        accessExpiresAt: new Date(Date.now() + 60_000),
+        refreshExpiresAt: new Date(Date.now() + 60_000),
+      },
+    });
 
     const res = await call(me.DELETE, parent.token, { confirm: parent.email.toUpperCase() });
     expect(res.status).toBe(200);
@@ -136,6 +151,8 @@ describe.skipIf(!db)("deleting your account (Postgres)", () => {
     expect(await prisma.reaction.count({ where: { userId: parent.id } })).toBe(0);
     expect(await prisma.journeyScout.count({ where: { ownerUserId: parent.id } })).toBe(0);
     expect(await prisma.counselorBadge.count({ where: { userId: parent.id } })).toBe(0);
+    expect(await prisma.mcpToken.count({ where: { userId: parent.id } })).toBe(0);
+    await prisma.mcpClient.delete({ where: { clientId: mcpClient.clientId } });
     expect((await call(authMe.GET, parent.token)).status).toBe(401);
 
     // Kept: the chat log and the event's RSVP list.

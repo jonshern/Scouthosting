@@ -1,11 +1,13 @@
 // /account/api-tokens — list + revoke. Issue is mobile-only via
-// /api/v1/auth/token (requires the cookie session).
+// /api/v1/auth/token (requires the cookie session). Also lists the
+// Claude connections (lib/mcp) with a Disconnect button.
 
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth/session";
 import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
-import { revokeApiToken } from "@/server-actions/account";
+import { connectionsFor } from "@/lib/mcp/oauth/tokens";
+import { revokeApiToken, revokeMcpConnection } from "@/server-actions/account";
 
 export default async function ApiTokensPage() {
   const { user } = await getSession();
@@ -15,6 +17,7 @@ export default async function ApiTokensPage() {
     orderBy: { createdAt: "desc" },
     select: { id: true, name: true, createdAt: true, lastUsedAt: true },
   });
+  const connections = await connectionsFor(user.id);
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
@@ -42,6 +45,34 @@ export default async function ApiTokensPage() {
                 <input type="hidden" name="id" value={t.id} />
                 <button type="submit" className="btn-secondary text-xs">
                   Revoke
+                </button>
+              </form>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h2 className="font-display text-2xl mt-10 mb-2">Claude connections</h2>
+      <p className="text-ink-muted mb-6 text-sm">
+        Apps you let read your scouts&apos; progress, such as Claude. Disconnecting signs the app out right away.
+      </p>
+      {connections.length === 0 ? (
+        <p className="text-ink-muted">Nothing connected.</p>
+      ) : (
+        <ul className="space-y-3">
+          {connections.map((c) => (
+            <li key={c.clientId} className="card flex items-center justify-between">
+              <div>
+                <div className="font-medium">{c.name}</div>
+                <div className="text-xs text-ink-muted">
+                  Connected {c.connectedAt.toLocaleDateString()} · last used {c.lastUsedAt.toLocaleDateString()}
+                </div>
+              </div>
+              <form action={revokeMcpConnection}>
+                <CsrfTokenInput />
+                <input type="hidden" name="clientId" value={c.clientId} />
+                <button type="submit" className="btn-secondary text-xs">
+                  Disconnect
                 </button>
               </form>
             </li>

@@ -53,7 +53,9 @@ async function resolveCustomDomainSlug(domain: string): Promise<string | null | 
 // /staff-rsvp — the staff invite page; the link may be built on whichever
 //   host the leader sent it from.
 // /account — the signed-in user's own pages (the admin avatar links here).
-const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/api/events/", "/staff-rsvp", "/account"];
+// /mcp, /.well-known/ — the Claude connector and its OAuth discovery
+//   documents (src/lib/mcp); not per-org.
+const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/api/events/", "/staff-rsvp", "/account", "/mcp", "/.well-known/"];
 const CSRF_COOKIE = "compass_csrf";
 
 // Pre-launch apex gate. Visitors without a valid `compass_invite`
@@ -86,6 +88,8 @@ const APEX_INVITE_PREFIXES = [
   "/sell/",       // public fundraising / sales landing pages
   "/permission-slip/", // public e-signature flow
   "/staff-rsvp",  // event staff answer their emailed invite here
+  "/mcp",         // Claude connector: bearer-auth API + OAuth consent (own auth)
+  "/.well-known/", // OAuth discovery for the connector
   "/_next/",
 ];
 

@@ -7,9 +7,9 @@
 // RSVPs, event staffing, counselor meetings and sign-offs, treasury
 // entries, posts. What's personal to the account goes: sign-in methods,
 // sessions, phone tokens, push devices, two-step codes, unit and chat
-// memberships, reactions, the counselor directory listing and Lantern's
-// saved trails. The roster (Member rows) belongs to the unit and follows
-// its retention policy, not this.
+// memberships, reactions, the counselor directory listing, Lantern's
+// saved trails and Claude connections. The roster (Member rows) belongs
+// to the unit and follows its retention policy, not this.
 //
 // Someone who is the only admin of a unit can't delete until another
 // leader is made admin, so no unit is left without anyone to run it.
@@ -87,6 +87,9 @@ export async function deleteAccount(userId: string): Promise<void> {
     await tx.feedbackVote.deleteMany({ where });
     await tx.counselorBadge.deleteMany({ where });
     await tx.journeyScout.deleteMany({ where: { ownerUserId: userId } });
+    // Claude connections: codes and tokens (lib/mcp/oauth/tokens.ts).
+    await tx.mcpAuthCode.deleteMany({ where });
+    await tx.mcpToken.deleteMany({ where });
     await tx.org.updateMany({ where: { ownerId: userId }, data: { ownerId: null } });
 
     await tx.user.update({

@@ -23,6 +23,7 @@ const NO_ORG_ROLE: Record<string, string> = {
   "account.ts updateProfile": "signed-in user's own profile",
   "account.ts changePassword": "signed-in user's own password",
   "account.ts revokeApiToken": "token row must belong to the user",
+  "account.ts revokeMcpConnection": "revokes only the signed-in user's own tokens for that app",
   "account.ts resendVerificationEmail": "signed-in user's own email",
   "account.ts confirmAdult": "signed-in user's own attestation",
   "delete-account.ts deleteMyAccount": "signed-in user's own account",
