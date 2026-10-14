@@ -1,54 +1,30 @@
-// Dashboard view-model fetcher. Mirrors the server's lib/dashboard
-// shape so the mobile home screen can rely on the same data the
-// admin dashboard renders.
+// Home screen data: GET /api/v1/orgs/<id>/dashboard.
 
 import { apiRequest, type ClientOptions } from "./client";
-
-export type DashboardStat = {
-  value: number | string;
-  hint: string;
-  /** Semantic palette key — "primary" / "accent" / "sky" / etc. */
-  color: string;
-};
 
 export type DashboardEvent = {
   id: string;
   title: string;
   startsAt: string;
-  category: string | null;
-  color: string;
-  yes: number;
-  capacity: number;
+  endsAt: string | null;
+  location: string | null;
+  signupRequired: boolean;
 };
 
-export type DashboardActivity = {
-  kind: "post" | "rsvp" | "reimbursement";
-  who: string;
-  what: string;
-  at: string;
-  color: string;
-  icon: string;
-};
-
-export type DashboardRosterMember = {
+export type DashboardPost = {
   id: string;
-  firstName: string;
-  lastName: string;
-  patrol: string | null;
+  title: string | null;
+  publishedAt: string;
 };
 
 export type DashboardModel = {
-  greeting: { day: string; phase: string };
-  stats: {
-    scouts: DashboardStat;
-    rsvps: DashboardStat;
-    treasurer: DashboardStat;
-    messages: DashboardStat;
-  };
-  events: DashboardEvent[];
-  activity: DashboardActivity[];
-  photosThisWeek: number;
-  rosterPreview: DashboardRosterMember[];
+  org: { id: string; slug: string; displayName: string };
+  /** The next five events, soonest first. */
+  upcomingEvents: DashboardEvent[];
+  /** The five latest posts, pinned first. */
+  recentPosts: DashboardPost[];
+  /** Chats with messages you haven't read. */
+  unreadChannels: number;
 };
 
 export async function fetchDashboard(
@@ -56,6 +32,14 @@ export async function fetchDashboard(
   orgId: string,
 ): Promise<DashboardModel> {
   return apiRequest<DashboardModel>(client, `/orgs/${orgId}/dashboard`);
+}
+
+/** "Good morning" etc. for the given time. */
+export function greetingFor(now: Date): { day: string; phase: string } {
+  const h = now.getHours();
+  const phase = h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening";
+  const day = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  return { day, phase };
 }
 
 export async function submitSupportTicket(

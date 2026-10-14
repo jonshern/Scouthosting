@@ -11,6 +11,7 @@ import { SendBalancesForm } from "@/components/admin/SendBalancesForm";
 import { accountBalancesReport } from "@/lib/treasury/reports";
 import { formatBalance } from "@/lib/treasury/money";
 import { Pill } from "@/components/ui";
+import { requireTreasuryPage } from "@/lib/admin/guard";
 
 export default async function TreasuryBalancesPage({
   params,
@@ -18,6 +19,7 @@ export default async function TreasuryBalancesPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireTreasuryPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const rows = await accountBalancesReport(org, { onlyNonZero: true });

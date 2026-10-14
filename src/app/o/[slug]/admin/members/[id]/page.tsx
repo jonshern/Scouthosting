@@ -7,6 +7,7 @@ import {
   isMemberTab,
   type MemberTab,
 } from "@/components/admin/MemberDetailBody";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function AdminMemberEdit({
   params,
@@ -16,6 +17,7 @@ export default async function AdminMemberEdit({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const { slug, id } = await params;
+  await requireAdminPage(slug);
   const sp = await searchParams;
   const tab: MemberTab = isMemberTab(sp.tab) ? sp.tab : "profile";
 

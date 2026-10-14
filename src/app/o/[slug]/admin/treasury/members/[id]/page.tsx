@@ -14,6 +14,7 @@ import {
   type TxType,
   SCOUT_ACCOUNTS,
 } from "@/lib/treasury/money";
+import { requireTreasuryPage } from "@/lib/admin/guard";
 
 export default async function MemberTreasuryDetail({
   params,
@@ -21,6 +22,7 @@ export default async function MemberTreasuryDetail({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
+  await requireTreasuryPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const member = await prisma.member.findUnique({

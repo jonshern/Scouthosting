@@ -1,9 +1,11 @@
 // POST /api/webhooks/stripe — Stripe-signed event. Subscription state
 // sync. Always 200 on handled / ignored events; 401 on signature
-// failure (so Stripe surfaces the misconfig).
+// failure (so Stripe surfaces the misconfig). Each event applies once
+// (applyStripeOnce); a redelivery answers { duplicate: true }.
 
 import { NextResponse, type NextRequest } from "next/server";
-import { syncFromStripeEvent, verifyStripeSignature } from "@/lib/billing/stripe";
+import { syncFromStripeEvent, verifyStripeSignature, type StripeEvent } from "@/lib/billing/stripe";
+import { applyStripeOnce, stripeKey } from "@/lib/billing/stripe-idempotency";
 import { logger } from "@/lib/log";
 
 const log = logger.child("stripe-webhook");
@@ -32,8 +34,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "bad_json" }, { status: 400 });
   }
   try {
-    const result = await syncFromStripeEvent(body as never);
-    return NextResponse.json(result);
+    const event = body as StripeEvent;
+    if (!event?.id) {
+      return NextResponse.json(await syncFromStripeEvent(event));
+    }
+    const once = await applyStripeOnce(
+      { key: stripeKey("event", event.id), eventId: event.id, eventType: event.type ?? "unknown" },
+      (tx) => syncFromStripeEvent(event, tx),
+    );
+    if (once.duplicate) return NextResponse.json({ ok: true, duplicate: true });
+    return NextResponse.json(once.result);
   } catch (err) {
     log.error("syncFromStripeEvent threw", {
       err: err instanceof Error ? err.message : String(err),

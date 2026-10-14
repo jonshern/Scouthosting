@@ -28,6 +28,9 @@ const SERVER_ENV: Record<string, string> = {
   // E2E suite predates the apex Coming Soon gate; bypass it so the
   // existing marketing tests don't have to enter an invite code.
   DISABLE_INVITE_GATE: "1",
+  // Website sign-in (account-security.spec.ts): the one site allowed to
+  // receive a token at /signed-in.
+  WEB_SIGNIN_ORIGINS: "https://waypoint.example.invalid",
   // Per-org PII encryption (lib/encryption/master-key.ts) refuses to
   // boot under NODE_ENV=production without MASTER_KEY. The seed
   // script generates fresh org DEKs against this key on each `npm

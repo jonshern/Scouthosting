@@ -13,6 +13,7 @@ import {
   BulkDuesForm,
   TransferForm,
 } from "@/components/admin/TreasuryForms";
+import { requireTreasuryPage } from "@/lib/admin/guard";
 
 export default async function TreasuryPostingPage({
   params,
@@ -20,6 +21,7 @@ export default async function TreasuryPostingPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireTreasuryPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
 

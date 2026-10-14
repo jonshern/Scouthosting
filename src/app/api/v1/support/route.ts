@@ -20,6 +20,7 @@ const Body = z.object({
   body: z.string({ required_error: "missing_fields" }).trim().min(1, "missing_fields").max(8000),
   orgId: IdSchema.optional(),
   context: z.record(z.unknown()).optional(),
+  category: z.enum(["question", "bug", "billing", "abuse", "feature", "other"]).optional(),
 });
 
 export const POST = v1Route(
@@ -50,6 +51,7 @@ export const POST = v1Route(
         subject: input.subject,
         body: input.body,
         status: "open",
+        ...(input.category ? { category: input.category } : {}),
       },
     });
     return json({ id: ticket.id });

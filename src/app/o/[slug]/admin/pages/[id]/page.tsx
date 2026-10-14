@@ -4,6 +4,7 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { CustomPageForm } from "@/components/admin/CustomPageForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function EditCustomPage({
   params,
@@ -11,6 +12,7 @@ export default async function EditCustomPage({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const page = await prisma.customPage.findUnique({ where: { id } });

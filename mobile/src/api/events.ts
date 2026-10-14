@@ -53,6 +53,20 @@ export async function fetchEvents(
   return apiRequest<EventsResponse>(client, `/orgs/${orgId}/events`, { query });
 }
 
+export type EventSlot = {
+  id: string;
+  /** "station:<id>" / "role:<id>" for slots from a Waypoint event file; null otherwise. */
+  key: string | null;
+  title: string;
+  description: string | null;
+  capacity: number;
+  allowWaitlist: boolean;
+  active: number;
+  waitlisted: number;
+  /** The caller's own seat. */
+  mine: "active" | "waitlisted" | null;
+};
+
 export type EventDetail = {
   id: string;
   title: string;
@@ -62,6 +76,7 @@ export type EventDetail = {
   allDay: boolean;
   location: string | null;
   locationAddress: string | null;
+  /** Dollars per scout. */
   cost: number | null;
   capacity: number | null;
   category: string | null;
@@ -72,15 +87,76 @@ export type EventDetail = {
   categoryColor: string | null;
   /** Foreground/ink. */
   categoryInk: string | null;
+  signupRequired: boolean;
   rsvps: { yes: number; no: number; maybe: number };
   myRsvp: { response: EventRsvp; guests: number; notes: string | null } | null;
+  slots: EventSlot[];
+  permissionSlip: { required: boolean; text: string | null };
 };
+
+/** GET /api/v1/events/<id> as the server sends it. */
+export type EventDetailWire = Omit<EventDetail, "rsvps" | "myRsvp" | "slots" | "permissionSlip" | "signupRequired"> & {
+  signupRequired?: boolean;
+  rsvpSummary: { yes: number; no: number; maybe: number; guests: number };
+  myRsvp: { id: string; response: EventRsvp; guests: number; notes?: string | null } | null;
+  slots?: EventSlot[];
+  permissionSlip?: { required: boolean; text: string | null };
+};
+
+/** Server shape to the screen's shape. */
+export function toEventDetail(w: EventDetailWire): EventDetail {
+  const { rsvpSummary, myRsvp, slots, permissionSlip, signupRequired, ...rest } = w;
+  return {
+    ...rest,
+    signupRequired: !!signupRequired,
+    rsvps: { yes: rsvpSummary?.yes ?? 0, no: rsvpSummary?.no ?? 0, maybe: rsvpSummary?.maybe ?? 0 },
+    myRsvp: myRsvp ? { response: myRsvp.response, guests: myRsvp.guests ?? 0, notes: myRsvp.notes ?? null } : null,
+    slots: slots ?? [],
+    permissionSlip: permissionSlip ?? { required: false, text: null },
+  };
+}
 
 export async function fetchEvent(
   client: ClientOptions,
   eventId: string,
 ): Promise<{ event: EventDetail }> {
-  return apiRequest(client, `/events/${eventId}`);
+  const res = await apiRequest<{ event: EventDetailWire }>(client, `/events/${eventId}`);
+  return { event: toEventDetail(res.event) };
+}
+
+/** One line on where a slot stands, from the caller's point of view. */
+export function slotStatus(s: EventSlot): string {
+  const left = Math.max(0, s.capacity - s.active);
+  if (s.mine === "active") return "You're signed up";
+  if (s.mine === "waitlisted") return "You're on the waitlist";
+  if (left > 0) return `${left} of ${s.capacity} open`;
+  return s.allowWaitlist ? `Full · ${s.waitlisted} waiting` : "Full";
+}
+
+/** Claim a sign-up slot; full slots with a waitlist put you on it. */
+export function takeSlot(
+  client: ClientOptions,
+  eventId: string,
+  slotId: string,
+): Promise<{ ok: true; waitlisted: boolean }> {
+  return apiRequest(client, `/events/${eventId}/slots/${slotId}/take`, { method: "POST", body: {} });
+}
+
+export function releaseSlot(
+  client: ClientOptions,
+  eventId: string,
+  slotId: string,
+): Promise<{ ok: true; released: boolean }> {
+  return apiRequest(client, `/events/${eventId}/slots/${slotId}/release`, { method: "POST", body: {} });
+}
+
+/** A parent signs their scout's permission slip. */
+export function signPermissionSlip(
+  client: ClientOptions,
+  eventId: string,
+  body: { memberId: string; signedByName: string; notes?: string },
+): Promise<{ slip: { memberId: string; signedByName: string; signedAt: string } }> {
+  return apiRequest(client, `/events/${eventId}/permission-slips`, { method: "POST", body });
 }
 
 /**
@@ -108,7 +184,7 @@ export async function setEventRsvp(
   eventId: string,
   response: EventRsvp,
   extras: { guests?: number; notes?: string } = {},
-): Promise<{ ok: true; response: EventRsvp; guests: number; notes: string | null }> {
+): Promise<{ rsvp: { id: string; response: EventRsvp; guests: number; notes: string | null } }> {
   return apiRequest(client, `/events/${eventId}/rsvp`, {
     method: "POST",
     body: { response, ...extras },

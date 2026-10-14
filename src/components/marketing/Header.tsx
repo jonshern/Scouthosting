@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { marketingHref } from "@/lib/tenancy/marketing-link";
 
 // Compass-rose mark — design uses ink stroke + sky-blue accent on the
 // north arrowhead. Two arrows (N + S) for visual asymmetry; E/W are dim.
@@ -52,7 +53,8 @@ function CompassMark({ size = 28 }: { size?: number }) {
   );
 }
 
-export function Header() {
+export async function Header() {
+  const href = await marketingHref();
   return (
     <header className="border-b border-line bg-white">
       <div className="mx-auto flex max-w-content items-center justify-between px-6 py-4">
@@ -69,20 +71,20 @@ export function Header() {
           aria-label="Primary"
           className="flex items-center gap-6 text-[13px] tracking-[0.02em] text-slate-soft"
         >
-          <Link href="/plans" className="hover:text-ink">
+          <Link href={href("/plans")} className="hover:text-ink">
             Pricing
           </Link>
-          <Link href="/security" className="hover:text-ink">
+          <Link href={href("/security")} className="hover:text-ink">
             Security
           </Link>
-          <Link href="/positioning" className="hover:text-ink hidden md:inline">
+          <Link href={href("/positioning")} className="hover:text-ink hidden md:inline">
             Why Compass
           </Link>
           <Link href="/login" className="hover:text-ink">
             Sign in
           </Link>
           <Link
-            href="/signup"
+            href="/start"
             className="inline-flex items-center justify-center rounded-full bg-sky text-white px-4 py-2 text-[13px] font-semibold hover:bg-ink transition-colors"
           >
             Start a trial

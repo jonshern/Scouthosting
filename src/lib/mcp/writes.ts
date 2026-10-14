@@ -118,12 +118,13 @@ async function setLanternCheck(user: McpUser, scout: AccessibleScout, key: strin
 }
 
 
+/** Leaving out guests or notes keeps what's already on the RSVP. */
 export async function rsvpForEvent(
   user: McpUser,
   event: { id: string; orgId: string },
   response: "yes" | "no" | "maybe",
-  guests: number,
-  notes: string | null,
+  guests: number | undefined,
+  notes: string | undefined,
 ) {
   await requireOrgAccessForResource(event.orgId, user.id, { write: true });
   return submitOwnRsvp(user, event, { response, guests, notes });

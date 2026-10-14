@@ -419,7 +419,7 @@ export function buildMcpServer(ctx: Ctx): McpServer {
         if (confirm !== true) {
           return text(`Not saved yet. Ask the person: ${what}? If they say yes, call rsvp_event again with confirm: true.`, { preview: true, event: row.id, response });
         }
-        const r = await rsvpForEvent(ctx.user, row, response, guests ?? 0, notes ?? null);
+        const r = await rsvpForEvent(ctx.user, row, response, guests, notes);
         log.info("rsvp via connector", { userId: ctx.user.id, eventId: row.id, response });
         return text(`Saved: ${what}.`, { saved: true, event: row.id, response: r.response, guests: r.guests });
       }),

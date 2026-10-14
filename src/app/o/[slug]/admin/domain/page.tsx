@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth/session";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { setCustomDomain, clearCustomDomain } from "@/server-actions/domain";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function CustomDomainPage({
   params,
@@ -15,6 +16,7 @@ export default async function CustomDomainPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const { user } = await getSession();
   if (!user) redirect(`/login?next=/o/${slug}/admin/domain`);
   const org = await prisma.org.findUnique({ where: { slug } });

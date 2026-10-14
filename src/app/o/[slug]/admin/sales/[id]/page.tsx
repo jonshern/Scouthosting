@@ -25,6 +25,7 @@ import {
   reachedPrizeTiers,
   summarizeCampaign,
 } from "@/lib/sales";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function CampaignDetailPage({
   params,
@@ -32,6 +33,7 @@ export default async function CampaignDetailPage({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const campaign = await prisma.salesCampaign.findUnique({

@@ -9,6 +9,7 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 import { PatrolForm } from "@/components/admin/PatrolForms";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function PatrolsAdmin({
   params,
@@ -16,6 +17,7 @@ export default async function PatrolsAdmin({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
 

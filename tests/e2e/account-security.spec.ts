@@ -226,6 +226,46 @@ test.describe("phone app sign-in", () => {
   });
 });
 
+test.describe("website sign-in", () => {
+  // playwright.config.ts lists this origin in WEB_SIGNIN_ORIGINS.
+  const SITE = "https://waypoint.example.invalid";
+
+  test("only a listed site's /signed-in page gets a token, after #", async ({ browser }) => {
+    test.setTimeout(90_000);
+    const { ctx, page } = await freshPage(browser);
+    await signUp(page, "Web Parent", `web-${uid()}@example.invalid`, USER_PASSWORD, APEX);
+
+    for (const bad of [`${SITE}/other`, `${SITE}/signed-in/x`, "https://attacker.example.invalid/signed-in", `http://waypoint.example.invalid/signed-in`]) {
+      const res = await page.request.get(`${APEX}/auth/mobile/begin?redirect=${encodeURIComponent(bad)}`, {
+        maxRedirects: 0,
+      });
+      expect(res.status(), bad).toBe(400);
+    }
+
+    const callback = `${SITE}/signed-in`;
+    await page.goto(`${APEX}/auth/mobile/confirm?redirect=${encodeURIComponent(callback)}`);
+    const [resp] = await Promise.all([
+      page.waitForResponse((r) => r.request().method() === "POST" && r.url().endsWith("/auth/mobile/begin")),
+      page.getByRole("button", { name: "Continue" }).click(),
+    ]);
+    expect(resp.status()).toBe(303);
+    const location = new URL(resp.headers().location);
+    expect(`${location.origin}${location.pathname}`).toBe(callback);
+    // Nothing in the query string, which the site's server would log.
+    expect(location.search).toBe("");
+    const values = new URLSearchParams(location.hash.slice(1));
+    const token = values.get("token") ?? "";
+    expect(token).toMatch(/^compass_pat_/);
+    expect(values.get("displayName")).toBe("Web Parent");
+
+    // The browser is off to the (unreachable) site; check the token from a new tab.
+    const api = await ctx.newPage();
+    await api.goto(`${APEX}/login`);
+    expect((await bearerFetch(api, "/api/v1/auth/me", token)).status).toBe(200);
+    await ctx.close();
+  });
+});
+
 test.describe("API tokens and password change", () => {
   test("tokens expire in 90 days and can be revoked", async ({ browser }) => {
     const { ctx, page } = await freshPage(browser);

@@ -26,7 +26,10 @@ const NO_ORG_ROLE: Record<string, string> = {
   "account.ts revokeMcpConnection": "revokes only the signed-in user's own tokens for that app",
   "account.ts resendVerificationEmail": "signed-in user's own email",
   "account.ts confirmAdult": "signed-in user's own attestation",
+  "delete-account.ts deleteMyAccount": "signed-in user's own account",
   "auth.ts signupAction": "public sign-up",
+  "billing.ts startSubscriptionAction": "canManageBilling (lib/billing/access.ts): owner, admin or super-admin",
+  "billing.ts openBillingPortalAction": "canManageBilling (lib/billing/access.ts): owner, admin or super-admin",
   "auth.ts loginAction": "public sign-in",
   "auth.ts hasPendingMfaChallenge": "reads the caller's own MFA cookie",
   "auth.ts completeMfaLoginAction": "second step of the caller's own sign-in",
@@ -47,6 +50,7 @@ const NO_ORG_ROLE: Record<string, string> = {
   "rsvp.ts submitRsvp": "public RSVP on the unit's calendar",
   "slots.ts takeSlot": "public sign-up slots, login optional",
   "slots.ts releaseSlotAssignment": "only the user who claimed the slot",
+  "start-trial.ts startTrialAction": "creates a new unit with the signed-in adult as its admin",
 };
 
 type Fn = { exported: boolean; body: string };

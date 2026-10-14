@@ -9,6 +9,7 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { FiscalYearForm } from "@/components/admin/FiscalYearForms";
 import { Pill } from "@/components/ui";
+import { requireTreasuryPage } from "@/lib/admin/guard";
 
 export default async function FiscalYearsAdmin({
   params,
@@ -16,6 +17,7 @@ export default async function FiscalYearsAdmin({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireTreasuryPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const fys = await prisma.fiscalYear.findMany({

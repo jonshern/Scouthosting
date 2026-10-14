@@ -13,6 +13,7 @@ import {
 } from "@/lib/treasury/reports";
 import { centsToDollars, formatBalance } from "@/lib/treasury/money";
 import { Pill, PrintButton } from "@/components/ui";
+import { requireTreasuryPage } from "@/lib/admin/guard";
 
 export default async function TreasuryReports({
   params,
@@ -22,6 +23,7 @@ export default async function TreasuryReports({
   searchParams: Promise<{ fy?: string }>;
 }) {
   const { slug } = await params;
+  await requireTreasuryPage(slug);
   const sp = await searchParams;
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();

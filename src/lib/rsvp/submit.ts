@@ -11,14 +11,19 @@ import { memberForUserInOrg, settleEventChargeForRsvp } from "@/lib/treasury/eve
 import { reconcileEventChannels } from "@/lib/chat";
 import { assertRsvpFits } from "@/lib/rsvp/capacity";
 
-export type RsvpInput = { response: "yes" | "no" | "maybe"; guests: number; notes: string | null };
+/** Leaving out guests or notes keeps what's already on the RSVP. */
+export type RsvpInput = { response: "yes" | "no" | "maybe"; guests?: number; notes?: string | null };
 
 export async function submitOwnRsvp(
   user: { id: string; email: string; displayName: string },
   event: { id: string; orgId: string },
   input: RsvpInput,
 ) {
-  const data = { response: input.response, guests: input.guests, notes: input.notes || null };
+  const data = {
+    response: input.response,
+    ...(input.guests !== undefined ? { guests: input.guests } : {}),
+    ...(input.notes !== undefined ? { notes: input.notes || null } : {}),
+  };
 
   // The roster entry this user is, so a paid event charges the same
   // family account as an RSVP on the website does.
@@ -33,7 +38,7 @@ export async function submitOwnRsvp(
       const existing =
         (await tx.rsvp.findUnique({
           where: { eventId_userId: { eventId: event.id, userId: user.id } },
-          select: { id: true, memberId: true },
+          select: { id: true, memberId: true, guests: true },
         })) ??
         (await tx.rsvp.findFirst({
           where: {
@@ -41,13 +46,13 @@ export async function submitOwnRsvp(
             email: { equals: user.email, mode: "insensitive" },
             userId: null,
           },
-          select: { id: true, memberId: true },
+          select: { id: true, memberId: true, guests: true },
         }));
       await assertRsvpFits(tx, {
         eventId: event.id,
         existingId: existing?.id ?? null,
         response: input.response,
-        guests: input.guests,
+        guests: input.guests ?? existing?.guests ?? 0,
       });
       if (existing) {
         return tx.rsvp.update({
@@ -63,6 +68,7 @@ export async function submitOwnRsvp(
           memberId,
           name: user.displayName,
           email: user.email,
+          guests: 0,
           ...data,
         },
       });

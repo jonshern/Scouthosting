@@ -119,7 +119,7 @@ Rate limits: register 20/hour per IP, token and revoke 60/minute per IP,
 
 ## Runbook
 
-**Disconnect one app:** the adult opens `/account/api-tokens` (linked
+**Disconnect one app:** (deleting the account also removes every connection) the adult opens `/account/api-tokens` (linked
 from their profile page) and taps Disconnect under Claude connections. Changing the password disconnects every app.
 
 **Disconnect everyone from one app** (for example, a leaked client):

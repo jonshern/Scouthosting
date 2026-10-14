@@ -18,6 +18,7 @@ import {
   ReturnForm,
 } from "@/components/admin/EquipmentForms";
 import { Pill, Stat, StatRow } from "@/components/ui";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function EquipmentPage({
   params,
@@ -25,6 +26,7 @@ export default async function EquipmentPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
 

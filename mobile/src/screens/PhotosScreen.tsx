@@ -10,7 +10,6 @@ import {
   ActivityIndicator,
   Alert,
   Image,
-  Linking,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -21,16 +20,10 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useAuth } from "../state/AuthContext";
+import { uploadSource } from "../api/config";
 import { fetchAlbums, uploadPhotoToAlbum, type AlbumPreview } from "../api/photos";
 import { fontFamilies, palette, radius, spacing } from "../theme/tokens";
 
-function uploadsUrl(orgSlug: string, filename: string): string {
-  return `https://${orgSlug}.compass.app/uploads/${encodeURIComponent(filename)}`;
-}
-
-function albumPath(orgSlug: string, albumId: string): string {
-  return `https://${orgSlug}.compass.app/photos/${albumId}`;
-}
 
 export default function PhotosScreen() {
   const auth = useAuth();
@@ -114,7 +107,9 @@ export default function PhotosScreen() {
     [auth.session, load],
   );
 
-  const orgSlug = auth.session?.orgSlug || "";
+  const token = auth.session?.token || null;
+  // The server lets leaders and admins add photos (LEADER_ROLES).
+  const canUpload = auth.session?.role === "leader" || auth.session?.role === "admin";
 
   return (
     <SafeAreaView style={styles.safe} edges={["top"]}>
@@ -156,6 +151,7 @@ export default function PhotosScreen() {
                     {a.visibility === "members" ? " · members only" : ""}
                   </Text>
                 </View>
+                {canUpload && (
                 <Pressable
                   style={({ pressed }) => [styles.uploadBtn, pressed && { opacity: 0.85 }]}
                   onPress={() => onUpload(a.id)}
@@ -167,6 +163,7 @@ export default function PhotosScreen() {
                     <Text style={styles.uploadBtnText}>+ Upload</Text>
                   )}
                 </Pressable>
+                )}
               </View>
               <View style={styles.grid}>
                 {a.preview.length === 0 ? (
@@ -177,19 +174,9 @@ export default function PhotosScreen() {
                     const remaining = a.totalPhotos - a.preview.length;
                     const showOverlay = isLast && remaining > 0;
                     return (
-                      <Pressable
-                        key={p.id}
-                        onPress={() => {
-                          if (showOverlay) {
-                            Linking.openURL(albumPath(orgSlug, a.id));
-                          } else {
-                            Linking.openURL(uploadsUrl(orgSlug, p.filename));
-                          }
-                        }}
-                        style={styles.tile}
-                      >
+                      <View key={p.id} style={styles.tile}>
                         <Image
-                          source={{ uri: uploadsUrl(orgSlug, p.filename) }}
+                          source={uploadSource(p.filename, token)}
                           style={StyleSheet.absoluteFill}
                           resizeMode="cover"
                         />
@@ -198,7 +185,7 @@ export default function PhotosScreen() {
                             <Text style={styles.moreText}>+{remaining}</Text>
                           </View>
                         )}
-                      </Pressable>
+                      </View>
                     );
                   })
                 )}

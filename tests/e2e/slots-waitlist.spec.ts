@@ -1,8 +1,9 @@
 // Sign-up slots: capacity, waitlist and no overbooking, driven through
 // the public calendar by separate signed-out visitors.
 //
-// Slots are created in the DB (helpers/db.ts#createSlot) because the
-// app has no slot-management screen.
+// Most slots are created in the DB (helpers/db.ts#createSlot) to keep
+// the specs fast; the no-waitlist test adds its slot through the event's
+// admin page.
 
 import {
   expect,
@@ -107,7 +108,16 @@ test.describe("sign-up slots", () => {
       startsAt: soon(),
     });
     const slotTitle = `Snacks ${uid()}`;
-    await createSlot({ eventId, title: slotTitle, capacity: 1, allowWaitlist: false });
+    // Added by hand on the event's admin page.
+    await page.goto(`${TENANT}/admin/events/${eventId}`);
+    await page.getByRole("link", { name: /sign-up slots/i }).click();
+    await page.getByLabel("Slot", { exact: true }).fill(slotTitle);
+    await page.getByLabel("Spots").fill("1");
+    await page.getByLabel("Start a waitlist when it fills").uncheck();
+    await page.getByRole("button", { name: "Add slot" }).click();
+    await expect(page.getByText(`Added “${slotTitle}”.`)).toBeVisible();
+    await expect(page.locator("#slots table")).toContainText(slotTitle);
+    await expect(page.locator("#slots table tr").filter({ hasText: slotTitle })).toContainText("0 / 1");
 
     // Two visitors open the calendar while the seat is still free...
     const first = await freshPage(browser);
@@ -123,12 +133,12 @@ test.describe("sign-up slots", () => {
       await form.locator('button[type="submit"]').click();
       return form;
     };
-    // ...the first takes it; the second, with a stale page, is refused.
-    // (The first visitor's form re-renders as "This slot is full." once
-    // their own claim fills the slot, so the seat is checked on the
-    // refreshed card rather than via a confirmation message.)
+    // ...the first takes it and is told so (not "full"); the second,
+    // with a stale page, is refused.
     await fill(first.page, "Dee");
     await expect(slotItem(first.page, eventId, slotTitle)).toContainText("1 / 1 filled");
+    await expect(slotItem(first.page, eventId, slotTitle)).toContainText("Signed up — thanks!");
+    await expect(slotItem(first.page, eventId, slotTitle)).not.toContainText("This slot is full.");
     const f2 = await fill(second.page, "Eli");
     await expect(f2.getByRole("alert")).toHaveText("This slot is full.");
     await first.ctx.close();

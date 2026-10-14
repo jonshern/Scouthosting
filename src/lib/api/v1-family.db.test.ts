@@ -21,6 +21,12 @@ import * as messageReactions from "@/app/api/v1/messages/[id]/reactions/route";
 import * as myScouts from "@/app/api/v1/me/scouts/route";
 import * as event from "@/app/api/v1/events/[id]/route";
 import * as slips from "@/app/api/v1/events/[id]/permission-slips/route";
+import * as channels from "@/app/api/v1/channels/route";
+import * as orgEvents from "@/app/api/v1/orgs/[slug]/events/route";
+import * as rsvp from "@/app/api/v1/events/[id]/rsvp/route";
+import * as orgPosts from "@/app/api/v1/orgs/[slug]/posts/route";
+import * as postReactions from "@/app/api/v1/posts/[id]/reactions/route";
+import * as support from "@/app/api/v1/support/route";
 
 const db = !!process.env.TEST_DATABASE_URL;
 const S = `fam${Date.now().toString(36)}${process.pid}`;
@@ -144,6 +150,7 @@ describe.skipIf(!db)("/api/v1 family routes (Postgres)", () => {
   });
 
   afterAll(async () => {
+    await prisma.supportTicket.deleteMany({ where: { userId: { in: [f.parent?.id].filter(Boolean) } } });
     const users = [f.parent, f.otherParent, f.unverified, f.outsider].filter(Boolean).map((u) => u.id);
     await prisma.org.deleteMany({ where: { id: { in: [f.org?.id, f.otherOrg?.id].filter(Boolean) } } });
     await prisma.user.deleteMany({ where: { id: { in: users } } });
@@ -279,6 +286,73 @@ describe.skipIf(!db)("/api/v1 family routes (Postgres)", () => {
         body: { memberId: f.scoutMember, signedByName: "  " },
       });
       expect(r.status).toBe(400);
+    });
+  });
+
+  describe("what the app's screens read", () => {
+    it("calendar events carry category, counts and my RSVP", async () => {
+      await prisma.eventCategory.deleteMany({ where: { orgId: f.org.id } });
+      await prisma.event.update({ where: { id: f.slipEvent }, data: { category: "campout", capacity: 12, cost: 25 } });
+      await call(rsvp.POST, { token: f.parent.token, params: { id: f.slipEvent }, body: { response: "yes" } });
+      const r = await call(orgEvents.GET, { token: f.parent.token, params: { slug: f.org.id } });
+      const trip = r.json.events.find((e: { id: string }) => e.id === f.slipEvent);
+      expect(trip).toMatchObject({
+        categoryLabel: expect.any(String),
+        color: expect.any(String),
+        capacity: 12,
+        costCents: 2500,
+        rsvpYesCount: 1,
+        rsvpTotalCount: 1,
+        myRsvp: "yes",
+      });
+      const detail = await call(event.GET, { token: f.parent.token, params: { id: f.slipEvent } });
+      expect(detail.json.event).toMatchObject({ cost: 25, capacity: 12, categoryLabel: trip.categoryLabel });
+    });
+
+    it("an RSVP that leaves out guests and notes keeps them", async () => {
+      await call(rsvp.POST, { token: f.parent.token, params: { id: f.plainEvent }, body: { response: "yes", guests: 2, notes: "Bringing snacks" } });
+      const r = await call(rsvp.POST, { token: f.parent.token, params: { id: f.plainEvent }, body: { response: "maybe" } });
+      expect(r.json.rsvp).toMatchObject({ response: "maybe", guests: 2, notes: "Bringing snacks" });
+      const detail = await call(event.GET, { token: f.parent.token, params: { id: f.plainEvent } });
+      expect(detail.json.event.myRsvp).toMatchObject({ response: "maybe", guests: 2, notes: "Bringing snacks" });
+    });
+
+    it("posts carry author, photos and reaction counts; a reaction returns the new counts", async () => {
+      const post = await prisma.post.create({
+        data: { orgId: f.org.id, authorId: f.otherParent.id, title: `Post ${S}`, body: "Hello", visibility: "members" },
+      });
+      const liked = await call(postReactions.POST, { token: f.parent.token, params: { id: post.id }, body: { kind: "like" } });
+      expect(liked.json).toMatchObject({ postId: post.id, likes: 1, youLiked: true, bookmarks: 0 });
+      const r = await call(orgPosts.GET, { token: f.parent.token, params: { slug: f.org.id } });
+      const p = r.json.posts.find((x: { id: string }) => x.id === post.id);
+      expect(p.author).toMatchObject({ displayName: `otherparent ${S}` });
+      expect(p.photos).toEqual([]);
+      expect(p.reactions).toEqual({ likes: 1, bookmarks: 0, youLiked: true, youBookmarked: false });
+    });
+
+    it("DM channels name the other person", async () => {
+      await prisma.channelMember.create({ data: { channelId: f.dm, userId: f.parent.id } });
+      try {
+        const r = await call(channels.GET, { token: f.parent.token });
+        const dm = r.json.channels.find((c: { id: string }) => c.id === f.dm);
+        expect(dm).toMatchObject({ kind: "dm", dmCounterpartyName: `otherparent ${S}`, dmCounterpartyUserId: f.otherParent.id });
+        const troop = r.json.channels.find((c: { id: string }) => c.id === f.channel);
+        expect(troop.dmCounterpartyName).toBeNull();
+        const detail = await call(channel.GET, { token: f.parent.token, params: { id: f.dm } });
+        expect(detail.json.channel.dmCounterpartyName).toBe(`otherparent ${S}`);
+      } finally {
+        await prisma.channelMember.deleteMany({ where: { channelId: f.dm, userId: f.parent.id } });
+      }
+    });
+
+    it("a support ticket keeps the category the app picked", async () => {
+      const r = await call(support.POST, {
+        token: f.parent.token,
+        body: { subject: "Broken", body: "The calendar is empty", category: "bug", orgId: f.org.id },
+      });
+      expect(r.status).toBe(200);
+      const t = await prisma.supportTicket.findUniqueOrThrow({ where: { id: r.json.id } });
+      expect(t.category).toBe("bug");
     });
   });
 });

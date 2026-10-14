@@ -25,6 +25,7 @@ import {
   type FeedPost,
   type PostReactionSummary,
 } from "../api/posts";
+import { uploadSource } from "../api/config";
 import { fontFamilies, palette, radius, spacing } from "../theme/tokens";
 
 type PostKind = "photo" | "event" | "achievement" | "news" | "poll" | "milestone" | "reminder";
@@ -46,9 +47,6 @@ const KIND_META: Record<PostKind, { label: string; color: string }> = {
   reminder: { label: "Reminder", color: palette.ember },
 };
 
-function uploadsUrl(orgSlug: string, filename: string): string {
-  return `https://${orgSlug}.compass.app/uploads/${encodeURIComponent(filename)}`;
-}
 
 // Best-effort post-kind classification from the FeedPost shape (the
 // server doesn't ship a kind column yet, so we infer from photos +
@@ -232,7 +230,7 @@ export default function ActivityScreen() {
                 key={p.id}
                 post={p}
                 kind={classify(p)}
-                orgSlug={auth.session?.orgSlug || ""}
+                token={auth.session?.token || null}
                 onToggle={onToggle}
               />
             ))}
@@ -247,12 +245,12 @@ export default function ActivityScreen() {
 function PostCard({
   post,
   kind,
-  orgSlug,
+  token,
   onToggle,
 }: {
   post: FeedPost;
   kind: PostKind;
-  orgSlug: string;
+  token: string | null;
   onToggle: (post: FeedPost, kind: "like" | "bookmark") => void;
 }) {
   const meta = KIND_META[kind];
@@ -288,7 +286,7 @@ function PostCard({
 
       {post.photos.length > 0 ? (
         <PhotoCollage
-          photos={post.photos.map((ph) => uploadsUrl(orgSlug, ph.filename))}
+          photos={post.photos.map((ph) => uploadSource(ph.filename, token))}
         />
       ) : null}
 
@@ -342,14 +340,14 @@ function PostCard({
 
 // 1 photo: full bleed; 2: side-by-side; 3+: 1 large + 2 stacked, with
 // a "+N" overlay on the fourth tile.
-function PhotoCollage({ photos }: { photos: string[] }) {
+function PhotoCollage({ photos }: { photos: ReturnType<typeof uploadSource>[] }) {
   const tiles = photos.slice(0, 4);
   const more = Math.max(0, photos.length - 4);
   if (tiles.length === 0) return null;
   if (tiles.length === 1) {
     return (
       <View style={styles.collageWrap}>
-        <Image source={{ uri: tiles[0]! }} style={[styles.collageHero, { aspectRatio: 4 / 3 }]} resizeMode="cover" />
+        <Image source={tiles[0]!} style={[styles.collageHero, { aspectRatio: 4 / 3 }]} resizeMode="cover" />
       </View>
     );
   }
@@ -357,7 +355,7 @@ function PhotoCollage({ photos }: { photos: string[] }) {
     return (
       <View style={[styles.collageWrap, styles.collageRow]}>
         {tiles.map((u, i) => (
-          <Image key={i} source={{ uri: u }} style={styles.collageHalf} resizeMode="cover" />
+          <Image key={i} source={u} style={styles.collageHalf} resizeMode="cover" />
         ))}
       </View>
     );
@@ -365,11 +363,11 @@ function PhotoCollage({ photos }: { photos: string[] }) {
   // 3 or 4 tiles — left big, right column with two smaller tiles.
   return (
     <View style={[styles.collageWrap, styles.collageRow]}>
-      <Image source={{ uri: tiles[0]! }} style={styles.collageBig} resizeMode="cover" />
+      <Image source={tiles[0]!} style={styles.collageBig} resizeMode="cover" />
       <View style={styles.collageColumn}>
-        <Image source={{ uri: tiles[1]! }} style={styles.collageStacked} resizeMode="cover" />
+        <Image source={tiles[1]!} style={styles.collageStacked} resizeMode="cover" />
         <View style={{ position: "relative", flex: 1 }}>
-          <Image source={{ uri: tiles[2] || tiles[1]! }} style={styles.collageStacked} resizeMode="cover" />
+          <Image source={tiles[2] || tiles[1]!} style={styles.collageStacked} resizeMode="cover" />
           {more > 0 ? (
             <View style={styles.collageMore}>
               <Text style={styles.collageMoreText}>+{more}</Text>

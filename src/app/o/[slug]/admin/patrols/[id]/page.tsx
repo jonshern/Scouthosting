@@ -9,6 +9,7 @@ import {
   PatrolForm,
   DeletePatrolButton,
 } from "@/components/admin/PatrolForms";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function PatrolDetail({
   params,
@@ -16,6 +17,7 @@ export default async function PatrolDetail({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const patrol = await prisma.patrol.findUnique({

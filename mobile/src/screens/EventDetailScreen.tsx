@@ -6,7 +6,7 @@
 // trio (Going · N / Maybe · N / Can't · N) where the user's current
 // pick is filled. Data flow + optimistic update logic unchanged.
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -31,6 +31,8 @@ import {
   type EventRsvp,
 } from "../api/events";
 import type { HomeStackParamList } from "../navigation/types";
+import { SlotsSection } from "../components/SlotsSection";
+import { PermissionSlipSection } from "../components/PermissionSlipSection";
 
 type Route = RouteProp<HomeStackParamList, "EventDetail">;
 type Nav = NativeStackNavigationProp<HomeStackParamList, "EventDetail">;
@@ -99,6 +101,9 @@ export default function EventDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState<EventRsvp | null>(null);
+  const orgSlug = auth.session?.orgSlug;
+  const token = auth.session?.token;
+  const client = useMemo(() => (orgSlug && token ? { orgSlug, token } : null), [orgSlug, token]);
 
   const load = useCallback(async () => {
     if (!auth.session || !eventId) return;
@@ -318,6 +323,24 @@ export default function EventDetailScreen() {
             {event.rsvps.yes} going · {event.rsvps.maybe} maybe · {event.rsvps.no} can't make it
           </Text>
         </View>
+
+        {client ? (
+        <SlotsSection
+          client={client}
+          eventId={event.id}
+          slots={event.slots}
+          onChanged={load}
+        />
+        ) : null}
+
+        {client && auth.session && event.permissionSlip.required && event.permissionSlip.text ? (
+          <PermissionSlipSection
+            client={client}
+            orgId={auth.session.orgId}
+            eventId={event.id}
+            text={event.permissionSlip.text}
+          />
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );

@@ -9,6 +9,7 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { LocationForm } from "@/components/admin/LocationForms";
 import { Pill, Stat, StatRow } from "@/components/ui";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function LocationsAdmin({
   params,
@@ -18,6 +19,7 @@ export default async function LocationsAdmin({
   searchParams: Promise<{ type?: string; archived?: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const sp = await searchParams;
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
