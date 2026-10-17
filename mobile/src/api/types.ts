@@ -1,7 +1,13 @@
 // Server response shapes — mirror server/api.js' serializers. Keep these
 // in sync as the API evolves.
 
-export type ChannelKind = "patrol" | "troop" | "parents" | "leaders" | "event" | "custom";
+export type ChannelKind = "patrol" | "troop" | "parents" | "leaders" | "event" | "custom" | "dm" | "broadcast";
+
+/** What to call a channel: the other person's name for a DM, not its internal "dm:…" name. */
+export function channelTitle(c: { kind: string; name: string; dmCounterpartyName?: string | null }): string {
+  if (c.kind === "dm") return c.dmCounterpartyName || "Direct message";
+  return c.name;
+}
 
 export type ChannelDto = {
   id: string;

@@ -2,11 +2,11 @@
 // network. We inject a fetch mock + an in-memory storage so the auth
 // flow can be exercised against synthetic responses.
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { ApiError, apiRequest } from '../src/api/client';
-import { hostForOrg, APEX_DOMAIN } from '../src/api/config';
+import { apexBaseUrl, APEX_DOMAIN, BUILT_IN_SERVER, hostForOrg, serverAddress, setServerAddress } from '../src/api/config';
 import { listChannels, getChannel, sendMessage } from '../src/api/channels';
-import { parseCallback, persistSignIn } from '../src/api/auth';
+import { deleteAccount, parseCallback, persistSignIn, signOut } from '../src/api/auth';
 import { createMemoryStorage } from '../src/api/storage';
 import type { ChannelsListResponse, ChannelDetailResponse, MeDto } from '../src/api/types';
 
@@ -39,17 +39,90 @@ const opts = (over: Partial<Parameters<typeof apiRequest>[0]> = {}) => ({
 /* hostForOrg                                                          */
 /* ------------------------------------------------------------------ */
 
-describe('hostForOrg', () => {
-  it('builds <slug>.<apex> in the absence of a baseUrl override', () => {
-    expect(hostForOrg('troop12', { baseUrl: undefined })).toBe(`https://troop12.${APEX_DOMAIN}`);
+describe('server address', () => {
+  afterEach(() => setServerAddress(null));
+
+  it('defaults to https://<apex> when the build sets no address', () => {
+    expect(BUILT_IN_SERVER).toBe(`https://${APEX_DOMAIN}`);
+    expect(hostForOrg('troop12')).toBe(`https://${APEX_DOMAIN}`);
   });
 
-  it('uses the override when provided (dev / staging)', () => {
-    expect(hostForOrg('troop12', { baseUrl: 'http://localhost:3000' })).toBe('http://localhost:3000');
+  it('sends every org to the one server, since /api/v1 is host-agnostic', () => {
+    setServerAddress('https://jons-mac.tail1234.ts.net');
+    expect(hostForOrg('troop12')).toBe('https://jons-mac.tail1234.ts.net');
+    expect(hostForOrg('pack7')).toBe('https://jons-mac.tail1234.ts.net');
+    expect(apexBaseUrl()).toBe('https://jons-mac.tail1234.ts.net');
+    expect(serverAddress()).toBe('https://jons-mac.tail1234.ts.net');
   });
 
-  it('strips a trailing slash from the override', () => {
+  it('goes back to the built-in address on null or junk', () => {
+    setServerAddress('https://x.ts.net');
+    setServerAddress(null);
+    expect(serverAddress()).toBe(BUILT_IN_SERVER);
+    setServerAddress('not a url at all ::');
+    expect(serverAddress()).toBe(BUILT_IN_SERVER);
+  });
+
+  it('uses an explicit baseUrl override and strips its trailing slash', () => {
     expect(hostForOrg('troop12', { baseUrl: 'http://localhost:3000/' })).toBe('http://localhost:3000');
+  });
+
+  it('requests go to the current server', async () => {
+    setServerAddress('https://jons-mac.tail1234.ts.net');
+    const { fn, calls } = makeFetch(() => ({ body: {} }));
+    await apiRequest(opts({ fetchImpl: fn }), '/auth/me');
+    expect(calls[0]!.url).toBe('https://jons-mac.tail1234.ts.net/api/v1/auth/me');
+  });
+});
+
+describe('signOut', () => {
+  it('revokes the token that calls it, then forgets it locally', async () => {
+    const storage = createMemoryStorage();
+    await storage.setToken('compass_pat_test');
+    const { fn, calls } = makeFetch(() => ({ body: { ok: true } }));
+    await signOut(opts({ fetchImpl: fn, config: { baseUrl: 'http://localhost:3000' } }), storage);
+    expect(calls[0]!.url).toBe('http://localhost:3000/api/v1/auth/token/current');
+    expect(calls[0]!.init.method).toBe('DELETE');
+    expect(await storage.getToken()).toBeNull();
+  });
+
+  it('still forgets the token when the server is unreachable', async () => {
+    const storage = createMemoryStorage();
+    await storage.setToken('compass_pat_test');
+    const fn = (async () => { throw new TypeError('Network request failed'); }) as unknown as typeof fetch;
+    await signOut(opts({ fetchImpl: fn }), storage);
+    expect(await storage.getToken()).toBeNull();
+  });
+});
+
+describe('deleteAccount', () => {
+  const at = { baseUrl: 'http://localhost:3000' };
+
+  it('sends the typed email and forgets the sign-in once the account is gone', async () => {
+    const storage = createMemoryStorage();
+    await storage.setToken('compass_pat_test');
+    const { fn, calls } = makeFetch(() => ({ body: { ok: true } }));
+    expect(await deleteAccount(opts({ fetchImpl: fn, config: at }), 'pat@example.com', storage)).toBeNull();
+    expect(calls[0]!.url).toBe('http://localhost:3000/api/v1/me');
+    expect(calls[0]!.init.method).toBe('DELETE');
+    expect(JSON.parse(String(calls[0]!.init.body))).toEqual({ confirm: 'pat@example.com' });
+    expect(await storage.getToken()).toBeNull();
+  });
+
+  it('returns why it can\'t be deleted yet and stays signed in', async () => {
+    const storage = createMemoryStorage();
+    await storage.setToken('compass_pat_test');
+    const { fn } = makeFetch(() => ({
+      status: 409,
+      body: {
+        error: 'account_deletion_blocked',
+        blockers: [{ kind: 'only_admin', orgName: 'Troop 12', message: "You're the only admin of Troop 12." }],
+      },
+    }));
+    expect(await deleteAccount(opts({ fetchImpl: fn, config: at }), 'pat@example.com', storage)).toEqual([
+      "You're the only admin of Troop 12.",
+    ]);
+    expect(await storage.getToken()).toBe('compass_pat_test');
   });
 });
 

@@ -19,5 +19,7 @@ export async function confirmLinkRsvp(formData: FormData) {
     response,
     guests: parseLinkGuests(formData.get("guests")),
   });
-  redirect(res.ok ? `${path}?done=${response}` : path);
+  if (res.ok) redirect(`${path}?done=${response}`);
+  if (res.reason === "full") redirect(`${path}?full=${res.spotsLeft}`);
+  redirect(path);
 }

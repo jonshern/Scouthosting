@@ -18,7 +18,9 @@ export function SlotSignupForm({ orgSlug, slotId, signedIn, csrf, full, allowWai
     null,
   );
 
-  if (full && !allowWaitlist) {
+  // Taking the last seat re-renders this with full=true; keep the
+  // success message instead of replacing it with "full".
+  if (full && !allowWaitlist && !state?.ok) {
     return <p className="mt-2 text-xs text-ink-muted">This slot is full.</p>;
   }
 

@@ -8,6 +8,7 @@ import { prisma } from "@/lib/db";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { AuditTable } from "@/components/admin/AuditTable";
 import { listAuditLogs, entityTypeOptions } from "@/lib/audit-query";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 type Search = { entity?: string; action?: string; q?: string; before?: string };
 
@@ -19,6 +20,7 @@ export default async function OrgAuditPage({
   searchParams: Promise<Search>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const sp = await searchParams;
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();

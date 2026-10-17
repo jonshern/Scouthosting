@@ -74,6 +74,18 @@ export default async function ProfilePage({
           </button>
         </form>
       )}
+      <p className="mt-10 text-sm">
+        <a href="/account/delete" className="text-red-700 underline">
+          Delete my account
+        </a>
+      </p>
+      <p className="mt-4 text-sm text-slate-muted">
+        Signed-in phones and apps, and Claude:{" "}
+        <a href="/account/api-tokens" className="underline">
+          API tokens and Claude connections
+        </a>
+        .
+      </p>
     </main>
   );
 }

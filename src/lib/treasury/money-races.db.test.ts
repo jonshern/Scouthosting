@@ -10,7 +10,7 @@ import { provisionTreasury } from "./provision";
 import { postTransaction, reverseTransaction } from "./posting";
 import { setOrgStripeCredentials } from "./stripe";
 import { settleEventChargeForRsvp } from "./event-charge";
-import { settleSalesOrderAsPaid } from "@/lib/sales";
+import { settleSalesOrderAsPaid, unsettleSalesOrder } from "@/lib/sales";
 import { GENERAL_FUND, SCOUT_ACCOUNTS } from "./money";
 import { POST as treasuryWebhook } from "@/app/api/webhooks/treasury-stripe/route";
 
@@ -138,6 +138,41 @@ describe.skipIf(!url)("money posts exactly once under concurrency", () => {
     expect(await prisma.transaction.count({ where: { salesOrderId: order.id, type: "deposit" } })).toBe(1);
     expect(await prisma.transaction.count({ where: { salesOrderId: order.id, type: "fundraiser-credit" } })).toBe(1);
     expect((await prisma.salesOrder.findUniqueOrThrow({ where: { id: order.id } })).status).toBe("paid");
+  });
+
+  it("cancelling a paid order takes its money back off the books, once", async () => {
+    const general = await prisma.fund.findUniqueOrThrow({ where: { orgId_code: { orgId, code: GENERAL_FUND } } });
+    const campaign = await prisma.salesCampaign.create({
+      data: {
+        orgId, name: `Wreaths ${tag}`, startsOn: new Date(), endsOn: new Date(Date.now() + 86400000),
+        fundId: general.id, proceedsSplit: "per-scout", scoutSplitPct: 25,
+      },
+    });
+    const order = await prisma.salesOrder.create({
+      data: { orgId, campaignId: campaign.id, source: "public-page", scoutMemberId: memberId, buyerName: "Neighbor", totalCents: 2000 },
+    });
+    const before = { general: await balance(GENERAL_FUND), scouts: await balance(SCOUT_ACCOUNTS) };
+    const sub = async () => (await prisma.memberSubaccount.findUnique({ where: { memberId } }))?.balanceCents ?? 0;
+    const subBefore = await sub();
+
+    await settleSalesOrderAsPaid({ orgId, orderId: order.id, paymentSource: "stripe", stripePaymentIntentId: `pi_wreath_${tag}` });
+    expect(await sub()).toBe(subBefore + 500);
+
+    const results = await Promise.allSettled([
+      unsettleSalesOrder({ orgId, orderId: order.id, status: "cancelled" }),
+      unsettleSalesOrder({ orgId, orderId: order.id, status: "cancelled" }),
+    ]);
+    expect(results.every((r) => r.status === "fulfilled")).toBe(true);
+    expect(await balance(GENERAL_FUND)).toBe(before.general);
+    expect(await balance(SCOUT_ACCOUNTS)).toBe(before.scouts);
+    expect(await sub()).toBe(subBefore);
+    expect(await prisma.salesOrder.findUniqueOrThrow({ where: { id: order.id } })).toMatchObject({
+      status: "cancelled", depositTransactionId: null,
+    });
+
+    // A retried Stripe event doesn't revive it.
+    const late = await settleSalesOrderAsPaid({ orgId, orderId: order.id, paymentSource: "stripe", stripePaymentIntentId: `pi_wreath_${tag}` });
+    expect(late.settled).toBe(false);
   });
 
   it("reverses a transaction only once", async () => {

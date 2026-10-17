@@ -38,8 +38,8 @@ enum Plan {
 }
 
 // Stripe subscription state, snapshotted from webhook events. `trialing`
-// is the default for a freshly-provisioned org (60-day trial set in
-// provision.js); `expired` is the post-trial state when the org never
+// is the default for a freshly-provisioned org (30-day trial set in
+// lib/billing/trial.ts); `expired` is the post-trial state when the org never
 // converted (distinct from `canceled`, which means they had a paid
 // subscription and stopped).
 enum SubscriptionStatus {
@@ -123,6 +123,10 @@ model Org {
   trialEndsAt                   DateTime?
   currentPeriodEnd              DateTime?
   cancelAtPeriodEnd             Boolean            @default(false)
+  // `created` time of the newest Stripe event applied to the fields
+  // above. Older events that arrive late are skipped so a stale
+  // subscription.updated can't undo a newer one (lib/billing/stripe.ts).
+  stripeEventAt                 DateTime?
   // Treasury Stripe (per-org member-payment account, distinct from
   // the platform billing fields above). Both ciphertexts are wrapped
   // with the org's DEK so the master key alone can't decrypt them.
@@ -283,6 +287,9 @@ model User {
   counselorBadges       CounselorBadge[]
   counselorAssignments  CounselorAssignment[] @relation("AssignedCounselor")
   counselorMeetings     CounselorMeeting[]
+  journeyScouts         JourneyScout[]
+  mcpAuthCodes          McpAuthCode[]
+  mcpTokens             McpToken[]
 }
 
 // One-time-use 2FA backup codes. Generated at enrollment (10 per user),
@@ -532,6 +539,7 @@ model Member {
   requirementProgress  RequirementProgress[]
   requirementEvents    RequirementProgressEvent[]
   counselorMeetings    CounselorMeetingScout[]
+  journeyScouts        JourneyScout[]
 
   @@index([orgId])
   @@index([orgId, lastNameLc1])
@@ -2894,4 +2902,192 @@ model StripeWebhookReceipt {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// Lantern: a scout a parent follows from their own account, whether or
+// not the scout's troop uses Compass. Scouts never sign in; the owner
+// is always an adult. encName is the scout's first name, encrypted with
+// a key derived from MASTER_KEY for the owner (src/lib/journey/crypto.ts).
+// path is the ordered list of ranks and badges on the scout's trail
+// ("rank:first-class", "badge:camping", "custom:<id>"); custom holds the
+// owner's own steps. memberId optionally links a troop roster entry the
+// owner is a linked parent of; the link is re-checked on every read, and
+// it only brings the troop's sign-offs in (Lantern never writes them).
+model JourneyScout {
+  id          String   @id @default(cuid())
+  ownerUserId String
+  encName     Bytes
+  path        Json     @default("[]")
+  custom      Json     @default("{}")
+  memberId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  owner    User                 @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  member   Member?              @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  progress JourneyProgress[]
+  devices  JourneyScoutDevice[]
+  codes    JourneyPairCode[]
+  entries  JourneyEntry[]
+
+  @@index([ownerUserId])
+  @@index([memberId])
+}
+
+// One checked-off step on a JourneyScout's trail. key is a requirement
+// ("rank:second-class#1a", "badge:plumbing#6b", "custom:<id>#2") or a
+// whole rank or badge marked complete ("rank:scout"). A row exists only
+// while the step is checked; unchecking deletes it. doneOn is the day it
+// was checked ("2026-10-11"), null when that isn't known.
+model JourneyProgress {
+  id        String   @id @default(cuid())
+  scoutId   String
+  key       String
+  doneOn    String?
+  // True when the scout checked it on their own device (JourneyScoutDevice).
+  byScout   Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  scout JourneyScout @relation(fields: [scoutId], references: [id], onDelete: Cascade)
+
+  @@unique([scoutId, key])
+}
+
+// What a scout logs on one requirement of their trail: a dated amount
+// ("log": 30 minutes, 2 hours of service, 1 night camped), a note or
+// written answer ("note"), a photo as proof ("photo"), or "ready" (the
+// scout says it's ready for a grown-up or counselor to check). key is
+// the step key, like JourneyProgress.key. clientId is the device's own
+// id for the entry, so a retried offline batch never adds it twice.
+// text and the photo bytes are about a child, so they're encrypted with
+// the owner's journey key (src/lib/journey/crypto.ts). byRole is who
+// made it: "parent" (the account) or "scout" (the scout's own device).
+model JourneyEntry {
+  id        String   @id @default(cuid())
+  scoutId   String
+  clientId  String
+  key       String
+  kind      String
+  day       String?
+  amount    Float?
+  unit      String?
+  encText   Bytes?
+  fileKey   String?
+  mimeType  String?
+  byUserId  String?
+  byRole    String   @default("parent")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scout JourneyScout @relation(fields: [scoutId], references: [id], onDelete: Cascade)
+
+  @@unique([scoutId, clientId])
+  @@index([scoutId, key])
+}
+
+// ---------------------------------------------------------------------
+// Claude connector (MCP server at /mcp). Compass is its own OAuth 2.1
+// authorization server for it: clients register themselves (RFC 7591),
+// the signed-in adult approves on /mcp/oauth/consent, and the client
+// trades a single-use code (PKCE S256) for an access + refresh token.
+// Only sha256 hashes of codes and tokens are stored. See src/lib/mcp/.
+
+// A registered MCP client (Claude on the web, Claude Code, ...). Anyone
+// may register one; it can do nothing until a user approves it.
+model McpClient {
+  id           String    @id @default(cuid())
+  clientId     String    @unique
+  clientName   String
+  clientUri    String?
+  redirectUris String[]
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  authCodes McpAuthCode[]
+  tokens    McpToken[]
+}
+
+// An authorization code: lives five minutes and is used once.
+model McpAuthCode {
+  id            String    @id @default(cuid())
+  codeHash      String    @unique
+  clientId      String
+  userId        String
+  redirectUri   String
+  codeChallenge String
+  scope         String
+  resource      String
+  expiresAt     DateTime
+  usedAt        DateTime?
+  // The token family this code was exchanged for, so a replayed code
+  // can revoke what it minted.
+  familyId      String?
+  createdAt     DateTime  @default(now())
+
+  client McpClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// One access token and its refresh token. Refreshing revokes this row
+// and creates the next one in the same family; presenting a refresh
+// token that was already rotated revokes the whole family.
+model McpToken {
+  id               String    @id @default(cuid())
+  familyId         String
+  clientId         String
+  userId           String
+  accessHash       String    @unique
+  refreshHash      String    @unique
+  scope            String
+  resource         String
+  accessExpiresAt  DateTime
+  refreshExpiresAt DateTime
+  revokedAt        DateTime?
+  rotatedAt        DateTime?
+  lastUsedAt       DateTime?
+  createdAt        DateTime  @default(now())
+
+  client McpClient @relation(fields: [clientId], references: [clientId], onDelete: Cascade)
+  user   User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+}
+
+// A scout's own device in Lantern. Scouts never get an account, email or
+// password: the parent who owns the JourneyScout makes a one-time code
+// (JourneyPairCode) and enters it on the scout's device, which gets this
+// token. It reads and checks off that one scout's trail and nothing
+// else. Only the sha256 of the token is kept; the parent can revoke it.
+model JourneyScoutDevice {
+  id         String    @id @default(cuid())
+  scoutId    String
+  tokenHash  String    @unique
+  label      String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  scout JourneyScout @relation(fields: [scoutId], references: [id], onDelete: Cascade)
+
+  @@index([scoutId])
+}
+
+// One-time code a parent makes to set up a scout's device. Short-lived,
+// single use; only its sha256 is kept. Making a new one retires older
+// unused ones for the same scout.
+model JourneyPairCode {
+  id        String    @id @default(cuid())
+  scoutId   String
+  codeHash  String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  scout JourneyScout @relation(fields: [scoutId], references: [id], onDelete: Cascade)
+
+  @@index([scoutId])
 }

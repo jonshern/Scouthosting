@@ -7,7 +7,7 @@ import { getSession } from "@/lib/auth/session";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
-import { ensureScoutSalesLink, settleSalesOrderAsPaid, slugify } from "@/lib/sales";
+import { ensureScoutSalesLink, settleSalesOrderAsPaid, slugify, unsettleSalesOrder } from "@/lib/sales";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 import { dollarsToCents } from "@/lib/treasury/money";
@@ -409,6 +409,17 @@ export async function updateOrderStatus(_prev: SalesState, formData: FormData): 
     }
   } else if (parsed.data.status === "delivered" && order.status !== "paid" && order.status !== "delivered") {
     return { error: "Mark paid before delivered." };
+  } else if (
+    (parsed.data.status === "cancelled" || parsed.data.status === "placed") &&
+    (order.status === "paid" || order.status === "delivered")
+  ) {
+    // The money goes back to the buyer: take it back off the books.
+    await unsettleSalesOrder({
+      orgId: auth.org.id,
+      orderId: order.id,
+      status: parsed.data.status,
+      createdById: auth.user.id,
+    });
   } else {
     await prisma.salesOrder.update({
       where: { id: order.id },

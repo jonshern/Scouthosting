@@ -20,7 +20,15 @@ function CompassMark({ size = 26 }: { size?: number }) {
   );
 }
 
-export default function SignupPage() {
+export default async function SignupPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
+  // Kept through sign-up so the phone apps' sign-in (/auth/mobile/begin)
+  // comes back to the app after a new account is made.
+  const { next } = await searchParams;
+  const nextQuery = next ? `?next=${encodeURIComponent(next)}` : "";
   return (
     <main className="min-h-screen bg-bg md:grid md:grid-cols-[1fr_560px]">
       <aside className="relative hidden flex-col justify-between overflow-hidden bg-surface-dark px-12 py-14 text-white md:flex md:px-16">
@@ -73,23 +81,21 @@ export default function SignupPage() {
           </h2>
           <p className="mt-2 text-sm text-slate-muted">
             Already have one?{" "}
-            <Link href="/login" className="font-medium text-sky hover:text-slate-ink">
+            <Link href={`/login${nextQuery}`} className="font-medium text-sky hover:text-slate-ink">
               Sign in
             </Link>
             .
           </p>
 
           <div className="mt-8 grid gap-2.5">
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- API route, not a page */}
             <a
-              href="/api/auth/google/begin"
+              href={`/api/auth/google/begin${nextQuery}`}
               className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"
             >
               Continue with Google
             </a>
-            {/* eslint-disable-next-line @next/next/no-html-link-for-pages -- API route, not a page */}
             <a
-              href="/api/auth/apple/begin"
+              href={`/api/auth/apple/begin${nextQuery}`}
               className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"
             >
               Continue with Apple
@@ -103,7 +109,7 @@ export default function SignupPage() {
           </div>
 
           <div className="mt-6">
-            <SignupForm csrf={<CsrfTokenInput />} />
+            <SignupForm csrf={<CsrfTokenInput />} next={next} />
           </div>
         </div>
       </section>

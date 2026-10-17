@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { IsoDate, badRequest, json, readQuery, requireOrgAccess, v1Route } from "@/lib/api/v1";
+import { eventStyle, loadOrgCategories, rsvpCountsFor } from "@/lib/api/v1-event-view";
 
 export const runtime = "nodejs";
 
@@ -42,7 +43,28 @@ export const GET = v1Route<{ slug: string }>(async (req, { user, params }) => {
       category: true,
       signupRequired: true,
       rrule: true,
+      capacity: true,
+      cost: true,
     },
   });
-  return json({ events });
+  const ids = events.map((e) => e.id);
+  const [custom, counts, mine] = await Promise.all([
+    loadOrgCategories({ orgId: org.id, prisma }),
+    rsvpCountsFor(prisma, ids),
+    prisma.rsvp.findMany({
+      where: { eventId: { in: ids }, userId: user.id },
+      select: { eventId: true, response: true },
+    }),
+  ]);
+  const myRsvp = new Map(mine.map((r) => [r.eventId, r.response]));
+  return json({
+    events: events.map(({ cost, ...e }) => ({
+      ...e,
+      ...eventStyle(e.category, custom),
+      costCents: cost == null ? null : cost * 100,
+      rsvpYesCount: counts.get(e.id)?.yes ?? 0,
+      rsvpTotalCount: counts.get(e.id)?.total ?? 0,
+      myRsvp: myRsvp.get(e.id) ?? null,
+    })),
+  });
 });

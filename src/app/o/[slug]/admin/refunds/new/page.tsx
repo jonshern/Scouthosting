@@ -8,6 +8,7 @@ import { canManageTreasury } from "@/lib/auth/treasury-access";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { issueRefund } from "@/server-actions/refunds";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function NewRefundPage({
   params,
@@ -15,6 +16,7 @@ export default async function NewRefundPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const { user } = await getSession();
   if (!user) redirect(`/login?next=/o/${slug}/admin/refunds/new`);
   const org = await prisma.org.findUnique({ where: { slug } });

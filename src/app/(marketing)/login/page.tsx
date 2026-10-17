@@ -120,7 +120,7 @@ export default async function LoginPage({
           <p className="mt-2 text-sm text-slate-muted">
             New here?{" "}
             <Link
-              href="/signup"
+              href={`/signup${ssoQuery}`}
               className="font-medium text-sky hover:text-slate-ink"
             >
               Create an account

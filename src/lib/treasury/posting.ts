@@ -182,6 +182,8 @@ export async function postTransferWithin(
     amountCents: number;
     description: string;
     createdById?: string | null;
+    /** Ties both legs to a sales order so cancelling it can reverse them. */
+    salesOrderId?: string | null;
   },
 ): Promise<{ outId: string; inId: string }> {
   if (args.amountCents <= 0) {
@@ -194,6 +196,7 @@ export async function postTransferWithin(
     amountCents: -args.amountCents,
     description: args.description,
     createdById: args.createdById,
+    salesOrderId: args.salesOrderId,
   });
   const incoming = await postWithin(tx, {
     orgId: args.orgId,
@@ -202,6 +205,7 @@ export async function postTransferWithin(
     amountCents: args.amountCents,
     description: args.description,
     createdById: args.createdById,
+    salesOrderId: args.salesOrderId,
   });
   return { outId: out.id, inId: incoming.id };
 }

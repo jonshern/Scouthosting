@@ -1,11 +1,19 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { suspendChannel, unsuspendChannel } from "@/lib/chat";
 import { publishArchived } from "@/lib/realtime/bus";
+
+// The admin channels page redirects back to itself, so the router would
+// keep showing the cached copy without this.
+function refreshChannelPages(orgSlug: string) {
+  revalidatePath(`/o/${orgSlug}/admin/channels`);
+  revalidatePath(`/o/${orgSlug}/chat`);
+}
 
 async function authorizeChannelAdmin(orgSlug: string, channelId: string) {
   const { user } = await getSession();
@@ -40,6 +48,7 @@ export async function suspendChannelAction(formData: FormData): Promise<void> {
     org: auth.org,
     user: auth.user,
   });
+  refreshChannelPages(orgSlug);
   redirect(`/o/${orgSlug}/admin/channels`);
 }
 
@@ -55,6 +64,7 @@ export async function unsuspendChannelAction(formData: FormData): Promise<void> 
     org: auth.org,
     user: auth.user,
   });
+  refreshChannelPages(orgSlug);
   if (!result.ok) {
     redirect(`/o/${orgSlug}/admin/channels?error=${encodeURIComponent(result.reason)}`);
   }
@@ -77,5 +87,6 @@ export async function archiveChannelAction(formData: FormData): Promise<void> {
   } catch {
     // ignore
   }
+  refreshChannelPages(orgSlug);
   redirect(`/o/${orgSlug}/admin/channels`);
 }

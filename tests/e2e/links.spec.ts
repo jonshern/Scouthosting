@@ -47,27 +47,7 @@ const DOWNLOAD_PATTERNS: RegExp[] = [
  * of failing. Remove the entry when the bug is fixed — the crawl will
  * then cover the page normally.
  */
-const KNOWN_BROKEN: Array<{ pattern: RegExp; host?: string; bug: string }> = [
-  {
-    // Admin event page links "Manage signup slots →" to a route that
-    // doesn't exist (no src/app/o/[slug]/admin/events/[id]/slots).
-    pattern: /\/admin\/events\/[^/]+\/slots$/,
-    bug: "BUG: /admin/events/<id>/slots link 404s (no slot-management route)",
-  },
-  {
-    // AdminTopNav avatar links to /account, which has no index page
-    // (and /account/* isn't served on tenant hosts at all).
-    pattern: /^\/account$/,
-    bug: "BUG: admin avatar link /account 404s",
-  },
-  {
-    // /login and /signup are served on tenant hosts too, but their
-    // marketing header/footer link to apex-only pages with relative URLs.
-    pattern: /^\/(plans|security|positioning|pitch)$/,
-    host: TENANT,
-    bug: "BUG: marketing nav on tenant /login and /signup links to apex-only pages (404 on tenant host)",
-  },
-];
+const KNOWN_BROKEN: Array<{ pattern: RegExp; host?: string; bug: string }> = [];
 
 type Failure = { url: string; from: string; problem: string };
 type CrawlResult = {

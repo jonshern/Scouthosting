@@ -12,7 +12,7 @@
 // signOut() revokes the bearer token server-side (best-effort) and then
 // drops all locally-stored creds.
 
-import { apiRequest, type ClientOptions } from "./client";
+import { ApiError, apiRequest, type ClientOptions } from "./client";
 import { apexBaseUrl, type ApiConfig } from "./config";
 import type { MeDto } from "./types";
 import type { SecureStorage, StoredProfile } from "./storage";
@@ -22,7 +22,12 @@ export type SignInResult =
   | { ok: false; reason: "cancelled" | "missing_token" | "browser_unavailable" };
 
 export type SignInOptions = {
-  /** Deep-link scheme registered by the app — defaults to compass://auth/callback. */
+  /**
+   * Where the server sends the browser back. Defaults to the app's own
+   * auth/callback link: compass://auth/callback in an installed build,
+   * exp://…/--/auth/callback in Expo Go (Compass allows exp:// only in
+   * development).
+   */
   redirectUrl?: string;
   config?: ApiConfig;
   /** Test override: a function that opens a URL and returns the redirect. */
@@ -31,9 +36,19 @@ export type SignInOptions = {
 
 const DEFAULT_REDIRECT = "compass://auth/callback";
 
+function defaultRedirect(): string {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Linking = require("expo-linking") as typeof import("expo-linking");
+    return Linking.createURL("auth/callback");
+  } catch {
+    return DEFAULT_REDIRECT;
+  }
+}
+
 /** Run the sign-in flow. Returns the bearer token + identity bits. */
 export async function signIn(opts: SignInOptions = {}): Promise<SignInResult> {
-  const redirect = opts.redirectUrl || DEFAULT_REDIRECT;
+  const redirect = opts.redirectUrl || defaultRedirect();
   // Always start at the apex — org membership is resolved server-side
   // after sign-in via /api/v1/auth/me.
   const startUrl = `${apexBaseUrl(opts.config)}/auth/mobile/begin?redirect=${encodeURIComponent(redirect)}`;
@@ -95,19 +110,43 @@ export function fetchMe(opts: ClientOptions): Promise<MeDto> {
   return apiRequest<MeDto>(opts, "/auth/me");
 }
 
-/** Revoke the bearer + clear local storage. */
-export async function signOut(
-  opts: ClientOptions & { tokenId?: string },
-  storage: SecureStorage,
-): Promise<void> {
-  if (opts.tokenId) {
-    try {
-      await apiRequest(opts, `/auth/token/${opts.tokenId}`, { method: "DELETE" });
-    } catch {
-      // Best-effort — even if the server is unreachable we want the
-      // local creds cleared so the user can sign in fresh.
-    }
+/**
+ * End this device's sign-in on the server, then forget it here. 200 or
+ * 401 both mean the token is gone; offline, it's still forgotten locally
+ * and expires on the server after 90 days.
+ */
+export async function signOut(opts: ClientOptions, storage: SecureStorage): Promise<void> {
+  try {
+    await apiRequest(opts, "/auth/token/current", { method: "DELETE" });
+  } catch {
+    // Best-effort — even if the server is unreachable we want the
+    // local creds cleared so the user can sign in fresh.
   }
   await storage.clearToken();
   await storage.clearProfile();
+}
+
+/**
+ * Delete the signed-in account (DELETE /api/v1/me). `confirm` is the
+ * account's email, typed by the person. Returns the reasons it can't be
+ * deleted yet (only admin of a unit, …), or null once it's gone, with the
+ * sign-in forgotten here. Other failures throw ApiError.
+ */
+export async function deleteAccount(
+  opts: ClientOptions,
+  confirm: string,
+  storage: SecureStorage,
+): Promise<string[] | null> {
+  try {
+    await apiRequest(opts, "/me", { method: "DELETE", body: { confirm } });
+  } catch (e) {
+    if (e instanceof ApiError && e.code === "account_deletion_blocked") {
+      const blockers = (e.extra.blockers ?? []) as { message?: string }[];
+      return blockers.map((b) => b.message ?? "This account can't be deleted yet.");
+    }
+    throw e;
+  }
+  await storage.clearToken();
+  await storage.clearProfile();
+  return null;
 }

@@ -4,7 +4,7 @@
 // history.
 
 import { prisma } from "@/lib/db";
-import { sendMail } from "@/lib/mail";
+import { enqueueJob } from "@/lib/jobs";
 import { renderMarkdownLite } from "@/lib/markdown";
 import { audit } from "@/lib/audit";
 import type { Recipient } from "@/lib/mail/audience";
@@ -79,31 +79,26 @@ export async function sendLoggedBroadcast(args: {
     };
   }
 
-  // Synchronous fan-out (in-process). When the pg-boss port lands these
-  // rows go on a queue and a worker fans out; until then we send inline
-  // so admins see end-to-end behaviour.
-  let delivered = 0;
-  let failed = 0;
-  const errors: string[] = [];
+  // One job per recipient (src/lib/jobs/handlers.ts). With the job
+  // runtime up, the request returns at once and a crash or deploy
+  // mid-send leaves the rest queued instead of lost; each job counts
+  // itself on the MailLog and the last one sets the final status.
+  // Without it (tests, JOBS_DISABLED) each job runs here in turn.
+  let queued = 0;
   for (const r of recipients) {
-    const result = await sendMail({ to: r.email, toName: r.name, subject, html });
-    if (result.ok) delivered += 1;
-    else {
-      failed += 1;
-      if (errors.length < 5) errors.push(`${r.email}: ${result.error}`);
-    }
+    const job = await enqueueJob("email.broadcast.send-one", {
+      mailLogId: mailLog.id,
+      message: { to: r.email, toName: r.name, subject, html },
+    });
+    if (job.mode === "queued") queued += 1;
   }
 
-  const status = failed === 0 ? "sent" : delivered === 0 ? "failed" : "partial";
-  await prisma.mailLog.update({
+  const after = await prisma.mailLog.findUniqueOrThrow({
     where: { id: mailLog.id },
-    data: {
-      deliveredCount: delivered,
-      failedCount: failed,
-      status,
-      errors: errors.length ? errors.join("\n") : null,
-    },
+    select: { status: true, deliveredCount: true, failedCount: true },
   });
+  const delivered = after.deliveredCount;
+  const status = after.status;
 
   audit({
     orgId,
@@ -112,14 +107,16 @@ export async function sendLoggedBroadcast(args: {
     entityType: "MailLog",
     entityId: mailLog.id,
     action: "create",
-    summary: `Sent “${subject}” to ${audienceLabel} (${delivered}/${recipients.length})`,
+    summary: queued
+      ? `Queued “${subject}” to ${audienceLabel} (${recipients.length})`
+      : `Sent “${subject}” to ${audienceLabel} (${delivered}/${recipients.length})`,
   });
   return {
     mailLogId: mailLog.id,
     status,
     recipientCount: recipients.length,
     deliveredCount: delivered,
-    failedCount: failed,
+    failedCount: after.failedCount,
     dryRun: false,
   };
 }

@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { emergencyContactsForEvent } from "@/lib/events/emergency-contacts";
 import { Pill, PrintButton } from "@/components/ui";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 function fmtPhone(p: string | null): string {
   return p && p.trim() ? p : "—";
@@ -22,6 +23,7 @@ export default async function EventEmergencyContactsPage({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const event = await prisma.event.findUnique({

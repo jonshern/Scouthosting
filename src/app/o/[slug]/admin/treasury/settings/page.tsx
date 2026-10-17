@@ -10,6 +10,7 @@ import {
   StripeKeyForm,
   ClearStripeKeyButton,
 } from "@/components/admin/StripeSettingsForms";
+import { requireTreasuryPage } from "@/lib/admin/guard";
 
 export default async function TreasurySettings({
   params,
@@ -17,6 +18,7 @@ export default async function TreasurySettings({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
+  await requireTreasuryPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
 

@@ -11,6 +11,7 @@ import { decryptMemberPii } from "@/lib/members/crypto";
 import { TX_TYPE_LABELS } from "@/lib/treasury/money";
 import { LedgerGrid, type LedgerRow } from "@/components/admin/LedgerGrid";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
+import { requireTreasuryPage } from "@/lib/admin/guard";
 
 type Search = {
   fund?: string;
@@ -30,6 +31,7 @@ export default async function TreasuryLedgerPage({
   searchParams: Promise<Search>;
 }) {
   const { slug } = await params;
+  await requireTreasuryPage(slug);
   const sp = await searchParams;
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();

@@ -4,13 +4,18 @@ name: Infra checks
 
 on:
   pull_request:
-    paths: ["infra/**", "scripts/*.sh", ".github/workflows/deploy.yml", ".github/workflows/preview.yml", ".github/workflows/infra.yml", ".github/workflows/infra-checks.yml", ".github/workflows/rollback.yml", ".github/actions/**"]
+    paths: ["infra/**", "scripts/*.sh", ".github/workflows/**", ".github/actions/**"]
   push:
     branches: [main]
-    paths: ["infra/**", "scripts/*.sh", ".github/workflows/deploy.yml", ".github/workflows/preview.yml", ".github/workflows/infra.yml", ".github/workflows/infra-checks.yml", ".github/workflows/rollback.yml", ".github/actions/**"]
+    paths: ["infra/**", "scripts/*.sh", ".github/workflows/**", ".github/actions/**"]
 
 permissions:
   contents: read
+
+# A new push to a PR cancels its older run; runs on main finish.
+concurrency:
+  group: infra-checks-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   terraform:
@@ -37,6 +42,6 @@ jobs:
       - name: actionlint
         run: |
           bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash) 1.7.7
-          ./actionlint -color .github/workflows/deploy.yml .github/workflows/preview.yml .github/workflows/infra.yml .github/workflows/infra-checks.yml .github/workflows/rollback.yml .github/workflows/ci.yml
+          ./actionlint -color
       - name: shellcheck
         run: shellcheck scripts/deploy-api.sh scripts/rollback-api.sh scripts/check-migrations.sh scripts/check-migrations-schema.sh scripts/set-github-vars.sh scripts/migrate.sh

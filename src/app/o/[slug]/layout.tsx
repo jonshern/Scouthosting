@@ -9,6 +9,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { loadHomeSnapshot } from "@/lib/publish/snapshot";
+import { orgBasePath } from "@/lib/tenancy/base-path";
 
 export default async function OrgLayout({
   children,
@@ -21,6 +22,7 @@ export default async function OrgLayout({
   const shell = await loadHomeSnapshot(slug);
   if (!shell) notFound();
   const { org, customPages } = shell;
+  const base = await orgBasePath(slug);
   if (org.suspendedAt) {
     return (
       <main className="mx-auto max-w-content px-6 py-16">
@@ -42,22 +44,22 @@ export default async function OrgLayout({
     >
       <header className="border-b border-line bg-white">
         <div className="mx-auto flex max-w-content items-center justify-between px-6 py-4">
-          <Link href="/" className="font-display text-xl font-semibold">
+          <Link href={base || "/"} className="font-display text-xl font-semibold">
             {org.displayName}
           </Link>
           <nav
             aria-label="Site"
             className="flex flex-wrap items-center gap-6 text-sm"
           >
-            <Link href="/calendar">Calendar</Link>
-            <Link href="/photos">Photos</Link>
-            <Link href="/posts">Posts</Link>
+            <Link href={`${base}/calendar`}>Calendar</Link>
+            <Link href={`${base}/photos`}>Photos</Link>
+            <Link href={`${base}/posts`}>Posts</Link>
             {customPages.map((p) => (
-              <Link key={p.slug} href={`/p/${p.slug}`}>
+              <Link key={p.slug} href={`${base}/p/${p.slug}`}>
                 {p.title}
               </Link>
             ))}
-            <Link href="/admin">Admin</Link>
+            <Link href={`${base}/admin`}>Admin</Link>
           </nav>
         </div>
       </header>

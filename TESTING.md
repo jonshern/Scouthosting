@@ -109,7 +109,9 @@ plus restarts the dev server.
   in its `KNOWN_BROKEN` list, one entry per open bug; remove the entry
   when the bug is fixed (the crawl fails if a listed link starts
   working). External links are only fetched when `LINKCHECK_EXTERNAL=1`
-  (CI sets it); a 404/410 fails, other errors are warnings.
+  (the daily Outside links workflow sets it and files an
+  `outside-links` issue instead of failing CI); a 404/410 fails, other
+  errors are warnings.
 - `events-rsvp`, `slots-waitlist`, `permission-slips`, `roles` and
   `youth-protection` drive those flows through the UI. Shared helpers
   are in `tests/e2e/helpers/`; `helpers/db.ts` holds the few direct DB

@@ -1,0 +1,62 @@
+# Outside links on the Compass sites checked once a day, apart from CI. Another site moving a
+# page shouldn't turn main red, so a dead outside link opens (or updates) an issue labelled
+# "outside-links" instead of failing a build; the issue closes itself once every link
+# resolves. Links inside Compass stay blocking in ci.yml (tests/e2e/links.spec.ts).
+name: Outside links
+
+on:
+  schedule:
+    - cron: "29 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: outside-links
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: compass
+          POSTGRES_PASSWORD: compass
+          POSTGRES_DB: compass_test
+        # playwright.config.ts expects the test database on 5433.
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U compass"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgresql://compass:compass@localhost:5433/compass_test?schema=public
+      LINKCHECK_EXTERNAL: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+        env:
+          APEX_HOST: localhost
+      - name: Check outside links
+        id: check
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npx playwright test tests/e2e/links.spec.ts 2>&1 | tee outside-links.log
+      - name: Open, update or close the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          OUTCOME: ${{ steps.check.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: scripts/outside-links-issue.sh outside-links.log

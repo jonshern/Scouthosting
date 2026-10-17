@@ -8,6 +8,7 @@ import { headers } from "next/headers";
 import { isAPIError } from "better-auth/api";
 import { auth } from "@/lib/auth/auth";
 import { revokeAllTokensForUser, revokeToken } from "@/lib/auth/api-token";
+import { revokeAllMcpTokensForUser, revokeClientForUser } from "@/lib/mcp/oauth/tokens";
 import { isSafeNextPath } from "@/lib/auth/post-login";
 import { CONFIRM_ADULT_PAGE } from "@/lib/auth/requirements";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
@@ -89,6 +90,7 @@ export async function changePassword(formData: FormData): Promise<void> {
   }
   // Phones signed in with the old password have to sign in again too.
   await revokeAllTokensForUser(user.id, prisma);
+  await revokeAllMcpTokensForUser(user.id);
   redirect("/account/password?saved=1");
 }
 
@@ -105,6 +107,19 @@ export async function revokeApiToken(formData: FormData): Promise<void> {
   });
   if (!row || row.userId !== user.id) throw new Error("Not found.");
   await revokeToken(id, prisma);
+  redirect("/account/api-tokens");
+}
+
+/** Disconnect Claude (or another MCP app) from this account. */
+export async function revokeMcpConnection(formData: FormData): Promise<void> {
+  if (!(await verifyOrigin())) throw new Error("Bad origin.");
+  if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) throw new Error("Bad CSRF.");
+  const { user } = await getSession();
+  if (!user) redirect("/login");
+  const clientId = String(formData.get("clientId") ?? "");
+  if (!clientId) throw new Error("Missing app.");
+  // Scoped to the signed-in user, so an unknown or foreign id revokes nothing.
+  await revokeClientForUser(user.id, clientId);
   redirect("/account/api-tokens");
 }
 

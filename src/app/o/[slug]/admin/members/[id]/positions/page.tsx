@@ -7,6 +7,7 @@ import { getSession } from "@/lib/auth/session";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function MemberPositionsPage({
   params,
@@ -14,6 +15,7 @@ export default async function MemberPositionsPage({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
+  await requireAdminPage(slug);
   const { user } = await getSession();
   if (!user) redirect(`/login?next=/o/${slug}/admin/members/${id}/positions`);
   const org = await prisma.org.findUnique({ where: { slug } });

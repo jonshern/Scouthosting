@@ -4,6 +4,8 @@
 
 import { prisma } from "@/lib/db";
 import { json, notFound, parseId, requireOrgAccessForResource, v1Route } from "@/lib/api/v1";
+import { effectiveSlipText } from "@/lib/permission-slips";
+import { eventStyle, loadOrgCategories } from "@/lib/api/v1-event-view";
 
 export const runtime = "nodejs";
 
@@ -21,7 +23,7 @@ export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
     where: { id },
     include: {
       rsvps: {
-        select: { id: true, userId: true, response: true, guests: true },
+        select: { id: true, userId: true, response: true, guests: true, notes: true },
       },
       slots: {
         orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
@@ -33,6 +35,7 @@ export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
   await requireOrgAccessForResource(event.orgId, user.id);
 
   const myRsvp = event.rsvps.find((r) => r.userId === user.id);
+  const custom = await loadOrgCategories({ orgId: event.orgId, prisma });
   return json({
     event: {
       id: event.id,
@@ -44,8 +47,16 @@ export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
       location: event.location,
       locationAddress: event.locationAddress,
       category: event.category,
+      ...eventStyle(event.category, custom),
+      cost: event.cost,
+      capacity: event.capacity,
       signupRequired: event.signupRequired,
       rrule: event.rrule,
+      // What a parent agrees to when signing from the app
+      // (POST /api/v1/events/<id>/permission-slips).
+      permissionSlip: event.requiresPermissionSlip
+        ? { required: true, text: effectiveSlipText(event.permissionSlipText) }
+        : { required: false, text: null },
       rsvpSummary: {
         yes: event.rsvps.filter((r) => r.response === "yes").length,
         no: event.rsvps.filter((r) => r.response === "no").length,
@@ -53,7 +64,7 @@ export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
         guests: event.rsvps.reduce((acc, r) => acc + (r.guests || 0), 0),
       },
       myRsvp: myRsvp
-        ? { id: myRsvp.id, response: myRsvp.response, guests: myRsvp.guests }
+        ? { id: myRsvp.id, response: myRsvp.response, guests: myRsvp.guests, notes: myRsvp.notes }
         : null,
       slots: event.slots.map((s) => ({
         id: s.id,

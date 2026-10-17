@@ -11,6 +11,8 @@ import { ownedIdOrNull, ownedIds } from "@/lib/tenancy/owned";
 import { deleteEventWithSlipTrace } from "@/lib/events/delete";
 import { PublicSlugSchema } from "@/lib/events/public-signup";
 import { slotsFromEventFile } from "@/lib/events/waypoint-file";
+import { fillFromWaitlist } from "@/lib/slots";
+import { notifyPromoted } from "@/lib/slots/notify";
 
 const Iso = z
   .string()
@@ -216,15 +218,22 @@ export async function importEventSlots(
     select: { key: true },
   });
   const have = new Set(existing.map((s) => s.key));
-  await prisma.$transaction(
-    spec.slots.map((s) =>
-      prisma.signupSlot.upsert({
+  // A slot that grew lets its waitlist in, the same as when someone
+  // releases a seat.
+  const promotedIds = await prisma.$transaction(async (tx) => {
+    const promoted: string[] = [];
+    for (const s of spec.slots) {
+      const row = await tx.signupSlot.upsert({
         where: { eventId_key: { eventId: event.id, key: s.key } },
         update: { title: s.title, description: s.description, capacity: s.capacity, sortOrder: s.sortOrder },
         create: { orgId: org.id, eventId: event.id, ...s },
-      }),
-    ),
-  );
+        select: { id: true },
+      });
+      promoted.push(...(await fillFromWaitlist(tx, row.id)));
+    }
+    return promoted;
+  });
+  await notifyPromoted(promotedIds);
 
   let publicSlug = event.publicSlug;
   let slugWarning: string | undefined;
@@ -254,4 +263,51 @@ export async function importEventSlots(
   revalidatePath(`/o/${org.slug}/calendar`);
   const updated = spec.slots.filter((s) => have.has(s.key)).length;
   return { ok: true, created: spec.slots.length - updated, updated, publicSlug, slugWarning };
+}
+
+const AddSlotSchema = z.object({
+  orgSlug: z.string().min(1),
+  eventId: z.string().min(1),
+  title: z.string().trim().min(1, "Give the slot a name.").max(200),
+  description: z.string().trim().max(1000).optional().or(z.literal("")),
+  capacity: z.coerce.number().int().min(1, "Capacity must be at least 1.").max(1000),
+  allowWaitlist: z.union([z.literal("on"), z.literal("")]).optional(),
+});
+
+export type AddSlotState = { error?: string; ok?: true; title?: string } | null;
+
+/** Add one sign-up slot to an event by hand ("Drive 2 scouts", "Bring drinks for 30"). */
+export async function addEventSlot(_prev: AddSlotState, formData: FormData): Promise<AddSlotState> {
+  if (!(await verifyOrigin())) return { error: "Bad origin." };
+  if (!(await verifyCsrf(String(formData.get("_csrf") ?? "")))) return { error: "Bad CSRF." };
+  const parsed = AddSlotSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
+  const d = parsed.data;
+  const auth = await authorize(d.orgSlug);
+  if ("error" in auth) return { error: auth.error };
+  const { org } = auth;
+
+  const event = await prisma.event.findFirst({ where: { id: d.eventId, orgId: org.id }, select: { id: true } });
+  if (!event) return { error: "Event not found." };
+
+  const last = await prisma.signupSlot.findFirst({
+    where: { eventId: event.id },
+    orderBy: { sortOrder: "desc" },
+    select: { sortOrder: true },
+  });
+  await prisma.signupSlot.create({
+    data: {
+      orgId: org.id,
+      eventId: event.id,
+      title: d.title,
+      description: nz(d.description) ?? null,
+      capacity: d.capacity,
+      allowWaitlist: d.allowWaitlist === "on",
+      sortOrder: (last?.sortOrder ?? -1) + 1,
+    },
+  });
+
+  revalidatePath(`/o/${org.slug}/admin/events/${event.id}`);
+  revalidatePath(`/o/${org.slug}/calendar`);
+  return { ok: true, title: d.title };
 }

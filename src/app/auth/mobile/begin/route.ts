@@ -17,7 +17,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { issueToken } from "@/lib/auth/api-token";
 import { isProd } from "@/lib/env";
-import { allowedMobileRedirect } from "@/lib/auth/mobile-redirect";
+import { allowedMobileRedirect, isWebSigninRedirect } from "@/lib/auth/mobile-redirect";
 import { accountStanding, requirementRedirect, withNext } from "@/lib/auth/requirements";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 
@@ -60,8 +60,17 @@ export async function POST(req: NextRequest) {
   // Users can rename / revoke from /account/api-tokens.
   const token = await issueToken(user.id, "Mobile device", prisma);
 
-  redirectUrl.searchParams.set("token", token.raw);
-  redirectUrl.searchParams.set("userId", user.id);
-  redirectUrl.searchParams.set("displayName", user.displayName ?? "");
+  const params = new URLSearchParams({
+    token: token.raw,
+    userId: user.id,
+    displayName: user.displayName ?? "",
+  });
+  if (isWebSigninRedirect(redirectUrl, isProd())) {
+    // A website gets the token after "#", which browsers never send to
+    // the server or in a Referer header.
+    redirectUrl.hash = params.toString();
+  } else {
+    for (const [k, v] of params) redirectUrl.searchParams.set(k, v);
+  }
   return NextResponse.redirect(redirectUrl.toString(), 303);
 }

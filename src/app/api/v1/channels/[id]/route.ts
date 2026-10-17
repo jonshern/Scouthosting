@@ -1,13 +1,16 @@
 // GET /api/v1/channels/[id] — channel detail + first page of messages.
 
 import { json, v1Route } from "@/lib/api/v1";
-import { loadMessagePage, loadReadableChannel } from "@/lib/api/v1-chat";
+import { dmCounterparts, loadMessagePage, loadReadableChannel } from "@/lib/api/v1-chat";
 
 export const runtime = "nodejs";
 
 export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
   const channel = await loadReadableChannel(params.id, user.id);
-  const page = await loadMessagePage(channel.id);
+  const [page, dms] = await Promise.all([
+    loadMessagePage(channel.id, undefined, user.id),
+    dmCounterparts([channel], user.id),
+  ]);
 
   return json({
     channel: {
@@ -23,6 +26,8 @@ export const GET = v1Route<{ id: string }>(async (_req, { user, params }) => {
       isLeaderOnly: channel.kind === "leaders",
       canPost: !channel.isSuspended && !channel.archivedAt,
       youAreChannelOwner: channel.members[0]?.role === "owner",
+      dmCounterpartyName: dms.get(channel.id)?.displayName ?? null,
+      dmCounterpartyUserId: dms.get(channel.id)?.userId ?? null,
       updatedAt: channel.updatedAt,
     },
     ...page,

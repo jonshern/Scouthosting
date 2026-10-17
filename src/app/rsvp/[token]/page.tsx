@@ -8,7 +8,7 @@ import { verifyRsvpToken } from "@/lib/security/rsvp-token";
 import { parseLinkGuests, parseLinkResponse } from "@/lib/rsvp/link";
 import { confirmLinkRsvp } from "@/server-actions/rsvp-link";
 
-type Search = { r?: string; guests?: string; done?: string };
+type Search = { r?: string; guests?: string; done?: string; full?: string };
 
 const LABEL = { yes: "Yes, I'm going", maybe: "Maybe", no: "Can't make it" } as const;
 
@@ -72,6 +72,11 @@ export default async function OneClickRsvp({
         Answering as {claims.name}
         {event.location ? ` · ${event.location}` : ""}.
       </p>
+      {sp.full !== undefined ? (
+        <p role="alert" className="mt-4 text-sm text-red-700">
+          {fullNotice(sp.full)}
+        </p>
+      ) : null}
       <div className="mt-8 flex flex-wrap justify-center gap-3">
         {order.map((r, i) => (
           <form key={r} action={confirmLinkRsvp}>
@@ -93,4 +98,10 @@ export default async function OneClickRsvp({
       </div>
     </main>
   );
+}
+
+function fullNotice(left: string): string {
+  const n = Math.max(0, Math.floor(Number(left)) || 0);
+  if (n === 0) return "Sorry, this event is full. Your RSVP wasn't saved.";
+  return `Only ${n === 1 ? "1 spot" : `${n} spots`} left, so your RSVP wasn't saved. Try fewer guests, or answer maybe.`;
 }

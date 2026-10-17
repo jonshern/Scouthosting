@@ -63,20 +63,27 @@ export const PUT = v1Route<{ id: string }>(async (req, { user, params }) => {
   const { scout, rel } = await load(params.id, user, true);
   const { items } = await readJson(req, ProgressPutBody);
 
-  const existing = await prisma.requirementProgress.findMany({
-    where: { memberId: scout.id, requirementId: { in: items.map((i) => i.requirementId) } },
-  });
-  const current = new Map(existing.map((r) => [r.requirementId, r]));
-
-  // Check every item before writing any.
-  for (const item of items) {
-    const from = (current.get(item.requirementId)?.status ?? null) as ProgressStatus | null;
-    const reason = writeRefusal(rel, item.requirementId, from, item.status);
-    if (reason) throw new ApiError(403, "forbidden", { reason, requirementId: item.requirementId });
-  }
-
   const now = new Date();
   await prisma.$transaction(async (tx) => {
+    // One writer per scout at a time. The permission check depends on
+    // the current status (family can't undo a sign-off), so it must see
+    // the row as it is when we write, not as it was a moment before: a
+    // scout's "done" racing a counselor's sign-off would otherwise land
+    // second and quietly undo it. Locking the scout covers rows that
+    // don't exist yet, which a row lock can't.
+    await tx.$queryRaw`SELECT id FROM "Member" WHERE id = ${scout.id} FOR NO KEY UPDATE`;
+    const existing = await tx.requirementProgress.findMany({
+      where: { memberId: scout.id, requirementId: { in: items.map((i) => i.requirementId) } },
+    });
+    const current = new Map(existing.map((r) => [r.requirementId, r]));
+
+    // Check every item before writing any.
+    for (const item of items) {
+      const from = (current.get(item.requirementId)?.status ?? null) as ProgressStatus | null;
+      const reason = writeRefusal(rel, item.requirementId, from, item.status);
+      if (reason) throw new ApiError(403, "forbidden", { reason, requirementId: item.requirementId });
+    }
+
     for (const item of items) {
       const prev = current.get(item.requirementId);
       const fromStatus = prev?.status ?? null;

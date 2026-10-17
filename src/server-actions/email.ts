@@ -25,7 +25,7 @@ const BroadcastInput = z.object({
 export type BroadcastState =
   | null
   | { error: string }
-  | { ok: true; mailLogId: string; recipientCount: number; deliveredCount: number; failedCount: number; dryRun: boolean };
+  | { ok: true; mailLogId: string; status: string; recipientCount: number; deliveredCount: number; failedCount: number; dryRun: boolean };
 
 type AuthOk = {
   user: NonNullable<Awaited<ReturnType<typeof getSession>>["user"]>;
@@ -73,6 +73,7 @@ export async function sendBroadcast(_prev: BroadcastState, formData: FormData): 
   return {
     ok: true,
     mailLogId: result.mailLogId,
+    status: result.status,
     recipientCount: result.recipientCount,
     deliveredCount: result.deliveredCount,
     failedCount: result.failedCount,

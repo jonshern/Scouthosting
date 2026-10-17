@@ -100,10 +100,37 @@ stable):
 3. Signed in → `/auth/mobile/confirm`, where the user taps Continue
    (same-origin POST with CSRF back to `/auth/mobile/begin`).
 4. 303 to `<redirect>?token=compass_pat_…&userId=…&displayName=…`.
+   A website can use the same flow with `redirect=<origin>/signed-in`
+   when its exact origin is in `WEB_SIGNIN_ORIGINS` (https only in
+   production; any other path or origin is refused). It gets the same
+   values after `#` instead of `?`, so the token stays out of server logs
+   and Referer headers; Waypoint's website reads them from
+   `location.hash`.
    The app sends `Authorization: Bearer <token>` to `/api/v1/*`.
    Tokens expire after 90 days, die when the password changes, and
    `DELETE /api/v1/auth/token/current` (sign-out) revokes the token
    that calls it; `DELETE /api/v1/auth/token/<id>` revokes any of yours.
+
+Lantern's saved trails are `/api/v1/journey/*` (`src/lib/journey/`):
+a signed-in adult adds the scouts they follow (`JourneyScout`, no
+troop needed) and checks steps off (`JourneyProgress`, keys like
+`rank:second-class#1a`). A scout linked to a troop roster entry the
+user is a parent of (confirmed email only) also shows that troop's
+`RequirementProgress` sign-offs; Lantern never writes those. Sign-up
+keeps `?next=` so a new account made from the app's sign-in returns
+to the app.
+Scouts never get an account: the parent makes a one-time code
+(`POST /journey/scouts/<id>/pair-code`), the scout's device trades it at
+`POST /journey/pair` for a `lantern_scout_…` token
+(`src/lib/journey/devices.ts`) that only reads and checks off that one
+trail (`/journey/scout`, `/journey/scout/progress`); steps it checks are
+`checkedBy: "scout"`. Those routes use `v1PublicRoute` and authenticate
+with `requireScoutDevice`, never `v1Route`.
+
+Logs, notes, proof photos and "ready" marks on a requirement are
+`JourneyEntry` rows (`/api/v1/journey/scouts/<id>/entries`, CSV at
+`entries/export`), addressed by the device's `clientId` so an offline
+retry never adds twice; note text and photos are encrypted per owner.
 
 Passkeys are the default sign-in, in that in-app browser too: `/login`
 leads with "Continue with a passkey", then Google/Apple, with email +
@@ -178,12 +205,18 @@ recovery code is printed once during `npm run db:seed`.
 Email is **plaintext on purpose** so background email, magic links,
 and chat membership lookups don't need an unlock ceremony.
 
-### 9. Stripe SDK is optional
+### 9. Billing: 30-day trial, Stripe over plain fetch
 
-`src/lib/billing/stripe.ts` lazy-imports `stripe` and surfaces a 503
-if the SDK isn't installed or `STRIPE_SECRET_KEY` is unset. Builds
-without the package; webhook verification is implemented locally so
-the test path doesn't need the SDK either.
+`/start` creates an adult account and a unit with a 30-day trial and no
+card (`src/lib/provision/self-serve.ts`); `admin/billing` sends admins
+to Stripe Checkout, which carries the rest of the trial over as
+`trial_end`. Prices ($99/yr, $10/mo) live in `src/lib/billing/pricing.ts`
+and must match `STRIPE_PRICE_YEARLY` / `_MONTHLY`. `src/lib/billing/stripe-rest.ts` calls Stripe's HTTPS API
+directly, so there's no `stripe` package. Webhooks are the only writer
+of the Org's Stripe fields. `billingSummary` (`src/lib/billing/trial.ts`)
+decides the admin lock; nothing locks unless `isConfigured()` sees a real
+`sk_`/`rk_` key and a `price_` ID, and orgs with no `trialEndsAt` (made
+before self-serve) never lock. Setup and runbook: `docs/billing.md`.
 
 ### 10. Commit every migration folder
 
@@ -270,6 +303,30 @@ table on a schedule. It needs its own database; the reset refuses if any
 only skips billing. New code that sends mail or texts must go through
 `sendMail` / `sendSms` so the demo catches it. `make demo` runs it on
 :3100 against `compass_demo`.
+
+### 16. Deleting an account anonymizes the User row
+
+`/account/delete` and `DELETE /api/v1/me` (`src/lib/account/delete.ts`)
+keep the `User` row, renamed "Former member" with an undeliverable
+address, so unit records (chat logs, RSVPs, staffing, counselor
+meetings, sign-offs) keep their foreign keys. They delete what's personal
+to the account: sign-ins, sessions, tokens, devices, memberships,
+reactions, the counselor listing, Lantern trails. A new table holding a
+user's own data should be added to that list; one holding a unit's
+records shouldn't cascade from `User`.
+
+### 17. The Claude connector is its own OAuth server
+
+`/mcp` (`src/lib/mcp/`, `docs/mcp.md`) is an MCP server people add to
+Claude by URL. Compass is the OAuth 2.1 server for it, separate from
+Better Auth: `McpClient` / `McpAuthCode` / `McpToken`, hashes only,
+PKCE S256, rotating refresh tokens. Tools run as the signed-in adult and
+see only `accessibleScouts()` (family by confirmed email, units they
+lead, their own Lantern scouts; youth get nothing). New tools must pick
+the scout through `pickScout(accessibleScouts(user), …)` and go through
+`guarded()` for the scope check. Writes preview first and need
+`confirm: true`. `MCP_PUBLIC_URL` must match the URL people paste into
+Claude, or every call is 401. `CATALOG_PATH` loads requirement names.
 
 ## Demo accounts (test DB)
 

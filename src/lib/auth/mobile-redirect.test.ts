@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedMobileRedirect } from "./mobile-redirect";
+import { allowedMobileRedirect, isWebSigninRedirect, webSigninOrigins } from "./mobile-redirect";
 
 describe("allowedMobileRedirect", () => {
   it("accepts the app's deep link everywhere", () => {
@@ -25,5 +25,46 @@ describe("allowedMobileRedirect", () => {
     expect(allowedMobileRedirect("javascript:alert(1)", false)).toBeNull();
     expect(allowedMobileRedirect("not a url", false)).toBeNull();
     expect(allowedMobileRedirect("otherapp://auth/callback", true)).toBeNull();
+  });
+});
+
+describe("website sign-in (WEB_SIGNIN_ORIGINS)", () => {
+  const origins = webSigninOrigins("https://waypoint.example.org, https://mac.tail1234.ts.net/ ,not a url,https://x.example/path");
+
+  it("parses exact origins only", () => {
+    expect([...origins].sort()).toEqual(["https://mac.tail1234.ts.net", "https://waypoint.example.org"]);
+    expect(webSigninOrigins(undefined).size).toBe(0);
+  });
+
+  it("accepts a listed origin's /signed-in page", () => {
+    expect(allowedMobileRedirect("https://waypoint.example.org/signed-in", true, origins)?.href).toBe(
+      "https://waypoint.example.org/signed-in",
+    );
+    expect(allowedMobileRedirect("https://mac.tail1234.ts.net/signed-in", true, origins)).not.toBeNull();
+  });
+
+  it("refuses an origin that isn't listed", () => {
+    expect(allowedMobileRedirect("https://attacker.example/signed-in", true, origins)).toBeNull();
+    expect(allowedMobileRedirect("https://waypoint.example.org.attacker.example/signed-in", true, origins)).toBeNull();
+    expect(allowedMobileRedirect("https://waypoint.example.org:8443/signed-in", true, origins)).toBeNull();
+  });
+
+  it("refuses http in production", () => {
+    const http = webSigninOrigins("http://waypoint.example.org");
+    expect(allowedMobileRedirect("http://waypoint.example.org/signed-in", true, http)).toBeNull();
+    expect(allowedMobileRedirect("http://waypoint.example.org/signed-in", false, http)).not.toBeNull();
+  });
+
+  it("refuses any other path or credentials on an allowed origin", () => {
+    for (const p of ["/", "/signed-in/", "/signed-in/x", "/other", "/SIGNED-IN"]) {
+      expect(allowedMobileRedirect(`https://waypoint.example.org${p}`, true, origins)).toBeNull();
+    }
+    expect(allowedMobileRedirect("https://user:pw@waypoint.example.org/signed-in", true, origins)).toBeNull();
+  });
+
+  it("marks only listed web pages as website sign-ins", () => {
+    expect(isWebSigninRedirect(new URL("https://waypoint.example.org/signed-in"), true, origins)).toBe(true);
+    expect(isWebSigninRedirect(new URL("http://localhost:8081/cb"), false, origins)).toBe(false);
+    expect(isWebSigninRedirect(new URL("compass://auth/callback"), true, origins)).toBe(false);
   });
 });

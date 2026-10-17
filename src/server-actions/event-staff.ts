@@ -163,7 +163,9 @@ export async function announceEvent(_prev: EventStaffState, formData: FormData):
       ctx,
       r.recipientCount === 0
         ? "No one to email yet for that audience."
-        : `Sent to ${r.deliveredCount} of ${r.recipientCount}.`,
+        : r.status === "queued"
+          ? `Sending to ${r.recipientCount}.`
+          : `Sent to ${r.deliveredCount} of ${r.recipientCount}.`,
     );
   } catch (err) {
     return { error: messageFor(err) };

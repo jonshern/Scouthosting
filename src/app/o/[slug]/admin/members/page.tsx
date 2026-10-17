@@ -21,6 +21,7 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 import { Pill } from "@/components/ui";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 type Tab = "scouts" | "adults" | "counselors" | "patrols" | "pending";
 
@@ -51,6 +52,7 @@ export default async function AdminMembersIndex({
   searchParams: Promise<{ trash?: string; q?: string; tab?: string; member?: string }>;
 }) {
   const { slug } = await params;
+  await requireAdminPage(slug);
   const { trash, q, tab: rawTab, member: drawerMemberId } = await searchParams;
   const showTrash = trash === "1";
   const tab: Tab = (

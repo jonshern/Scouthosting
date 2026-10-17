@@ -5,6 +5,7 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { PostForm } from "@/components/admin/PostForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DeletePostButton } from "@/components/admin/DeleteContentButtons";
+import { requireAdminPage } from "@/lib/admin/guard";
 
 export default async function AdminPostEdit({
   params,
@@ -12,6 +13,7 @@ export default async function AdminPostEdit({
   params: Promise<{ slug: string; id: string }>;
 }) {
   const { slug, id } = await params;
+  await requireAdminPage(slug);
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
   const post = await prisma.post.findUnique({
