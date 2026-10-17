@@ -1,5 +1,7 @@
 // Checks that MASTER_KEY can read a database: unwraps every org's data
-// key and decrypts one roster name per org. Run by restore.sh --drill
+// key and decrypts one roster name per org, and reads every Lantern
+// scout's name and one note per scout (those use a key derived from
+// MASTER_KEY per account, not an org key). Run by restore.sh --drill
 // against the restored copy, so a drill fails when the key that would
 // be used for a real restore can't read the backup.
 //
@@ -8,6 +10,7 @@
 import { PrismaClient } from "@prisma/client";
 import { unwrapDekWithMaster, masterKeyConfigured } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
+import { decryptEntryText, decryptScoutName } from "@/lib/journey/crypto";
 
 async function main() {
   const url = process.env.VERIFY_DATABASE_URL;
@@ -36,7 +39,24 @@ async function main() {
       }
     }
     console.log(`${orgs.length - failed}/${orgs.length} org(s) readable with this MASTER_KEY`);
-    if (failed) process.exitCode = 1;
+
+    // Names can't be empty, so "" means the key didn't open it.
+    const scouts = await prisma.journeyScout.findMany({ select: { id: true, ownerUserId: true, encName: true } });
+    if (scouts.length && !masterKeyConfigured()) {
+      throw new Error(`MASTER_KEY is not set; ${scouts.length} Lantern trail(s) have encrypted names`);
+    }
+    let badScouts = 0;
+    for (const s of scouts) {
+      const note = await prisma.journeyEntry.findFirst({ where: { scoutId: s.id, encText: { not: null } }, select: { encText: true } });
+      const nameOk = decryptScoutName(s.ownerUserId, s.encName) !== "";
+      const noteOk = !note || decryptEntryText(s.ownerUserId, note.encText) !== null;
+      if (!nameOk || !noteOk) {
+        badScouts += 1;
+        console.log(`FAIL Lantern scout ${s.id}: ${nameOk ? "a note" : "the name"} can't be read`);
+      }
+    }
+    console.log(`${scouts.length - badScouts}/${scouts.length} Lantern trail(s) readable with this MASTER_KEY`);
+    if (failed || badScouts) process.exitCode = 1;
   } finally {
     await prisma.$disconnect();
   }

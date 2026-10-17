@@ -75,6 +75,9 @@ export default async function ProfilePage({
         </form>
       )}
       <p className="mt-10 text-sm">
+        Lantern trails: <a href="/account/trails" className="underline">download a copy or put one back</a>.
+      </p>
+      <p className="mt-4 text-sm">
         <a href="/account/delete" className="text-red-700 underline">
           Delete my account
         </a>

@@ -130,6 +130,14 @@ trail (`/journey/scout`, `/journey/scout/progress`); steps it checks are
 `checkedBy: "scout"`. Those routes use `v1PublicRoute` and authenticate
 with `requireScoutDevice`, never `v1Route`.
 
+A whole trail exports as a file families keep
+(`/api/v1/journey/scouts/<id>/export?format=json|xlsx|zip`, and
+`/account/trails` on the web) and imports back as a new scout, or adds
+only what's missing to one (`POST /api/v1/journey/import`,
+`src/lib/journey/trail-file.ts`, format `lantern-trail` v1, which
+Lantern also writes for a phone-only trail). New trail data must go in
+that file and in `scripts/host/carry-journey.sh`.
+
 Logs, notes, proof photos and "ready" marks on a requirement are
 `JourneyEntry` rows (`/api/v1/journey/scouts/<id>/entries`, CSV at
 `entries/export`), addressed by the device's `clientId` so an offline

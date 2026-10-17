@@ -22,6 +22,7 @@ Deploys are **blue-green**: the new version starts next to the live one, gets ch
 
 Merging to `main` deploys. The *Deploy* workflow (`scripts/deploy-api.sh`) builds one server image tagged with the commit, then for staging and afterwards production (after your approval, if the `production` environment requires a reviewer):
 
+0. **Back up.** `gcloud sql backups create` takes an on-demand Cloud SQL backup named for the image, so a migration that goes wrong can be [restored](#restore-the-database) from the moment before it.
 1. **Migrate.** The `core-migrate-<env>` job runs `prisma migrate deploy` and the row-only grants. The live revision (blue) keeps serving; migrations are expand-only, so it still works on the new schema.
 2. **Green.** The image is deployed as a new Cloud Run revision with **no traffic**, tagged `green`, at its own URL (`https://green---core-<env>-…run.app`).
 3. **Check green.** `/health` (database reachable) and `/login` must answer on green. If not, the workflow goes red and live traffic never moved.
@@ -85,7 +86,7 @@ Nothing is broken for users: the deploy stopped before the new server took traff
 
 ## Restore the database
 
-Backups: daily, kept 14 days, plus point-in-time recovery for the last 7 days. If the instance is ever deleted, a final backup is kept for 30 days.
+Backups: daily, kept 14 days, one more before every deploy's migrations (`scripts/deploy-api.sh`), plus point-in-time recovery for the last 7 days. If the instance is ever deleted, a final backup is kept for 30 days.
 
 **Prefer repairing from a copy over replacing the live database**, so nothing written since the accident is lost:
 

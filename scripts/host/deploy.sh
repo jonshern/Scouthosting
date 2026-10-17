@@ -2,9 +2,12 @@
 # Blue-green deploy of Compass on the host Mac, the same steps as the
 # cloud deploy (scripts/deploy-api.sh):
 #
-#   1. back up the database and uploads (stop if that fails)
-#   2. check out REF in the idle slot, npm ci, build. The live slot
+#   1. check out REF in the idle slot, npm ci, build. The live slot
 #      keeps serving the whole time.
+#   2. back up the database and uploads (stop if that fails), right
+#      before migrating so the copy is as fresh as it can be, and record
+#      it in $SLOTS_DIR/last-deploy with the migrations this deploy
+#      applies: rollback.sh --with-data restores it if one went wrong
 #   3. apply migrations. They are expand-only (CI checks), so the live
 #      slot keeps working on the new schema.
 #   4. start the idle slot on its own port; /health must report REF's
@@ -50,9 +53,6 @@ fi
 DIR="$SLOTS/$IDLE"
 PORT_IDLE="$(slot_port "$IDLE")"
 
-log "backing up"
-"$ROOT/scripts/host/backup.sh" >/dev/null || die "backup failed; nothing was changed"
-
 # The idle slot is free to rebuild: stop whatever old build it holds.
 job_ctl stop "server-$IDLE"
 
@@ -77,9 +77,39 @@ if ! (
   die "build failed; the live slot ($LIVE) is untouched"
 fi
 
+log "backing up before migrating"
+BACKUP="$("$ROOT/scripts/host/backup.sh" predeploy)" || die "backup failed; nothing was changed (the live slot ($LIVE) still serves)"
+applied_migrations() {
+  psql_db "$DB_NAME" -At -c "select migration_name from _prisma_migrations where finished_at is not null order by 1" 2>/dev/null || true
+}
+BEFORE_MIGRATIONS="$(applied_migrations)"
+# Written before migrating, so a migration that fails part way still
+# leaves the record rollback.sh --with-data needs.
+record_deploy() {
+  local f tmp
+  f="$SLOTS/last-deploy"; tmp="$f.tmp.$$"
+  {
+    echo "at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "backup $BACKUP"
+    echo "from_slot ${LIVE:-none}"
+    echo "from_commit ${LIVE_SHA:-none}"
+    echo "to_slot $IDLE"
+    echo "to_commit $NEW"
+    echo "status $1"
+    comm -13 <(printf '%s\n' "$BEFORE_MIGRATIONS" | sort) <(applied_migrations | sort) | sed 's/^/migration /'
+  } > "$tmp"
+  mv -f "$tmp" "$f"
+}
+record_deploy migrating
+
 log "applying migrations"
-(cd "$DIR" && node_modules/.bin/prisma migrate deploy) >> "$BUILD_LOG" 2>&1 ||
-  die "a migration failed; the live slot still serves. See 'Deploy failed' in docs/runbooks-mac.md"
+if ! (cd "$DIR" && node_modules/.bin/prisma migrate deploy) >> "$BUILD_LOG" 2>&1; then
+  record_deploy migration-failed
+  die "a migration failed; the live slot still serves. The backup from just before it is $BACKUP; see 'Deploy failed' in docs/runbooks-mac.md"
+fi
+record_deploy migrated
+NEW_MIGRATIONS="$(grep -c '^migration ' "$SLOTS/last-deploy" || true)"
+log "applied $NEW_MIGRATIONS new migration(s)"
 
 job_ctl start "server-$IDLE"
 if ! wait_healthy "$PORT_IDLE" "$NEW"; then
@@ -88,6 +118,7 @@ if ! wait_healthy "$PORT_IDLE" "$NEW"; then
 fi
 
 set_live "$IDLE"
+record_deploy live
 log "switched to $IDLE"
 if wait_healthy "$(switch_port)" "$NEW" 15; then
   log "deploy done: ${NEW:0:8} serves from $IDLE; ${LIVE:-nothing} stays up for rollback (make rollback)"
