@@ -4,6 +4,7 @@
 
 import { expect, test, type Page } from "@playwright/test";
 import { showPasswordSignIn } from "./helpers/flows";
+import { E2E_PORT } from "./helpers/ports";
 
 const EMAIL = "scoutmaster@example.invalid";
 const PASSWORD = "AdminPasswordTest123!";
@@ -30,7 +31,7 @@ test.describe("API token lifecycle", () => {
     expect(raw).toMatch(/^compass_pat_/);
 
     // Use it.
-    const meRes = await page.request.get("http://localhost:3000/api/v1/auth/me", {
+    const meRes = await page.request.get(`http://localhost:${E2E_PORT}/api/v1/auth/me`, {
       headers: { authorization: `Bearer ${raw}` },
     });
     expect(meRes.status()).toBe(200);
@@ -45,7 +46,7 @@ test.describe("API token lifecycle", () => {
     await expect(page.locator(`input[name=id][value="${id}"]`)).toHaveCount(0);
 
     // Calling /api/v1/auth/me with the revoked token now 401s.
-    const after = await page.request.get("http://localhost:3000/api/v1/auth/me", {
+    const after = await page.request.get(`http://localhost:${E2E_PORT}/api/v1/auth/me`, {
       headers: { authorization: `Bearer ${raw}` },
     });
     expect(after.status()).toBe(401);

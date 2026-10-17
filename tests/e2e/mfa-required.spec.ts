@@ -1,6 +1,6 @@
 // Organizer two-step requirement (PR #120), against the second test
-// server on :3001 that runs WITHOUT ALLOW_ADMIN_WITHOUT_MFA (see
-// playwright.config.ts). Leaders/admins must turn on two-step sign-in
+// server on E2E_MFA_PORT (3001 by default) that runs WITHOUT
+// ALLOW_ADMIN_WITHOUT_MFA (see playwright.config.ts). Leaders/admins must turn on two-step sign-in
 // before the admin pages or the phone app work, and can't turn it off;
 // parents aren't affected.
 
@@ -8,8 +8,9 @@ import { expect, test, type Page } from "@playwright/test";
 import * as OTPAuth from "otpauth";
 import { USER_PASSWORD, freshPage, showPasswordSignIn, signUp, uid } from "./helpers/flows";
 import { grantRole } from "./helpers/db";
+import { E2E_MFA_PORT } from "./helpers/ports";
 
-const MFA_APEX = "http://localhost:3001";
+const MFA_APEX = `http://localhost:${E2E_MFA_PORT}`;
 const CALLBACK = "compass://auth/callback";
 
 function totp(secret: string, windowOffset = 0): string {

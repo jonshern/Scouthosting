@@ -8,10 +8,11 @@
 
 import { expect, test, type Page } from "@playwright/test";
 import { showPasswordSignIn } from "./helpers/flows";
+import { E2E_PORT } from "./helpers/ports";
 
 const SCOUTMASTER = "scoutmaster@example.invalid";
 const PASSWORD = "AdminPasswordTest123!";
-const TENANT = "http://troop100.localhost:3000";
+const TENANT = `http://troop100.localhost:${E2E_PORT}`;
 
 async function signInAs(page: Page, email: string, password: string) {
   await page.goto(`${TENANT}/login`);
