@@ -8,6 +8,15 @@ function optional(name: string, fallback: string): string {
   return process.env[name] || fallback;
 }
 
+// Prefix for the sign-in cookies (session is "<prefix>_session"). The demo
+// gets its own by default so a demo sign-in never touches a real one;
+// COOKIE_PREFIX sets it for any other deployment sharing a host name.
+function cookiePrefix(): string {
+  const v = process.env.COOKIE_PREFIX || (process.env.DEMO_MODE === "1" ? "compass_demo" : "compass");
+  if (!/^[a-z][a-z0-9_]*$/.test(v)) throw new Error("COOKIE_PREFIX must be lowercase letters, digits and _.");
+  return v;
+}
+
 // APEX_HOST drives tenancy classification (apex / tenant / custom). If it
 // silently falls back to "localhost" in production the apex domain gets
 // misclassified as a custom domain and every request 404s. Fail fast in
@@ -47,6 +56,7 @@ export const env = {
   DATABASE_URL: required("DATABASE_URL"),
   APEX_HOST: apexHost(),
   COOKIE_DOMAIN: optional("COOKIE_DOMAIN", ""),
+  COOKIE_PREFIX: cookiePrefix(),
   SESSION_SECRET: optional("SESSION_SECRET", DEV_SECRET),
   AUTH_SECRET: authSecret(),
   ALLOW_ADMIN_PASSWORD_LOGIN: optional("ALLOW_ADMIN_PASSWORD_LOGIN", ""),
