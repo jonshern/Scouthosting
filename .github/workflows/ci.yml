@@ -120,6 +120,9 @@ jobs:
           scripts/host/backup.sh
           scripts/host/restore.sh --drill
           scripts/host/journey-drill.sh
+          # Again with psql behind `docker exec -i`, as on the Mac, where
+          # it reads stdin the host psql leaves alone.
+          PATH="$PWD/scripts/host/test:$PATH" scripts/host/journey-drill.sh
 
   e2e:
     name: Browser tests

@@ -118,9 +118,18 @@ last="$(psql_db "$TARGET" -At -c \
   'select migration_name from _prisma_migrations where finished_at is not null order by migration_name desc limit 1')"
 check "newest migration is $last" same "$last" "$(manifest last_migration)"
 
-if [ -d "$ROOT/node_modules/.bin" ]; then
+# The key check needs a Prisma client generated for the backup's schema.
+# The live slot has one (deploy.sh runs npm ci and prisma generate
+# there); this checkout's may be stale after a git pull, so it is the
+# fallback when nothing has been deployed (CI, a fresh Mac).
+KEYS_DIR="$ROOT"
+live="$(live_slot)"
+if [ -n "$live" ] && [ -x "$(slots_dir)/$live/node_modules/.bin/tsx" ] && [ -f "$(slots_dir)/$live/scripts/host/verify-keys.ts" ]; then
+  KEYS_DIR="$(slots_dir)/$live"
+fi
+if [ -d "$KEYS_DIR/node_modules/.bin" ]; then
   verify_keys() {
-    (cd "$ROOT" && VERIFY_DATABASE_URL="${PG_URL%/*}/$TARGET" MASTER_KEY="$(env_get MASTER_KEY)" \
+    (cd "$KEYS_DIR" && VERIFY_DATABASE_URL="${PG_URL%/*}/$TARGET" MASTER_KEY="$(env_get MASTER_KEY)" \
       node_modules/.bin/tsx scripts/host/verify-keys.ts >&2)
   }
   check "MASTER_KEY reads every org's and every trail's encrypted data" verify_keys

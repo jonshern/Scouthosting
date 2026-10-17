@@ -28,6 +28,9 @@ async function emmett(user: { id: string }) {
 }
 
 async function seed() {
+  // A drill that stopped part way leaves its family behind; start clean
+  // (the trail goes with the account).
+  await prisma.user.deleteMany({ where: { email: EMAIL } });
   const user = await prisma.user.create({
     data: { email: EMAIL, displayName: "Drill Parent", emailVerified: true },
     select: { id: true, email: true },
