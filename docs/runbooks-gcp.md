@@ -111,6 +111,20 @@ Once the trigger exists, the alert means the server let such a message through t
 4. If it was a bug, fix it, and add a test that would have caught it.
 5. If it looks deliberate, treat it as an [incident](#incident-response): remove the account's roles in the organization's admin pages, and tell the scoutmaster.
 
+## Someone lost their passkey
+
+A passkey lives on the person's phone or laptop (or their Apple, Google or password-manager sync). If they lose it:
+
+1. **They have another way in.** Password plus an authenticator code or backup code, Google/Apple sign-in, or another passkey. They sign in and remove the lost one on their account's Security page. Nothing for you to do.
+2. **A leader or admin whose only second step was that passkey.** They can still enter their password, but sign-in stops at the second step. Confirm it's really them (a call, or a known co-leader vouching), then remove their passkeys so the next sign-in sends them to set up a new second step:
+
+   ```sql
+   DELETE FROM "Passkey" WHERE "userId" = (SELECT id FROM "User" WHERE email = 'leader@example.org');
+   ```
+
+   Note it in the audit trail of the incident (who asked, who confirmed). If the device may have been stolen rather than lost, also delete their `Session` rows and have them change their password.
+3. **Passkeys stopped working for everyone on one address.** Passkeys belong to a site name: the apex (shared by every unit subdomain), each custom domain, or a `PASSKEY_EXTRA_HOSTS` entry. Changing `APEX_HOST` or a unit's custom domain strands the passkeys made on the old name. People sign in another way and add a new passkey; there's no way to move them.
+
 ## Incident response
 
 Any concern about a scout's safety comes first, before any technical work:

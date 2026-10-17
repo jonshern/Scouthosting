@@ -77,6 +77,7 @@ export async function deleteAccount(userId: string): Promise<void> {
     const where = { userId };
     await tx.session.deleteMany({ where });
     await tx.account.deleteMany({ where });
+    await tx.passkey.deleteMany({ where });
     await tx.apiToken.deleteMany({ where });
     await tx.pushDevice.deleteMany({ where });
     await tx.backupCode.deleteMany({ where });
