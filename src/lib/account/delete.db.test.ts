@@ -120,6 +120,16 @@ describe.skipIf(!db)("deleting your account (Postgres)", () => {
     });
     await prisma.journeyScout.create({ data: { ownerUserId: parent.id, encName: Buffer.from("x") } });
     await prisma.counselorBadge.create({ data: { userId: parent.id, badgeSlug: "hiking" } });
+    await prisma.passkey.create({
+      data: {
+        userId: parent.id,
+        name: "Phone",
+        credentialId: `cred-del-${S}`,
+        publicKey: Buffer.from("k"),
+        deviceType: "multiDevice",
+        rpId: "localhost",
+      },
+    });
     // A Claude connection (lib/mcp).
     const mcpClient = await prisma.mcpClient.create({ data: { clientId: `mcp_del_${S}`, clientName: "Claude", redirectUris: ["https://claude.ai/cb"] } });
     await prisma.mcpToken.create({
@@ -146,6 +156,7 @@ describe.skipIf(!db)("deleting your account (Postgres)", () => {
 
     // Gone: sign-ins, memberships, personal data.
     expect(await prisma.apiToken.count({ where: { userId: parent.id } })).toBe(0);
+    expect(await prisma.passkey.count({ where: { userId: parent.id } })).toBe(0);
     expect(await prisma.orgMembership.count({ where: { userId: parent.id } })).toBe(0);
     expect(await prisma.channelMember.count({ where: { userId: parent.id } })).toBe(0);
     expect(await prisma.reaction.count({ where: { userId: parent.id } })).toBe(0);
