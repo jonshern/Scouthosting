@@ -127,6 +127,11 @@ trail (`/journey/scout`, `/journey/scout/progress`); steps it checks are
 `checkedBy: "scout"`. Those routes use `v1PublicRoute` and authenticate
 with `requireScoutDevice`, never `v1Route`.
 
+Logs, notes, proof photos and "ready" marks on a requirement are
+`JourneyEntry` rows (`/api/v1/journey/scouts/<id>/entries`, CSV at
+`entries/export`), addressed by the device's `clientId` so an offline
+retry never adds twice; note text and photos are encrypted per owner.
+
 ### 5. pg-boss v12 needs `createQueue` before `work`
 
 v12 introduced a stricter queue model. `src/lib/jobs/index.ts` calls

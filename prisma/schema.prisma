@@ -2904,6 +2904,7 @@ model JourneyScout {
   progress JourneyProgress[]
   devices  JourneyScoutDevice[]
   codes    JourneyPairCode[]
+  entries  JourneyEntry[]
 
   @@index([ownerUserId])
   @@index([memberId])
@@ -2926,6 +2927,38 @@ model JourneyProgress {
   scout JourneyScout @relation(fields: [scoutId], references: [id], onDelete: Cascade)
 
   @@unique([scoutId, key])
+}
+
+// What a scout logs on one requirement of their trail: a dated amount
+// ("log": 30 minutes, 2 hours of service, 1 night camped), a note or
+// written answer ("note"), a photo as proof ("photo"), or "ready" (the
+// scout says it's ready for a grown-up or counselor to check). key is
+// the step key, like JourneyProgress.key. clientId is the device's own
+// id for the entry, so a retried offline batch never adds it twice.
+// text and the photo bytes are about a child, so they're encrypted with
+// the owner's journey key (src/lib/journey/crypto.ts). byRole is who
+// made it: "parent" (the account) or "scout" (the scout's own device).
+model JourneyEntry {
+  id        String   @id @default(cuid())
+  scoutId   String
+  clientId  String
+  key       String
+  kind      String
+  day       String?
+  amount    Float?
+  unit      String?
+  encText   Bytes?
+  fileKey   String?
+  mimeType  String?
+  byUserId  String?
+  byRole    String   @default("parent")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scout JourneyScout @relation(fields: [scoutId], references: [id], onDelete: Cascade)
+
+  @@unique([scoutId, clientId])
+  @@index([scoutId, key])
 }
 
 // ---------------------------------------------------------------------

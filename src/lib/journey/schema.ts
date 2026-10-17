@@ -112,3 +112,41 @@ export const PairBody = z.object({
     .pipe(z.string().max(40))
     .optional(),
 });
+
+// ---------------------------------------------------------------------
+// Entries: what a scout logs on a requirement (see JourneyEntry).
+
+export const ENTRY_KINDS = ["log", "note", "ready"] as const;
+export const ENTRY_UNITS = ["minutes", "hours", "nights", "miles", "days", "times", "items"] as const;
+export const MAX_ENTRIES_PER_SCOUT = 5000;
+export const MAX_ENTRY_CHANGES = 200;
+export const MAX_ENTRY_TEXT = 4000;
+
+export const ClientId = z.string().min(1).max(40).regex(/^[A-Za-z0-9_-]+$/, "invalid_client_id");
+
+export const EntryInput = z
+  .object({
+    clientId: ClientId,
+    key: ProgressKey,
+    kind: z.enum(ENTRY_KINDS),
+    day: DoneOn.optional(),
+    amount: z.number().finite().min(0).max(100_000).optional(),
+    unit: z.enum(ENTRY_UNITS).optional(),
+    text: Text(MAX_ENTRY_TEXT).optional(),
+  })
+  .refine((e) => e.kind !== "log" || e.amount !== undefined, "log_needs_amount");
+
+/** A batch from the device: entries to add or replace (by clientId) and clientIds to remove. */
+export const EntriesBody = z
+  .object({
+    put: z.array(EntryInput).max(MAX_ENTRY_CHANGES).default([]),
+    remove: z.array(ClientId).max(MAX_ENTRY_CHANGES).default([]),
+  })
+  .refine((b) => b.put.length + b.remove.length > 0, "nothing_to_change");
+
+export const EntriesQuery = z.object({
+  /** Only entries on this item ("badge:camping") or step ("rank:second-class#7a"). */
+  key: ProgressKey.optional(),
+});
+
+export type EntryInputT = z.infer<typeof EntryInput>;
