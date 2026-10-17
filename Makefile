@@ -16,7 +16,7 @@ PORT       ?= $(shell . ./.env 2>/dev/null; echo $${PORT:-3000})
 .DEFAULT_GOAL := help
 
 .PHONY: help bootstrap dev redeploy seed test e2e clean mobile mobile-build demo demo-reset \
-        backup restore-drill deploy rollback host-install \
+        backup restore-drill deploy rollback host-install offsite \
         install db-up db-wait migrate wipe pull dev-bg dev-stop down \
         ensure-master-key
 
@@ -74,17 +74,20 @@ clean: dev-stop down ## Stop the dev server and the Postgres container.
 
 # --- host Mac (docs/runbooks-mac.md) ---
 
-backup: ## Back up the database and uploads to ../compass-backups.
-	scripts/host/backup.sh
+backup: ## Back up the database and uploads to ../compass-backups (and off the Mac if OFFSITE_DIR is set).
+	scripts/host/backup.sh manual
 
 restore-drill: ## Restore the newest backup into a scratch database and verify it.
 	scripts/host/restore.sh --drill
 
+offsite: ## Copy the newest backup to OFFSITE_DIR or OFFSITE_URL now.
+	scripts/host/offsite.sh
+
 deploy: ## Blue-green deploy of origin/main (or REF=...) to the host Mac.
 	scripts/host/deploy.sh $(REF)
 
-rollback: ## Flip the host back to the previous slot (instant).
-	scripts/host/rollback.sh
+rollback: ## Flip the host back to the previous slot (instant). DATA=1 also puts the database back to before the last deploy's migrations.
+	scripts/host/rollback.sh $(if $(DATA),--with-data)
 
 host-install: ## Install the launchd jobs: switch, two slots, cron, backup, drill, watchdog.
 	scripts/host/install-launchd.sh
