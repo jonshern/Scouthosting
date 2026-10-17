@@ -10,6 +10,7 @@
 #     stops Postgres.
 #   - the newest backup is under 26 hours old.
 #   - the last restore drill passed.
+#   - the last off-Mac copy worked (when OFFSITE_DIR or OFFSITE_URL is set).
 #
 # Alerts go to a macOS notification and, when ALERT_WEBHOOK is set in
 # .env, a POST of the message text to that URL (an ntfy.sh topic URL
@@ -92,4 +93,11 @@ if [ -f "$STATE/drill.failed" ]; then
   problem drill "the last restore drill failed; run make restore-drill and see 'Backups' in docs/runbooks-mac.md"
 else
   ok drill "the restore drill passes again"
+fi
+
+# 5. off-Mac copy (offsite.sh leaves this flag when a copy fails)
+if [ -f "$(backup_dir)/.offsite-failed" ]; then
+  problem offsite "the last off-Mac copy of the backup failed (is the drive or cloud folder there?); see ~/Library/Logs/compass/backup.log"
+else
+  ok offsite "off-Mac backup copies work again"
 fi

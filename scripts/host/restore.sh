@@ -9,11 +9,19 @@
 # $BACKUP_DIR is used when it's left out.
 #
 # The drill restores into a scratch database, checks the dump checksum,
-# compares every table's row count with the manifest, checks the newest
-# migration, unwraps every org's data key with the current MASTER_KEY,
-# unpacks the uploads archive, then drops the scratch database. It exits
+# compares every table's row count with the manifest, checks every
+# Lantern trail (each scout, checked step and entry) against the
+# fingerprint the backup recorded, checks the newest migration, unwraps
+# every org's data key and reads every trail with the current
+# MASTER_KEY, unpacks the uploads archive, then drops the scratch
+# database. It exits
 # non-zero if any check fails. Run it on a schedule (make host-install
 # does, weekly) so a broken backup is found before it is needed.
+#
+# RESTORE_KEEP_UPLOADS=1 with --replace leaves the uploads folder as it
+# is (rollback.sh --with-data uses it: upload names never repeat, so the
+# current folder already holds everything the backup's rows point at,
+# plus photos added since).
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
@@ -100,6 +108,12 @@ counts_match() {
 }
 check "row counts match the manifest for every table" counts_match
 
+want_journey="$(manifest journey_sha256)"
+if [ -n "$want_journey" ]; then
+  check "every Lantern trail matches the backup ($(journey_summary "$TARGET"))" \
+    same "$(journey_fingerprint "$TARGET")" "$want_journey"
+fi
+
 last="$(psql_db "$TARGET" -At -c \
   'select migration_name from _prisma_migrations where finished_at is not null order by migration_name desc limit 1')"
 check "newest migration is $last" same "$last" "$(manifest last_migration)"
@@ -109,7 +123,7 @@ if [ -d "$ROOT/node_modules/.bin" ]; then
     (cd "$ROOT" && VERIFY_DATABASE_URL="${PG_URL%/*}/$TARGET" MASTER_KEY="$(env_get MASTER_KEY)" \
       node_modules/.bin/tsx scripts/host/verify-keys.ts >&2)
   }
-  check "MASTER_KEY reads every org's encrypted data" verify_keys
+  check "MASTER_KEY reads every org's and every trail's encrypted data" verify_keys
 else
   log "skip  key check (run npm install first)"
 fi
@@ -118,7 +132,9 @@ if [ -f "$SRC/uploads.tar.gz" ]; then
   tmp="$(mktemp -d)"
   check "uploads archive unpacks" tar -xzf "$SRC/uploads.tar.gz" -C "$tmp"
   log "      $(find "$tmp" -type f | wc -l | tr -d ' ') uploaded files"
-  if [ "$MODE" = "--replace" ]; then
+  if [ "$MODE" = "--replace" ] && [ "${RESTORE_KEEP_UPLOADS:-}" = "1" ]; then
+    log "      keeping the current uploads folder (RESTORE_KEEP_UPLOADS=1)"
+  elif [ "$MODE" = "--replace" ]; then
     dest="$(uploads_dir)"
     if [ -d "$dest" ]; then mv "$dest" "${dest}.before_restore_$(date -u +%Y%m%d%H%M%S)"; fi
     mv "$(find "$tmp" -mindepth 1 -maxdepth 1 -type d | head -n1)" "$dest"

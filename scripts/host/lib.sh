@@ -74,6 +74,42 @@ order by table_name
 SQL
 }
 
+# A fingerprint of every Lantern trail: each scout, each checked step
+# and each log, note or photo, in a fixed order. backup.sh records it
+# and restore.sh compares it, so a drill proves the trails came back
+# exactly, not just the same number of rows. Prints "none" before the
+# journey tables exist.
+journey_fingerprint() {
+  local db="$1" has
+  has="$(psql_db "$db" -At -c "select to_regclass('public.\"JourneyEntry\"') is not null")"
+  [ "$has" = "t" ] || { printf 'none'; return; }
+  psql_db "$db" -At <<'SQL' | sha256_stdin
+select 's ' || id || ' ' || "ownerUserId" || ' ' || md5("encName") || ' ' || md5(path::text) || ' ' || md5(custom::text)
+  from "JourneyScout" order by id;
+select 'p ' || "scoutId" || ' ' || key || ' ' || coalesce("doneOn", '-') || ' ' || "byScout"
+  from "JourneyProgress" order by "scoutId", key;
+select 'e ' || "scoutId" || ' ' || "clientId" || ' ' || key || ' ' || kind || ' ' || coalesce(day, '-') || ' '
+       || coalesce(amount::text, '-') || ' ' || coalesce(md5("encText"), '-') || ' ' || coalesce("fileKey", '-')
+  from "JourneyEntry" order by "scoutId", "clientId";
+SQL
+}
+
+# Scouts, checked steps and entries, for log lines: "2 scouts, 140 steps, 31 entries".
+journey_summary() {
+  local db="$1" has
+  has="$(psql_db "$db" -At -c "select to_regclass('public.\"JourneyEntry\"') is not null")"
+  [ "$has" = "t" ] || { printf 'no Lantern tables'; return; }
+  psql_db "$db" -At <<'SQL'
+select (select count(*) from "JourneyScout") || ' scouts, ' || (select count(*) from "JourneyProgress")
+       || ' steps, ' || (select count(*) from "JourneyEntry") || ' entries';
+SQL
+}
+
+# utc_stamp_days_ago <n>: the backup-name stamp (20261017T050002Z) n days ago.
+utc_stamp_days_ago() {
+  date -u -v-"$1"d +%Y%m%dT%H%M%SZ 2>/dev/null || date -u -d "-$1 days" +%Y%m%dT%H%M%SZ
+}
+
 uploads_dir() {
   local d
   d="$(env_get LOCAL_UPLOADS_DIR)"

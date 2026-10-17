@@ -106,7 +106,10 @@ jobs:
       - run: npm test
       - run: shellcheck -x -S warning scripts/host/*.sh
       # The host Mac's backup and restore scripts, end to end: seed,
-      # back up, restore into a scratch database and verify it.
+      # back up, restore into a scratch database and verify it. Then the
+      # Lantern drill: Emmett's trail is lost and restored exactly, a
+      # data rollback keeps newer progress, and an encrypted off-site
+      # copy restores (scripts/host/journey-drill.sh).
       - name: Backup and restore drill
         env:
           BACKUP_DIR: ${{ runner.temp }}/backups
@@ -116,6 +119,7 @@ jobs:
           npm run db:seed
           scripts/host/backup.sh
           scripts/host/restore.sh --drill
+          scripts/host/journey-drill.sh
 
   e2e:
     name: Browser tests

@@ -1,6 +1,6 @@
 # Runbooks (host Mac)
 
-Compass runs on Jon's Mac until the family moves to Google Cloud ([runbooks-gcp.md](runbooks-gcp.md) covers that). This page is what keeps it running there: how it is set up, how to deploy and roll back, how backups work, and what to do when the watchdog alerts.
+Compass runs on Jon's Mac until the family moves to Google Cloud ([runbooks-gcp.md](runbooks-gcp.md) covers that). This page is what keeps it running there: how it is set up, how to deploy and roll back, how backups work, and what to do when the watchdog alerts. The plain-language version for families is [your-data.md](your-data.md).
 
 | Situation | Section |
 |---|---|
@@ -10,7 +10,8 @@ Compass runs on Jon's Mac until the family moves to Google Cloud ([runbooks-gcp.
 | `deploy.sh` stopped with an error | [Deploy failed](#deploy-failed) |
 | "site has failed its health check" | [Site is down](#site-is-down) |
 | "only N GB free" | [Disk full](#disk-full) |
-| "no backup in the last 26 hours" or "restore drill failed" | [Backups](#backups) |
+| "no backup in the last 26 hours", "restore drill failed" or "off-Mac copy failed" | [Backups](#backups) |
+| A migration damaged data | [Roll back](#roll-back) (`make rollback DATA=1`) |
 | Data deleted or corrupted | [Restore](#restore) |
 | The Mac died or is being replaced | [Move to a new Mac](#move-to-a-new-mac) |
 
@@ -93,7 +94,9 @@ make deploy                    # newest origin/main
 make deploy REF=<ref>          # a tag, branch or commit
 ```
 
-`scripts/host/deploy.sh` backs up, checks out the code in the idle slot, builds it there while the live slot keeps serving, applies migrations, starts the idle slot and checks `/health` (it must report the new commit) and `/login` on the slot's own port. Then it flips the switch and checks again through it, flipping back if that fails. Nobody sees downtime: in a test, 3,880 requests made during a deploy all succeeded.
+`scripts/host/deploy.sh` checks out the code in the idle slot, builds it there while the live slot keeps serving, backs up the database and uploads (a deploy stops if that fails), applies migrations, starts the idle slot and checks `/health` (it must report the new commit) and `/login` on the slot's own port. Then it flips the switch and checks again through it, flipping back if that fails. Nobody sees downtime: in a test, 3,880 requests made during a deploy all succeeded.
+
+The backup is taken right before the migrations, so it is as fresh as it can be, and `../compass-slots/last-deploy` records it with the migrations the deploy applied. That is what `make rollback DATA=1` restores.
 
 Migrations run while the old build is still live, so they must be **expand-only**: add tables, nullable columns or columns with defaults, and indexes; don't drop, rename or retype anything the running code uses. CI enforces it (*Expand-only migrations*); a later release removes what nothing uses any more with a migration marked `-- contract: <why>`.
 
@@ -105,6 +108,18 @@ make rollback
 
 Flips the switch to the other slot, which is still running the build that was live before the last deploy. Instant, nothing rebuilt, and the database needs nothing because migrations were expand-only. Run it again to flip forward.
 
+### When a migration damaged data
+
+Expand-only migrations shouldn't touch existing rows, but one that backfills or cleans up can go wrong. Then the code isn't the problem, the data is:
+
+```sh
+make rollback DATA=1           # asks you to type "restore"
+```
+
+`scripts/host/rollback.sh --with-data` backs up the database as it is now, stops both slots (Compass is down for a minute or two), restores the backup the last deploy took right before its migrations (`restore.sh --replace`, keeping the current database as `compass_before_restore_<time>` and the uploads folder as it is), then copies every Lantern trail change made since that backup from the kept database into the restored one (`scripts/host/carry-journey.sh`): check marks, logs, notes, photos, new scouts and scout phones. Then it starts the previous slot and points the switch at it. The newer slot stays stopped, because its code wants the newer schema; the next deploy rebuilds it.
+
+What isn't carried: anything else written after the deploy (chat, RSVPs, roster edits) stays only in `compass_before_restore_<time>`, from which you can copy rows back by hand; a Lantern step *unchecked* after the backup shows as checked again. It refuses when the last deploy applied no migrations (plain `make rollback` is enough) or was already rolled back.
+
 A *failed* deploy reuses the idle slot, so after one, the slot behind the live one holds the broken build and `make rollback` refuses (the live slot was never touched). The next good deploy restores a rollback target.
 
 ## Deploy failed
@@ -112,7 +127,7 @@ A *failed* deploy reuses the idle slot, so after one, the slot behind the live o
 The live slot keeps serving in every case below; families don't notice.
 
 - **"build failed"**: the last 30 lines of the build are printed; the full log is `../compass-slots/<slot>-build.log`. Fix it on main and deploy again.
-- **"a migration failed"**: check `npx prisma migrate status`. If the failed migration made no changes, fix it on main, mark it `npx prisma migrate resolve --rolled-back <name>` and deploy again. If it changed data part way, restore the backup the deploy just made into a copy and repair from it ([Restore](#restore)).
+- **"a migration failed"**: check `npx prisma migrate status`. If the failed migration made no changes, fix it on main, mark it `npx prisma migrate resolve --rolled-back <name>` and deploy again. If it changed data part way, the error names the backup made just before it: restore it into a copy and repair from it ([Restore](#restore)), or replace the database with it (`scripts/host/restore.sh --replace <that backup>`, Compass stopped, as in [Restore](#restore)).
 - **"didn't pass /health and /login"**: the new build started but isn't healthy; read `~/Library/Logs/compass/server-<slot>.log`.
 - **"flipped back"**: the slot was healthy on its own port but not through the switch. Check `curl localhost:3000/__switch` and `~/Library/Logs/compass/switch.log`.
 
@@ -129,7 +144,7 @@ The boot disk filled once (2026-10-11) and stopped Docker. The watchdog warns be
 
 1. `docker system df` shows what Docker holds; `docker system prune` removes stopped containers, unused images and build cache (not volumes, so the database is safe).
 2. Never `docker volume prune` or `docker compose down -v`: `compass-pgdata` is the database.
-3. Old backups: `backup.sh` keeps the newest 14 (`BACKUP_KEEP`). It refuses to start with under 1 GB free rather than fill the disk.
+3. Old backups: `backup.sh` keeps 30 days of them (`BACKUP_KEEP_DAYS`), never fewer than the newest 14 (`BACKUP_KEEP`). Lower `BACKUP_KEEP_DAYS` in `.env` to keep fewer. It refuses to start with under 1 GB free rather than fill the disk.
 
 ## Backups
 
@@ -137,14 +152,46 @@ The boot disk filled once (2026-10-11) and stopped Docker. The watchdog warns be
 
 - `db.dump`: the whole database (`pg_dump` custom format)
 - `uploads.tar.gz`: uploaded files (already encrypted)
-- `manifest.txt`: commit, newest migration, exact row count of every table, checksums, and a fingerprint of the `MASTER_KEY` it needs (never the key)
+- `manifest.txt`: why it was made (`scheduled` at 02:30, `predeploy`, `manual`, `prerestore`), commit, newest migration, exact row count of every table, checksums, a fingerprint of every Lantern trail (each scout, checked step, log, note and photo), and a fingerprint of the `MASTER_KEY` it needs (never the key)
 
-The weekly drill restores the newest backup into a scratch database (`compass_restore_drill`), checks the checksums, every table's row count against the manifest and the newest migration, decrypts each org's data with the current `MASTER_KEY`, unpacks the uploads, and drops the scratch database. Run it by hand any time with `make restore-drill`.
+Backups are made every night at 02:30, right before every deploy's migrations, and before a data rollback. Every backup from the last 30 days is kept (`BACKUP_KEEP_DAYS`), and never fewer than the newest 14 (`BACKUP_KEEP`) however old, so a Mac that was off for weeks still has its last good copies. The backup the last deploy took is never pruned.
+
+The weekly drill restores the newest backup into a scratch database (`compass_restore_drill`), checks the checksums, every table's row count against the manifest, every Lantern trail against its fingerprint and the newest migration, decrypts each org's data and each Lantern scout's name and notes with the current `MASTER_KEY`, unpacks the uploads, and drops the scratch database. Run it by hand any time with `make restore-drill`.
+
+CI goes further on every pull request (`scripts/host/journey-drill.sh`, step *Backup and restore drill*): it seeds a scout called Emmett with check marks, logs, a note and a photo, backs up, deletes his trail, restores and checks the trail is exactly what it was; then it checks a step after the backup, restores over it the way `make rollback DATA=1` does and checks both old and new progress survive; then it makes an encrypted off-site copy, fetches it back and drills it. To run it on the Mac, point it at a scratch database, never the live one (it refuses names without drill, test or unit in them):
+
+```sh
+docker exec compass-postgres createdb -U compass compass_journey_drill
+DATABASE_URL=postgresql://compass:compass@localhost:5433/compass_journey_drill npx prisma migrate deploy
+DATABASE_URL=postgresql://compass:compass@localhost:5433/compass_journey_drill MASTER_KEY=$(openssl rand -hex 32) \
+  BACKUP_DIR=/tmp/drill-backups scripts/host/journey-drill.sh
+docker exec compass-postgres dropdb -U compass --force compass_journey_drill
+```
 
 - **No recent backup**: `tail ~/Library/Logs/compass/backup.log`. Usually Docker was down at 02:30 or the backup disk wasn't mounted. Run `make backup` once things are up.
 - **Drill failed**: `make restore-drill` prints which check failed. A key check failure means `.env` has a different `MASTER_KEY` from the one the data was written with; find the right one before anything else, since new data is being written with whatever key is set. Any other failure: try the previous backup (`scripts/host/restore.sh --drill ../compass-backups/compass-<older>`).
 
-A copy that lives on the same Mac doesn't survive the Mac. Copy `compass-backups` somewhere else on a schedule (another drive, or a cloud folder; the dump holds email addresses and other unencrypted fields, so pick a private one).
+- **Off-Mac copy failed**: `tail ~/Library/Logs/compass/backup.log`. Usually the drive isn't plugged in or the cloud folder moved. `make offsite` retries with the newest backup.
+
+### Off the Mac
+
+The backups are on the Crucial X9, away from the database on the boot disk, but a copy on the same desk doesn't survive a fire or a theft. `scripts/host/offsite.sh` copies each new backup somewhere else when `.env` names a place:
+
+```sh
+OFFSITE_DIR=~/Library/Mobile Documents/com~apple~CloudDocs/Compass backups   # iCloud Drive (or a Dropbox folder, or another drive)
+OFFSITE_PASSPHRASE=<openssl rand -hex 24>      # encrypts each copy; save it in the password manager next to MASTER_KEY
+# OFFSITE_URL=gs://<bucket>/compass            # later: a Cloud Storage bucket, once the GCP project exists
+# OFFSITE_KEEP=30                              # copies kept there
+```
+
+Each copy is one file, `compass-<time>.tar.enc` (AES-256 with the passphrase), with a `.sha256` beside it. After writing it, `offsite.sh` decrypts it again and checks it matches, and the watchdog alerts if a copy failed. A synced folder or bucket needs `OFFSITE_PASSPHRASE`: the dump holds email addresses and other unencrypted fields. `make offsite` copies the newest backup by hand.
+
+To bring one back (to a new Mac, say):
+
+```sh
+scripts/host/offsite.sh --fetch "<folder>/compass-<time>.tar.enc"   # or gs://…; prints the backup folder it made
+scripts/host/restore.sh --drill <that folder>                        # then --replace as below
+```
 
 ## Restore
 
@@ -183,7 +230,7 @@ Compass only runs while you're signed in to the Mac: the launchd jobs are per-us
 ## Move to a new Mac
 
 1. On the new Mac: Docker Desktop, Node 22, clone Scouthosting, `make install db-up db-wait`.
-2. Copy `.env` from the password manager or the old Mac (same `MASTER_KEY`).
+2. Copy `.env` from the password manager or the old Mac (same `MASTER_KEY`, and `OFFSITE_PASSPHRASE` if the backup comes from the off-Mac copy: `scripts/host/offsite.sh --fetch` it first).
 3. `scripts/host/restore.sh --replace <latest backup>`, then `make host-install` and `make deploy`.
 
 ## Passkeys on the Mac
