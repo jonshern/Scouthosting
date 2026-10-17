@@ -82,6 +82,12 @@ WEB_SIGNIN_ORIGINS=https://<the Mac's *.ts.net name>:8443
 
 Separate several with commas. Plain `http://` addresses are refused in production mode, and nothing but `<origin>/signed-in` can receive a token.
 
+Lantern's website (`npm run web:serve` in emmett-scouting/app, on :8081 behind `tailscale serve --bg --https 8444 8081`) signs in the same way, so add its address too, for example `WEB_SIGNIN_ORIGINS=https://<mac>.ts.net:8443,https://<mac>.ts.net:8444`. To sign in from Expo Go, list the Expo dev server's Tailscale address and port, the one Expo Go shows (`exp://100.x.y.z:8083` with Lantern's Expo server on port 8083, see emmett-scouting docs/phone.md):
+
+```sh
+EXPO_GO_SIGNIN_HOSTS=100.x.y.z:8083
+```
+
 Production mode applies the production rules: leaders and admins must use two-step sign-in, and admin password sign-in is refused unless `ALLOW_ADMIN_PASSWORD_LOGIN=1` (see CLAUDE.md, trap 3). Until Google or Apple sign-in is configured for this host, that flag is how an admin signs in.
 
 For phone alerts, set `ALERT_WEBHOOK` in `.env` to a URL that accepts a POSTed message, for example an [ntfy](https://ntfy.sh) topic URL with the ntfy app on your phone. Without it, alerts are macOS notifications only.

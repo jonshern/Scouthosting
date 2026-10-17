@@ -1,8 +1,9 @@
 // Where the freshly minted API token may be sent. The token is a full
 // credential for the account, so it may only go back to one of our apps:
 // a registered deep-link scheme below, one of our own websites listed in
-// WEB_SIGNIN_ORIGINS (and only its /signed-in page), or Expo Go / a
-// localhost dev server outside production. Never any other http(s)
+// WEB_SIGNIN_ORIGINS (and only its /signed-in page), Expo Go loading
+// the app from a dev server listed in EXPO_GO_SIGNIN_HOSTS, or Expo Go /
+// a localhost dev server outside production. Never any other http(s)
 // site: a link to /auth/mobile/begin?redirect=https://attacker.example
 // would otherwise hand any signed-in visitor's token to that site in
 // one click.
@@ -10,6 +11,7 @@ export function allowedMobileRedirect(
   raw: string,
   production: boolean,
   webOrigins: ReadonlySet<string> = webSigninOrigins(),
+  expoGoHosts: ReadonlySet<string> = expoGoSigninHosts(),
 ): URL | null {
   let url: URL;
   try {
@@ -19,6 +21,7 @@ export function allowedMobileRedirect(
   }
   if (APP_SCHEMES.has(url.protocol)) return url;
   if (isWebSigninRedirect(url, production, webOrigins)) return url;
+  if (url.protocol === "exp:" && expoGoHosts.has(url.host.toLowerCase())) return url;
   if (production) return null;
   if (url.protocol === "exp:") return url;
   if ((url.protocol === "http:" || url.protocol === "https:") && LOCAL_HOSTS.has(url.hostname)) return url;
@@ -58,6 +61,22 @@ export function webSigninOrigins(raw = process.env.WEB_SIGNIN_ORIGINS): Set<stri
     } catch {
       // not a URL; ignore
     }
+  }
+  return out;
+}
+
+/**
+ * EXPO_GO_SIGNIN_HOSTS: comma-separated host:port pairs of dev servers
+ * whose Expo Go copy of an app may get a token in production, such as
+ * the Mac's Tailscale address running Lantern ("100.101.102.103:8081").
+ * Expo Go hands an exp:// link to the app it loaded from that server, so
+ * listing only our own servers keeps the token away from anyone else's.
+ */
+export function expoGoSigninHosts(raw = process.env.EXPO_GO_SIGNIN_HOSTS): Set<string> {
+  const out = new Set<string>();
+  for (const part of (raw ?? "").split(",")) {
+    const s = part.trim().toLowerCase();
+    if (/^[a-z0-9.-]+:\d{1,5}$/.test(s) || /^\[[0-9a-f:]+\]:\d{1,5}$/.test(s)) out.add(s);
   }
   return out;
 }
