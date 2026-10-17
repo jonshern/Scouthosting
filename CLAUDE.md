@@ -80,7 +80,9 @@ One public, unauthenticated JSON route sits outside v1:
 `src/lib/events/public-signup.ts`). It addresses events by
 `Event.publicSlug` and slots by `SignupSlot.key` (`station:<id>`,
 `role:<id>`); leaders set the slug on the event form and create keyed
-slots by pasting the Waypoint event file on the event's admin page.
+slots by pasting the Waypoint event file on the event's admin page,
+which also turns on the event's "Sign-up required" (the route refuses
+events without it).
 It's passed through un-rewritten on tenant hosts.
 
 `/auth/mobile/begin` is also apex-friendly (works without `req.org`)
