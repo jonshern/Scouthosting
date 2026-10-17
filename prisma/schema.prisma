@@ -2899,9 +2899,11 @@ model JourneyScout {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  owner    User              @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
-  member   Member?           @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  owner    User                 @relation(fields: [ownerUserId], references: [id], onDelete: Cascade)
+  member   Member?              @relation(fields: [memberId], references: [id], onDelete: SetNull)
   progress JourneyProgress[]
+  devices  JourneyScoutDevice[]
+  codes    JourneyPairCode[]
 
   @@index([ownerUserId])
   @@index([memberId])
@@ -2917,6 +2919,8 @@ model JourneyProgress {
   scoutId   String
   key       String
   doneOn    String?
+  // True when the scout checked it on their own device (JourneyScoutDevice).
+  byScout   Boolean  @default(false)
   updatedAt DateTime @updatedAt
 
   scout JourneyScout @relation(fields: [scoutId], references: [id], onDelete: Cascade)
@@ -2993,4 +2997,40 @@ model McpToken {
 
   @@index([userId])
   @@index([familyId])
+}
+
+// A scout's own device in Lantern. Scouts never get an account, email or
+// password: the parent who owns the JourneyScout makes a one-time code
+// (JourneyPairCode) and enters it on the scout's device, which gets this
+// token. It reads and checks off that one scout's trail and nothing
+// else. Only the sha256 of the token is kept; the parent can revoke it.
+model JourneyScoutDevice {
+  id         String    @id @default(cuid())
+  scoutId    String
+  tokenHash  String    @unique
+  label      String
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  expiresAt  DateTime
+  revokedAt  DateTime?
+
+  scout JourneyScout @relation(fields: [scoutId], references: [id], onDelete: Cascade)
+
+  @@index([scoutId])
+}
+
+// One-time code a parent makes to set up a scout's device. Short-lived,
+// single use; only its sha256 is kept. Making a new one retires older
+// unused ones for the same scout.
+model JourneyPairCode {
+  id        String    @id @default(cuid())
+  scoutId   String
+  codeHash  String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  scout JourneyScout @relation(fields: [scoutId], references: [id], onDelete: Cascade)
+
+  @@index([scoutId])
 }

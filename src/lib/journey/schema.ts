@@ -102,3 +102,13 @@ export function lastChangePerKey(changes: ProgressChangeT[]): ProgressChangeT[] 
   }
   return [...byKey.values()];
 }
+
+export const PairBody = z.object({
+  code: z.string().min(1).max(32),
+  /** What the parent will see in the device list, e.g. "Emmett's iPad". */
+  label: z
+    .string()
+    .transform((s) => s.trim())
+    .pipe(z.string().max(40))
+    .optional(),
+});
