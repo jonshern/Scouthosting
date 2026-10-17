@@ -8,6 +8,9 @@
 //
 // Demo orgs (Org.isDemo) bypass billing entirely.
 
+import { supportEmail } from "@/lib/support";
+
+
 export type BillingStatus =
   | "trialing"
   | "active"
@@ -191,7 +194,7 @@ export function billingBanner(state: BillingState): BillingBanner {
       return {
         tone: "danger",
         headline: "This unit's site is suspended.",
-        body: state.reason || "Contact support@compass.app to restore access.",
+        body: state.reason || `Contact ${supportEmail()} to restore access.`,
       };
     default:
       return null;

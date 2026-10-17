@@ -49,7 +49,10 @@ flattened to root afterward. There is no Express runtime anymore.
 
 `src/lib/auth/policy.ts#passwordLoginAllowedForRole` rejects email +
 password sign-in for any user holding `admin`/`isSuperAdmin` when
-`NODE_ENV === "production"`. Admins use Google or Apple SSO instead.
+`NODE_ENV === "production"`, unless they have two-step sign-in set up
+(then the password leads to the code prompt). Otherwise admins use
+Google or Apple. A unit made at `/start` has a password admin, who is
+sent to set up two-step before the admin pages open.
 
 **Escape hatch for staging / QA**: `ALLOW_ADMIN_PASSWORD_LOGIN=1`
 bypasses the SSO requirement. Already set in
@@ -248,10 +251,10 @@ layouts don't cover route handlers.
 
 ### 14. Signed links never use a key from the source code in production
 
-RSVP, permission-slip, unsubscribe, invite and click-tracking links get
+RSVP, permission-slip, unsubscribe and invite links get
 their HMAC key from `src/lib/security/link-secret.ts`: the link's own
 variable (`RSVP_SECRET`, `PERM_SLIP_SECRET`, `UNSUB_SECRET`,
-`INVITE_SECRET`, `TRACKING_SECRET`), then `SESSION_SECRET`, then
+`INVITE_SECRET`), then `SESSION_SECRET`, then
 `BETTER_AUTH_SECRET`. In production a missing or short (< 32 chars) key
 throws instead of falling back; the built-in keys are for dev and tests
 only. The pre-launch invite cookie (`src/lib/invite/cookie.ts`) follows

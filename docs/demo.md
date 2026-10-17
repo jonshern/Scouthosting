@@ -24,7 +24,7 @@ A prospective unit can try Compass, Waypoint and Lantern before signing up by si
 | | Normal | `DEMO_MODE=1` |
 |---|---|---|
 | Email and texts | Resend / Twilio | Stored in `DemoOutboxMessage`, shown on `/demo/outbox` (newest 500 kept) |
-| Admin sign-in with a password in production | Refused (SSO only) | Allowed, so the shared admin works |
+| Admin sign-in with a password in production | Refused unless two-step is set up (or Google/Apple) | Allowed, so the shared admin works |
 | Two-step sign-in for leaders in production | Required | Not required, and can't be turned on |
 | Change password or email | Allowed | Refused with a message |
 | Sign up | Allowed | Refused; the demo unit is the only unit |

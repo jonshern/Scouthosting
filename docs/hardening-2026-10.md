@@ -28,23 +28,12 @@ next ones to take, in order.
 | 18 | Outage | pg-boss opened 10 connections per process; prod, staging and a green revision could exhaust Cloud SQL's 50; public albums loaded every photo | Pools of 4 + 2 per process, budget in `docs/gcp-deployment.md`; albums show 60 per page (#176) |
 | 19 | Downtime on the Mac | A `brew upgrade` could move Node to a new major; reboots and macOS updates left Compass down until someone signed in | `make deploy` refuses a Node major other than `.nvmrc`; "Upgrades and reboots" in `docs/runbooks-mac.md` (auto-login, wake settings, Docker at sign-in, Postgres major moves) (#177) |
 
-## Open, in order
+## Closed in the go-live pass (2026-10-17)
 
-1. **Admin album pages load every photo.** The public page pages at 60
-   (#176); the admin page is left until the code health thread's
-   admin-page auth change (#157) lands, to avoid a conflict.
-2. **Dead code**: `trackEmail` in `src/lib/comms/tracked-message.ts`
-   has no callers, so `/t/c` and `/t/o` serve nothing today. Wire it up
-   or delete it; if wired, those paths need to pass the invite gate and
-   tenant rewrites in `src/middleware.ts`.
-3. **Postgres versions differ**: the Mac and CI run 16, Cloud SQL runs
-   17. Nothing in the schema depends on the difference today; move the
-   Mac and CI to 17 together before the cloud goes live (steps in
-   `docs/runbooks-mac.md`, "Upgrades and reboots").
-4. **Dev-only advisories**: `npm audit` reports vitest's mocker
-   (moderate, fixed in vitest 5) and esbuild's Windows dev server (low).
-   Neither ships in the production build. Upgrade vitest when it's a
-   quiet day; it's a major version.
+- **Admin album pages loaded every photo**: they page at 60 like the public page.
+- **Dead code `trackEmail`**: deleted with the `/t/c` and `/t/o` routes, the click-token module and `TRACKING_SECRET`. Open pixels and rewritten links never shipped, and families' mail stays untracked, as the privacy policy says.
+- **Postgres versions**: Cloud SQL is pinned to 16, the same major as the Mac and CI, so nothing moves before launch. Move all three together later (`docs/runbooks-mac.md`, "Upgrades and reboots").
+- **Dev-only advisories**: still open and still dev-only. `npm audit --omit=dev` lists only vitest's mocker and esbuild's Windows dev server, both build and test tools; the image keeps devDependencies for prisma and tsx but never runs them as a server. Upgrade vitest (a major) on a quiet day.
 
 ## Checks that keep these fixed
 

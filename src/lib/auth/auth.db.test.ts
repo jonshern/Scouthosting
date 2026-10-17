@@ -202,6 +202,34 @@ describe.skipIf(!url)("Better Auth sign-in (database)", () => {
       }
       expect(await sessionCount()).toBe(0);
     });
+
+    // A unit made at /start has a password admin; once they set up
+    // two-step, the password takes them to the code prompt.
+    it("lets a unit admin with two-step sign-in use their password in production", async () => {
+      const user = await migratedUser("admin2@authtest.invalid", { totpSecret: m.generateSecret() });
+      const org = await m.prisma.org.create({
+        data: {
+          slug: "authtest-admin2",
+          unitType: "Troop",
+          unitNumber: "1",
+          displayName: "Troop 1",
+          charterOrg: "Test",
+          city: "Test",
+          state: "MN",
+          scoutmasterName: "Test",
+          scoutmasterEmail: "admin2@authtest.invalid",
+        },
+      });
+      await m.prisma.orgMembership.create({ data: { userId: user.id, orgId: org.id, role: "admin" } });
+      env.NODE_ENV = "production";
+      try {
+        const { response } = await signIn("admin2@authtest.invalid");
+        expect(response).toEqual({ mfaRequired: true });
+      } finally {
+        env.NODE_ENV = prevNodeEnv;
+      }
+      expect(await sessionCount()).toBe(0);
+    });
   });
 
   describe("claiming a unit by scoutmaster email", () => {

@@ -37,7 +37,6 @@ const HOST_READERS = new Set([
 // Absolute redirects to a URL that was checked first.
 const ABSOLUTE_REDIRECTS = new Set([
   "src/lib/auth/social-routes.ts", // the provider's sign-in page, from Better Auth
-  "src/app/t/c/[token]/route.ts", // destination verified against the signed token
   "src/app/auth/mobile/begin/route.ts", // app deep link checked by allowedMobileRedirect
 ]);
 

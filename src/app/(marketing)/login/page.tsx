@@ -8,6 +8,7 @@
 import Link from "next/link";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { LoginForm } from "@/components/auth/LoginForm";
+import { supportEmail } from "@/lib/support";
 
 export const metadata = { title: "Sign in" };
 
@@ -162,7 +163,7 @@ export default async function LoginPage({
             Trouble signing in? Ask the unit&apos;s scoutmaster to re-send your
             invite, or{" "}
             <a
-              href="mailto:hello@scoutingcompass.com"
+              href={`mailto:${supportEmail()}`}
               className="text-sky hover:text-slate-ink"
             >
               email us

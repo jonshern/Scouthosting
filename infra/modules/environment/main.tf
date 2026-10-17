@@ -32,6 +32,9 @@ locals {
     CLIENT_IP_XFF_HOPS = "1"
     # Google sends people back here after sign-in; register it on the OAuth client.
     GOOGLE_REDIRECT_URI = "https://${local.app_host}/api/auth/google/callback"
+    # Waypoint's and Lantern's websites sign in through Compass and get the
+    # token back at <origin>/signed-in; only these exact origins may.
+    WEB_SIGNIN_ORIGINS = join(",", values(local.web_urls))
     }, var.name == "prod" ? {} : {
     DISABLE_INVITE_GATE = "1"
     # Staging only: lets test admins in without setting up two-step.
@@ -45,7 +48,6 @@ locals {
     BETTER_AUTH_SECRET = "better-auth-secret"
     RSVP_SECRET        = "rsvp-secret"
     UNSUB_SECRET       = "unsub-secret"
-    TRACKING_SECRET    = "tracking-secret"
     INVITE_SECRET      = "invite-secret"
     AUTH_TOKEN_SECRET  = "auth-token-secret"
     PERM_SLIP_SECRET   = "perm-slip-secret"
