@@ -7,7 +7,7 @@
 // Rotating MASTER_KEY means re-encrypting these names (decrypt with the
 // old key, encrypt with the new) along with re-wrapping org DEKs.
 
-import { decryptField, encryptField, getMasterKey, hkdf } from "@/lib/encryption";
+import { decryptBytes, decryptField, encryptBytes, encryptField, getMasterKey, hkdf } from "@/lib/encryption";
 
 const SALT = Buffer.from("compass:journey:v1");
 const PURPOSE = "journey.name";
@@ -29,4 +29,27 @@ export function decryptScoutName(ownerUserId: string, blob: Uint8Array): string 
   } catch {
     return "";
   }
+}
+
+// Entry notes and photos use the same per-owner key with their own
+// purposes, so a note can't be swapped in for a name or a photo.
+
+export function encryptEntryText(ownerUserId: string, text: string | undefined): Buffer | null {
+  return encryptField(text, ownerKey(ownerUserId), ownerUserId, "journey.entry.text");
+}
+
+export function decryptEntryText(ownerUserId: string, blob: Uint8Array | null): string | null {
+  try {
+    return decryptField(blob, ownerKey(ownerUserId), ownerUserId, "journey.entry.text");
+  } catch {
+    return null;
+  }
+}
+
+export function encryptEntryPhoto(ownerUserId: string, bytes: Buffer): Buffer {
+  return encryptBytes(bytes, ownerKey(ownerUserId), ownerUserId, "journey.entry.photo");
+}
+
+export function decryptEntryPhoto(ownerUserId: string, blob: Buffer): Buffer {
+  return decryptBytes(blob, ownerKey(ownerUserId), ownerUserId, "journey.entry.photo");
 }
