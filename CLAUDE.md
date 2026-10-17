@@ -135,6 +135,32 @@ Logs, notes, proof photos and "ready" marks on a requirement are
 `entries/export`), addressed by the device's `clientId` so an offline
 retry never adds twice; note text and photos are encrypted per owner.
 
+Passkeys are the default sign-in, in that in-app browser too: `/login`
+leads with "Continue with a passkey", then Google/Apple, with email +
+password folded behind "Use email and password instead" (open on
+browsers without passkeys; opening it starts passkey autofill in the
+email field). New accounts land on `/account/passkey`, which offers to
+make one before continuing. E2E specs unfold the password form with
+`showPasswordSignIn()` from `tests/e2e/helpers/flows.ts`. The passkey
+must belong to the host the app opened
+(`src/lib/auth/passkeys.ts#relyingPartyForHost`):
+
+- the apex and every `<slug>.<apex>` subdomain share one relying-party
+  ID, the apex, so a passkey made on `troop100.compass.app` works on
+  `compass.app` and every other unit;
+- an `Org.customDomain` is its own relying party, so its passkeys only
+  work there;
+- `localhost` and each `*.localhost` host are their own relying party
+  (browsers won't take `localhost` for a subdomain), so on the Mac and
+  in e2e a passkey made on `localhost` doesn't work on `troop100.localhost`;
+- `PASSKEY_EXTRA_HOSTS` (comma-separated) adds hosts that are their own
+  relying party, such as the Mac's Tailscale name. Browsers require
+  https for those.
+
+Any other host gets no passkey button. Changing `APEX_HOST` or a custom
+domain strands the passkeys made on the old one; people sign in another
+way and add a new one.
+
 ### 5. pg-boss v12 needs `createQueue` before `work`
 
 v12 introduced a stricter queue model. `src/lib/jobs/index.ts` calls
@@ -235,6 +261,17 @@ Google/Apple, email verification). Passwords live on the `Account` row
 with `providerId = "credential"`, not on `User`. Compass's TOTP + backup
 codes stay in `User`/`BackupCode`; `src/lib/auth/mfa-plugin.ts` swaps a
 new session for a signed challenge cookie until the code is checked.
+Passkeys (`src/lib/auth/passkeys.ts`, `@simplewebauthn/server`, table
+`Passkey`) are added on `/account/security` within an hour of signing
+in. Signing in with one is complete on its own (the device checks a
+fingerprint, face or PIN), so it isn't held for a second step or for
+the admin SSO rule. After a password or Google/Apple sign-in, the
+second step is asked for when the user has an authenticator app, or is
+a leader/admin with a passkey; either one satisfies the leader/admin
+two-step rule, and `mfaLocked` stops them removing the last one.
+Challenges are single-use `Verification` rows; the plugin endpoints are
+blocked over HTTP and called from `src/server-actions/passkeys.ts`.
+`src/lib/auth/soft-authenticator.ts` is a software passkey for tests.
 Server code reads the user with `getSession()` from
 `src/lib/auth/session.ts`. The DB-backed auth tests in
 `src/lib/auth/auth.db.test.ts` run only when `TEST_DATABASE_URL` is set.
@@ -278,7 +315,7 @@ only skips billing. New code that sends mail or texts must go through
 keep the `User` row, renamed "Former member" with an undeliverable
 address, so unit records (chat logs, RSVPs, staffing, counselor
 meetings, sign-offs) keep their foreign keys. They delete what's personal
-to the account: sign-ins, sessions, tokens, devices, memberships,
+to the account: sign-ins, passkeys, sessions, tokens, devices, memberships,
 reactions, the counselor listing, Lantern trails. A new table holding a
 user's own data should be added to that list; one holding a unit's
 records shouldn't cascade from `User`.

@@ -1,13 +1,15 @@
 // Login page. Layout follows design-handoff/signin-flow.jsx — split
 // screen with a dark brand panel on the left and the auth card on
-// the right. SSO providers (Google + Apple) sit above the email +
-// password form. Microsoft and email-magic-link aren't wired yet
+// the right. Passkeys come first; Google and Apple follow, and email +
+// password is folded behind a small link (open when the browser has no
+// passkeys). Microsoft and email-magic-link aren't wired yet
 // (see src/app/api/auth/) so they're omitted; both can layer in
 // later without changing this file's structure.
 
 import Link from "next/link";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
-import { LoginForm } from "@/components/auth/LoginForm";
+import { PasskeySignIn, PasswordSignIn } from "@/components/auth/PasskeySignIn";
+import { readCsrfToken } from "@/lib/security/csrf";
 import { supportEmail } from "@/lib/support";
 
 export const metadata = { title: "Sign in" };
@@ -63,6 +65,7 @@ export default async function LoginPage({
   const { next, error } = await searchParams;
   const ssoQuery = next ? `?next=${encodeURIComponent(next)}` : "";
   const ssoError = error ? ssoErrorMessage(error) : null;
+  const csrf = (await readCsrfToken()) ?? "";
   return (
     <main className="min-h-screen bg-bg md:grid md:grid-cols-[1fr_560px]">
       {/* Brand panel */}
@@ -132,7 +135,17 @@ export default async function LoginPage({
             </div>
           )}
 
-          <div className="mt-8 grid gap-2.5">
+          <div className="mt-8">
+            <PasskeySignIn csrf={csrf} next={next} mode="sign-in" />
+          </div>
+
+          <div className="mt-6 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-slate-muted">
+            <span className="h-px flex-1 bg-line" />
+            <span>Or</span>
+            <span className="h-px flex-1 bg-line" />
+          </div>
+
+          <div className="mt-6 grid gap-2.5">
             <a
               href={`/api/auth/google/begin${ssoQuery}`}
               className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"
@@ -149,14 +162,13 @@ export default async function LoginPage({
             </a>
           </div>
 
-          <div className="mt-7 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-slate-muted">
-            <span className="h-px flex-1 bg-line" />
-            <span>Or with password</span>
-            <span className="h-px flex-1 bg-line" />
-          </div>
-
-          <div className="mt-6">
-            <LoginForm csrf={<CsrfTokenInput />} next={next} />
+          <div className="mt-5">
+            <PasswordSignIn
+              csrf={csrf}
+              csrfInput={<CsrfTokenInput />}
+              next={next}
+              startOpen={error === "account_not_linked"}
+            />
           </div>
 
           <p className="mt-6 text-xs leading-[1.55] text-slate-muted">

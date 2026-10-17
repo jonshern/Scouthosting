@@ -12,6 +12,7 @@
 // 7. Signup creates a fresh account
 
 import { expect, test, type Page } from "@playwright/test";
+import { showPasswordSignIn } from "./helpers/flows";
 
 const EMAIL = "scoutmaster@example.invalid";
 const PASSWORD = "AdminPasswordTest123!";
@@ -20,6 +21,7 @@ const TENANT = "http://troop100.localhost:3000";
 
 async function signInApex(page: Page) {
   await page.goto(`${APEX}/login`);
+  await showPasswordSignIn(page);
   await page.getByLabel("Email").fill(EMAIL);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.waitForTimeout(1700);
@@ -40,6 +42,9 @@ test.describe("demo flow", () => {
   test("2. login page renders with the form", async ({ page }) => {
     test.setTimeout(30_000);
     await page.goto(`${APEX}/login`);
+    // Passkeys lead; email + password unfold from the link below them.
+    await expect(page.getByRole("button", { name: "Continue with a passkey" })).toBeVisible();
+    await showPasswordSignIn(page);
     await expect(page.getByLabel("Email")).toBeVisible();
     await expect(page.getByLabel("Password")).toBeVisible();
     await expect(

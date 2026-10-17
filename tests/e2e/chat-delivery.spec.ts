@@ -7,6 +7,7 @@
 // page (the seed only ships scoutmaster).
 
 import { expect, test, type Page } from "@playwright/test";
+import { showPasswordSignIn } from "./helpers/flows";
 
 const SCOUTMASTER = "scoutmaster@example.invalid";
 const PASSWORD = "AdminPasswordTest123!";
@@ -14,6 +15,7 @@ const TENANT = "http://troop100.localhost:3000";
 
 async function signInAs(page: Page, email: string, password: string) {
   await page.goto(`${TENANT}/login`);
+  await showPasswordSignIn(page);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.waitForTimeout(1700);

@@ -6,7 +6,7 @@
 
 import { expect, test, type Page } from "@playwright/test";
 import * as OTPAuth from "otpauth";
-import { USER_PASSWORD, freshPage, signUp, uid } from "./helpers/flows";
+import { USER_PASSWORD, freshPage, showPasswordSignIn, signUp, uid } from "./helpers/flows";
 import { grantRole } from "./helpers/db";
 
 const MFA_APEX = "http://localhost:3001";
@@ -126,6 +126,7 @@ test.describe("organizer two-step requirement", () => {
     // Next time: password, then the code.
     const again = await freshPage(browser);
     await again.page.goto(`${MFA_APEX}/login`);
+    await showPasswordSignIn(again.page);
     await again.page.getByLabel("Email").fill(email);
     await again.page.getByLabel("Password").fill(USER_PASSWORD);
     await again.page.waitForTimeout(1700);
@@ -149,6 +150,7 @@ test.describe("organizer two-step requirement", () => {
 
     const { ctx, page } = await freshPage(browser);
     await page.goto(`${MFA_APEX}/login`);
+    await showPasswordSignIn(page);
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill(USER_PASSWORD);
     await page.waitForTimeout(1700);

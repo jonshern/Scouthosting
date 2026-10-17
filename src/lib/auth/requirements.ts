@@ -9,7 +9,8 @@
 //   - Two-step sign-in for admins and organizers. Anyone who can run a
 //     unit (leader or admin in any org, or a super-admin) must turn on
 //     two-step sign-in before the admin pages or the mobile app work for
-//     them. Enforced when NODE_ENV=production, like the SSO rule in
+//     them. Either an authenticator app (TOTP) or a passkey counts.
+//     Enforced when NODE_ENV=production, like the SSO rule in
 //     ./policy.ts, with the same kind of escape hatch for staging/QA:
 //     ALLOW_ADMIN_WITHOUT_MFA=1. Never set it in real production.
 
@@ -30,7 +31,10 @@ export function mfaRequiredForOrganizers(): boolean {
 export type AccountStanding = {
   adultConfirmed: boolean;
   organizer: boolean;
+  // Authenticator app or at least one passkey.
   mfaEnrolled: boolean;
+  totpEnrolled: boolean;
+  passkeys: number;
 };
 
 export async function accountStanding(userId: string): Promise<AccountStanding> {
@@ -40,6 +44,7 @@ export async function accountStanding(userId: string): Promise<AccountStanding> 
       adultAttestedAt: true,
       isSuperAdmin: true,
       totpEnrolledAt: true,
+      _count: { select: { passkeys: true } },
       memberships: {
         where: { role: { in: ["leader", "admin"] } },
         select: { id: true },
@@ -47,11 +52,17 @@ export async function accountStanding(userId: string): Promise<AccountStanding> 
       },
     },
   });
-  if (!u) return { adultConfirmed: false, organizer: false, mfaEnrolled: false };
+  if (!u) {
+    return { adultConfirmed: false, organizer: false, mfaEnrolled: false, totpEnrolled: false, passkeys: 0 };
+  }
+  const totpEnrolled = !!u.totpEnrolledAt;
+  const passkeys = u._count.passkeys;
   return {
     adultConfirmed: !!u.adultAttestedAt,
     organizer: u.isSuperAdmin || u.memberships.length > 0,
-    mfaEnrolled: !!u.totpEnrolledAt,
+    mfaEnrolled: totpEnrolled || passkeys > 0,
+    totpEnrolled,
+    passkeys,
   };
 }
 
@@ -68,9 +79,13 @@ export function requirementRedirect(
   return null;
 }
 
-// True when this user may not switch two-step sign-in off.
-export function mfaLocked(s: AccountStanding): boolean {
-  return s.organizer && mfaRequiredForOrganizers();
+// True when removing this second step would leave an organizer, who
+// must keep two-step sign-in, with none: the authenticator app when they
+// have no passkey, or their last passkey when they have no app.
+export function mfaLocked(s: AccountStanding, removing: "totp" | "passkey" = "totp"): boolean {
+  if (!s.organizer || !mfaRequiredForOrganizers()) return false;
+  const left = removing === "totp" ? s.passkeys : (s.totpEnrolled ? 1 : 0) + s.passkeys - 1;
+  return left < 1;
 }
 
 export function withNext(path: string, next: string | null | undefined): string {

@@ -13,7 +13,7 @@
 
 import { expect, test, type Page } from "@playwright/test";
 import * as OTPAuth from "otpauth";
-import { APEX, USER_PASSWORD, freshPage, signIn, signUp, uid } from "./helpers/flows";
+import { APEX, USER_PASSWORD, freshPage, signIn, signUp, uid, showPasswordSignIn } from "./helpers/flows";
 
 function totp(secret: string, windowOffset = 0): string {
   return new OTPAuth.TOTP({
@@ -38,6 +38,7 @@ async function enrollTotp(page: Page): Promise<string> {
 
 async function passwordStep(page: Page, email: string) {
   await page.goto(`${APEX}/login`);
+  await showPasswordSignIn(page);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(USER_PASSWORD);
   await page.waitForTimeout(1700);
@@ -339,6 +340,7 @@ test.describe("email change", () => {
     // The new address can't sign in yet; the old one still can.
     const other = await freshPage(browser);
     await other.page.goto(`${APEX}/login`);
+    await showPasswordSignIn(other.page);
     await other.page.getByLabel("Email").fill(newEmail);
     await other.page.getByLabel("Password").fill(USER_PASSWORD);
     await other.page.waitForTimeout(1700);
