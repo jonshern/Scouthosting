@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedMobileRedirect, isWebSigninRedirect, webSigninOrigins } from "./mobile-redirect";
+import { allowedMobileRedirect, expoGoSigninHosts, isWebSigninRedirect, webSigninOrigins } from "./mobile-redirect";
 
 describe("allowedMobileRedirect", () => {
   it("accepts the app's deep link everywhere", () => {
@@ -66,5 +66,27 @@ describe("website sign-in (WEB_SIGNIN_ORIGINS)", () => {
     expect(isWebSigninRedirect(new URL("https://waypoint.example.org/signed-in"), true, origins)).toBe(true);
     expect(isWebSigninRedirect(new URL("http://localhost:8081/cb"), false, origins)).toBe(false);
     expect(isWebSigninRedirect(new URL("compass://auth/callback"), true, origins)).toBe(false);
+  });
+});
+
+describe("Expo Go in production", () => {
+  const none = new Set<string>();
+  const hosts = expoGoSigninHosts("100.101.102.103:8081, junk, http://x:1, Jons-Mac.tail1234.ts.net:8081");
+
+  it("parses host:port pairs and ignores anything else", () => {
+    expect([...hosts]).toEqual(["100.101.102.103:8081", "jons-mac.tail1234.ts.net:8081"]);
+    expect(expoGoSigninHosts(undefined).size).toBe(0);
+  });
+
+  it("allows only a listed dev server", () => {
+    expect(allowedMobileRedirect("exp://100.101.102.103:8081/--/auth/callback", true, none, hosts)).not.toBeNull();
+    expect(allowedMobileRedirect("exp://jons-mac.tail1234.ts.net:8081/--/auth/callback", true, none, hosts)).not.toBeNull();
+    expect(allowedMobileRedirect("exp://100.101.102.103:8082/--/auth/callback", true, none, hosts)).toBeNull();
+    expect(allowedMobileRedirect("exp://attacker.example:8081/--/auth/callback", true, none, hosts)).toBeNull();
+    expect(allowedMobileRedirect("exp://100.101.102.103:8081/--/auth/callback", true, none, none)).toBeNull();
+  });
+
+  it("never lets a listed host through on another scheme", () => {
+    expect(allowedMobileRedirect("http://100.101.102.103:8081/--/auth/callback", true, none, hosts)).toBeNull();
   });
 });
