@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# A stand-in for `docker` that behaves like the Mac's compass-postgres
+# container: `docker exec -i` forwards stdin to the tool, reading all of
+# it that is there whether the tool wants it or not. CI puts this first
+# on PATH and runs the drill again, so a script that leaves a loop's
+# input on stdin fails here the way it would on the Mac.
+set -euo pipefail
+case "${1:-}" in
+  inspect) echo true ;;
+  exec)
+    shift; [ "$1" = -i ] && shift; shift # the container name
+    url="${DATABASE_URL%%\?*}"; rest="${url#*://}"; creds="${rest%%@*}"; hostpart="${rest#*@}"; hostpart="${hostpart%%/*}"
+    export PGPASSWORD="${creds#*:}" PGHOST="${hostpart%%:*}" PGPORT="${hostpart##*:}"
+    [ "$PGPORT" != "$hostpart" ] || PGPORT=5432
+    # Copy stdin to the tool greedily, as docker does, and stop copying
+    # when the tool exits (stdin may never end, e.g. a terminal).
+    exec 4< <(exec cat)
+    copier=$!
+    rc=0; "$@" <&4 || rc=$?
+    kill "$copier" 2>/dev/null || true
+    exit "$rc"
+    ;;
+  *) echo "docker stub: unsupported: $*" >&2; exit 1 ;;
+esac

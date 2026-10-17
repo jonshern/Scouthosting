@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { PRICES, PRICE_LINE, YEARLY_SAVINGS_USD } from "@/lib/billing/pricing";
+import { supportEmail } from "@/lib/support";
 
 type Feature = [label: string, value: React.ReactNode | null, inherited?: boolean];
 
@@ -248,7 +249,7 @@ export default function PlansPage() {
       <section className="mx-auto max-w-content px-6 py-12 text-center">
         <p className="text-[14px] text-slate-soft">
           Need bulk provisioning or SSO across many units?{" "}
-          <a href="mailto:hello@compass.app" className="underline text-ink font-medium">
+          <a href={`mailto:${supportEmail()}`} className="underline text-ink font-medium">
             Talk to us
           </a>{" "}
           — we'll figure out a council deal.

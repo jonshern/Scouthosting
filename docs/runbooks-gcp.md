@@ -22,6 +22,7 @@ Deploys are **blue-green**: the new version starts next to the live one, gets ch
 
 Merging to `main` deploys. The *Deploy* workflow (`scripts/deploy-api.sh`) builds one server image tagged with the commit, then for staging and afterwards production (after your approval, if the `production` environment requires a reviewer):
 
+0. **Back up.** `gcloud sql backups create` takes an on-demand Cloud SQL backup named for the image, so a migration that goes wrong can be [restored](#restore-the-database) from the moment before it.
 1. **Migrate.** The `core-migrate-<env>` job runs `prisma migrate deploy` and the row-only grants. The live revision (blue) keeps serving; migrations are expand-only, so it still works on the new schema.
 2. **Green.** The image is deployed as a new Cloud Run revision with **no traffic**, tagged `green`, at its own URL (`https://green---core-<env>-…run.app`).
 3. **Check green.** `/health` (database reachable) and `/login` must answer on green. If not, the workflow goes red and live traffic never moved.
@@ -85,7 +86,7 @@ Nothing is broken for users: the deploy stopped before the new server took traff
 
 ## Restore the database
 
-Backups: daily, kept 14 days, plus point-in-time recovery for the last 7 days. If the instance is ever deleted, a final backup is kept for 30 days.
+Backups: daily, kept 14 days, one more before every deploy's migrations (`scripts/deploy-api.sh`), plus point-in-time recovery for the last 7 days. If the instance is ever deleted, a final backup is kept for 30 days.
 
 **Prefer repairing from a copy over replacing the live database**, so nothing written since the accident is lost:
 
@@ -110,6 +111,20 @@ Once the trigger exists, the alert means the server let such a message through t
 4. If it was a bug, fix it, and add a test that would have caught it.
 5. If it looks deliberate, treat it as an [incident](#incident-response): remove the account's roles in the organization's admin pages, and tell the scoutmaster.
 
+## Someone lost their passkey
+
+A passkey lives on the person's phone or laptop (or their Apple, Google or password-manager sync). If they lose it:
+
+1. **They have another way in.** Password plus an authenticator code or backup code, Google/Apple sign-in, or another passkey. They sign in and remove the lost one on their account's Security page. Nothing for you to do.
+2. **A leader or admin whose only second step was that passkey.** They can still enter their password, but sign-in stops at the second step. Confirm it's really them (a call, or a known co-leader vouching), then remove their passkeys so the next sign-in sends them to set up a new second step:
+
+   ```sql
+   DELETE FROM "Passkey" WHERE "userId" = (SELECT id FROM "User" WHERE email = 'leader@example.org');
+   ```
+
+   Note it in the audit trail of the incident (who asked, who confirmed). If the device may have been stolen rather than lost, also delete their `Session` rows and have them change their password.
+3. **Passkeys stopped working for everyone on one address.** Passkeys belong to a site name: the apex (shared by every unit subdomain), each custom domain, or a `PASSKEY_EXTRA_HOSTS` entry. Changing `APEX_HOST` or a unit's custom domain strands the passkeys made on the old name. People sign in another way and add a new passkey; there's no way to move them.
+
 ## Incident response
 
 Any concern about a scout's safety comes first, before any technical work:
@@ -131,7 +146,7 @@ For technical incidents (an account taken over, data seen by the wrong person, a
 |---|---|
 | **`MASTER_KEY` (`core-<env>-master-key`)** | **Never replace it.** It encrypts roster details and photos. Terraform refuses to destroy it. If it is exposed, each organization's data key has to be re-wrapped using its passphrase or recovery code before the old master key goes away (see `CLAUDE.md`, "Per-org encryption"). Plan that as its own change |
 | Database logins (`core-<env>-database-url`, `-migrate-database-url`) | `terraform -chdir=infra apply -replace='module.environment["prod"].random_password.db_app'` (or `db_owner`), then redeploy so the server picks up the new version |
-| Session and token secrets (`-session-secret`, `-rsvp-secret`, `-unsub-secret`, `-tracking-secret`, `-invite-secret`, `-auth-token-secret`, `-perm-slip-secret`) | `terraform -chdir=infra apply -replace='module.environment["prod"].random_id.generated["SESSION_SECRET"]'` (pick the one), then redeploy. A new session secret signs everyone out; a new RSVP, unsubscribe or permission-slip secret breaks links already emailed |
+| Session and token secrets (`-session-secret`, `-rsvp-secret`, `-unsub-secret`, `-invite-secret`, `-auth-token-secret`, `-perm-slip-secret`) | `terraform -chdir=infra apply -replace='module.environment["prod"].random_id.generated["SESSION_SECRET"]'` (pick the one), then redeploy. A new session secret signs everyone out; a new RSVP, unsubscribe or permission-slip secret breaks links already emailed |
 | Scheduler token (`-tasks-token`) | Same, with `random_id.generated["TASKS_TOKEN"]`; the scheduler job picks up the new value in the same apply |
 | Resend key | Create a new key in Resend, then `printf '%s' "$KEY" \| gcloud secrets versions add core-prod-resend-api-key --data-file=-`, redeploy, and delete the old key in Resend |
 | Stripe key and webhook secret (`-stripe-secret-key`, `-stripe-webhook-secret`) | Roll the key (or the endpoint's signing secret) in Stripe, add the new value the same way as the Resend key, redeploy, then expire the old one. Setup is in `docs/billing.md` |

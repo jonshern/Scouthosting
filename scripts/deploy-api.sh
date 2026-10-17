@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Blue-green rollout of a core (Compass) image to one environment on GCP:
+#   0. take an on-demand Cloud SQL backup, so a migration that goes wrong
+#      can be undone (on top of the nightly backups and point-in-time
+#      recovery). SQL_INSTANCE names the instance (default core-pg).
 #   1. migrate (Cloud Run job). Migrations are expand-only (see
 #      scripts/check-migrations.sh), so the live revision keeps working
 #      on the new schema.
@@ -32,6 +35,11 @@ smoke() {
   done
   return 1
 }
+
+echo "::group::Back up the database before migrating"
+gcloud sql backups create --instance "${SQL_INSTANCE:-core-pg}" \
+  --description "before ${env_name} deploy of ${image##*/}" --quiet
+echo "::endgroup::"
 
 echo "::group::Migrate ${env_name}"
 gcloud run jobs update "$job" --image "$image" --quiet

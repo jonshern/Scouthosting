@@ -30,6 +30,12 @@ describe("passwordLoginAllowedForRole", () => {
     expect(passwordLoginAllowedForRole({ privileged: true })).toBe(false);
   });
 
+  it("allows privileged users in production once two-step sign-in is set up", () => {
+    env.NODE_ENV = "production";
+    expect(passwordLoginAllowedForRole({ privileged: true, hasSecondStep: true })).toBe(true);
+    expect(passwordLoginAllowedForRole({ privileged: true, hasSecondStep: false })).toBe(false);
+  });
+
   it("allows privileged users in production when ALLOW_ADMIN_PASSWORD_LOGIN=1", () => {
     env.NODE_ENV = "production";
     env.ALLOW_ADMIN_PASSWORD_LOGIN = "1";

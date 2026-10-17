@@ -6,7 +6,7 @@ import { isAPIError } from "better-auth/api";
 import { auth } from "@/lib/auth/auth";
 import { prisma } from "@/lib/db";
 import { LoginSchema, SignupSchema } from "@/lib/validation/schemas";
-import { postLoginRedirectUrl } from "@/lib/auth/post-login";
+import { isSafeNextPath, postLoginRedirectUrl } from "@/lib/auth/post-login";
 import { MFA_PAGE } from "@/lib/auth/mfa-plugin";
 import { endSession } from "@/lib/auth/sessions";
 import { rateLimit, resetRateLimit } from "@/lib/security/rate-limit";
@@ -14,6 +14,7 @@ import { clientIp } from "@/lib/security/client-ip";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { checkHoneypot, honeypotField, honeypotTimingField } from "@/lib/security/honeypot";
 import { isDemoMode } from "@/lib/demo/mode";
+import { supportEmail } from "@/lib/support";
 
 export type ActionState = { error?: string; ok?: true } | null;
 
@@ -79,7 +80,12 @@ export async function signupAction(_prev: ActionState, formData: FormData): Prom
     throw e;
   }
 
-  redirect(await postLoginRedirectUrl(userId, String(formData.get("next") ?? "")));
+  // Offer a passkey before landing them, so the next sign-in skips the
+  // password. Not in the middle of /start: setting up the unit comes
+  // first, and the passkey can be added from the account page after.
+  const target = await postLoginRedirectUrl(userId, String(formData.get("next") ?? ""));
+  if (target === "/start" || target.startsWith("/start?")) redirect(target);
+  redirect(`/account/passkey?next=${encodeURIComponent(target)}`);
 }
 
 export async function loginAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -103,7 +109,10 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   } catch (e) {
     const code = errorCode(e);
     if (code === "ADMIN_SSO_REQUIRED") {
-      return { error: "Admins must sign in with Google or Apple in production." };
+      return {
+        error:
+          `This account runs a unit and has no two-step sign-in yet, so a password isn't enough. Sign in with Google or Apple using this email, or write to ${supportEmail()}.`,
+      };
     }
     if (code) return { error: "Invalid email or password." };
     throw e;
@@ -111,7 +120,10 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
 
   // Right password: stop counting against this account.
   await resetRateLimit(emailKey);
-  if ("mfaRequired" in res && res.mfaRequired) redirect(MFA_PAGE);
+  if ("mfaRequired" in res && res.mfaRequired) {
+    const next = String(formData.get("next") ?? "");
+    redirect(isSafeNextPath(next) ? `${MFA_PAGE}?next=${encodeURIComponent(next)}` : MFA_PAGE);
+  }
   const userId = (res as { user: { id: string } }).user.id;
   redirect(await postLoginRedirectUrl(userId, String(formData.get("next") ?? "")));
 }

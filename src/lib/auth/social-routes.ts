@@ -13,6 +13,9 @@ import { isSafeNextPath } from "./post-login";
 export type SocialProvider = "google" | "apple";
 
 export const AFTER_SIGN_IN = "/auth/after-sign-in";
+// Remembers ?next across Google/Apple for the second-step page, which the
+// provider's callback redirects to without it.
+export const NEXT_COOKIE = "compass_next";
 
 export function afterSignInPath(next: string | null | undefined): string {
   return isSafeNextPath(next) ? `${AFTER_SIGN_IN}?next=${encodeURIComponent(next!)}` : AFTER_SIGN_IN;
@@ -38,6 +41,18 @@ export async function beginSocial(provider: SocialProvider, req: NextRequest): P
   const { url } = (await res.json()) as { url: string };
   const out = NextResponse.redirect(url);
   for (const c of res.headers.getSetCookie()) out.headers.append("set-cookie", c);
+  const next = req.nextUrl.searchParams.get("next");
+  if (isSafeNextPath(next)) {
+    out.cookies.set(NEXT_COOKIE, next!, {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: 600,
+    });
+  } else {
+    out.cookies.delete(NEXT_COOKIE);
+  }
   return out;
 }
 

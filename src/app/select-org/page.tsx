@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { isLeaderRole } from "@/lib/auth/role";
 import { postLoginRedirectUrl } from "@/lib/auth/post-login";
+import { supportEmail } from "@/lib/support";
 
 export const metadata = { title: "Pick a unit" };
 
@@ -128,7 +129,7 @@ export default async function SelectOrgPage() {
         <p className="mt-10 text-center text-xs text-slate-muted">
           Don&apos;t see your unit?{" "}
           <a
-            href="mailto:hello@scoutingcompass.com"
+            href={`mailto:${supportEmail()}`}
             className="text-sky hover:text-slate-ink"
           >
             Email support

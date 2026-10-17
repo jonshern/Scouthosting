@@ -15,7 +15,7 @@ afterEach(() => {
   }
 });
 
-const organizer = { adultConfirmed: true, organizer: true, mfaEnrolled: false };
+const organizer = { adultConfirmed: true, organizer: true, mfaEnrolled: false, totpEnrolled: false, passkeys: 0 };
 
 describe("requirementRedirect", () => {
   it("asks an unconfirmed account to confirm they are an adult first", () => {
@@ -68,6 +68,29 @@ describe("requirementRedirect", () => {
     env.DEMO_MODE = "1";
     expect(mfaRequiredForOrganizers()).toBe(false);
     expect(requirementRedirect(organizer, { organizerSurface: true })).toBeNull();
+  });
+});
+
+describe("mfaLocked with passkeys", () => {
+  it("lets an organizer drop one second step while another remains", () => {
+    env.NODE_ENV = "production";
+    delete env.ALLOW_ADMIN_WITHOUT_MFA;
+    const both = { ...organizer, mfaEnrolled: true, totpEnrolled: true, passkeys: 1 };
+    expect(mfaLocked(both, "totp")).toBe(false);
+    expect(mfaLocked(both, "passkey")).toBe(false);
+    const passkeyOnly = { ...organizer, mfaEnrolled: true, passkeys: 1 };
+    expect(mfaLocked(passkeyOnly, "passkey")).toBe(true);
+    expect(mfaLocked({ ...passkeyOnly, passkeys: 2 }, "passkey")).toBe(false);
+    const totpOnly = { ...organizer, mfaEnrolled: true, totpEnrolled: true };
+    expect(mfaLocked(totpOnly, "totp")).toBe(true);
+  });
+
+  it("counts a passkey as two-step sign-in for organizer pages", () => {
+    env.NODE_ENV = "production";
+    delete env.ALLOW_ADMIN_WITHOUT_MFA;
+    expect(
+      requirementRedirect({ ...organizer, mfaEnrolled: true, passkeys: 1 }, { organizerSurface: true }),
+    ).toBeNull();
   });
 });
 

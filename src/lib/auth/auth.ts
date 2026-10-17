@@ -66,6 +66,10 @@ export const auth = betterAuth({
     "/change-email",
     "/delete-user",
     "/mfa/verify",
+    "/mfa/passkey/options",
+    "/mfa/passkey/verify",
+    "/passkey/sign-in/options",
+    "/passkey/sign-in",
     "/send-verification-email",
   ],
 
