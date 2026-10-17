@@ -11,6 +11,6 @@ alert_email = "you@example.org"
 #   prod    = { min_instances = 1, max_instances = 6 }
 # }
 
-# app_domains    = { prod = "app.example.org" }
+# app_domains    = { prod = "compass.example.org" }  # matches bluecard marketing/landing/site.js
 # custom_domains = { prod = { landing = "example.org", waypoint = "waypoint.example.org", lantern = "lantern.example.org" } }
 # monitored_web_apps = ["waypoint"]
