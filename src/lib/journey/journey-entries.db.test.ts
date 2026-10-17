@@ -21,6 +21,9 @@ import * as entries from "@/app/api/v1/journey/scouts/[id]/entries/route";
 import * as exportCsv from "@/app/api/v1/journey/scouts/[id]/entries/export/route";
 import * as photo from "@/app/api/v1/journey/scouts/[id]/entries/photo/route";
 import * as photoGet from "@/app/api/v1/journey/scouts/[id]/entries/[entryId]/photo/route";
+import * as pairCode from "@/app/api/v1/journey/scouts/[id]/pair-code/route";
+import * as pair from "@/app/api/v1/journey/pair/route";
+import * as myEntries from "@/app/api/v1/journey/scout/entries/route";
 
 const db = !!process.env.TEST_DATABASE_URL;
 const S = `${Date.now().toString(36)}${process.pid}e`;
@@ -185,6 +188,26 @@ describe.skipIf(!db)("Lantern /api/v1/journey entries (Postgres)", () => {
     expect(lines[0]).toBe("Scout,Requirement,Date,Type,Amount,Unit,Note,Photo,Logged by");
     expect(lines).toContain("Emmett,rank:second-class#7a,2026-10-20,log,50,minutes,,,parent");
     expect(csv).toContain(`"'=HYPERLINK(""x"") Two nights at Portage Lake"`);
+  });
+
+  it("the scout's own device logs too, recorded as by the scout", async () => {
+    const code = (await asJson(await call(pairCode.POST, { token: f.parent.token, method: "POST", params: params() }))).json.code;
+    const token = (await asJson(await call(pair.POST, { body: { code } }))).json.token as string;
+    expect((await call(myEntries.GET, {})).status).toBe(401);
+    const res = await asJson(
+      await call(myEntries.POST, {
+        token,
+        body: { put: [{ clientId: "s1", key: "rank:second-class#7a", kind: "log", day: "2026-10-21", amount: 30, unit: "minutes" }] },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect(res.json.entries.find((e: { id: string }) => e.id === "s1")).toMatchObject({ by: "scout" });
+    // The parent sees it.
+    const parent = await asJson(await call(entries.GET, { token: f.parent.token, params: params(), query: "?key=rank:second-class%237a" }));
+    expect(parent.json.entries.map((e: { id: string; by: string }) => [e.id, e.by])).toEqual([
+      ["d2", "parent"],
+      ["s1", "scout"],
+    ]);
   });
 
   it("goes away with the scout", async () => {

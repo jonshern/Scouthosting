@@ -54,6 +54,7 @@ export const LIMITS = {
   staffInvite: { bucket: "staff-invite", limit: 100, windowMs: HOUR },
   announce: { bucket: "announce", limit: 10, windowMs: HOUR },
   journey: { bucket: "journey", limit: 120, windowMs: MINUTE },
+  journeyPair: { bucket: "journey-pair", limit: 10, windowMs: 10 * MINUTE },
   accountDelete: { bucket: "account-delete", limit: 5, windowMs: HOUR },
 } satisfies Record<string, RouteLimit>;
 
@@ -159,6 +160,35 @@ export function v1Route<P extends Record<string, string | string[]> = Record<str
       });
       const res = await authed(req);
       if (res.status === 401) res.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
+      return res;
+    } catch (err) {
+      return errorResponse(err);
+    }
+  };
+}
+
+/**
+ * A v1 handler that does its own authentication, or none (Lantern's
+ * scout devices, pairing). Same per-IP ceiling, error shapes and
+ * no-store as v1Route; `limits` are per client IP.
+ */
+export function v1PublicRoute<P extends Record<string, string | string[]> = Record<string, never>>(
+  handler: (req: NextRequest, ctx: { params: P; ip: string | null }) => Promise<Response>,
+  opts: { limits?: RouteLimit[] } = {},
+) {
+  return async function route(req: NextRequest, nextCtx?: NextCtx<P>): Promise<Response> {
+    try {
+      const ip = clientIp(req.headers);
+      if (ip) await enforce(`v1:ip:${ip}`, IP_LIMIT.limit, IP_LIMIT.windowMs);
+      // With no trusted client-IP header everyone shares one bucket per
+      // route, so an unauthenticated route is never unlimited.
+      for (const l of opts.limits ?? []) {
+        if (ip) await enforce(`v1:ip:${ip}:${l.bucket}`, l.limit, l.windowMs);
+        else await enforce(`v1:noip:${l.bucket}`, l.limit * 6, l.windowMs);
+      }
+      const params = ((await nextCtx?.params) ?? {}) as P;
+      const res = await handler(req, { params, ip });
+      res.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
       return res;
     } catch (err) {
       return errorResponse(err);

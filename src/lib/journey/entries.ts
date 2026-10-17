@@ -17,6 +17,13 @@ export type ScoutRef = { id: string; ownerUserId: string };
 /** Who is making the change. */
 export type Who = { userId: string | null; role: "parent" | "scout" };
 
+/** The scout a paired scout device writes to (see devices.ts). */
+export async function deviceScoutRef(scoutId: string): Promise<ScoutRef> {
+  const row = await prisma.journeyScout.findUnique({ where: { id: scoutId }, select: { id: true, ownerUserId: true } });
+  if (!row) throw notFound();
+  return row;
+}
+
 /** The account's own scout, or 404 (someone else's scout looks like no scout). */
 export async function ownedScoutRef(user: { id: string }, id: string): Promise<ScoutRef> {
   const row = await prisma.journeyScout.findFirst({

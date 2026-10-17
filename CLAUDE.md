@@ -119,6 +119,13 @@ user is a parent of (confirmed email only) also shows that troop's
 `RequirementProgress` sign-offs; Lantern never writes those. Sign-up
 keeps `?next=` so a new account made from the app's sign-in returns
 to the app.
+Scouts never get an account: the parent makes a one-time code
+(`POST /journey/scouts/<id>/pair-code`), the scout's device trades it at
+`POST /journey/pair` for a `lantern_scout_…` token
+(`src/lib/journey/devices.ts`) that only reads and checks off that one
+trail (`/journey/scout`, `/journey/scout/progress`); steps it checks are
+`checkedBy: "scout"`. Those routes use `v1PublicRoute` and authenticate
+with `requireScoutDevice`, never `v1Route`.
 
 Logs, notes, proof photos and "ready" marks on a requirement are
 `JourneyEntry` rows (`/api/v1/journey/scouts/<id>/entries`, CSV at

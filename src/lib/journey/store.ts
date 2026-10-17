@@ -101,16 +101,22 @@ function summary(row: ScoutRow) {
 async function full(user: Owner, row: ScoutRow) {
   const progressRows = await prisma.journeyProgress.findMany({
     where: { scoutId: row.id },
-    select: { key: true, doneOn: true },
+    select: { key: true, doneOn: true, byScout: true },
     orderBy: { key: "asc" },
   });
   const progress: Record<string, string | true> = {};
-  for (const p of progressRows) progress[p.key] = p.doneOn ?? true;
+  // Steps the scout checked on their own device; the rest were checked by the parent.
+  const checkedBy: Record<string, "scout"> = {};
+  for (const p of progressRows) {
+    progress[p.key] = p.doneOn ?? true;
+    if (p.byScout) checkedBy[p.key] = "scout";
+  }
   return {
     ...summary(row),
     path: row.path as string[],
     custom: row.custom as Record<string, unknown>,
     progress,
+    checkedBy,
     troop: await troopView(user, row.memberId),
   };
 }
@@ -194,20 +200,55 @@ export async function deleteScout(user: Owner, id: string) {
 /** Checks and unchecks steps; the last change per key in the batch wins. */
 export async function applyProgress(user: Owner, id: string, changes: ProgressChangeT[]) {
   const row = await owned(user, id);
+  await applyChanges(row.id, changes, false);
+  return full(user, await owned(user, id));
+}
+
+async function applyChanges(scoutId: string, changes: ProgressChangeT[], byScout: boolean) {
   const final = lastChangePerKey(changes);
   const off = final.filter((c) => !c.done).map((c) => c.key);
   const on = final.filter((c) => c.done);
   await prisma.$transaction(async (tx) => {
-    if (off.length) await tx.journeyProgress.deleteMany({ where: { scoutId: row.id, key: { in: off } } });
+    if (off.length) await tx.journeyProgress.deleteMany({ where: { scoutId, key: { in: off } } });
     for (const c of on) {
       await tx.journeyProgress.upsert({
-        where: { scoutId_key: { scoutId: row.id, key: c.key } },
-        create: { scoutId: row.id, key: c.key, doneOn: c.on ?? null },
-        // Re-checking something already checked keeps the first day unless a day is given.
-        update: c.on ? { doneOn: c.on } : {},
+        where: { scoutId_key: { scoutId, key: c.key } },
+        create: { scoutId, key: c.key, doneOn: c.on ?? null, byScout },
+        // Re-checking something already checked keeps the first day (and who) unless a day is given.
+        update: c.on ? { doneOn: c.on, byScout } : {},
       });
     }
-    await tx.journeyScout.update({ where: { id: row.id }, data: { updatedAt: new Date() } });
+    await tx.journeyScout.update({ where: { id: scoutId }, data: { updatedAt: new Date() } });
   });
-  return full(user, await owned(user, id));
+}
+
+// ---------------------------------------------------------------------
+// The scout's own device (./devices.ts verifies the token). It sees one
+// trail, through the owner's eyes for troop sign-offs, and can only
+// check and uncheck steps.
+
+async function ownerOf(row: ScoutRow): Promise<Owner> {
+  const u = await prisma.user.findUniqueOrThrow({ where: { id: row.ownerUserId }, select: { id: true, email: true } });
+  return u;
+}
+
+async function byId(id: string): Promise<ScoutRow> {
+  const row = await prisma.journeyScout.findUnique({ where: { id }, select: SCOUT_SELECT });
+  if (!row) throw notFound();
+  return row;
+}
+
+export async function getScoutAsScout(scoutId: string) {
+  const row = await byId(scoutId);
+  return full(await ownerOf(row), row);
+}
+
+export async function applyProgressAsScout(scoutId: string, changes: ProgressChangeT[]) {
+  await applyChanges(scoutId, changes, true);
+  return getScoutAsScout(scoutId);
+}
+
+/** For the parent: makes sure the scout is theirs (404 otherwise). */
+export async function requireOwned(user: Owner, id: string) {
+  await owned(user, id);
 }
