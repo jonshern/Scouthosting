@@ -64,6 +64,7 @@ export function ImportSlotsForm({
               {" "}Public slug: <code>{state.publicSlug}</code>.
             </>
           )}
+          {state.signupsOpened && <> Sign-up required is now on, so families can sign up.</>}
         </p>
       )}
       {state?.slugWarning && <p className="text-sm text-amber-700">{state.slugWarning}</p>}

@@ -178,6 +178,8 @@ export type ImportSlotsState = {
   publicSlug?: string | null;
   /** Set when the slug Waypoint will send can't be used as-is. */
   slugWarning?: string;
+  /** True when this import turned on "Sign-up required", which public sign-ups need. */
+  signupsOpened?: boolean;
 } | null;
 
 /**
@@ -206,7 +208,7 @@ export async function importEventSlots(
 
   const event = await prisma.event.findFirst({
     where: { id: d.eventId, orgId: org.id },
-    select: { id: true, publicSlug: true },
+    select: { id: true, publicSlug: true, signupRequired: true },
   });
   if (!event) return { error: "Event not found." };
 
@@ -259,10 +261,19 @@ export async function importEventSlots(
     slugWarning = `This event's public slug is "${publicSlug}" but Waypoint will send "${wanted}". Change the slug below to match or sign-ups will be refused.`;
   }
 
+  // Importing a Waypoint file means families will sign up from its public
+  // page, which refuses events without "Sign-up required"
+  // (src/lib/events/public-signup.ts), so turn it on.
+  let signupsOpened = false;
+  if (!event.signupRequired) {
+    await prisma.event.update({ where: { id: event.id }, data: { signupRequired: true } });
+    signupsOpened = true;
+  }
+
   revalidatePath(`/o/${org.slug}/admin/events/${event.id}`);
   revalidatePath(`/o/${org.slug}/calendar`);
   const updated = spec.slots.filter((s) => have.has(s.key)).length;
-  return { ok: true, created: spec.slots.length - updated, updated, publicSlug, slugWarning };
+  return { ok: true, created: spec.slots.length - updated, updated, publicSlug, slugWarning, signupsOpened };
 }
 
 const AddSlotSchema = z.object({
