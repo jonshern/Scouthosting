@@ -8,9 +8,10 @@
 
 import { expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { deleteEvents, eventIdByTitle } from "./db";
+import { E2E_PORT } from "./ports";
 
-export const APEX = "http://localhost:3000";
-export const TENANT = "http://troop100.localhost:3000";
+export const APEX = `http://localhost:${E2E_PORT}`;
+export const TENANT = `http://troop100.localhost:${E2E_PORT}`;
 export const ORG_SLUG = "troop100";
 export const ADMIN_EMAIL = "scoutmaster@example.invalid";
 export const ADMIN_PASSWORD = "AdminPasswordTest123!";

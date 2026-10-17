@@ -13,11 +13,12 @@
 
 import { expect, test, type Page } from "@playwright/test";
 import { showPasswordSignIn } from "./helpers/flows";
+import { E2E_PORT } from "./helpers/ports";
 
 const EMAIL = "scoutmaster@example.invalid";
 const PASSWORD = "AdminPasswordTest123!";
-const APEX = "http://localhost:3000";
-const TENANT = "http://troop100.localhost:3000";
+const APEX = `http://localhost:${E2E_PORT}`;
+const TENANT = `http://troop100.localhost:${E2E_PORT}`;
 
 async function signInApex(page: Page) {
   await page.goto(`${APEX}/login`);

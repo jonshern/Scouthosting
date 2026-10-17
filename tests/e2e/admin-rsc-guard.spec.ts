@@ -8,6 +8,7 @@
 import { readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { expect, test } from "@playwright/test";
+import { E2E_PORT } from "./helpers/ports";
 
 const ADMIN_DIR = path.resolve(__dirname, "../../src/app/o/[slug]/admin");
 
@@ -51,7 +52,7 @@ function routerState(route: string): string {
 
 function rscHeaders(route: string) {
   return {
-    host: "troop100.localhost:3000",
+    host: `troop100.localhost:${E2E_PORT}`,
     rsc: "1",
     "next-url": route.startsWith("/treasury") ? "/o/troop100/admin/treasury" : "/o/troop100/admin",
     "next-router-state-tree": routerState(route),
@@ -66,7 +67,7 @@ test("finds the admin pages", () => {
 
 for (const route of routes) {
   test(`signed-out RSC request can't render /admin${route || "/"}`, async ({ request }) => {
-    const res = await request.get(`http://localhost:3000/o/troop100/admin${route}?tab=adults`, {
+    const res = await request.get(`http://localhost:${E2E_PORT}/o/troop100/admin${route}?tab=adults`, {
       headers: rscHeaders(route),
     });
     const body = await res.text();

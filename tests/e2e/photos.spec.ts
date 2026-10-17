@@ -2,12 +2,13 @@ import { expect, test } from "@playwright/test";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { showPasswordSignIn } from "./helpers/flows";
+import { E2E_PORT } from "./helpers/ports";
 
 const SEEDED_EMAIL = "scoutmaster@example.invalid";
 const SEEDED_PASSWORD = "AdminPasswordTest123!";
 
 async function login(page: import("@playwright/test").Page) {
-  await page.goto("http://troop100.localhost:3000/login");
+  await page.goto(`http://troop100.localhost:${E2E_PORT}/login`);
   await showPasswordSignIn(page);
   await page.getByLabel("Email").fill(SEEDED_EMAIL);
   await page.getByLabel("Password").fill(SEEDED_PASSWORD);
@@ -35,7 +36,7 @@ test.describe("photos", () => {
     await login(page);
     const albumSlug = `e2e-${Date.now()}`;
 
-    await page.goto("http://troop100.localhost:3000/admin/photos");
+    await page.goto(`http://troop100.localhost:${E2E_PORT}/admin/photos`);
     await page.getByLabel("Album title").fill("E2E album");
     await page.getByLabel("URL slug").fill(albumSlug);
     await page.getByRole("button", { name: /create album/i }).click();
@@ -47,13 +48,13 @@ test.describe("photos", () => {
     await expect(page.locator(`a[href$="/photos/${albumSlug}"]`).first()).toBeVisible();
 
     // Open the album admin page
-    await page.goto(`http://troop100.localhost:3000/admin/photos/${albumSlug}`);
+    await page.goto(`http://troop100.localhost:${E2E_PORT}/admin/photos/${albumSlug}`);
     await page.setInputFiles("#file", fixturePath);
     await page.getByRole("button", { name: /upload photos/i }).click();
     await expect(page.getByRole("status")).toContainText(/uploaded/i);
 
     // Public-facing album page renders the photo grid
-    await page.goto(`http://troop100.localhost:3000/photos/${albumSlug}`);
+    await page.goto(`http://troop100.localhost:${E2E_PORT}/photos/${albumSlug}`);
     const imgs = page.locator("img");
     await expect(imgs.first()).toBeVisible();
   });
@@ -62,7 +63,7 @@ test.describe("photos", () => {
     // page.goto resolves *.localhost via Chromium (Node resolver
     // doesn't auto-route on macOS).
     const res = await page.goto(
-      "http://troop100.localhost:3000/uploads/orgs/none/photos/nope.jpg",
+      `http://troop100.localhost:${E2E_PORT}/uploads/orgs/none/photos/nope.jpg`,
     );
     expect(res?.status()).toBe(404);
   });
@@ -74,7 +75,7 @@ test.describe("photos", () => {
     // Sign in to create the album
     await login(page);
     const albumSlug = `members-only-${Date.now()}`;
-    await page.goto("http://troop100.localhost:3000/admin/photos");
+    await page.goto(`http://troop100.localhost:${E2E_PORT}/admin/photos`);
     await page.getByLabel("Album title").fill("Members album");
     await page.getByLabel("URL slug").fill(albumSlug);
     await page.locator("#visibility").selectOption("members");
@@ -84,7 +85,7 @@ test.describe("photos", () => {
     // Anonymous browsing: shouldn't see the members-only album in /photos
     const anon = await browser.newContext();
     const anonPage = await anon.newPage();
-    await anonPage.goto("http://troop100.localhost:3000/photos");
+    await anonPage.goto(`http://troop100.localhost:${E2E_PORT}/photos`);
     await expect(anonPage.getByText("Members album")).toHaveCount(0);
     await anon.close();
     await ctx.close();
