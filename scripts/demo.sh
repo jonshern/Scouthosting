@@ -23,6 +23,13 @@ set -a
 . ./.env
 set +a
 
+# Without a fixed key the seed and the server each make their own
+# throwaway key, and the roster page can't read what the seed wrote.
+if [ -z "${MASTER_KEY:-}" ]; then
+  echo "MASTER_KEY is empty in .env. Run 'make ensure-master-key' (or 'make demo', which does it) first." >&2
+  exit 1
+fi
+
 # Same server and login as dev, different database name.
 DATABASE_URL="$(printf '%s' "$DATABASE_URL" | sed -E "s#/[^/?]+(\\?|\$)#/${DEMO_DB}\\1#")"
 export DATABASE_URL DEMO_MODE=1 PORT="$DEMO_PORT" DISABLE_INVITE_GATE=1 JOBS_DISABLED=1

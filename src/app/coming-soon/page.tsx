@@ -8,6 +8,7 @@
 // this — they belong to live orgs and bypass the middleware check.
 
 import { ComingSoonForm } from "@/components/marketing/ComingSoonForm";
+import { supportEmail } from "@/lib/support";
 
 export const metadata = {
   title: "Compass — Coming soon",
@@ -124,8 +125,8 @@ export default function ComingSoonPage() {
       <footer className="relative z-10 border-t border-white/10 px-8 py-5 text-[11px] text-white/40 md:px-14">
         <div className="mx-auto flex max-w-[1280px] items-center justify-between">
           <span>Compass · Independent · Not affiliated with Scouting America or BSA</span>
-          <a href="mailto:hello@scoutingcompass.com" className="hover:text-white/70">
-            hello@scoutingcompass.com
+          <a href={`mailto:${supportEmail()}`} className="hover:text-white/70">
+            {supportEmail()}
           </a>
         </div>
       </footer>

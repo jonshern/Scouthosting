@@ -14,6 +14,7 @@ import { clientIp } from "@/lib/security/client-ip";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { checkHoneypot, honeypotField, honeypotTimingField } from "@/lib/security/honeypot";
 import { isDemoMode } from "@/lib/demo/mode";
+import { supportEmail } from "@/lib/support";
 
 export type ActionState = { error?: string; ok?: true } | null;
 
@@ -103,7 +104,10 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
   } catch (e) {
     const code = errorCode(e);
     if (code === "ADMIN_SSO_REQUIRED") {
-      return { error: "Admins must sign in with Google or Apple in production." };
+      return {
+        error:
+          `This account runs a unit and has no two-step sign-in yet, so a password isn't enough. Sign in with Google or Apple using this email, or write to ${supportEmail()}.`,
+      };
     }
     if (code) return { error: "Invalid email or password." };
     throw e;

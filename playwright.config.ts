@@ -41,10 +41,13 @@ const SERVER_ENV: Record<string, string> = {
 };
 
 // Second server: same build and database, but without
-// ALLOW_ADMIN_WITHOUT_MFA, so the production rule "organizers need
-// two-step sign-in" is live. Used only by mfa-required.spec.ts.
+// ALLOW_ADMIN_WITHOUT_MFA or ALLOW_ADMIN_PASSWORD_LOGIN, so the
+// production sign-in rules are live: organizers need two-step sign-in,
+// and an admin's password alone isn't enough. Used only by
+// mfa-required.spec.ts.
 const MFA_SERVER_ENV: Record<string, string> = { ...SERVER_ENV, PORT: "3001" };
 delete MFA_SERVER_ENV.ALLOW_ADMIN_WITHOUT_MFA;
+delete MFA_SERVER_ENV.ALLOW_ADMIN_PASSWORD_LOGIN;
 
 export default defineConfig({
   testDir: "./tests/e2e",

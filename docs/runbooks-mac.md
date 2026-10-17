@@ -83,7 +83,7 @@ WEB_SIGNIN_ORIGINS=https://<the Mac's *.ts.net name>:8443
 
 Separate several with commas. Plain `http://` addresses are refused in production mode, and nothing but `<origin>/signed-in` can receive a token.
 
-Production mode applies the production rules: leaders and admins must use two-step sign-in, and admin password sign-in is refused unless `ALLOW_ADMIN_PASSWORD_LOGIN=1` (see CLAUDE.md, trap 3). Until Google or Apple sign-in is configured for this host, that flag is how an admin signs in.
+Production mode applies the production rules: leaders and admins must use two-step sign-in, and admin password sign-in is refused until that admin has two-step set up, unless `ALLOW_ADMIN_PASSWORD_LOGIN=1` (see CLAUDE.md, trap 3). Until Google or Apple sign-in is configured for this host, that flag is how an admin signs in.
 
 For phone alerts, set `ALERT_WEBHOOK` in `.env` to a URL that accepts a POSTed message, for example an [ntfy](https://ntfy.sh) topic URL with the ntfy app on your phone. Without it, alerts are macOS notifications only.
 
@@ -223,7 +223,7 @@ Compass only runs while you're signed in to the Mac: the launchd jobs are per-us
 
 **Node.** CI, the Dockerfile and this Mac all use the major version in `.nvmrc` (22). `make deploy` refuses to build if the Mac's `node` is a different major, because a `brew upgrade` can quietly move it. To change Node on purpose: change `.nvmrc`, `engines` in `package.json`, the workflows and the Dockerfile in one PR; once it's merged, install that Node on the Mac, run `make host-install` (launchd remembers the folder `node` was in when it was installed) and then `make deploy`. To stay on 22 with Homebrew, use `brew install node@22` and put `$(brew --prefix node@22)/bin` first on your `PATH`.
 
-**Postgres.** The container image is `postgres:16-alpine`; Docker picks up 16.x fixes when the container is recreated (`docker compose pull && make db-up`). A new major (17) can't open a 16 data folder, so it's a move rather than an upgrade: run `scripts/host/backup.sh`, change the image in `docker-compose.yml` and the volume name with it (`compass-pgdata` to `compass-pgdata17`, both places) so 17 starts on an empty folder, `docker compose down` (keeps the old volume), `make db-up db-wait`, then `scripts/host/restore.sh --replace <that backup>` and `make deploy`. The old volume stays until you delete it. Cloud SQL runs 17, so moving to 17 here also matches the cloud.
+**Postgres.** The container image is `postgres:16-alpine`; Docker picks up 16.x fixes when the container is recreated (`docker compose pull && make db-up`). A new major (17) can't open a 16 data folder, so it's a move rather than an upgrade: run `scripts/host/backup.sh`, change the image in `docker-compose.yml` and the volume name with it (`compass-pgdata` to `compass-pgdata17`, both places) so 17 starts on an empty folder, `docker compose down` (keeps the old volume), `make db-up db-wait`, then `scripts/host/restore.sh --replace <that backup>` and `make deploy`. The old volume stays until you delete it. Cloud SQL and CI run 16 too; move all three to a new major together (`database_version` in `infra/main.tf`, the `postgres:` images in `.github/workflows/ci.yml`).
 
 **macOS.** Major macOS upgrades can reset the Energy and login settings above and ask Docker Desktop for permissions again. After one, open `localhost:3000/health` and check that alerts still reach your phone (`curl -d test "$ALERT_WEBHOOK"` with the URL from `.env`).
 

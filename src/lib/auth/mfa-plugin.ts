@@ -78,22 +78,24 @@ export const compassMfa = () =>
               ctx.context.setNewSession(null);
             };
 
-            if (viaPassword) {
-              const privileged = await isPrivilegedUser(data.user.id);
-              if (!passwordLoginAllowedForRole({ privileged })) {
-                await dropSession();
-                throw new APIError("FORBIDDEN", {
-                  code: "ADMIN_SSO_REQUIRED",
-                  message: "Admins must sign in with Google or Apple.",
-                });
-              }
-            }
-
             const row = await prisma.user.findUnique({
               where: { id: data.user.id },
               select: { totpEnrolledAt: true },
             });
-            if (!row?.totpEnrolledAt) return;
+            const hasSecondStep = !!row?.totpEnrolledAt;
+
+            if (viaPassword) {
+              const privileged = await isPrivilegedUser(data.user.id);
+              if (!passwordLoginAllowedForRole({ privileged, hasSecondStep })) {
+                await dropSession();
+                throw new APIError("FORBIDDEN", {
+                  code: "ADMIN_SSO_REQUIRED",
+                  message: "Admins must sign in with Google or Apple, or set up two-step sign-in.",
+                });
+              }
+            }
+
+            if (!hasSecondStep) return;
 
             await dropSession();
             const id = `${CHALLENGE_PREFIX}${generateRandomString(32)}`;

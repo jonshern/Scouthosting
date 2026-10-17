@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { PRICES, PRICE_LINE, YEARLY_SAVINGS_USD } from "@/lib/billing/pricing";
+import { supportEmail } from "@/lib/support";
 
 const FEATURES = [
   {
@@ -540,7 +541,7 @@ export default function MarketingHome() {
             Start free trial →
           </Link>
           <Link
-            href="mailto:hello@scoutingcompass.com"
+            href={`mailto:${supportEmail()}`}
             className="btn-secondary text-[15px] px-7 py-4 rounded-full"
           >
             Talk to a person

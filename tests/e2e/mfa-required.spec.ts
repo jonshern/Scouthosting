@@ -81,6 +81,83 @@ test.describe("organizer two-step requirement", () => {
     await ctx.close();
   });
 
+  // The production path for a new troop: no password bypass on this
+  // server, so this is what a leader who signs up at /start gets.
+  test("a new unit's admin sets up two-step, then signs in again with a password and a code", async ({
+    browser,
+  }) => {
+    test.setTimeout(120_000);
+    const stamp = Date.now();
+    const unitNumber = String(10000 + (stamp % 89999));
+    const email = `start-admin-${uid()}@example.invalid`;
+    const { ctx, page } = await freshPage(browser);
+    await page.goto(`${MFA_APEX}/start`);
+    await page.getByLabel("Your name").fill("Robin Leader");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(USER_PASSWORD);
+    await page.getByLabel(/18 or older/).check();
+    await page.waitForTimeout(1700);
+    await page.getByRole("button", { name: /create account/i }).click();
+    await page.getByLabel("Unit type").selectOption("Troop");
+    await page.getByLabel("Number").fill(unitNumber);
+    await page.getByLabel("Chartered organization").fill("First Lutheran Church");
+    await page.getByLabel("City").fill("Anytown");
+    await page.getByLabel("State").fill("MN");
+    await page.getByLabel("Unit passphrase").fill("our-unit-passphrase-1");
+    await page.getByLabel("Passphrase again").fill("our-unit-passphrase-1");
+    await page.waitForTimeout(1700);
+    await page.getByRole("button", { name: /start my 30-day free trial/i }).click();
+    await expect(page.getByTestId("start-trial-done")).toBeVisible();
+
+    // The unit's admin pages wait for two-step sign-in.
+    await page.getByRole("link", { name: /go to your unit/i }).click();
+    await expect(page).toHaveURL(/\/account\/security\?required=1/);
+    await page.getByRole("button", { name: "Set up 2FA" }).click();
+    const secret = (await page.locator("p", { hasText: "Manual secret:" }).locator("code").textContent())!.trim();
+    await page.getByLabel("Code from your authenticator").fill(totp(secret));
+    await page.getByRole("button", { name: /confirm and enable 2fa/i }).click();
+    const done = page.getByRole("status").filter({ hasText: "2FA enabled." });
+    await expect(done).toBeVisible();
+    await done.getByRole("link", { name: "Continue" }).click();
+    await expect(page).toHaveURL(new RegExp(`/o/troop${unitNumber}(-[a-z0-9-]+)?/admin$`));
+    const adminUrl = page.url();
+    await ctx.close();
+
+    // Next time: password, then the code.
+    const again = await freshPage(browser);
+    await again.page.goto(`${MFA_APEX}/login`);
+    await again.page.getByLabel("Email").fill(email);
+    await again.page.getByLabel("Password").fill(USER_PASSWORD);
+    await again.page.waitForTimeout(1700);
+    await again.page.getByRole("button", { name: /sign in/i }).click();
+    await again.page.waitForURL(/\/login\/mfa/);
+    await again.page.getByLabel("Code").fill(totp(secret, 1));
+    await again.page.getByRole("button", { name: /verify and sign in/i }).click();
+    await again.page.waitForURL((url) => !url.pathname.startsWith("/login"));
+    await again.page.goto(adminUrl);
+    await expect(again.page).toHaveURL(adminUrl);
+    await expect(again.page.getByTestId("billing-banner")).toBeVisible();
+    await again.ctx.close();
+  });
+
+  test("an admin without two-step can't sign in with a password alone", async ({ browser }) => {
+    const email = `mfa-admin-${uid()}@example.invalid`;
+    const first = await freshPage(browser);
+    await signUp(first.page, "Admin Alpha", email, USER_PASSWORD, MFA_APEX);
+    await grantRole(email, "admin");
+    await first.ctx.close();
+
+    const { ctx, page } = await freshPage(browser);
+    await page.goto(`${MFA_APEX}/login`);
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill(USER_PASSWORD);
+    await page.waitForTimeout(1700);
+    await page.getByRole("button", { name: /sign in/i }).click();
+    await expect(page.getByText(/has no two-step sign-in yet/)).toBeVisible();
+    await expect(page).toHaveURL(/\/login/);
+    await ctx.close();
+  });
+
   test("a parent isn't asked for two-step", async ({ browser }) => {
     const email = `mfa-parent-${uid()}@example.invalid`;
     const { ctx, page } = await freshPage(browser);

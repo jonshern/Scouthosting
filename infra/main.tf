@@ -59,8 +59,11 @@ resource "google_artifact_registry_repository" "images" {
 # so there is no VPC, no authorized networks and no proxy to run.
 
 resource "google_sql_database_instance" "main" {
-  name             = "core-pg"
-  database_version = "POSTGRES_17"
+  name = "core-pg"
+  # Same major as the Mac (docker-compose.yml) and CI, so a dump moves
+  # between them and nothing is tested on a different engine. Move all
+  # three together (docs/runbooks-mac.md, "Upgrades and reboots").
+  database_version = "POSTGRES_16"
   region           = var.region
 
   deletion_protection = true

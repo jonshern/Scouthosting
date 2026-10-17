@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { marketingHref } from "@/lib/tenancy/marketing-link";
+import { supportEmail } from "@/lib/support";
 
 export async function Footer() {
   const href = await marketingHref();
@@ -24,7 +25,7 @@ export async function Footer() {
           <div className="font-medium mb-2">Company</div>
           <ul className="space-y-1.5 text-ink-muted">
             <li><Link href={href("/pitch")}>About</Link></li>
-            <li><a href="mailto:hello@compass.app">Contact</a></li>
+            <li><a href={`mailto:${supportEmail()}`}>Contact</a></li>
           </ul>
         </div>
         <div>

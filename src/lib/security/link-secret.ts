@@ -1,5 +1,5 @@
 // The HMAC key for one kind of signed link or cookie (RSVP, permission
-// slip, unsubscribe, invite, click tracking, pre-launch invite cookie).
+// slip, unsubscribe, invite, pre-launch invite cookie).
 //
 // Uses the first of `names` that is set, then SESSION_SECRET, then
 // BETTER_AUTH_SECRET (SESSION_SECRET first so links already sent keep
