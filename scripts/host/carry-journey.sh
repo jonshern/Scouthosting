@@ -48,7 +48,10 @@ INSERTS=""
   echo 'copy carry_in from stdin;'
 } > "$SCRIPT"
 
-while IFS='|' read -r table conflict changed filter; do
+# The loop reads its list on fd 3: on the Mac psql runs through
+# docker exec -i, which would otherwise swallow the rest of the list
+# after the first table.
+while IFS='|' read -r -u 3 table conflict changed filter; do
   from_cols="$(columns "$FROM" "$table")"
   if [ -z "$from_cols" ] || [ -z "$(columns "$TO" "$table")" ]; then
     log "skip  $table (not in both databases)"
@@ -72,7 +75,7 @@ while IFS='|' read -r table conflict changed filter; do
           on conflict $conflict do update set ${updates%, } returning 1)
 select '$table ' || (select count(*) from ins) || ' of ' || (select count(*) from src);
 "
-done <<<"$TABLES"
+done 3<<<"$TABLES"
 
 {
   printf '\\.\n'
