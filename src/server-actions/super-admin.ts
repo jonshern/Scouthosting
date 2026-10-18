@@ -287,3 +287,64 @@ export async function setTicketStatusAction(formData: FormData): Promise<void> {
   });
   inboxPage(ticket.id, input.status === "closed" ? "Closed." : input.status === "open" ? "Reopened." : "Marked answered.");
 }
+
+const FixSchema = z.object({
+  fingerprint: z.string().regex(/^[0-9a-f]{40}$/),
+  note: z.string().trim().max(200).optional().default(""),
+});
+
+export async function markErrorFixedAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(FixSchema, formData);
+  const now = new Date();
+  await prisma.errorResolution.upsert({
+    where: { fingerprint: input.fingerprint },
+    create: { fingerprint: input.fingerprint, resolvedAt: now, resolvedById: owner.id, note: input.note || null },
+    update: { resolvedAt: now, resolvedById: owner.id, note: input.note || null },
+  });
+  audit({
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: "ErrorLog",
+    entityId: input.fingerprint,
+    action: "error.fixed",
+    summary: input.note || null,
+  });
+  redirect(`/super-admin/errors/${input.fingerprint}?done=${encodeURIComponent("Marked fixed. It comes back if it happens again.")}`);
+}
+
+export async function reopenErrorAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(FixSchema, formData);
+  await prisma.errorResolution.deleteMany({ where: { fingerprint: input.fingerprint } });
+  audit({
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: "ErrorLog",
+    entityId: input.fingerprint,
+    action: "error.reopened",
+  });
+  redirect(`/super-admin/errors/${input.fingerprint}?done=${encodeURIComponent("Reopened.")}`);
+}
+
+const FollowUpSchema = z.object({
+  entityType: z.enum(["Org", "User"]),
+  entityId: z.string().min(1),
+});
+
+export async function markFollowedUpAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(FollowUpSchema, formData);
+  // Written directly (not fire-and-forget): the queue reads this row.
+  await prisma.auditLog.create({
+    data: {
+      orgId: input.entityType === "Org" ? input.entityId : null,
+      userId: owner.id,
+      userDisplay: owner.displayName,
+      entityType: input.entityType,
+      entityId: input.entityId,
+      action: "signup.followed_up",
+    },
+  });
+  redirect(`/super-admin/signups?done=${encodeURIComponent("Taken off the queue.")}`);
+}

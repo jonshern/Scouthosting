@@ -56,7 +56,11 @@ export type RequestLike = {
   headers?: Record<string, unknown>;
   ip?: string;
   org?: { id?: string; slug?: string } | null;
+  /** A unit slug when only that is known (a /o/<slug>/ path, a tenant host). */
+  orgSlug?: string | null;
   user?: { id?: string } | null;
+  /** Extra detail to keep with the row (an app's version, platform, screen). */
+  context?: Record<string, unknown> | null;
   log?: { base?: { requestId?: string } };
 } | null | undefined;
 
@@ -69,7 +73,7 @@ function requestContext(req: RequestLike) {
     body: scrubBody(req.path || "", req.body),
     headers: scrubHeaders(req.headers),
     ip: req.ip,
-    orgSlug: req.org?.slug,
+    orgSlug: req.org?.slug ?? req.orgSlug ?? undefined,
     userId: req.user?.id,
     requestId: req.log?.base?.requestId,
   };
@@ -111,6 +115,11 @@ async function persistError(
     const event = formatErrorEvent(err, req, { service });
     const truncate = (s: string | null | undefined, n: number) =>
       typeof s === "string" && s.length > n ? s.slice(0, n) : s;
+    let orgId = req?.org?.id || null;
+    const slug = req?.org?.slug || req?.orgSlug;
+    if (!orgId && slug) {
+      orgId = (await prisma.org.findUnique({ where: { slug }, select: { id: true } }))?.id ?? null;
+    }
     await prisma.errorLog.create({
       data: {
         fingerprint: fingerprintError(err),
@@ -119,12 +128,14 @@ async function persistError(
         errorName: truncate(e.name || null, 200) || null,
         method: req?.method || null,
         path: truncate(req?.path || null, 500) || null,
-        orgId: req?.org?.id || null,
+        orgId,
         userId: req?.user?.id || null,
         requestId: event.request?.requestId || null,
         ip: req?.ip || null,
         release: event.release,
         environment: event.environment,
+        service: service ?? "compass",
+        ...(req?.context ? { context: req.context as object } : {}),
       },
     });
   } catch (writeErr) {
@@ -161,4 +172,42 @@ export function installFatalHandlers({ service }: { service?: string } = {}): vo
     log.error("unhandledRejection", formatErrorEvent(err, null, { service }));
     void persistError(err, null, { service });
   });
+}
+
+/**
+ * A crash one of the apps reported (POST /api/v1/errors). Kept in the
+ * same ErrorLog as server errors, under service "<product>-app", with
+ * the app's own fingerprint so repeats group together.
+ */
+export async function recordAppError(input: {
+  product: string;
+  name?: string | null;
+  message: string;
+  stack?: string | null;
+  userId?: string | null;
+  context?: Record<string, unknown> | null;
+  ip?: string | null;
+}): Promise<{ fingerprint: string }> {
+  const e = new Error(input.message);
+  e.name = input.name || "Error";
+  e.stack = input.stack || `${e.name}: ${input.message}`;
+  // No stack frame to go on: group by name and message instead.
+  const fingerprint = /\n\s*at /.test(e.stack)
+    ? fingerprintError(e)
+    : crypto.createHash("sha1").update(`${input.product}|${e.name}|${input.message}`).digest("hex");
+  await prisma.errorLog.create({
+    data: {
+      fingerprint,
+      message: input.message.slice(0, 2000),
+      stack: e.stack.slice(0, 8000),
+      errorName: e.name.slice(0, 200),
+      userId: input.userId ?? null,
+      ip: input.ip ?? null,
+      service: `${input.product}-app`,
+      release: typeof input.context?.appVersion === "string" ? input.context.appVersion.slice(0, 50) : null,
+      environment: "app",
+      ...(input.context ? { context: input.context as object } : {}),
+    },
+  });
+  return { fingerprint };
 }

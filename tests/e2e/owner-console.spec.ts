@@ -179,3 +179,41 @@ test("a question from /contact reaches the inbox and the owner answers it", asyn
   await expect(page.getByRole("status")).toContainText("Closed.");
   await db().supportTicket.deleteMany({ where: { fromEmail: `pat-${stamp}@example.invalid` } });
 });
+
+test("an app crash shows in errors, grouped, and hides once marked fixed", async ({ page, request }) => {
+  const message = `Trail failed to load ${stamp}`;
+  for (let i = 0; i < 2; i++) {
+    const res = await request.post(`${APEX}/api/v1/errors`, {
+      data: { product: "waypoint", name: "TypeError", message, context: { appVersion: "2.0.1", platform: "web" } },
+    });
+    expect(res.status()).toBe(200);
+  }
+  await signInOwner(page);
+  await page.goto(`${APEX}/super-admin/errors?service=waypoint-app&days=1`);
+  const group = page.getByRole("link", { name: `TypeError: ${message}` });
+  await expect(group).toBeVisible();
+  await expect(page.locator("li", { has: group })).toContainText("2 times");
+  await group.click();
+  await expect(page.getByRole("cell", { name: "2.0.1" }).first()).toBeVisible();
+  await page.getByLabel("What fixed it").fill("Guarded the empty trail");
+  await page.getByRole("button", { name: "Mark fixed" }).click();
+  await expect(page.getByRole("status")).toContainText("Marked fixed");
+
+  await page.goto(`${APEX}/super-admin/errors?service=waypoint-app&days=1`);
+  await expect(page.getByRole("link", { name: `TypeError: ${message}` })).toHaveCount(0);
+  const rows = await db().errorLog.findMany({ where: { message }, select: { fingerprint: true } });
+  await db().errorResolution.deleteMany({ where: { fingerprint: { in: rows.map((r) => r.fingerprint) } } });
+  await db().errorLog.deleteMany({ where: { message } });
+});
+
+test("a new unit waits in the sign-ups queue until it's marked done", async ({ page }) => {
+  await signInOwner(page);
+  await page.goto(`${APEX}/super-admin/signups`);
+  const name = `Owner E2E Troop ${stamp}`;
+  await expect(page.getByRole("link", { name })).toBeVisible();
+  await page.getByRole("button", { name: `Done with ${name}` }).click();
+  await expect(page.getByRole("status")).toContainText("Taken off the queue");
+  await expect(page.getByRole("link", { name })).toHaveCount(0);
+  await page.goto(`${APEX}/super-admin/signups?all=1`);
+  await expect(page.getByRole("link", { name })).toBeVisible();
+});
