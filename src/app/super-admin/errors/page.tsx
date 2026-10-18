@@ -3,8 +3,15 @@
 
 import { prisma } from "@/lib/db";
 
-export default async function SuperErrorsPage() {
+export default async function SuperErrorsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ org?: string }>;
+}) {
+  const { org: orgSlug } = await searchParams;
+  const org = orgSlug ? await prisma.org.findUnique({ where: { slug: orgSlug }, select: { id: true, displayName: true } }) : null;
   const errors = await prisma.errorLog.findMany({
+    where: org ? { orgId: org.id } : undefined,
     orderBy: { createdAt: "desc" },
     take: 100,
     select: {
@@ -23,7 +30,9 @@ export default async function SuperErrorsPage() {
 
   return (
     <section>
-      <h2 className="font-display text-xl mb-4">Recent errors ({errors.length})</h2>
+      <h2 className="font-display text-xl mb-4">
+        Recent errors{org ? ` in ${org.displayName}` : ""} ({errors.length})
+      </h2>
       {errors.length === 0 ? (
         <p className="text-ink-muted">No errors recorded.</p>
       ) : (

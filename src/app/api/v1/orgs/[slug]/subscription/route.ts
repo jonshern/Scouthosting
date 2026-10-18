@@ -23,6 +23,7 @@ export const GET = v1Route<{ slug: string }>(async (_req, { user, params }) => {
       isDemo: true,
       suspendedAt: true,
       suspendedReason: true,
+      compedUntil: true,
     },
   });
   const summary = billingSummary(row, { stripeConfigured: isConfigured() });

@@ -35,6 +35,8 @@ export type BillingSummary = {
   subscribed: boolean;
   /** Admin pages other than billing are closed until the unit subscribes. */
   locked: boolean;
+  /** Free access given from the owner console runs until this date. */
+  compedUntil: string | null;
 };
 
 export type OrgForSummary = OrgLikeForBilling & {
@@ -65,5 +67,6 @@ export function billingSummary(
     cancelAtPeriodEnd: !!org?.cancelAtPeriodEnd,
     subscribed: !!org?.stripeSubscriptionId,
     locked: stripeConfigured && billingLock,
+    compedUntil: state.reason === "comped" ? iso(org?.compedUntil) : null,
   };
 }

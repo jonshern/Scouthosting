@@ -56,6 +56,9 @@ export default async function BillingPage({
   if (org.isDemo) {
     headline = "Demo unit";
     body = "Demo units have every feature and are never billed.";
+  } else if (s.compedUntil) {
+    headline = "Free access";
+    body = `Compass gave this unit free access until ${day(s.compedUntil)}. There's nothing to pay before then.`;
   } else if (s.status === "trialing") {
     headline = `${s.trialDaysLeft} day${s.trialDaysLeft === 1 ? "" : "s"} left in your free trial`;
     body = `Your trial ends ${day(s.trialEndsAt)}. Choose yearly or monthly any time; your card isn't charged until the trial ends.`;

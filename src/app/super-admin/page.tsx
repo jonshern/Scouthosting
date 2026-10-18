@@ -1,76 +1,96 @@
-// /__super — orgs list (every Org row, paginated).
+// /super-admin — owner console overview: licenses by state, who signed
+// up lately, what needs a look (trials about to end, failed payments,
+// errors, unanswered questions).
 
 import Link from "next/link";
-import { prisma } from "@/lib/db";
-import { deriveBillingStatus } from "@/lib/billing/state";
-import { planLabel } from "@/lib/billing/plans";
+import { overview, type UnitRow } from "@/lib/owner/console";
+import { LicensePill, Section, Stat, shortDate } from "@/components/owner/ConsoleBits";
 
-export default async function SuperOrgsPage() {
-  const orgs = await prisma.org.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    select: {
-      id: true,
-      slug: true,
-      displayName: true,
-      plan: true,
-      isDemo: true,
-      subscriptionStatus: true,
-      trialEndsAt: true,
-      currentPeriodEnd: true,
-      cancelAtPeriodEnd: true,
-      suspendedAt: true,
-      suspendedReason: true,
-      createdAt: true,
-    },
-  });
+export const dynamic = "force-dynamic";
+
+function UnitList({ units, empty }: { units: UnitRow[]; empty: string }) {
+  if (units.length === 0) return <p className="text-sm text-ink-muted">{empty}</p>;
+  return (
+    <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+      {units.map((u) => (
+        <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm">
+          <Link href={`/super-admin/orgs/${u.slug}`} className="font-medium">
+            {u.displayName}
+          </Link>
+          <span className="flex items-center gap-2 text-xs text-ink-muted">
+            {u.license.detail}
+            <LicensePill license={u.license} />
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export default async function OwnerOverviewPage() {
+  const o = await overview();
+  const paying = o.units.paid + o.units.canceling;
 
   return (
-    <section>
-      <h2 className="font-display text-xl mb-4">Orgs ({orgs.length})</h2>
-      <table className="w-full text-sm">
-        <thead className="text-left text-xs uppercase tracking-wide text-ink-muted border-b border-ink-muted/15">
-          <tr>
-            <th className="py-2">Slug</th>
-            <th>Name</th>
-            <th>Plan</th>
-            <th>Status</th>
-            <th>Trial / period end</th>
-            <th>Created</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orgs.map((o) => {
-            const billing = deriveBillingStatus(o);
-            return (
-              <tr key={o.id} className="border-b border-ink-muted/10">
-                <td className="py-2 font-mono">
-                  <Link href={`/__super/orgs/${o.slug}`}>{o.slug}</Link>
-                </td>
-                <td>
-                  {o.displayName}
-                  {o.isDemo ? (
-                    <span className="ml-2 rounded bg-amber-100 text-amber-800 px-1 text-xs">
-                      DEMO
-                    </span>
-                  ) : null}
-                </td>
-                <td>{planLabel(o.plan)}</td>
-                <td>
-                  {billing.status}
-                  {billing.gate === "suspended" ? " · suspended" : ""}
-                </td>
-                <td className="text-xs text-ink-muted">
-                  {(o.currentPeriodEnd || o.trialEndsAt)?.toLocaleDateString() ?? "—"}
-                </td>
-                <td className="text-xs text-ink-muted">
-                  {o.createdAt.toLocaleDateString()}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </section>
+    <div className="space-y-10">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label="Units" value={o.totalUnits} hint={`${o.newUnits7d} new this week`} href="/super-admin/orgs" />
+        <Stat label="Paying" value={paying} hint={`${o.units.canceling} canceling`} href="/super-admin/orgs?kind=paid" />
+        <Stat label="On trial" value={o.units.trial} hint={`${o.trialsEndingSoon.length} end within 7 days`} href="/super-admin/orgs?kind=trial" />
+        <Stat
+          label="Past due"
+          value={o.units.past_due}
+          hint={`${o.units.trial_ended} trials ended unpaid`}
+          href="/super-admin/orgs?kind=past_due"
+          tone={o.units.past_due > 0 ? "bad" : undefined}
+        />
+        <Stat label="Accounts" value={o.accounts} hint={`${o.newAccounts7d} new this week`} href="/super-admin/people" />
+        <Stat
+          label="Lantern families"
+          value={o.lanternFamilies}
+          hint={`${o.lanternScouts} scouts on trails`}
+          href="/super-admin/people?product=lantern"
+        />
+        <Stat label="Waypoint counselors" value={o.counselors} href="/super-admin/people?product=waypoint" />
+        <Stat
+          label="Errors, last 24 hours"
+          value={o.errors24h}
+          hint={`${o.errorKinds24h} different kinds`}
+          href="/super-admin/errors"
+          tone={o.errors24h > 0 ? "warn" : undefined}
+        />
+      </div>
+
+      <div className="grid gap-8 md:grid-cols-2">
+        <Section title="Trials ending this week">
+          <UnitList units={o.trialsEndingSoon} empty="No trial ends in the next 7 days." />
+        </Section>
+        <Section title="Needs a look">
+          <UnitList units={o.needsAttention} empty="Nothing past due, canceling, suspended or ended unpaid." />
+        </Section>
+      </div>
+
+      <Section title="Newest units" action={<Link href="/super-admin/orgs" className="text-sm">All units →</Link>}>
+        <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+          {o.recentUnits.map((u) => (
+            <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm">
+              <span>
+                <Link href={`/super-admin/orgs/${u.slug}`} className="font-medium">
+                  {u.displayName}
+                </Link>
+                <span className="ml-2 text-xs text-ink-muted">
+                  {u.city}, {u.state} · {u.owner?.email ?? "no owner"} · signed up {shortDate(u.createdAt)}
+                </span>
+              </span>
+              <LicensePill license={u.license} />
+            </li>
+          ))}
+        </ul>
+      </Section>
+
+      <p className="text-sm text-ink-muted">
+        {o.openTickets} open support questions · {o.newFeedback} new feedback items
+      </p>
+    </div>
   );
 }
