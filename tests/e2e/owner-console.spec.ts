@@ -110,7 +110,7 @@ test("turning an account off signs it out and refuses sign-in until it's back on
   await targetPage.getByLabel("Password").fill(USER_PASSWORD);
   await targetPage.waitForTimeout(1700);
   await targetPage.getByRole("button", { name: /sign in/i }).click();
-  await targetPage.waitForTimeout(1500);
+  await expect(targetPage.getByText("This account is turned off.")).toBeVisible();
   await targetPage.goto(`${APEX}/account`);
   await expect(targetPage).toHaveURL(/\/login/);
 

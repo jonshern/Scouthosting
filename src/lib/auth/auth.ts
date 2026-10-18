@@ -163,7 +163,7 @@ export const auth = betterAuth({
             select: { disabledAt: true },
           });
           if (row?.disabledAt) {
-            throw new APIError("FORBIDDEN", { message: "account_disabled" });
+            throw new APIError("FORBIDDEN", { message: "account_disabled", code: "ACCOUNT_DISABLED" });
           }
         },
       },
