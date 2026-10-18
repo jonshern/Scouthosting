@@ -43,6 +43,7 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
+  await db().billingPayment.deleteMany({ where: { stripeInvoiceId: `in_e2e_${stamp}` } });
   if (orgId) await db().org.delete({ where: { id: orgId } }).catch(() => {});
 });
 
@@ -118,4 +119,33 @@ test("turning an account off signs it out and refuses sign-in until it's back on
   await expect(page.getByRole("status")).toContainText("Account turned back on");
   await expect(page.locator("section", { has: page.getByRole("heading", { name: "History" }) })).toContainText("user.disable");
   await target.close();
+});
+
+test("billing report shows a recorded test-mode payment and exports it", async ({ page }) => {
+  await db().billingPayment.create({
+    data: {
+      orgId,
+      stripeInvoiceId: `in_e2e_${stamp}`,
+      amountCents: 9900,
+      currency: "usd",
+      livemode: false,
+      paidAt: new Date(),
+    },
+  });
+  await signInOwner(page);
+  await page.goto(`${APEX}/super-admin/billing?mode=test`);
+  await expect(page.getByRole("heading", { name: "Collected (Stripe test mode)" })).toBeVisible();
+  const recent = page.locator("section", { has: page.getByRole("heading", { name: "Recent payments" }) });
+  await expect(recent).toContainText(`Owner E2E Troop ${stamp}`);
+  await expect(recent).toContainText("$99.00");
+
+  const csv = await page.request.get(`${APEX}/super-admin/billing/payments.csv?mode=test`);
+  expect(csv.status()).toBe(200);
+  expect(await csv.text()).toContain(`in_e2e_${stamp}`);
+});
+
+test("the payments export refuses anyone who isn't the owner", async ({ request }) => {
+  const res = await request.get(`${APEX}/super-admin/billing/payments.csv?mode=test`);
+  expect(res.status()).not.toBe(200);
+  expect(await res.text()).not.toContain("stripe_invoice");
 });
