@@ -224,6 +224,7 @@ model Org {
   requirementProgress  RequirementProgress[]
   requirementEvents    RequirementProgressEvent[]
   counselorMeetings    CounselorMeeting[]
+  billingPayments      BillingPayment[]
   owner                User?                      @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([plan])
@@ -2904,6 +2905,28 @@ model DemoOutboxMessage {
 // "treasury:pi_123" or "event:evt_123", so a payment that arrives as two
 // different events, or the same event delivered twice at once, is
 // applied once.
+// A paid Stripe invoice for a unit's subscription, recorded by the
+// webhook (lib/billing/stripe.ts) so the owner console's billing report
+// can total what was collected without calling Stripe. Refunds are
+// handled in Stripe and don't show here. orgId SetNull keeps the money
+// history when a unit is deleted.
+model BillingPayment {
+  id               String   @id @default(cuid())
+  orgId            String?
+  stripeInvoiceId  String   @unique
+  stripeCustomerId String?
+  amountCents      Int
+  currency         String
+  livemode         Boolean  @default(false)
+  paidAt           DateTime
+  createdAt        DateTime @default(now())
+
+  org Org? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  @@index([paidAt])
+  @@index([orgId, paidAt])
+}
+
 model StripeWebhookReceipt {
   key       String   @id
   eventId   String

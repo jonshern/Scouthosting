@@ -198,6 +198,7 @@ export type StripeEvent = {
   type?: string;
   // Seconds since the epoch when Stripe created the event.
   created?: number;
+  livemode?: boolean;
   data?: {
     object?: {
       id?: string;
@@ -211,6 +212,11 @@ export type StripeEvent = {
       subscription_details?: { metadata?: Record<string, string> };
       // Newer API versions move an invoice's subscription metadata here.
       parent?: { subscription_details?: { metadata?: Record<string, string> } };
+      // Invoices: what was paid and when.
+      amount_paid?: number;
+      currency?: string;
+      created?: number;
+      status_transitions?: { paid_at?: number | null };
     };
   };
 };
@@ -311,6 +317,7 @@ export async function syncFromStripeEvent(event: StripeEvent, db: Db = prisma): 
       return { ok: true };
     }
     case "invoice.payment_succeeded": {
+      await recordPayment(db, orgId, event);
       // Only a past-due unit changes; a paid invoice on an active unit
       // is the normal renewal and needs no write.
       const done = await apply(
@@ -330,6 +337,29 @@ export async function syncFromStripeEvent(event: StripeEvent, db: Db = prisma): 
     default:
       return { ok: true, ignored: true };
   }
+}
+
+// The owner console's billing report totals these. Keyed on the invoice
+// id, so a second event for the same invoice changes nothing. A $0
+// invoice (the free trial's first one) isn't money and isn't kept.
+async function recordPayment(db: Db, orgId: string, event: StripeEvent): Promise<void> {
+  const obj = event.data?.object || {};
+  const amount = obj.amount_paid ?? 0;
+  if (!obj.id || amount <= 0) return;
+  const paidSecs = obj.status_transitions?.paid_at ?? obj.created ?? event.created;
+  const data = {
+    orgId,
+    stripeCustomerId: obj.customer ?? null,
+    amountCents: amount,
+    currency: (obj.currency || "usd").toLowerCase(),
+    livemode: !!event.livemode,
+    paidAt: paidSecs ? new Date(paidSecs * 1000) : new Date(),
+  };
+  await db.billingPayment.upsert({
+    where: { stripeInvoiceId: obj.id },
+    create: { stripeInvoiceId: obj.id, ...data },
+    update: {},
+  });
 }
 
 async function resolveOrgIdFromEvent(event: StripeEvent, db: Db = prisma): Promise<string | null> {
