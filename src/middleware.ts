@@ -53,9 +53,10 @@ async function resolveCustomDomainSlug(domain: string): Promise<string | null | 
 // /staff-rsvp — the staff invite page; the link may be built on whichever
 //   host the leader sent it from.
 // /account — the signed-in user's own pages (the admin avatar links here).
+// /contact — questions and feedback to the owner, from any unit's site too.
 // /mcp, /.well-known/ — the Claude connector and its OAuth discovery
 //   documents (src/lib/mcp); not per-org.
-const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/api/events/", "/staff-rsvp", "/account", "/mcp", "/.well-known/"];
+const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/contact", "/api/events/", "/staff-rsvp", "/account", "/mcp", "/.well-known/"];
 const CSRF_COOKIE = "compass_csrf";
 
 // Pre-launch apex gate. Visitors without a valid `compass_invite`
@@ -75,6 +76,7 @@ const APEX_INVITE_ALLOWLIST = new Set<string>([
   "/logout",
   "/signup",
   "/start",       // self-serve sign-up; the unit form needs a signed-in adult
+  "/contact",     // questions from people deciding whether to sign up
 ]);
 const APEX_INVITE_PREFIXES = [
   "/api/",        // server actions / route handlers (the form needs this)
