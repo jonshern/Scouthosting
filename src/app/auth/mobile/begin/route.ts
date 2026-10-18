@@ -17,7 +17,7 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { issueToken } from "@/lib/auth/api-token";
 import { isProd } from "@/lib/env";
-import { allowedMobileRedirect, isWebSigninRedirect } from "@/lib/auth/mobile-redirect";
+import { allowedMobileRedirect, isWebSigninRedirect, signinTokenName } from "@/lib/auth/mobile-redirect";
 import { accountStanding, requirementRedirect, withNext } from "@/lib/auth/requirements";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Users can rename / revoke from /account/api-tokens.
-  const token = await issueToken(user.id, "Mobile device", prisma);
+  const token = await issueToken(user.id, signinTokenName(redirectUrl), prisma);
 
   const params = new URLSearchParams({
     token: token.raw,

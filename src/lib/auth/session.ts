@@ -27,6 +27,8 @@ export const getSession = cache(async (): Promise<AuthSession> => {
   const result = await auth.api.getSession({ headers: await headers() });
   if (!result) return { user: null, session: null };
   const { user, session } = result;
+  // Turned off from the owner console: treated as signed out.
+  if (user.disabledAt) return { user: null, session: null };
   return {
     user: {
       id: user.id,

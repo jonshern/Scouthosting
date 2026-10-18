@@ -87,3 +87,25 @@ const WEB_SIGNIN_PATH = "/signed-in";
 // bluecard scheme) and Lantern (scouts; today Emmett's Journey).
 const APP_SCHEMES = new Set(["compass:", "bluecard:", "waypoint:", "emmettjourney:", "lantern:"]);
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+
+const APP_NAMES: Record<string, string> = {
+  "compass:": "Compass app",
+  "bluecard:": "Waypoint app",
+  "waypoint:": "Waypoint app",
+  "emmettjourney:": "Lantern app",
+  "lantern:": "Lantern app",
+};
+
+/**
+ * The name a sign-in token gets, from where it was sent: which app or
+ * website the person signed in to. Shown on /account/api-tokens and in
+ * the owner console's list of who uses which product.
+ */
+export function signinTokenName(url: URL): string {
+  const app = APP_NAMES[url.protocol];
+  if (app) return app;
+  if (url.protocol === "exp:") return "Expo Go (development)";
+  const host = url.hostname.toLowerCase();
+  const product = host.startsWith("waypoint") ? "Waypoint" : host.startsWith("lantern") ? "Lantern" : null;
+  return product ? `${product} website` : `Website (${host})`.slice(0, 80);
+}

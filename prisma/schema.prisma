@@ -111,6 +111,11 @@ model Org {
   // know to nudge their charter org.
   suspendedAt                   DateTime?
   suspendedReason               String?
+  // Free access the platform owner grants from the owner console
+  // (/super-admin): until this date the unit is treated as paid,
+  // whatever Stripe says. compedNote says why. Never written by Stripe.
+  compedUntil                   DateTime?
+  compedNote                    String?
   // Stripe billing state. Webhook events (lib/stripe.js) are the single
   // writer for these fields — admin UI reads them but never mutates them
   // directly. `subscriptionStatus` is the gate for plan enforcement
@@ -256,6 +261,10 @@ model User {
   // (password or Google/Apple) must confirm before using the app;
   // accounts that existed before the policy were backfilled.
   adultAttestedAt    DateTime?
+  // Turned off from the owner console. Sign-in is refused and every
+  // session and token was revoked when it was set (lib/owner/access.ts).
+  disabledAt         DateTime?
+  disabledReason     String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 

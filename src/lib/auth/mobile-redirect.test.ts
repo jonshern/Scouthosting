@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { allowedMobileRedirect, expoGoSigninHosts, isWebSigninRedirect, webSigninOrigins } from "./mobile-redirect";
+import { allowedMobileRedirect, expoGoSigninHosts, isWebSigninRedirect, signinTokenName, webSigninOrigins } from "./mobile-redirect";
 
 describe("allowedMobileRedirect", () => {
   it("accepts the app's deep link everywhere", () => {
@@ -88,5 +88,17 @@ describe("Expo Go in production", () => {
 
   it("never lets a listed host through on another scheme", () => {
     expect(allowedMobileRedirect("http://100.101.102.103:8081/--/auth/callback", true, none, hosts)).toBeNull();
+  });
+});
+
+describe("signinTokenName", () => {
+  it("names the token after the app or site it went to", () => {
+    expect(signinTokenName(new URL("lantern://auth/callback"))).toBe("Lantern app");
+    expect(signinTokenName(new URL("bluecard://auth/callback"))).toBe("Waypoint app");
+    expect(signinTokenName(new URL("compass://auth/callback"))).toBe("Compass app");
+    expect(signinTokenName(new URL("https://waypoint.example.org/signed-in"))).toBe("Waypoint website");
+    expect(signinTokenName(new URL("https://lantern.example.org/signed-in"))).toBe("Lantern website");
+    expect(signinTokenName(new URL("https://jons-mac.ts.net/signed-in"))).toBe("Website (jons-mac.ts.net)");
+    expect(signinTokenName(new URL("exp://192.168.1.2:8081/--/auth/callback"))).toBe("Expo Go (development)");
   });
 });

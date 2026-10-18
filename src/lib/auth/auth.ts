@@ -16,6 +16,7 @@
 // the email-verification link.
 
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "@/lib/db";
@@ -80,6 +81,7 @@ export const auth = betterAuth({
     additionalFields: {
       isSuperAdmin: { type: "boolean", defaultValue: false, input: false },
       totpEnrolledAt: { type: "date", required: false, input: false },
+      disabledAt: { type: "date", required: false, input: false },
     },
     // A new address is applied only after the link sent to it is
     // clicked (server-actions/account.ts#updateProfile).
@@ -150,6 +152,22 @@ export const auth = betterAuth({
   },
 
   databaseHooks: {
+    // An account turned off from the owner console gets no new session,
+    // whichever way it signs in (password, Google/Apple, passkey, the
+    // two-step code).
+    session: {
+      create: {
+        async before(session) {
+          const row = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { disabledAt: true },
+          });
+          if (row?.disabledAt) {
+            throw new APIError("FORBIDDEN", { message: "account_disabled" });
+          }
+        },
+      },
+    },
     user: {
       create: {
         async after(user) {

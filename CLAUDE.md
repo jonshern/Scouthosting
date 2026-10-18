@@ -192,7 +192,13 @@ required when actually used.
 
 Next treats underscore-prefixed folders as private. The super-admin
 surface lives at `/super-admin` (not `/__super`) — folder is
-`src/app/super-admin/`.
+`src/app/super-admin/`. It's the owner console for all three products
+(units and licenses, people, errors, audit); `isSuperAdmin` is set only
+by `npm run owner:grant -- <email>`. Every console write goes through
+`src/server-actions/super-admin.ts` and is audit-logged. Free access is
+`Org.compedUntil` (billing treats the unit as paid, Stripe untouched);
+`User.disabledAt` turns an account off (sessions and tokens revoked,
+the Better Auth session hook refuses new ones).
 
 ### 8. Per-org encryption: `MASTER_KEY` env var is required in production
 
