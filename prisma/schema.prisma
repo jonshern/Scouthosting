@@ -1452,6 +1452,11 @@ model ErrorLog {
   // Release tracking
   release     String?
   environment String?
+  // Where it happened: "compass" (pages, actions), "compass-api"
+  // (/api/v1), or "<product>-app" for a crash an app reported through
+  // POST /api/v1/errors. context is what the app sent with it.
+  service     String?
+  context     Json?
   createdAt   DateTime @default(now())
 
   org  Org?  @relation(fields: [orgId], references: [id], onDelete: SetNull)
@@ -1460,6 +1465,16 @@ model ErrorLog {
   @@index([fingerprint, createdAt])
   @@index([createdAt])
   @@index([orgId, createdAt])
+  @@index([service, createdAt])
+}
+
+// An error the owner marked fixed in the owner console. The group shows
+// as fixed until it happens again after resolvedAt.
+model ErrorResolution {
+  fingerprint  String   @id
+  resolvedAt   DateTime @default(now())
+  resolvedById String?
+  note         String?
 }
 
 // Driver / carpool plan. Distinct from SignupSlot's generic

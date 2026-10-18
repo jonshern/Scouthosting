@@ -36,6 +36,7 @@ export default async function SuperLayout({ children }: { children: React.ReactN
           <Link href="/super-admin/people">People</Link>
           <Link href="/super-admin/billing">Billing</Link>
           <Link href="/super-admin/inbox">Inbox</Link>
+          <Link href="/super-admin/signups">Sign-ups</Link>
           <Link href="/super-admin/errors">Errors</Link>
           <Link href="/super-admin/audit">Audit log</Link>
           <Link href="/super-admin/analytics">Analytics</Link>

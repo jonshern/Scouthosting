@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { overview, type UnitRow } from "@/lib/owner/console";
+import { signupQueue } from "@/lib/owner/signups";
 import { LicensePill, Section, Stat, shortDate } from "@/components/owner/ConsoleBits";
 
 export const dynamic = "force-dynamic";
@@ -28,12 +29,12 @@ function UnitList({ units, empty }: { units: UnitRow[]; empty: string }) {
 }
 
 export default async function OwnerOverviewPage() {
-  const o = await overview();
+  const [o, signups] = await Promise.all([overview(), signupQueue()]);
   const paying = o.units.paid + o.units.canceling;
 
   return (
     <div className="space-y-10">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="Units" value={o.totalUnits} hint={`${o.newUnits7d} new this week`} href="/super-admin/orgs" />
         <Stat label="Paying" value={paying} hint={`${o.units.canceling} canceling`} href="/super-admin/orgs?kind=paid" />
         <Stat label="On trial" value={o.units.trial} hint={`${o.trialsEndingSoon.length} end within 7 days`} href="/super-admin/orgs?kind=trial" />
@@ -52,6 +53,14 @@ export default async function OwnerOverviewPage() {
           href="/super-admin/people?product=lantern"
         />
         <Stat label="Waypoint counselors" value={o.counselors} href="/super-admin/people?product=waypoint" />
+        <Stat
+          label="Questions waiting"
+          value={o.openTickets}
+          hint={`${o.newFeedback} new roadmap requests`}
+          href="/super-admin/inbox"
+          tone={o.openTickets > 0 ? "warn" : undefined}
+        />
+        <Stat label="Sign-ups to follow up" value={signups.length} hint="last 30 days" href="/super-admin/signups" />
         <Stat
           label="Errors, last 24 hours"
           value={o.errors24h}
@@ -88,10 +97,6 @@ export default async function OwnerOverviewPage() {
         </ul>
       </Section>
 
-      <p className="text-sm text-ink-muted">
-        <Link href="/super-admin/inbox">{o.openTickets} questions waiting on you</Link> · {o.newFeedback} new feature
-        requests on unit roadmaps
-      </p>
     </div>
   );
 }

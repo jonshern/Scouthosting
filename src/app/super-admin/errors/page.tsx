@@ -1,61 +1,89 @@
-// /__super/errors — recent ErrorLog rows. The error tracker writes
-// here from any captureError() callsite.
+// /super-admin/errors — errors from Compass's pages and API and crashes
+// the apps reported, grouped by where they happen. Filter by time,
+// service or unit; groups marked fixed hide until they recur.
 
+import Link from "next/link";
 import { prisma } from "@/lib/db";
+import { errorGroups, errorServices } from "@/lib/owner/errors";
+import { Pill, shortDate } from "@/components/owner/ConsoleBits";
 
-export default async function SuperErrorsPage({
+export const dynamic = "force-dynamic";
+
+const WINDOWS = [1, 7, 30] as const;
+
+function ago(d: Date, now = Date.now()): string {
+  const mins = Math.round((now - d.getTime()) / 60_000);
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  if (hours < 48) return `${hours}h ago`;
+  return shortDate(d);
+}
+
+export default async function OwnerErrorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ org?: string }>;
+  searchParams: Promise<{ org?: string; days?: string; service?: string; fixed?: string }>;
 }) {
-  const { org: orgSlug } = await searchParams;
-  const org = orgSlug ? await prisma.org.findUnique({ where: { slug: orgSlug }, select: { id: true, displayName: true } }) : null;
-  const errors = await prisma.errorLog.findMany({
-    where: org ? { orgId: org.id } : undefined,
-    orderBy: { createdAt: "desc" },
-    take: 100,
-    select: {
-      id: true,
-      createdAt: true,
-      fingerprint: true,
-      errorName: true,
-      message: true,
-      method: true,
-      path: true,
-      orgId: true,
-      release: true,
-      environment: true,
-    },
-  });
+  const sp = await searchParams;
+  const days = WINDOWS.find((w) => String(w) === sp.days) ?? 7;
+  const org = sp.org
+    ? await prisma.org.findUnique({ where: { slug: sp.org }, select: { id: true, slug: true, displayName: true } })
+    : null;
+  const showFixed = sp.fixed === "1";
+  const [groups, services] = await Promise.all([
+    errorGroups({ days, service: sp.service || null, orgId: org?.id ?? null, showFixed }),
+    errorServices(),
+  ]);
+  const href = (over: Record<string, string | null>) => {
+    const q = new URLSearchParams();
+    const merged = { org: sp.org ?? null, days: String(days), service: sp.service ?? null, fixed: showFixed ? "1" : null, ...over };
+    for (const [k, v] of Object.entries(merged)) if (v) q.set(k, v);
+    return `/super-admin/errors?${q.toString()}`;
+  };
 
   return (
-    <section>
-      <h2 className="font-display text-xl mb-4">
-        Recent errors{org ? ` in ${org.displayName}` : ""} ({errors.length})
+    <section className="space-y-5">
+      <h2 className="font-display text-2xl">
+        Errors{org ? ` in ${org.displayName}` : ""} ({groups.length})
       </h2>
-      {errors.length === 0 ? (
-        <p className="text-ink-muted">No errors recorded.</p>
+
+      <nav aria-label="Error filters" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        {WINDOWS.map((w) => (
+          <Link key={w} href={href({ days: String(w) })} className={days === w ? "font-semibold underline" : ""}>
+            {w === 1 ? "Last day" : `Last ${w} days`}
+          </Link>
+        ))}
+        <span className="text-ink-muted">·</span>
+        <Link href={href({ service: null })} className={!sp.service ? "font-semibold underline" : ""}>
+          Everywhere
+        </Link>
+        {services.map((s) => (
+          <Link key={s} href={href({ service: s })} className={sp.service === s ? "font-semibold underline" : ""}>
+            {s}
+          </Link>
+        ))}
+        <span className="text-ink-muted">·</span>
+        <Link href={href({ fixed: showFixed ? null : "1" })}>{showFixed ? "Hide fixed" : "Show fixed"}</Link>
+        {org ? <Link href={href({ org: null })}>All units</Link> : null}
+      </nav>
+
+      {groups.length === 0 ? (
+        <p className="text-ink-muted">No errors in this window.</p>
       ) : (
-        <ul className="space-y-3">
-          {errors.map((e) => (
-            <li key={e.id} className="card text-sm">
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="font-mono text-xs text-ink-muted">
-                  {e.createdAt.toISOString()}
-                </span>
-                <span className="font-medium">{e.errorName || "Error"}</span>
-                {e.method && e.path ? (
-                  <span className="text-xs text-ink-muted">
-                    {e.method} {e.path}
-                  </span>
-                ) : null}
+        <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+          {groups.map((g) => (
+            <li key={g.fingerprint} className="px-4 py-3 text-sm">
+              <div className="flex flex-wrap items-center gap-2">
+                <Link href={`/super-admin/errors/${g.fingerprint}`} className="font-medium">
+                  {g.name}: {g.message.slice(0, 140)}
+                </Link>
+                <Pill tone="muted">{g.service}</Pill>
+                {g.fixed ? <Pill tone="good">fixed</Pill> : g.fixedAt ? <Pill tone="bad">back after fix</Pill> : null}
               </div>
-              <p className="text-sm">{e.message}</p>
-              <p className="mt-1 text-xs text-ink-muted">
-                fingerprint: <span className="font-mono">{e.fingerprint.slice(0, 12)}</span>
-                {e.release ? ` · release ${e.release}` : ""}
-                {e.environment ? ` · env ${e.environment}` : ""}
-              </p>
+              <div className="mt-0.5 text-xs text-ink-muted">
+                {g.count} times · {g.units} units · {g.people} people · last {ago(g.lastSeen)} · first {shortDate(g.firstSeen)}
+                {g.path ? <span className="font-mono"> · {g.path.slice(0, 80)}</span> : null}
+              </div>
             </li>
           ))}
         </ul>
