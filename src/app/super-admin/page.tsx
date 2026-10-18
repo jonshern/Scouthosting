@@ -89,7 +89,8 @@ export default async function OwnerOverviewPage() {
       </Section>
 
       <p className="text-sm text-ink-muted">
-        {o.openTickets} open support questions · {o.newFeedback} new feedback items
+        <Link href="/super-admin/inbox">{o.openTickets} questions waiting on you</Link> · {o.newFeedback} new feature
+        requests on unit roadmaps
       </p>
     </div>
   );

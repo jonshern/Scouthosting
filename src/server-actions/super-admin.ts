@@ -14,6 +14,7 @@ import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 import { extendedTrialEnd } from "@/lib/owner/license";
 import { disableAccount, enableAccount } from "@/lib/owner/access";
+import { replyToTicket, STATUSES } from "@/lib/owner/inbox";
 
 const PLANS = new Set<Plan>(["patrol", "troop", "council"]);
 
@@ -237,4 +238,52 @@ export async function enableAccountAction(formData: FormData): Promise<void> {
     summary: user.email,
   });
   redirect(`/super-admin/people/${user.id}?done=${encodeURIComponent("Account turned back on.")}`);
+}
+
+function inboxPage(id: string, done: string): never {
+  redirect(`/super-admin/inbox/${id}?done=${encodeURIComponent(done)}`);
+}
+
+const ReplySchema = z.object({
+  ticketId: z.string().min(1),
+  body: z.string().trim().min(1, "Write a reply.").max(8000),
+});
+
+export async function replyToTicketAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(ReplySchema, formData);
+  const { emailed, error } = await replyToTicket({ ticketId: input.ticketId, body: input.body, author: owner });
+  audit({
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: "SupportTicket",
+    entityId: input.ticketId,
+    action: "support.reply",
+    summary: emailed ? "Replied by email" : `Reply saved; email failed: ${error}`,
+  });
+  inboxPage(input.ticketId, emailed ? "Reply sent." : `Reply saved, but the email didn't go out: ${error}`);
+}
+
+const TicketStatusSchema = z.object({
+  ticketId: z.string().min(1),
+  status: z.enum(STATUSES),
+});
+
+export async function setTicketStatusAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(TicketStatusSchema, formData);
+  const ticket = await prisma.supportTicket.update({
+    where: { id: input.ticketId },
+    data: { status: input.status, resolvedAt: input.status === "closed" ? new Date() : null },
+    select: { id: true, orgId: true },
+  });
+  audit({
+    orgId: ticket.orgId,
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: "SupportTicket",
+    entityId: ticket.id,
+    action: `support.${input.status}`,
+  });
+  inboxPage(ticket.id, input.status === "closed" ? "Closed." : input.status === "open" ? "Reopened." : "Marked answered.");
 }

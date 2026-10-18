@@ -2084,11 +2084,34 @@ model SupportTicket {
   viewportPath       String? // pathname the user was on when they hit "report bug"
   viewportWidth      Int?
   viewportHeight     Int?
+  // Which product it came from: "compass" | "waypoint" | "lantern", or
+  // null for older rows. context holds what the app sent with it (app
+  // version, platform, screen) for the owner console inbox.
+  product            String?
+  context            Json?
 
-  org Org? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  org     Org?           @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  replies SupportReply[]
 
   @@index([status, createdAt])
   @@index([orgId])
+  @@index([product, status])
+}
+
+// The owner's answer to a question in the owner console inbox, emailed
+// to the person who asked (emailed = the send went through).
+model SupportReply {
+  id           String   @id @default(cuid())
+  ticketId     String
+  authorUserId String?
+  authorName   String?
+  body         String
+  emailed      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
 }
 
 // Operator-issued refund / billing credit. Compass doesn't process

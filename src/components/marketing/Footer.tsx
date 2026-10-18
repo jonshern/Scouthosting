@@ -25,7 +25,8 @@ export async function Footer() {
           <div className="font-medium mb-2">Company</div>
           <ul className="space-y-1.5 text-ink-muted">
             <li><Link href={href("/pitch")}>About</Link></li>
-            <li><a href={`mailto:${supportEmail()}`}>Contact</a></li>
+            <li><Link href={href("/contact")}>Contact</Link></li>
+            <li><a href={`mailto:${supportEmail()}`}>{supportEmail()}</a></li>
           </ul>
         </div>
         <div>

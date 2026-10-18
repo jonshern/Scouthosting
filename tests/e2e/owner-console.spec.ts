@@ -149,3 +149,33 @@ test("the payments export refuses anyone who isn't the owner", async ({ request 
   expect(res.status()).not.toBe(200);
   expect(await res.text()).not.toContain("stripe_invoice");
 });
+
+test("a question from /contact reaches the inbox and the owner answers it", async ({ browser, page }) => {
+  test.setTimeout(60_000);
+  const subjectLine = `How do I add a second troop ${stamp}?`;
+  const visitor = await browser.newContext();
+  const v = await visitor.newPage();
+  await v.goto(`${APEX}/contact?product=waypoint`);
+  await v.getByLabel("Your name").fill("Pat Visitor");
+  await v.getByLabel("Email").fill(`pat-${stamp}@example.invalid`);
+  await v.getByLabel("Type").selectOption("question");
+  await v.getByLabel("Message").fill(`${subjectLine}\nWe run a troop and a crew.`);
+  await v.waitForTimeout(1700);
+  await v.getByRole("button", { name: "Send" }).click();
+  await expect(v.getByRole("status")).toContainText("Thanks, we got it");
+  await visitor.close();
+
+  await signInOwner(page);
+  await page.goto(`${APEX}/super-admin/inbox?product=waypoint`);
+  await page.getByRole("link", { name: subjectLine }).click();
+  await expect(page.getByText("We run a troop and a crew.")).toBeVisible();
+  await page.getByLabel("Reply").fill("Add the crew as its own unit; one account can be in both.");
+  await page.getByRole("button", { name: /send reply/i }).click();
+  await expect(page.getByRole("status")).toContainText(/Reply (sent|saved)/);
+  await expect(page.getByText("answered", { exact: true })).toBeVisible();
+  await expect(page.getByText("Add the crew as its own unit; one account can be in both.")).toBeVisible();
+
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("status")).toContainText("Closed.");
+  await db().supportTicket.deleteMany({ where: { fromEmail: `pat-${stamp}@example.invalid` } });
+});

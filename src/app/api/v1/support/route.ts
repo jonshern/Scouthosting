@@ -1,17 +1,18 @@
-// POST /api/v1/support { subject, body, orgId?, context? } — file a
-// SupportTicket from the mobile app's "Contact support" surface.
+// POST /api/v1/support { subject, body, orgId?, context?, category?,
+// product? } — file a SupportTicket from the mobile app's "Contact
+// support" surface. It shows up in the owner console inbox.
 
 import { z } from "zod";
 import { prisma } from "@/lib/db";
 import {
   IdSchema,
   LIMITS,
-  badRequest,
   json,
   readJson,
   requireOrgAccessForResource,
   v1Route,
 } from "@/lib/api/v1";
+import { PRODUCTS, trimContext } from "@/lib/owner/inbox";
 
 export const runtime = "nodejs";
 
@@ -21,15 +22,17 @@ const Body = z.object({
   orgId: IdSchema.optional(),
   context: z.record(z.unknown()).optional(),
   category: z.enum(["question", "bug", "billing", "abuse", "feature", "other"]).optional(),
+  product: z.enum(PRODUCTS).optional(),
 });
 
 export const POST = v1Route(
   async (req, { user }) => {
     const input = await readJson(req, Body);
 
-    // SupportTicket requires an org. Use the one the app is in when it
-    // says so (and the user belongs to it); otherwise their first.
-    let orgId: string;
+    // Tie it to the unit the app is in when it says so (and the user
+    // belongs to it); otherwise their first unit, if any. A family on
+    // Lantern alone has none, and that's fine.
+    let orgId: string | null = null;
     if (input.orgId) {
       orgId = (await requireOrgAccessForResource(input.orgId, user.id)).org.id;
     } else {
@@ -38,10 +41,10 @@ export const POST = v1Route(
         orderBy: { createdAt: "asc" },
         select: { orgId: true },
       });
-      if (!m) throw badRequest("no_org");
-      orgId = m.orgId;
+      orgId = m?.orgId ?? null;
     }
 
+    const context = trimContext(input.context);
     const ticket = await prisma.supportTicket.create({
       data: {
         orgId,
@@ -51,6 +54,8 @@ export const POST = v1Route(
         subject: input.subject,
         body: input.body,
         status: "open",
+        product: input.product ?? "compass",
+        ...(context ? { context: context as object } : {}),
         ...(input.category ? { category: input.category } : {}),
       },
     });
