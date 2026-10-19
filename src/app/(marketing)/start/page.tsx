@@ -7,7 +7,7 @@ import Link from "next/link";
 import { getSession } from "@/lib/auth/session";
 import { accountStanding, CONFIRM_ADULT_PAGE, withNext } from "@/lib/auth/requirements";
 import { prisma } from "@/lib/db";
-import { TRIAL_DAYS } from "@/lib/billing/trial";
+import { firstFreePeriod, freePeriod } from "@/lib/billing/trial";
 import { PRICES } from "@/lib/billing/pricing";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { SignupForm } from "@/components/auth/SignupForm";
@@ -47,7 +47,7 @@ export default async function StartPage() {
     <section className="mx-auto grid max-w-content gap-12 px-6 py-14 md:grid-cols-[1fr_440px]">
       <div className="max-w-[520px]">
         <span className="inline-flex items-center gap-2 rounded-full bg-accent-soft px-3 py-1.5 text-[13px] font-medium text-accent-soft-text">
-          {TRIAL_DAYS} days free · no card required
+          {freePeriod()} free · no card required
         </span>
         <h1 className="mt-6 text-[40px] font-semibold leading-[1.04] tracking-[-0.035em] md:text-[52px]">
           Set up your unit{" "}
@@ -56,7 +56,7 @@ export default async function StartPage() {
         <p className="mt-6 text-[16px] leading-[1.6] text-slate-soft">
           One account covers the whole family: Compass for your troop or pack&apos;s site and
           calendar, Waypoint for merit badge counselors and badge days, and Lantern for each
-          scout&apos;s path. Your first month is free. If it works for your unit, keep it for{" "}
+          scout&apos;s path. Nothing is charged for the {firstFreePeriod()}. If it works for your unit, keep it for{" "}
           {PRICES.year.long} or {PRICES.month.long}, billed automatically after the trial. If
           not, do nothing and nothing is charged.
         </p>

@@ -4,6 +4,7 @@
 
 import Link from "next/link";
 import { PRICES, PRICE_LINE, YEARLY_SAVINGS_USD } from "@/lib/billing/pricing";
+import { firstFreePeriod, freePeriod } from "@/lib/billing/trial";
 import { supportEmail } from "@/lib/support";
 
 type Feature = [label: string, value: React.ReactNode | null, inherited?: boolean];
@@ -94,15 +95,15 @@ export default function PlansPage() {
           <div>
             <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] text-ink-2 mb-6">
               <span aria-hidden className="h-2 w-2 rounded-full bg-done" />
-              30 days free · no card required
+              {freePeriod()} free · no card required
             </span>
             <h1 className="text-[44px] md:text-[60px] font-semibold leading-[1.02] tracking-[-0.035em]">
               One plan,{" "}
               <span className="text-muted">no commodity markups.</span>
             </h1>
             <p className="mt-6 max-w-2xl text-ink-2 text-[17px] leading-[1.6]">
-              {PRICES.year.long} or {PRICES.month.long} per unit, and your first month is
-              free. Custom domains, BYO email, 15 GB photo storage, messaging, and the
+              {PRICES.year.long} or {PRICES.month.long} per unit, with the {firstFreePeriod()}
+              free. Merit badge counselors use Waypoint free, no unit needed. Custom domains, BYO email, 15 GB photo storage, messaging, and the
               Waypoint and Lantern apps are{" "}
               <strong className="text-ink">all included</strong> — we don't charge $25
               extra for the things our hosts charge us pennies for.
@@ -114,7 +115,8 @@ export default function PlansPage() {
               What's settled
             </div>
             {[
-              "First month free, no card needed",
+              `${freePeriod()} free, no card needed`,
+              "Waypoint free for merit badge counselors",
               "Custom domain, no markup",
               "White-glove migration included",
               "Stripe fees passed through at cost",
@@ -156,13 +158,13 @@ export default function PlansPage() {
               <span className="text-white/60 text-[14px]">/ year</span>
             </div>
             <div className="text-[12px] text-white/75 mt-2 leading-[1.5]">
-              Flat per unit — pack, troop, crew, ship, or post. First month free. Cancel anytime.
+              Flat per unit — pack, troop, crew, ship, or post. {freePeriod()} free. Cancel anytime.
             </div>
             <Link
               href="/start"
               className="btn-primary mt-5 w-full no-underline"
             >
-              Start your free month →
+              Start free →
             </Link>
           </div>
 
@@ -175,13 +177,13 @@ export default function PlansPage() {
               <span className="text-slate-muted text-[14px]">/ month</span>
             </div>
             <div className="text-[12px] text-slate-soft mt-2 leading-[1.5]">
-              Flat per unit. First month free. Cancel anytime.
+              Flat per unit. {freePeriod()} free. Cancel anytime.
             </div>
             <Link
               href="/start"
               className="btn-secondary mt-5 w-full no-underline"
             >
-              Start your free month →
+              Start free →
             </Link>
           </div>
         </div>
