@@ -36,6 +36,7 @@ test("a visit shows on the owner console's usage page", async ({ page, context }
   await page.goto(`${APEX}/super-admin/analytics?days=1&product=compass`);
   await expect(page.getByRole("heading", { name: /Usage/ })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Sign-up funnel" })).toBeVisible();
-  await expect(page.getByText("/start", { exact: true }).first()).toBeVisible();
+  // The campaign tag from the visit above (top pages can be crowded by the rest of the suite).
+  await expect(page.getByText("e2e", { exact: true }).first()).toBeVisible();
   expect(await db().usageEvent.count({ where: { path: { startsWith: "/super-admin" }, createdAt: { gte: since } } })).toBe(0);
 });
