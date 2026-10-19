@@ -17,6 +17,12 @@ output "environments" {
     app_url         = env.app_url
     uploads_bucket  = env.uploads_bucket
     secrets_to_fill = env.secrets_to_fill
+    edge_dns        = env.edge_dns
   } }
+}
+
+output "backups_bucket" {
+  description = "Nightly prod database export (compass_prod/) and uploads copy (uploads/), in var.backup_region."
+  value       = google_storage_bucket.backups.name
 }
 
