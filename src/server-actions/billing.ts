@@ -9,6 +9,7 @@ import { canManageBilling } from "@/lib/billing/access";
 import { createBillingPortalSession, createCheckoutSession, isConfigured } from "@/lib/billing/stripe";
 import { logger } from "@/lib/log";
 import { orgPublicOrigin } from "@/lib/tenancy/resolve";
+import { recordAction } from "@/lib/usage/collect";
 
 const log = logger.child("billing-actions");
 
@@ -62,6 +63,7 @@ export async function startSubscriptionAction(
     return { error: "Stripe couldn't start checkout. Try again in a minute." };
   }
   if (!url) return { error: "Stripe didn't return a checkout page." };
+  recordAction("checkout_started", { product: "compass", userId: a.user.id, orgId: a.org.id, props: { interval: interval.data } });
   redirect(url);
 }
 

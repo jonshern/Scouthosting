@@ -351,6 +351,20 @@ the scout through `pickScout(accessibleScouts(user), …)` and go through
 `confirm: true`. `MCP_PUBLIC_URL` must match the URL people paste into
 Claude, or every call is 401. `CATALOG_PATH` loads requirement names.
 
+### 18. Usage tracking is first-party and cookie-free
+
+Page and screen views and key actions from the landing page, Compass,
+Waypoint and Lantern go to `POST /api/v1/usage` (`src/lib/usage/`) and
+show at `/super-admin/analytics`. No third-party analytics, no cookies,
+no IP stored: signed-out visitors get a daily hash whose salt
+(`UsageSalt`) is deleted the next day. Scout events (Lantern outside
+grown-up mode, scout logins) never get that hash and aren't listed by
+name. Server code records key actions with `recordAction()`; a new one
+gets a label in `ACTIONS` (`events.ts`). Rows go after 13 months, with
+the account, the Lantern trail and the scout retention purge; the
+privacy draft (`business/drafts/privacy-policy.md`) describes all this,
+so keep it in step.
+
 ## Demo accounts (test DB)
 
 Password for all seeded accounts: `AdminPasswordTest123!`

@@ -56,7 +56,8 @@ async function resolveCustomDomainSlug(domain: string): Promise<string | null | 
 // /contact — questions and feedback to the owner, from any unit's site too.
 // /mcp, /.well-known/ — the Claude connector and its OAuth discovery
 //   documents (src/lib/mcp); not per-org.
-const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/contact", "/api/events/", "/staff-rsvp", "/account", "/mcp", "/.well-known/"];
+// /api/v1/usage — page views from a troop site's own pages (lib/usage).
+const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/contact", "/api/events/", "/api/v1/usage", "/staff-rsvp", "/account", "/mcp", "/.well-known/"];
 const CSRF_COOKIE = "compass_csrf";
 
 // Pre-launch apex gate. Visitors without a valid `compass_invite`

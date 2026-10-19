@@ -91,6 +91,8 @@ export async function deleteAccount(userId: string): Promise<void> {
     // Claude connections: codes and tokens (lib/mcp/oauth/tokens.ts).
     await tx.mcpAuthCode.deleteMany({ where });
     await tx.mcpToken.deleteMany({ where });
+    // What they did on the sites and apps (lib/usage).
+    await tx.usageEvent.deleteMany({ where });
     await tx.org.updateMany({ where: { ownerId: userId }, data: { ownerId: null } });
 
     await tx.user.update({

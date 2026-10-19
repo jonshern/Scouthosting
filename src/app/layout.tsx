@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { DemoBanner } from "@/components/demo/DemoBanner";
 import { isDemoMode } from "@/lib/demo/mode";
+import { UsageBeacon } from "@/components/usage/UsageBeacon";
 
 // Type stack per design_handoff_compass_cms — Source Serif 4 for
 // display, Inter Tight for chrome, JetBrains Mono for IDs / dates.
@@ -46,6 +47,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans">
         {isDemoMode() ? <DemoBanner /> : null}
         {children}
+        <UsageBeacon />
       </body>
     </html>
   );

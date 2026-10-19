@@ -7,6 +7,7 @@ import { prisma } from "@/lib/db";
 import { audit } from "@/lib/audit";
 import { UNIT_TYPES, type UnitType } from "@/lib/auth/org-roles";
 import { RESERVED_SLUGS, deriveSlug, provisionOrg } from "./provision-org";
+import { recordAction } from "@/lib/usage/collect";
 
 export const StartTrialSchema = z
   .object({
@@ -102,6 +103,8 @@ export async function startUnitTrial(
     action: "billing.trial_started",
     summary: `Self-serve sign-up; trial ends ${org.trialEndsAt?.toISOString().slice(0, 10) ?? "?"}.`,
   });
+
+  recordAction("unit_created", { product: "compass", userId: user.id, orgId: org.id });
 
   return { slug: org.slug, displayName: org.displayName, recoveryCode, trialEndsAt: org.trialEndsAt };
 }

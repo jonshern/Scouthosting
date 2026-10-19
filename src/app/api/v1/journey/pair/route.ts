@@ -8,6 +8,7 @@ import { LIMITS, json, readJson, v1PublicRoute } from "@/lib/api/v1";
 import { pairDevice } from "@/lib/journey/devices";
 import { PairBody } from "@/lib/journey/schema";
 import { getScoutAsScout } from "@/lib/journey/store";
+import { recordAction } from "@/lib/usage/collect";
 
 export const runtime = "nodejs";
 
@@ -15,6 +16,7 @@ export const POST = v1PublicRoute(
   async (req) => {
     const { code, label } = await readJson(req, PairBody);
     const { token, scoutId } = await pairDevice(code, label || "Scout's device");
+    recordAction("scout_paired", { product: "lantern", role: "scout", scoutId });
     return json({ token, scout: await getScoutAsScout(scoutId) }, { status: 201 });
   },
   { limits: [LIMITS.journeyPair] },

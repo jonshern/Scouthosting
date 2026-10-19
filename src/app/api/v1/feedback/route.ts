@@ -12,6 +12,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { IdSchema, LIMITS, json, readJson, requireOrgAccessForResource, v1Route } from "@/lib/api/v1";
 import { createInboxItem, KINDS, PRODUCTS, trimContext } from "@/lib/owner/inbox";
+import { recordAction } from "@/lib/usage/collect";
 
 export const runtime = "nodejs";
 
@@ -40,6 +41,7 @@ export const POST = v1Route(
       orgId,
       context: trimContext(input.context),
     });
+    recordAction("feedback_sent", { product: input.product, userId: user.id, orgId, props: { kind: input.kind ?? "question" } });
     return json({ id: ticket.id });
   },
   { limits: [LIMITS.support] },

@@ -26,6 +26,7 @@ import {
   SignupError,
   submitPublicSignup,
 } from "@/lib/events/public-signup";
+import { recordAction } from "@/lib/usage/collect";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,8 +74,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
 
     const result = await submitPublicSignup(prisma, slug.data, body);
     // Families channels include everyone holding a seat.
-    const event = await prisma.event.findUnique({ where: { publicSlug: slug.data }, select: { id: true } });
+    const event = await prisma.event.findUnique({ where: { publicSlug: slug.data }, select: { id: true, orgId: true } });
     if (event) await reconcileEventChannels(event.id, { prismaClient: prisma });
+    if (event) recordAction("badge_day_signup", { product: "waypoint", orgId: event.orgId });
     return json(result);
   } catch (err) {
     if (err instanceof SignupError) return fail(err.status, err.code, err.message, err.extra);

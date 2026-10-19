@@ -9,6 +9,7 @@
 import { LIMITS, json, parseId, readJson, v1Route } from "@/lib/api/v1";
 import { ProgressBody } from "@/lib/journey/schema";
 import { applyProgress } from "@/lib/journey/store";
+import { recordAction } from "@/lib/usage/collect";
 
 export const runtime = "nodejs";
 
@@ -16,7 +17,10 @@ export const POST = v1Route<{ id: string }>(
   async (req, { user, params }) => {
     const id = parseId(params.id);
     const { changes } = await readJson(req, ProgressBody);
-    return json({ scout: await applyProgress(user, id, changes) });
+    const scout = await applyProgress(user, id, changes);
+    const checked = changes.filter((c) => c.done).length;
+    if (checked) recordAction("step_checked", { product: "lantern", userId: user.id, scoutId: id, props: { steps: checked, by: "adult" } });
+    return json({ scout });
   },
   { limits: [LIMITS.journey] },
 );
