@@ -1,29 +1,28 @@
 import type { SVGProps } from "react";
 
-// Compass-rose mark — ink stroke + sky-blue accent on the north arrowhead.
-// Two arrows (N + S) for visual asymmetry; E/W are dim. Same construction as
-// design-handoff/atoms.jsx#SHMark.
+// Compass's mark: a compass needle on an ink tile, the north point in the
+// accent. Same construction as the suite's Waypoint and Lantern marks
+// (Modern Clean canvas, Foundations board); only the glyph changes.
 export function Mark({
   size = 28,
-  accent = "#1d4ed8",
+  accent = "var(--accent)",
   ...rest
 }: { size?: number; accent?: string } & SVGProps<SVGSVGElement>) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 40 40"
+      viewBox="0 0 44 44"
       aria-hidden
       focusable="false"
       {...rest}
     >
-      <circle cx="20" cy="20" r="18.5" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      <circle cx="20" cy="20" r="11" fill="none" stroke="currentColor" strokeWidth="0.75" opacity="0.4" />
-      <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill={accent} />
-      <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="currentColor" opacity="0.85" />
-      <path d="M37 20 L20 22.4 L22.4 20 L20 17.6 Z" fill="currentColor" opacity="0.5" />
-      <path d="M3 20 L20 17.6 L17.6 20 L20 22.4 Z" fill="currentColor" opacity="0.5" />
-      <circle cx="20" cy="20" r="1.6" fill="currentColor" />
+      <rect width="44" height="44" rx="12" style={{ fill: "var(--mark)" }} />
+      <g transform="translate(10 10)">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="#fff" strokeWidth="1.5" />
+        <path d="M12 4.5 L14.2 12 L12 10.6 L9.8 12 Z" style={{ fill: accent }} />
+        <path d="M12 19.5 L9.8 12 L12 13.4 L14.2 12 Z" fill="#fff" />
+      </g>
     </svg>
   );
 }

@@ -30,7 +30,7 @@ export function RosterImportForm({ orgSlug, csrf }: Props) {
       {csrf}
       <input type="hidden" name="orgSlug" value={orgSlug} />
       {state && "committed" in state ? (
-        <p className="text-emerald-700">
+        <p className="text-done-text">
           Import committed — created {state.created}, updated {state.updated}, unchanged{" "}
           {state.unchanged}.
         </p>
@@ -46,7 +46,7 @@ export function RosterImportForm({ orgSlug, csrf }: Props) {
       </label>
 
       {state && "error" in state && (
-        <p role="alert" className="text-red-600 text-sm">
+        <p role="alert" className="text-danger text-sm">
           {state.error}
         </p>
       )}

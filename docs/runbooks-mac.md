@@ -89,7 +89,7 @@ Lantern's website (`npm run web:serve` in emmett-scouting/app, on :8081 behind `
 EXPO_GO_SIGNIN_HOSTS=100.x.y.z:8083
 ```
 
-Production mode applies the production rules: leaders and admins must use two-step sign-in, and admin password sign-in is refused until that admin has two-step set up, unless `ALLOW_ADMIN_PASSWORD_LOGIN=1` (see CLAUDE.md, trap 3). Until Google or Apple sign-in is configured for this host, that flag is how an admin signs in.
+Production mode applies the production rules: leaders and admins must use two-step sign-in, and admin password sign-in is refused until that admin has two-step set up, unless `ALLOW_ADMIN_PASSWORD_LOGIN=1` (see CLAUDE.md, trap 3). Until Google or Apple sign-in is configured for this host ([sign-in-providers.md](sign-in-providers.md)), that flag is how an admin signs in.
 
 For phone alerts, set `ALERT_WEBHOOK` in `.env` to a URL that accepts a POSTed message, for example an [ntfy](https://ntfy.sh) topic URL with the ntfy app on your phone. Without it, alerts are macOS notifications only.
 
@@ -247,4 +247,4 @@ Browsers only allow passkeys on `localhost` (and `*.localhost`) or over https. S
 PASSKEY_EXTRA_HOSTS=<mac>.<tailnet>.ts.net
 ```
 
-then `make deploy`. Passkeys made on `localhost` don't work on the Tailscale name and the other way round; each is its own site. Lost passkey: see "Someone lost their passkey" in `docs/runbooks-gcp.md` (the SQL is the same against the Mac's database).
+then `make deploy`. Passkeys made on `localhost` don't work on the Tailscale name and the other way round; each is its own site. The same setting lets Google and Apple sign-in return to the Tailscale name; register its address with them too ([sign-in-providers.md](sign-in-providers.md)). Lost passkey: see "Someone lost their passkey" in `docs/runbooks-gcp.md` (the SQL is the same against the Mac's database).

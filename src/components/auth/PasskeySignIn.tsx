@@ -67,13 +67,13 @@ export function PasskeySignIn({
         type="button"
         onClick={run}
         disabled={pending}
-        className="btn-primary inline-flex w-full items-center justify-center gap-3 py-3"
+        className="btn-primary inline-flex min-h-[46px] w-full items-center justify-center gap-3 text-[15px]"
       >
         <KeyIcon />
         {pending ? "Waiting for your passkey…" : mode === "sign-in" ? "Continue with a passkey" : "Use a passkey"}
       </button>
       {error && (
-        <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div role="alert" className="rounded-md border border-danger-line bg-danger-soft p-3 text-sm text-danger">
           {error}
         </div>
       )}
@@ -153,12 +153,12 @@ export function PasswordSignIn({
       }}
       className="group"
     >
-      <summary className="cursor-pointer list-none text-center text-sm text-slate-muted underline-offset-2 hover:text-slate-ink hover:underline group-open:hidden">
+      <summary className="cursor-pointer list-none text-center text-sm font-medium text-ink-2 underline-offset-2 hover:text-ink hover:underline group-open:hidden">
         Use email and password instead
       </summary>
       <div className="mt-2 space-y-4">
         {error && (
-          <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div role="alert" className="rounded-md border border-danger-line bg-danger-soft p-3 text-sm text-danger">
             {error}
           </div>
         )}

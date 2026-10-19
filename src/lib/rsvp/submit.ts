@@ -26,8 +26,12 @@ export async function submitOwnRsvp(
   };
 
   // The roster entry this user is, so a paid event charges the same
-  // family account as an RSVP on the website does.
-  const memberId = await memberForUserInOrg({ orgId: event.orgId, userEmail: user.email });
+  // family account as an RSVP on the website does. Only for a confirmed
+  // email: anyone can sign up with a roster parent's address, and must
+  // not post (or reverse) charges on that family's account.
+  const verified = (await prisma.user.findUnique({ where: { id: user.id }, select: { emailVerified: true } }))
+    ?.emailVerified;
+  const memberId = verified ? await memberForUserInOrg({ orgId: event.orgId, userEmail: user.email }) : null;
 
   // Rsvp is unique on (eventId, userId) and on (eventId, email): an
   // RSVP made earlier from the public link with this email is the

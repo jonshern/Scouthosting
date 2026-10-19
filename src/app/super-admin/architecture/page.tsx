@@ -11,6 +11,7 @@ import {
   VERIFY_RUNBOOK,
 } from "@/content/architecture";
 import { masterKeyConfigured } from "@/lib/encryption";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -75,23 +76,24 @@ function pct(n: number, d: number): string {
 }
 
 export default async function ArchitecturePage() {
+  await requireOwnerPage();
   const coverage = await loadCoverage();
   const masterKey = masterKeyConfigured();
 
   return (
     <section className="space-y-10">
       <header>
-        <h2 className="font-display text-2xl">Architecture &amp; Security</h2>
+        <h2 className="text-[28px] font-semibold leading-tight tracking-[-0.03em]">Architecture &amp; Security</h2>
         <p className="text-ink-muted text-sm mt-1">
           Live view of what Compass runs on and how member data is protected.
         </p>
       </header>
 
       <section className="space-y-3">
-        <h3 className="font-display text-xl">Stack</h3>
+        <h3 className="text-[17px] font-semibold">Stack</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wide text-ink-muted border-b border-ink-muted/15">
+            <thead className="text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted border-b border-line">
               <tr>
                 <th className="py-2 pr-4">Layer</th>
                 <th className="pr-4">Tool</th>
@@ -100,7 +102,7 @@ export default async function ArchitecturePage() {
             </thead>
             <tbody>
               {STACK_MANIFEST.map((s) => (
-                <tr key={s.layer} className="border-b border-ink-muted/10">
+                <tr key={s.layer} className="border-b border-line">
                   <td className="py-2 pr-4 align-top">{s.layer}</td>
                   <td className="pr-4 align-top font-medium">{s.tool}</td>
                   <td className="text-ink-muted align-top">{s.why}</td>
@@ -127,7 +129,7 @@ export default async function ArchitecturePage() {
       </section>
 
       <section className="space-y-4">
-        <h3 className="font-display text-xl">Security</h3>
+        <h3 className="text-[17px] font-semibold">Security</h3>
 
         <div className="card flex items-center justify-between">
           <div>
@@ -139,7 +141,7 @@ export default async function ArchitecturePage() {
           <span
             className={
               "px-2 py-1 rounded text-xs font-medium " +
-              (masterKey ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800")
+              (masterKey ? "bg-done-soft text-done-text" : "bg-attention-soft text-attention-text")
             }
           >
             {masterKey ? "configured" : "ephemeral / unset"}
@@ -149,7 +151,7 @@ export default async function ArchitecturePage() {
         <div>
           <h4 className="font-medium mb-2">Encrypted fields</h4>
           <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wide text-ink-muted border-b border-ink-muted/15">
+            <thead className="text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted border-b border-line">
               <tr>
                 <th className="py-2 pr-4">Model</th>
                 <th className="pr-4">Field</th>
@@ -158,7 +160,7 @@ export default async function ArchitecturePage() {
             </thead>
             <tbody>
               {ENCRYPTED_FIELDS.map((f) => (
-                <tr key={`${f.model}.${f.field}`} className="border-b border-ink-muted/10">
+                <tr key={`${f.model}.${f.field}`} className="border-b border-line">
                   <td className="py-2 pr-4">{f.model}</td>
                   <td className="pr-4 font-medium">{f.field}</td>
                   <td className="text-ink-muted">{f.notes}</td>
@@ -171,7 +173,7 @@ export default async function ArchitecturePage() {
         <div>
           <h4 className="font-medium mb-2">Plaintext by design</h4>
           <table className="w-full text-sm">
-            <thead className="text-left text-xs uppercase tracking-wide text-ink-muted border-b border-ink-muted/15">
+            <thead className="text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted border-b border-line">
               <tr>
                 <th className="py-2 pr-4">Model</th>
                 <th className="pr-4">Field</th>
@@ -180,7 +182,7 @@ export default async function ArchitecturePage() {
             </thead>
             <tbody>
               {PLAINTEXT_BY_DESIGN.map((f) => (
-                <tr key={`${f.model}.${f.field}`} className="border-b border-ink-muted/10">
+                <tr key={`${f.model}.${f.field}`} className="border-b border-line">
                   <td className="py-2 pr-4">{f.model}</td>
                   <td className="pr-4 font-medium">{f.field}</td>
                   <td className="text-ink-muted">{f.reason}</td>
@@ -194,7 +196,7 @@ export default async function ArchitecturePage() {
           <h4 className="font-medium mb-2">Per-org coverage</h4>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-left text-xs uppercase tracking-wide text-ink-muted border-b border-ink-muted/15">
+              <thead className="text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted border-b border-line">
                 <tr>
                   <th className="py-2 pr-4">Org</th>
                   <th className="pr-4">Vault</th>
@@ -206,7 +208,7 @@ export default async function ArchitecturePage() {
               </thead>
               <tbody>
                 {coverage.map((c) => (
-                  <tr key={c.slug} className="border-b border-ink-muted/10">
+                  <tr key={c.slug} className="border-b border-line">
                     <td className="py-2 pr-4 align-top">
                       <div className="font-medium">{c.displayName}</div>
                       <div className="text-xs text-ink-muted">{c.slug}</div>
@@ -215,7 +217,7 @@ export default async function ArchitecturePage() {
                       <span
                         className={
                           "px-2 py-0.5 rounded text-xs " +
-                          (c.hasVault ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800")
+                          (c.hasVault ? "bg-done-soft text-done-text" : "bg-danger-soft text-danger")
                         }
                       >
                         {c.hasVault ? "yes" : "missing"}

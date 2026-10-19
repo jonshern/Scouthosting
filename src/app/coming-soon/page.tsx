@@ -58,26 +58,18 @@ export default function ComingSoonPage() {
       <header className="relative z-10 flex items-center justify-between px-8 py-7 md:px-14">
         <div className="flex items-center gap-3">
           <CompassMark size={26} />
-          <span className="font-display text-xl tracking-tight">
+          <span className="font-display font-semibold text-xl tracking-tight">
             Compass<span className="text-sky">.</span>
           </span>
         </div>
-        <span className="hidden text-[11px] uppercase tracking-[0.16em] text-white/55 md:inline">
-          Private beta · Spring 2026
-        </span>
       </header>
 
       {/* Hero */}
       <div className="relative z-10 mx-auto grid max-w-[1280px] gap-10 px-8 pb-20 md:grid-cols-[1.2fr_480px] md:gap-16 md:px-14 md:pb-28">
         <div className="flex flex-col justify-center pt-4 md:pt-8">
-          <span className="mb-7 inline-flex w-fit items-center gap-2 rounded-full border border-white/15 bg-white/[0.06] px-3 py-1.5 text-[12px] tracking-wide text-white/85">
-            <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-sky" />
-            Building with founding troops in private beta
-          </span>
-
-          <h1 className="font-display text-[56px] font-normal leading-[0.98] tracking-[-0.03em] md:text-[84px]">
+          <h1 className="font-display text-[56px] font-semibold leading-[0.98] tracking-[-0.03em] md:text-[84px]">
             One place for your{" "}
-            <em className="font-normal not-italic text-sky md:italic">whole troop.</em>
+            <span className="text-muted">whole troop.</span>
           </h1>
 
           <p className="mt-7 max-w-[560px] text-base leading-[1.55] text-white/75 md:text-lg">
@@ -90,17 +82,17 @@ export default function ComingSoonPage() {
 
         {/* Invite-code card */}
         <div className="rounded-2xl bg-white p-8 text-slate-ink shadow-[0_24px_64px_rgba(0,0,0,0.35)] md:p-9">
-          <div className="mb-1 font-display text-2xl font-normal tracking-[-0.015em]">
+          <div className="mb-1 font-display text-2xl font-semibold tracking-[-0.015em]">
             Have an invite code?
           </div>
           <p className="mb-7 text-sm leading-[1.55] text-slate-muted">
-            Founding-troop scoutmasters got codes to share. Drop one here to
-            jump straight in.
+            Scoutmasters already on Compass have codes to share. Drop one here
+            to jump straight in.
           </p>
 
           <ComingSoonForm />
 
-          <div className="mt-7 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-slate-muted">
+          <div className="mt-7 flex items-center gap-3 text-[13px] text-muted">
             <span className="h-px flex-1 bg-line" />
             <span>No code?</span>
             <span className="h-px flex-1 bg-line" />

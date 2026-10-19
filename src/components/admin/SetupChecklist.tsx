@@ -272,7 +272,7 @@ export function SetupChecklist({ orgSlug }: { orgSlug: string }) {
       <div className="rounded-xl border border-line bg-surface p-5">
         <div className="grid gap-5 md:grid-cols-[1fr_auto_auto] items-center">
           <div>
-            <div className="font-display text-lg text-ink">
+            <div className="font-display font-semibold text-lg text-ink">
               You're <strong>{stats.pct}%</strong> set up
             </div>
             <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-surface-alt">
@@ -287,10 +287,10 @@ export function SetupChecklist({ orgSlug }: { orgSlug: string }) {
             </div>
           </div>
           <div className="border-l border-line pl-5">
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted">
+            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
               Steps
             </div>
-            <div className="font-display text-2xl text-ink">
+            <div className="font-display font-semibold text-2xl text-ink">
               {SETUP_STEPS.length}
             </div>
           </div>
@@ -305,7 +305,7 @@ export function SetupChecklist({ orgSlug }: { orgSlug: string }) {
         </div>
       </div>
 
-      <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">
+      <div className="rounded-md border border-attention/30 bg-attention-soft p-3 text-xs text-attention-text">
         <strong>Heads up:</strong> Progress is saved in this browser. To track
         across the committee, share the relevant page links with your co-leads.
       </div>
@@ -333,7 +333,7 @@ export function SetupChecklist({ orgSlug }: { orgSlug: string }) {
               <div className="grid grid-cols-[auto_1fr_auto_auto] items-center gap-4 p-4">
                 <div
                   className={
-                    "h-9 w-9 rounded-full grid place-items-center font-display text-base " +
+                    "h-9 w-9 rounded-full grid place-items-center font-display font-semibold text-base " +
                     (allDone
                       ? "bg-success text-white"
                       : depDone
@@ -346,7 +346,7 @@ export function SetupChecklist({ orgSlug }: { orgSlug: string }) {
                 </div>
                 <div>
                   <div className="flex items-baseline gap-2 flex-wrap">
-                    <span className="font-display text-lg text-ink">
+                    <span className="font-display font-semibold text-lg text-ink">
                       {s.label}
                     </span>
                     {s.optional ? (

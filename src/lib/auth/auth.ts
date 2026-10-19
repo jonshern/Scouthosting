@@ -16,6 +16,7 @@
 // the email-verification link.
 
 import { betterAuth } from "better-auth";
+import { APIError } from "better-auth/api";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { nextCookies } from "better-auth/next-js";
 import { prisma } from "@/lib/db";
@@ -25,7 +26,7 @@ import { captureError } from "@/lib/ops/error-tracker";
 import { hashPassword, verifyPassword } from "./password";
 import { claimOrgsForVerifiedEmail } from "./claim-orgs";
 import { compassMfa } from "./mfa-plugin";
-import { appleConfig, googleConfig } from "./providers";
+import { appleConfig, extraSignInHostPatterns, googleConfig } from "./providers";
 import { clientIpConfig } from "@/lib/security/client-ip";
 
 function escapeHtml(s: string): string {
@@ -37,9 +38,11 @@ function baseURL() {
   const scheme = isProd() ? "https" : "http";
   const port = !isProd() && process.env.PORT ? `:${process.env.PORT}` : !isProd() ? ":3000" : "";
   return {
-    // Tenant sites are subdomains of the apex; OAuth always returns to the
-    // apex redirect URI registered with Google/Apple.
-    allowedHosts: [apex, `*.${apex}`, `${apex}${port}`, `*.${apex}${port}`],
+    // Tenant sites are subdomains of the apex; their Google/Apple buttons
+    // start on the apex (providers.ts#signInHref). PASSKEY_EXTRA_HOSTS (the
+    // Mac's Tailscale name) sign in on their own host, so a phone on the
+    // tailnet gets its callback there.
+    allowedHosts: [apex, `*.${apex}`, `${apex}${port}`, `*.${apex}${port}`, ...extraSignInHostPatterns()],
     fallback: `${scheme}://${apex}${port}`,
   };
 }
@@ -80,6 +83,7 @@ export const auth = betterAuth({
     additionalFields: {
       isSuperAdmin: { type: "boolean", defaultValue: false, input: false },
       totpEnrolledAt: { type: "date", required: false, input: false },
+      disabledAt: { type: "date", required: false, input: false },
     },
     // A new address is applied only after the link sent to it is
     // clicked (server-actions/account.ts#updateProfile).
@@ -150,6 +154,22 @@ export const auth = betterAuth({
   },
 
   databaseHooks: {
+    // An account turned off from the owner console gets no new session,
+    // whichever way it signs in (password, Google/Apple, passkey, the
+    // two-step code).
+    session: {
+      create: {
+        async before(session) {
+          const row = await prisma.user.findUnique({
+            where: { id: session.userId },
+            select: { disabledAt: true },
+          });
+          if (row?.disabledAt) {
+            throw new APIError("FORBIDDEN", { message: "account_disabled", code: "ACCOUNT_DISABLED" });
+          }
+        },
+      },
+    },
     user: {
       create: {
         async after(user) {

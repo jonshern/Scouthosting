@@ -72,7 +72,7 @@ export default async function ScoutbookAdmin({
       </StatRow>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Import advancement CSV</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Import advancement CSV</h2>
         <p className="text-sm text-slate-muted mb-3">
           From Internet Advancement / My.Scouting: <em>Council Advancement Reports</em> →
           export the unit roster + advancement summary as CSV with member IDs visible.
@@ -81,7 +81,7 @@ export default async function ScoutbookAdmin({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Sync history</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Sync history</h2>
         {runs.length === 0 ? (
           <p className="text-sm text-slate-muted">No syncs yet.</p>
         ) : (
@@ -101,13 +101,13 @@ export default async function ScoutbookAdmin({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Profiles</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Profiles</h2>
         {profiles.length === 0 ? (
           <p className="text-sm text-slate-muted">No profiles yet — run a CSV import.</p>
         ) : (
           <div className="overflow-hidden rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+              <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Scout</th>
                   <th className="px-4 py-2 font-semibold">Rank</th>
@@ -147,7 +147,7 @@ export default async function ScoutbookAdmin({
 
       {unlinked.length > 0 ? (
         <div>
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">
             Youths without a Scoutbook ID
           </h2>
           <p className="text-sm text-slate-muted mb-3">

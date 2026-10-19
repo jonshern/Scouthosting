@@ -20,6 +20,7 @@ const ROLE_CHECK = /\b(roleInOrg|isLeaderRole|canManageTreasury|isSuperAdmin|can
 // they hold, so no org role applies. Each still needs its own check,
 // noted here; a new entry needs a reason.
 const NO_ORG_ROLE: Record<string, string> = {
+  "contact.ts submitContact": "public Contact page: anyone may write in; CSRF, honeypot and a rate limit guard it",
   "account.ts updateProfile": "signed-in user's own profile",
   "account.ts changePassword": "signed-in user's own password",
   "account.ts revokeApiToken": "token row must belong to the user",

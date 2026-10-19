@@ -51,7 +51,7 @@ export default async function CohPage({
         <div className="space-y-6">
           {[...grouped.values()].map((g) => (
             <section key={g.event?.id ?? "none"}>
-              <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
+              <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">
                 {g.event?.title ?? "(no event)"}
               </h2>
               <p className="text-xs text-slate-muted mb-2">

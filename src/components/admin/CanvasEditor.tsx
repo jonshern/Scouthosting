@@ -105,7 +105,7 @@ export function CanvasEditor({ orgSlug, blocks: initial, csrf }: Props) {
           {blocks.map((b, i) => (
             <li key={b.id} className="card">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs uppercase tracking-wide text-ink-muted">
+                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                   {b.type}
                 </span>
                 <div className="flex gap-1">
@@ -128,7 +128,7 @@ export function CanvasEditor({ orgSlug, blocks: initial, csrf }: Props) {
                   <button
                     type="button"
                     onClick={() => remove(b.id)}
-                    className="btn-secondary text-xs text-red-600"
+                    className="btn-secondary text-xs text-danger"
                   >
                     Delete
                   </button>
@@ -242,7 +242,7 @@ export function CanvasEditor({ orgSlug, blocks: initial, csrf }: Props) {
         </button>
       </div>
 
-      <div className="flex gap-2 pt-4 border-t border-ink-muted/15">
+      <div className="flex gap-2 pt-4 border-t border-line">
         <button
           type="button"
           disabled={pending}
@@ -263,7 +263,7 @@ export function CanvasEditor({ orgSlug, blocks: initial, csrf }: Props) {
           type="button"
           disabled={pending}
           onClick={() => callAction(revertDraftBlocks)}
-          className="btn-secondary text-red-600"
+          className="btn-secondary text-danger"
         >
           Revert draft
         </button>

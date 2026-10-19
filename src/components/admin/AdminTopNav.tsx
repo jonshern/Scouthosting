@@ -1,9 +1,9 @@
-// Admin top-nav. Matches the AdminBalanced layout from
-// design_handoff_compass/designs/admin-pages.jsx — 7 primary section
-// links across the top, ink border-bottom 1.5px, sky-blue underline
-// for the active section. We keep a small Settings link on the right
-// for the operator-only screens (site, pages, security, domain) that
-// don't fit cleanly under the marketing nav.
+// Admin header (Modern Clean, Admin board). Top row: the mark and unit
+// name, the settings links (Setup, Site, Pages, Security, Domain,
+// Billing), View site and the account avatar. Second row: the seven
+// sections as tabs, with an ink underline on the current one. On narrow
+// screens the settings links move to the end of the tab row, which
+// scrolls sideways.
 //
 // Each section's deep links (e.g. /admin/members/import) are picked up
 // by the sub-nav rendered inside each page when needed; the top nav
@@ -12,6 +12,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Mark } from "@/components/ui/Mark";
 
 type NavItem = {
   href: string;
@@ -96,7 +97,8 @@ function buildSecondary(slug: string): NavItem[] {
   ];
 }
 
-function isActive(pathname: string, item: NavItem): boolean {
+function isActive(pathname: string, item: NavItem, exact = false): boolean {
+  if (exact) return pathname === item.href;
   const matches = item.match ?? [item.href];
   // Order longest-first so /admin/members/import lights Roster (not
   // Overview) — startsWith on /admin alone would match everything.
@@ -114,74 +116,87 @@ export function AdminTopNav({
   initials: string;
   unitLabel: string;
 }) {
-  const pathname = usePathname() ?? "";
+  // The unit's own host shows /admin; the apex shows /o/<slug>/admin.
+  const raw = usePathname() ?? "";
+  const pathname = raw.startsWith("/o/") ? raw : `/o/${slug}${raw}`;
   const primary = buildPrimary(slug);
   const secondary = buildSecondary(slug);
   const overviewHref = `/o/${slug}/admin`;
-  // Treat /admin (exactly) as Overview, so deeper routes don't double-light it.
-  const primaryWithExactOverview = primary.map((it) =>
-    it.href === overviewHref ? { ...it, match: [overviewHref] } : it,
-  );
+  // Overview lights only on /admin itself, so deeper routes don't double-light it.
+  const primaryWithExactOverview = primary;
+  const settingsLink = (it: NavItem) => {
+    const active = isActive(pathname, it);
+    return (
+      <Link
+        key={it.href}
+        href={it.href}
+        aria-current={active ? "page" : undefined}
+        className={
+          "whitespace-nowrap rounded-lg px-2.5 py-1.5 no-underline transition-colors " +
+          (active ? "bg-sunk text-ink hover:text-ink" : "text-muted hover:bg-sunk hover:text-ink")
+        }
+      >
+        {it.label}
+      </Link>
+    );
+  };
   return (
-    <div className="border-b border-slate-ink/90 bg-white">
-      <div className="mx-auto flex max-w-[1400px] items-center justify-between px-8 py-3.5">
-        <div className="flex items-center gap-8">
+    <header className="border-b border-line bg-surface">
+      <div className="mx-auto flex min-h-[60px] max-w-[1400px] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2 sm:px-8">
+        <Link
+          href={`/o/${slug}/admin`}
+          className="flex items-center gap-2.5 text-[15px] font-semibold text-ink no-underline hover:text-ink"
+        >
+          <Mark size={32} />
+          <span>{unitLabel}</span>
+        </Link>
+        <div className="ml-auto flex items-center gap-3">
+          <nav aria-label="Settings" className="hidden items-center gap-0.5 text-[13px] font-medium lg:flex">
+            {secondary.map(settingsLink)}
+          </nav>
           <Link
             href={`/o/${slug}`}
-            className="font-display text-base font-medium tracking-tight text-slate-ink"
+            className="whitespace-nowrap text-sm font-medium text-ink-2 no-underline hover:text-ink"
           >
-            Compass
+            View site
           </Link>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-muted">
-            {unitLabel}
-          </span>
-          <nav aria-label="Admin sections" className="flex items-center gap-5 text-sm">
-            {primaryWithExactOverview.map((it) => {
-              const active = isActive(pathname, it);
-              return (
-                <Link
-                  key={it.href}
-                  href={it.href}
-                  className={
-                    "pb-1 transition-colors " +
-                    (active
-                      ? "border-b-2 border-sky font-semibold text-slate-ink"
-                      : "border-b-2 border-transparent text-slate-soft hover:text-slate-ink")
-                  }
-                >
-                  {it.label}
-                </Link>
-              );
-            })}
-          </nav>
-        </div>
-        <div className="flex items-center gap-3 text-slate-soft">
-          <nav aria-label="Settings" className="flex items-center gap-3 text-xs">
-            {secondary.map((it) => {
-              const active = isActive(pathname, it);
-              return (
-                <Link
-                  key={it.href}
-                  href={it.href}
-                  className={
-                    "transition-colors " +
-                    (active ? "font-semibold text-slate-ink" : "hover:text-slate-ink")
-                  }
-                >
-                  {it.label}
-                </Link>
-              );
-            })}
-          </nav>
           <Link
             href="/account"
             aria-label="Account"
-            className="grid h-8 w-8 place-items-center rounded-full bg-sky text-[11px] font-semibold text-white"
+            className="grid h-[34px] w-[34px] place-items-center rounded-full bg-accent-soft text-[13px] font-semibold text-accent-soft-text no-underline hover:text-accent-soft-text"
           >
             {initials}
           </Link>
         </div>
       </div>
-    </div>
+      <div className="mx-auto flex max-w-[1400px] items-center gap-4 overflow-x-auto px-4 sm:px-8">
+        <nav aria-label="Admin sections" className="flex items-center gap-1 text-sm font-medium">
+          {primaryWithExactOverview.map((it) => {
+            const active = isActive(pathname, it, it.href === overviewHref);
+            return (
+              <Link
+                key={it.href}
+                href={it.href}
+                aria-current={active ? "page" : undefined}
+                className={
+                  "whitespace-nowrap px-3 py-3 no-underline transition-colors " +
+                  (active
+                    ? "text-ink shadow-[inset_0_-2px_0_var(--ink)] hover:text-ink"
+                    : "text-muted hover:text-ink")
+                }
+              >
+                {it.label}
+              </Link>
+            );
+          })}
+        </nav>
+        <nav
+          aria-label="Settings (more)"
+          className="flex items-center gap-0.5 border-l border-line pl-3 text-[13px] font-medium lg:hidden"
+        >
+          {secondary.map(settingsLink)}
+        </nav>
+      </div>
+    </header>
   );
 }

@@ -39,7 +39,7 @@ export default async function OrgPermissionSlipsPage({
       />
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">By event</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">By event</h2>
         <p className="mt-1 text-sm text-slate-muted">
           {byEvent.length === 0
             ? "No upcoming events require a slip."
@@ -48,7 +48,7 @@ export default async function OrgPermissionSlipsPage({
         {byEvent.length > 0 ? (
           <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+              <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Event</th>
                   <th className="px-4 py-2 font-semibold">When</th>
@@ -92,7 +92,7 @@ export default async function OrgPermissionSlipsPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">By scout</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">By scout</h2>
         <p className="mt-1 text-sm text-slate-muted">
           {byScout.length === 0
             ? "Every yes-RSVP youth has a signed slip on file."
@@ -101,7 +101,7 @@ export default async function OrgPermissionSlipsPage({
         {byScout.length > 0 ? (
           <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+              <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Scout</th>
                   <th className="px-4 py-2 font-semibold">Patrol</th>

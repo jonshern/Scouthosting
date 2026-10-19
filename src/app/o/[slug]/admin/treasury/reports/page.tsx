@@ -83,7 +83,7 @@ export default async function TreasuryReports({
 
       <div>
         <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Fund balances
           </h2>
           <Link
@@ -95,7 +95,7 @@ export default async function TreasuryReports({
         </header>
         <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface">
           <table className="w-full text-sm">
-            <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+            <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
               <tr>
                 <th className="px-4 py-2 font-semibold">Fund</th>
                 <th className="px-4 py-2 font-semibold text-right">Balance</th>
@@ -125,7 +125,7 @@ export default async function TreasuryReports({
 
       <div>
         <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Account balances (non-zero only)
           </h2>
           <Link
@@ -140,7 +140,7 @@ export default async function TreasuryReports({
         ) : (
           <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+              <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Member</th>
                   <th className="px-4 py-2 font-semibold">Patrol</th>
@@ -184,7 +184,7 @@ export default async function TreasuryReports({
 
       <div>
         <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Budget vs. actual
           </h2>
           {activeFy ? (
@@ -207,7 +207,7 @@ export default async function TreasuryReports({
         ) : (
           <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+              <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Fund</th>
                   <th className="px-4 py-2 font-semibold text-right">Expected</th>
@@ -249,7 +249,7 @@ export default async function TreasuryReports({
 
       <div>
         <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Year over year
           </h2>
           <Link
@@ -266,7 +266,7 @@ export default async function TreasuryReports({
         ) : (
           <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+              <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Fiscal year</th>
                   <th className="px-4 py-2 font-semibold text-right">Income</th>

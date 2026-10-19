@@ -37,6 +37,7 @@ export type OrgLikeForBilling = {
   isDemo?: boolean | null;
   suspendedAt?: Date | string | null;
   suspendedReason?: string | null;
+  compedUntil?: Date | string | null;
 } | null | undefined;
 
 export function deriveBillingStatus(org: OrgLikeForBilling, now: Date = new Date()): BillingState {
@@ -68,8 +69,20 @@ export function deriveBillingStatus(org: OrgLikeForBilling, now: Date = new Date
     };
   }
 
-  const status = org.subscriptionStatus || "trialing";
   const nowMs = now.getTime();
+
+  // The platform owner gave this unit free access (owner console).
+  if (org.compedUntil && nowMs < new Date(org.compedUntil).getTime()) {
+    return {
+      status: "active",
+      gate: "writeable",
+      trialDaysLeft: null,
+      inGrace: false,
+      reason: "comped",
+    };
+  }
+
+  const status = org.subscriptionStatus || "trialing";
 
   if (status === "trialing") {
     const ends = org.trialEndsAt ? new Date(org.trialEndsAt).getTime() : null;

@@ -3,6 +3,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
+import { roleInOrg } from "@/lib/auth/role";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { submitSurvey } from "@/server-actions/surveys";
 
@@ -34,7 +35,7 @@ export default async function PublicSurveyPage({
   if (closed) {
     return (
       <main className="mx-auto max-w-content px-6 py-16 text-center">
-        <h1 className="font-display text-3xl">{survey.title}</h1>
+        <h1 className="font-display font-semibold text-3xl">{survey.title}</h1>
         <p className="mt-4 text-ink-muted">This survey is closed.</p>
       </main>
     );
@@ -45,7 +46,7 @@ export default async function PublicSurveyPage({
   if (requiresAuth && !user) {
     return (
       <main className="mx-auto max-w-content px-6 py-16 text-center">
-        <h1 className="font-display text-3xl">{survey.title}</h1>
+        <h1 className="font-display font-semibold text-3xl">{survey.title}</h1>
         <p className="mt-2 text-ink-muted">Members-only survey.</p>
         <a
           href={`/login?next=/o/${slug}/survey/${surveySlug}`}
@@ -57,10 +58,20 @@ export default async function PublicSurveyPage({
     );
   }
 
+  // Anyone can make an account, so a signed-in visitor isn't a member.
+  if (requiresAuth && user && !user.isSuperAdmin && !(await roleInOrg(user.id, survey.orgId))) {
+    return (
+      <main className="mx-auto max-w-content px-6 py-16 text-center">
+        <h1 className="font-display text-3xl">{survey.title}</h1>
+        <p className="mt-2 text-ink-muted">This survey is for members of the unit.</p>
+      </main>
+    );
+  }
+
   if (sp.submitted) {
     return (
       <main className="mx-auto max-w-content px-6 py-16 text-center">
-        <h1 className="font-display text-3xl">Thanks!</h1>
+        <h1 className="font-display font-semibold text-3xl">Thanks!</h1>
         <p className="mt-3 text-ink-muted">Your response has been recorded.</p>
       </main>
     );
@@ -70,7 +81,7 @@ export default async function PublicSurveyPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-2">{survey.title}</h1>
+      <h1 className="font-display font-semibold text-3xl mb-2">{survey.title}</h1>
       {survey.description && (
         <p className="text-ink-muted text-sm mb-6">{survey.description}</p>
       )}

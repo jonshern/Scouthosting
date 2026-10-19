@@ -76,7 +76,7 @@ export default async function EventSlipsPage({
 
       {event.requiresPermissionSlip ? (
         <div className="rounded-xl border border-line bg-surface p-6">
-          <h2 className="font-display text-lg text-ink">Send slips</h2>
+          <h2 className="font-display font-semibold text-lg text-ink">Send slips</h2>
           <p className="mt-1 text-sm text-slate-soft">
             Emails every linked parent of every yes-RSVP youth. Re-running
             is safe — each link upserts on (event, scout). Sends through
@@ -94,7 +94,7 @@ export default async function EventSlipsPage({
 
       <div className="overflow-hidden rounded-xl border border-line bg-surface">
         <table className="w-full text-sm">
-          <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+          <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
             <tr>
               <th className="px-4 py-2 font-semibold">Scout</th>
               <th className="px-4 py-2 font-semibold">Patrol</th>

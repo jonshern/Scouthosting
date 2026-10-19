@@ -32,7 +32,7 @@ export function ChatComposer({ channelId, csrf, disabled, disabledReason }: Prop
 
   if (disabled) {
     return (
-      <p className="mt-3 text-xs text-amber-700">
+      <p className="mt-3 text-xs text-attention-text">
         {disabledReason ?? "Posting is paused."}
       </p>
     );
@@ -42,7 +42,7 @@ export function ChatComposer({ channelId, csrf, disabled, disabledReason }: Prop
     <form
       ref={formRef}
       action={action}
-      className="mt-4 flex flex-col gap-2 border-t border-ink-muted/15 pt-3"
+      className="mt-4 flex flex-col gap-2 border-t border-line pt-3"
     >
       {csrf}
       <input type="hidden" name="channelId" value={channelId} />
@@ -59,7 +59,7 @@ export function ChatComposer({ channelId, csrf, disabled, disabledReason }: Prop
           {pending ? "Sending…" : "Send"}
         </button>
         {state && "error" in state && state.error ? (
-          <p role="alert" className="text-xs text-red-600">
+          <p role="alert" className="text-xs text-danger">
             {state.error}
           </p>
         ) : null}

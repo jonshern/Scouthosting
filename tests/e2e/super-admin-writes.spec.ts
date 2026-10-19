@@ -45,16 +45,16 @@ test.describe("super-admin write actions", () => {
     await page.goto("/super-admin/orgs/troop100");
     const suspendReason = `e2e suspend ${Date.now()}`;
     await page.locator('input[name="reason"]').fill(suspendReason);
-    await page.getByRole("button", { name: /suspend org/i }).click();
+    await page.getByRole("button", { name: /suspend unit/i }).click();
     await page.waitForTimeout(1_500);
     await page.goto("/super-admin/orgs/troop100");
-    await expect(page.getByText(suspendReason)).toBeVisible();
-    await expect(page.getByRole("button", { name: /restore/i })).toBeVisible();
+    await expect(page.getByText(suspendReason).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: /reinstate/i })).toBeVisible();
 
-    // Restore.
-    await page.getByRole("button", { name: /restore/i }).click();
+    // Reinstate.
+    await page.getByRole("button", { name: /reinstate/i }).click();
     await page.waitForTimeout(1_500);
     await page.goto("/super-admin/orgs/troop100");
-    await expect(page.getByRole("button", { name: /suspend org/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /suspend unit/i })).toBeVisible();
   });
 });

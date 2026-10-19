@@ -22,10 +22,10 @@ export default async function PublicCampaignLanding({
     <main className="mx-auto max-w-2xl px-6 py-16">
       <Wordmark />
       <header className="mt-10">
-        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky">
+        <div className="eyebrow">
           § Fundraiser
         </div>
-        <h1 className="mt-2 font-display text-4xl tracking-[-0.02em] text-ink">
+        <h1 className="mt-2 font-display font-semibold text-4xl tracking-[-0.02em] text-ink">
           {campaign.name}
         </h1>
         <p className="mt-1 text-sm text-slate-soft">

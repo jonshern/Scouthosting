@@ -23,7 +23,7 @@ export function PreviewPane({ src }: { src: string }) {
   return (
     <div className="rounded-xl border border-line bg-surface p-4 sticky top-4">
       <div className="flex items-baseline justify-between gap-2 mb-3">
-        <span className="font-display italic text-sm text-accent">§ Live preview</span>
+        <span className="eyebrow">§ Live preview</span>
         <button
           type="button"
           onClick={() => setBust((b) => b + 1)}

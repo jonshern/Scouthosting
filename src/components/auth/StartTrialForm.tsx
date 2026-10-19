@@ -26,7 +26,7 @@ export function StartTrialForm({ csrf }: { csrf: React.ReactNode }) {
     const d = state.done;
     return (
       <div className="space-y-5" data-testid="start-trial-done">
-        <h2 className="font-display text-3xl font-normal tracking-[-0.015em]">
+        <h2 className="font-display text-3xl font-semibold tracking-[-0.015em]">
           {d.displayName} is set up.
         </h2>
         <p className="text-sm text-slate-soft">
@@ -35,7 +35,7 @@ export function StartTrialForm({ csrf }: { csrf: React.ReactNode }) {
           won&apos;t be charged before the trial ends.
         </p>
         <div className="rounded-lg border border-amber/60 bg-amber/5 p-4">
-          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted">
+          <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
             Recovery code, shown once
           </div>
           <p className="mt-2 break-all font-mono text-base text-ink" data-testid="recovery-code">
@@ -115,7 +115,7 @@ export function StartTrialForm({ csrf }: { csrf: React.ReactNode }) {
         />
       </div>
       {state && "error" in state && (
-        <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">
+        <div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">
           {state.error}
         </div>
       )}

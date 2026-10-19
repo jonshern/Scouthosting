@@ -30,14 +30,14 @@ export default async function AdminPostsIndex({ params }: { params: Promise<{ sl
       />
 
       <div className="space-y-3">
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">
           New post
         </h2>
         <PostForm orgSlug={slug} csrf={<CsrfTokenInput />} />
       </div>
 
       <div className="space-y-3">
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Recent</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">Recent</h2>
         {org.posts.length === 0 ? (
           <p className="text-sm text-slate-muted">Nothing published yet.</p>
         ) : (

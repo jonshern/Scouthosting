@@ -52,13 +52,13 @@ export default async function AccountSecurityPage({
         <p className="text-ink-muted text-sm">Manage passkeys and two-step sign-in for your account.</p>
       </header>
       {required === "1" && !secondStepOn && (
-        <p role="status" className="rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+        <p role="status" className="rounded border border-attention/30 bg-attention-soft p-3 text-sm text-attention-text">
           Leaders and admins need two-step sign-in. Add a passkey or set up an authenticator app below to
           continue.
         </p>
       )}
       {required === "1" && secondStepOn && safeNext && (
-        <p role="status" className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <p role="status" className="rounded border border-done/30 bg-done-soft p-3 text-sm text-done-text">
           Two-step sign-in is on. <a href={safeNext} className="underline">Continue</a>
         </p>
       )}
@@ -67,8 +67,8 @@ export default async function AccountSecurityPage({
           role="status"
           className={
             notice.tone === "ok"
-              ? "rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800"
-              : "rounded border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+              ? "rounded border border-done/30 bg-done-soft p-3 text-sm text-done-text"
+              : "rounded border border-attention/30 bg-attention-soft p-3 text-sm text-attention-text"
           }
         >
           {notice.text}
@@ -101,7 +101,7 @@ export default async function AccountSecurityPage({
                 <form action={removePasskey}>
                   <CsrfTokenInput />
                   <input type="hidden" name="id" value={p.id} />
-                  <button type="submit" className="text-sm text-red-700 underline">
+                  <button type="submit" className="text-sm text-danger underline">
                     Remove
                   </button>
                 </form>

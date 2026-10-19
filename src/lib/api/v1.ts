@@ -85,7 +85,10 @@ export function json(body: unknown, init: { status?: number; headers?: Record<st
   });
 }
 
-export function errorResponse(err: unknown): Response {
+/** Where a v1 error happened, for the owner console's errors view. */
+export type ErrorWhere = { method?: string; path?: string; userId?: string | null };
+
+export function errorResponse(err: unknown, where: ErrorWhere = {}): Response {
   if (err instanceof ApiError) {
     return json({ error: err.code, ...err.extra }, { status: err.status, headers: err.headers });
   }
@@ -113,7 +116,11 @@ export function errorResponse(err: unknown): Response {
   log.error("unhandled error in v1 route", {
     err: err instanceof Error ? { name: err.name, message: err.message } : String(err),
   });
-  void captureError(err, null, { service: "compass-api" }).catch(() => {});
+  void captureError(
+    err,
+    { method: where.method, path: where.path, user: where.userId ? { id: where.userId } : null },
+    { service: "compass-api" },
+  ).catch(() => {});
   return json({ error: "internal" }, { status: 500 });
 }
 
@@ -155,14 +162,14 @@ export function v1Route<P extends Record<string, string | string[]> = Record<str
           res.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
           return res;
         } catch (err) {
-          return errorResponse(err);
+          return errorResponse(err, { method: r.method, path: r.nextUrl.pathname, userId: user.id });
         }
       });
       const res = await authed(req);
       if (res.status === 401) res.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
       return res;
     } catch (err) {
-      return errorResponse(err);
+      return errorResponse(err, { method: req.method, path: req.nextUrl.pathname });
     }
   };
 }
@@ -191,7 +198,7 @@ export function v1PublicRoute<P extends Record<string, string | string[]> = Reco
       res.headers.set("Cache-Control", NO_STORE["Cache-Control"]);
       return res;
     } catch (err) {
-      return errorResponse(err);
+      return errorResponse(err, { method: req.method, path: req.nextUrl.pathname });
     }
   };
 }

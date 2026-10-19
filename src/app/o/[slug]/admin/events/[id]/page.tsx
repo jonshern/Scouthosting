@@ -117,7 +117,7 @@ export default async function EditEventPage({
       />
 
       <div id="slots" className="border-t border-line pt-6 space-y-4">
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Sign-up slots</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">Sign-up slots</h2>
         {event.slots.length > 0 && (
           <table className="w-full text-sm">
             <thead className="text-left text-slate-muted">
@@ -130,7 +130,7 @@ export default async function EditEventPage({
             </thead>
             <tbody>
               {event.slots.map((s) => (
-                <tr key={s.id} className="border-t border-ink-muted/15">
+                <tr key={s.id} className="border-t border-line">
                   <td className="py-2">{s.title}</td>
                   <td className="py-2 font-mono text-xs">{s.key ?? "—"}</td>
                   <td className="py-2">
@@ -156,7 +156,7 @@ export default async function EditEventPage({
 
       <div className="space-y-4">
         <div>
-          <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Staff</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">Staff</h2>
           <p className="text-sm text-slate-muted">
             Counselors, station staff and volunteers. Each gets an email with a private link to answer.
             {staff.length > 0 ? ` ${staffYes} of ${staff.length} confirmed.` : ""}
@@ -174,7 +174,7 @@ export default async function EditEventPage({
             {[...staffByRole.entries()].map(([role, rows]) => (
               <tbody key={role}>
                 <tr>
-                  <td colSpan={4} className="pt-4 pb-1 text-xs uppercase tracking-wide text-slate-muted">
+                  <td colSpan={4} className="pt-4 pb-1 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                     {STAFF_ROLE_LABELS[role as StaffRole] ?? role} ({rows.length})
                   </td>
                 </tr>
@@ -203,7 +203,7 @@ export default async function EditEventPage({
 
       <div className="space-y-4">
         <div>
-          <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Messages</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">Messages</h2>
           <p className="text-sm text-slate-muted">
             Chat channels for staff, a single station, or attending families, plus email for anyone not on Compass.
           </p>
@@ -233,7 +233,7 @@ export default async function EditEventPage({
 
       {total > 0 && (
         <div>
-          <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">RSVPs</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-3">RSVPs</h2>
           <table className="w-full text-sm">
             <thead className="text-left text-slate-muted">
               <tr>
@@ -245,7 +245,7 @@ export default async function EditEventPage({
             </thead>
             <tbody>
               {event.rsvps.map((r) => (
-                <tr key={r.id} className="border-t border-ink-muted/15">
+                <tr key={r.id} className="border-t border-line">
                   <td className="py-2">{r.name}</td>
                   <td className="py-2">{r.email ?? "—"}</td>
                   <td className="py-2">{r.response}</td>

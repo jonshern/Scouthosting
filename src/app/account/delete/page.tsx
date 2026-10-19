@@ -27,7 +27,7 @@ export default async function DeleteAccountPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Delete account</h1>
+      <h1 className="font-display font-semibold text-3xl mb-6">Delete account</h1>
       <div className="max-w-md space-y-4 text-sm">
         <p>Deleting your account signs you out everywhere, including the phone apps, and can&apos;t be undone.</p>
         <p>
@@ -40,12 +40,12 @@ export default async function DeleteAccountPage({
           roster changed.
         </p>
         {error && ERRORS[error] && (
-          <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-red-800">
+          <p role="alert" className="rounded border border-danger-line bg-danger-soft p-3 text-danger">
             {ERRORS[error]}
           </p>
         )}
         {blockers.length > 0 ? (
-          <div role="status" className="rounded border border-amber-200 bg-amber-50 p-3 text-amber-900">
+          <div role="status" className="rounded border border-attention/30 bg-attention-soft p-3 text-attention-text">
             <p className="font-semibold">You can&apos;t delete your account yet.</p>
             <ul className="mt-2 list-disc pl-5">
               {blockers.map((b) => (

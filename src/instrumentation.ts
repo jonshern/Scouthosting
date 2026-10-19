@@ -68,9 +68,16 @@ export async function onRequestError(
 ) {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { captureError } = await import("@/lib/ops/error-tracker");
+  const { requestOwner } = await import("@/lib/ops/request-owner");
+  const { orgSlug, userId } = await requestOwner(request.path, request.headers).catch(() => ({
+    orgSlug: null,
+    userId: null,
+  }));
   await captureError(err, {
     method: request.method,
     path: context.routePath ? `${request.path} (${context.routeType} ${context.routePath})` : request.path,
     headers: request.headers,
+    orgSlug,
+    user: userId ? { id: userId } : null,
   }).catch(() => {});
 }

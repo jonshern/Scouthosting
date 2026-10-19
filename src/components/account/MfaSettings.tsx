@@ -83,7 +83,7 @@ export function MfaSettings({
         <form action={onEnrollSubmit} className="space-y-3">
           {csrf}
           {enrollError && (
-            <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">
+            <div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">
               {enrollError}
             </div>
           )}
@@ -106,12 +106,12 @@ export function MfaSettings({
         </header>
         <div className="space-y-2">
           <h3 className="text-sm font-medium">Authenticator URI</h3>
-          <code className="block break-all text-xs bg-zinc-50 border rounded p-3">{enrollment.uri}</code>
+          <code className="block break-all text-xs bg-sunk border rounded p-3">{enrollment.uri}</code>
           <p className="text-xs text-ink-muted">Manual secret: <code className="font-mono">{enrollment.secret}</code></p>
         </div>
         <div className="space-y-2">
           <h3 className="text-sm font-medium">Backup codes — save these now</h3>
-          <ul className="grid grid-cols-2 gap-2 text-sm font-mono bg-zinc-50 border rounded p-3">
+          <ul className="grid grid-cols-2 gap-2 text-sm font-mono bg-sunk border rounded p-3">
             {enrollment.backupCodes.map((c) => (<li key={c}>{c}</li>))}
           </ul>
         </div>
@@ -122,10 +122,10 @@ export function MfaSettings({
             <input id="confirm-code" name="code" inputMode="numeric" autoComplete="one-time-code" pattern="\d{6}" required maxLength={6} className="field" />
           </div>
           {confirmState?.error && (
-            <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">{confirmState.error}</div>
+            <div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">{confirmState.error}</div>
           )}
           {confirmState?.ok && (
-            <div role="status" className="text-sm text-green-700 bg-green-50 border border-green-200 rounded p-3">2FA enabled.{" "}
+            <div role="status" className="text-sm text-done-text bg-done-soft border border-done/30 rounded p-3">2FA enabled.{" "}
               {next ? <a href={next} className="underline">Continue</a> : "Reload to see your settings."}
             </div>
           )}
@@ -149,11 +149,11 @@ export function MfaSettings({
             <label className="label" htmlFor="regen-code">Code</label>
             <input id="regen-code" name="code" inputMode="text" autoComplete="one-time-code" required maxLength={20} className="field" />
           </div>
-          {regenError && (<div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">{regenError}</div>)}
+          {regenError && (<div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">{regenError}</div>)}
           {regenCodes && (
             <div className="space-y-2">
               <p className="text-xs text-ink-muted">Save these now — they will not be shown again.</p>
-              <ul className="grid grid-cols-2 gap-2 text-sm font-mono bg-zinc-50 border rounded p-3">
+              <ul className="grid grid-cols-2 gap-2 text-sm font-mono bg-sunk border rounded p-3">
                 {regenCodes.map((c) => (<li key={c}>{c}</li>))}
               </ul>
             </div>
@@ -170,8 +170,8 @@ export function MfaSettings({
             <label className="label" htmlFor="disable-code">Code</label>
             <input id="disable-code" name="code" inputMode="text" autoComplete="one-time-code" required maxLength={20} className="field" />
           </div>
-          {disableState?.error && (<div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">{disableState.error}</div>)}
-          {disableState?.ok && (<div role="status" className="text-sm text-green-700 bg-green-50 border border-green-200 rounded p-3">2FA disabled. Reload to see your settings.</div>)}
+          {disableState?.error && (<div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">{disableState.error}</div>)}
+          {disableState?.ok && (<div role="status" className="text-sm text-done-text bg-done-soft border border-done/30 rounded p-3">2FA disabled. Reload to see your settings.</div>)}
           <button type="submit" disabled={disablePending} className="btn-secondary">{disablePending ? "Disabling…" : "Disable 2FA"}</button>
         </form>
       </div>

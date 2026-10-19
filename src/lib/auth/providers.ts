@@ -1,13 +1,21 @@
-// Google + Apple provider settings for Better Auth, read from the same
-// env vars the arctic implementation used. A provider whose settings are
-// missing is left out, and its begin route answers 503.
+// Google + Apple provider settings for Better Auth. A provider whose
+// settings are missing is left out: its buttons aren't shown and its
+// begin route sends people back to /login.
 //
-// The redirect URIs stay the ones registered with Google and Apple
-// (GOOGLE_REDIRECT_URI → /api/auth/google/callback, APPLE_REDIRECT_URI →
-// /api/auth/apple/callback). Those routes hand the request to Better
-// Auth's own callback handler, so no console change is needed.
+// Redirect URIs. With GOOGLE_REDIRECT_URI / APPLE_REDIRECT_URI unset,
+// each sign-in host gets its own: <origin>/api/auth/callback/<provider>
+// on the apex, on every PASSKEY_EXTRA_HOSTS host (the Mac's Tailscale
+// name) and on the WEB_SIGNIN_ORIGINS sites, so a phone on the tailnet,
+// a browser on localhost and Waypoint's website each finish where they
+// started. Register one URI per host with the
+// provider (docs/sign-in-providers.md). Setting the variable pins one
+// URI for every host (the older setup, served by
+// /api/auth/<provider>/callback). Tenant and custom-domain hosts always
+// sign in on the apex (signInHref).
 
 import crypto from "node:crypto";
+import { TENANT_PASSTHROUGH_PREFIXES } from "@/lib/tenancy/host-header";
+import { webSigninOrigins } from "./mobile-redirect";
 
 function envOrNull(...names: string[]): string | null {
   for (const n of names) {
@@ -17,14 +25,14 @@ function envOrNull(...names: string[]): string | null {
   return null;
 }
 
-export type GoogleConfig = { clientId: string; clientSecret: string; redirectURI: string };
+export type GoogleConfig = { clientId: string; clientSecret: string; redirectURI?: string };
 
 export function googleConfig(): GoogleConfig | null {
   const clientId = envOrNull("GOOGLE_CLIENT_ID");
   const clientSecret = envOrNull("GOOGLE_CLIENT_SECRET");
+  if (!clientId || !clientSecret) return null;
   const redirectURI = envOrNull("GOOGLE_REDIRECT_URI");
-  if (!clientId || !clientSecret || !redirectURI) return null;
-  return { clientId, clientSecret, redirectURI };
+  return { clientId, clientSecret, ...(redirectURI ? { redirectURI } : {}) };
 }
 
 export const googleConfigured = (): boolean => googleConfig() !== null;
@@ -32,7 +40,7 @@ export const googleConfigured = (): boolean => googleConfig() !== null;
 export type AppleConfig = {
   clientId: string;
   clientSecret: string;
-  redirectURI: string;
+  redirectURI?: string;
   appBundleIdentifier?: string;
 };
 
@@ -75,13 +83,13 @@ export function appleConfig(): AppleConfig | null {
   const teamId = envOrNull("APPLE_TEAM_ID");
   const keyId = envOrNull("APPLE_KEY_ID");
   const privateKeyPem = applePrivateKeyPem();
+  if (!clientId || !teamId || !keyId || !privateKeyPem) return null;
   const redirectURI = envOrNull("APPLE_REDIRECT_URI");
-  if (!clientId || !teamId || !keyId || !privateKeyPem || !redirectURI) return null;
   const appBundleIdentifier = envOrNull("APPLE_APP_BUNDLE_ID") ?? undefined;
   return {
     clientId,
     clientSecret: appleClientSecret({ teamId, keyId, clientId, privateKeyPem }),
-    redirectURI,
+    ...(redirectURI ? { redirectURI } : {}),
     ...(appBundleIdentifier ? { appBundleIdentifier } : {}),
   };
 }
@@ -91,6 +99,53 @@ export const appleConfigured = (): boolean =>
     envOrNull("APPLE_CLIENT_ID") &&
     envOrNull("APPLE_TEAM_ID") &&
     envOrNull("APPLE_KEY_ID") &&
-    applePrivateKeyPem() &&
-    envOrNull("APPLE_REDIRECT_URI")
+    applePrivateKeyPem()
   );
+
+export type SocialProviderId = "google" | "apple";
+
+// The providers to offer, in button order.
+export function enabledSocialProviders(): SocialProviderId[] {
+  const out: SocialProviderId[] = [];
+  if (googleConfigured()) out.push("google");
+  if (appleConfigured()) out.push("apple");
+  return out;
+}
+
+// Hosts besides the apex that run their own sign-in, as Better Auth
+// allowedHosts patterns: PASSKEY_EXTRA_HOSTS (the Mac's Tailscale name,
+// with any port, which covers Waypoint's and Lantern's websites served
+// on it) and the hosts of WEB_SIGNIN_ORIGINS, whose sign-in pages run
+// on their own origin with Compass behind them.
+export function extraSignInHostPatterns(): string[] {
+  const extra = (process.env.PASSKEY_EXTRA_HOSTS ?? "")
+    .split(",")
+    .map((h) => h.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/\/.*$/, "").replace(/:\d+$/, ""))
+    .filter(Boolean)
+    .flatMap((h) => [h, `${h}:*`]);
+  const web = [...webSigninOrigins()].map((o) => new URL(o).host);
+  return [...new Set([...extra, ...web])];
+}
+
+// Where a "Continue with Google/Apple" button starts. On the apex and on
+// an extra sign-in host it's this host. On a unit's own host (subdomain
+// or custom domain, `tenantSlug` set) the flow runs on the apex instead,
+// where the provider's redirect URI is registered, and comes back to the
+// unit's pages under /o/<slug> (paths every host shares, like /start or
+// /auth/mobile/begin, stay as they are).
+export function signInHref(
+  provider: SocialProviderId,
+  next: string | null | undefined,
+  opts: { tenantSlug?: string | null; apexOrigin: string },
+): string {
+  let target = next ?? null;
+  let origin = "";
+  if (opts.tenantSlug) {
+    origin = opts.apexOrigin;
+    const path = target && target.startsWith("/") && !target.startsWith("//") ? target : "/";
+    const shared = path.startsWith("/auth/") || TENANT_PASSTHROUGH_PREFIXES.some((p) => path.startsWith(p));
+    target = shared ? path : `/o/${opts.tenantSlug}${path === "/" ? "" : path}`;
+  }
+  const q = target ? `?next=${encodeURIComponent(target)}` : "";
+  return `${origin}/api/auth/${provider}/begin${q}`;
+}

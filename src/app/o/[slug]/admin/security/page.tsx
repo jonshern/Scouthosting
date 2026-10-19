@@ -57,7 +57,7 @@ export default async function OrgSecurityPage({
           <span
             className={
               "px-2 py-0.5 rounded text-xs " +
-              (vaultOk ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800")
+              (vaultOk ? "bg-done-soft text-done-text" : "bg-danger-soft text-danger")
             }
           >
             {vaultOk ? "active" : "missing"}

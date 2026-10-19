@@ -53,7 +53,7 @@ export default async function MyScoutsPage() {
             <article key={`${s.orgId}-${s.memberId}`} className="rounded-xl border border-line bg-surface p-6">
               <header className="flex flex-wrap items-baseline justify-between gap-3">
                 <div>
-                  <h2 className="font-display text-2xl text-ink">{s.scoutName || "Scout"}</h2>
+                  <h2 className="font-display font-semibold text-2xl text-ink">{s.scoutName || "Scout"}</h2>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-muted">
                     <Pill tone="accent">{s.orgDisplayName}</Pill>
                     {s.patrol ? <span>· {s.patrol}</span> : null}
@@ -69,7 +69,7 @@ export default async function MyScoutsPage() {
               </header>
 
               <div className="mt-4">
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted">
+                <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                   Upcoming · next 90 days
                 </h3>
                 {s.upcoming.length === 0 ? (
@@ -112,7 +112,7 @@ export default async function MyScoutsPage() {
               {s.scoutbook ? (
                 <div className="mt-6 rounded-md border border-line bg-surface-alt px-4 py-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted">
+                    <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                       Scoutbook
                     </h3>
                     <span className="text-xs text-slate-muted">
@@ -121,19 +121,19 @@ export default async function MyScoutsPage() {
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
                     <div>
-                      <div className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">Rank</div>
+                      <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">Rank</div>
                       <div className="text-ink font-medium">{s.scoutbook.rank ?? "—"}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">Service hr</div>
+                      <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">Service hr</div>
                       <div className="font-mono">{s.scoutbook.serviceHours}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">Camping nt</div>
+                      <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">Camping nt</div>
                       <div className="font-mono">{s.scoutbook.campingNights}</div>
                     </div>
                     <div>
-                      <div className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">Hiking mi</div>
+                      <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">Hiking mi</div>
                       <div className="font-mono">{s.scoutbook.hikingMiles}</div>
                     </div>
                   </div>
@@ -146,11 +146,11 @@ export default async function MyScoutsPage() {
               {s.balanceCents !== null ? (
                 <div className="mt-6 rounded-md border border-line bg-surface-alt px-4 py-3">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted">
+                    <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                       Account balance
                     </h3>
                     <span
-                      className={`font-display text-xl ${
+                      className={`font-display font-semibold text-xl ${
                         s.balanceCents < 0 ? "text-danger" : "text-success"
                       }`}
                     >

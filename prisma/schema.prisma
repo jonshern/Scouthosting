@@ -111,6 +111,11 @@ model Org {
   // know to nudge their charter org.
   suspendedAt                   DateTime?
   suspendedReason               String?
+  // Free access the platform owner grants from the owner console
+  // (/super-admin): until this date the unit is treated as paid,
+  // whatever Stripe says. compedNote says why. Never written by Stripe.
+  compedUntil                   DateTime?
+  compedNote                    String?
   // Stripe billing state. Webhook events (lib/stripe.js) are the single
   // writer for these fields — admin UI reads them but never mutates them
   // directly. `subscriptionStatus` is the gate for plan enforcement
@@ -219,6 +224,7 @@ model Org {
   requirementProgress  RequirementProgress[]
   requirementEvents    RequirementProgressEvent[]
   counselorMeetings    CounselorMeeting[]
+  billingPayments      BillingPayment[]
   owner                User?                      @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([plan])
@@ -256,6 +262,10 @@ model User {
   // (password or Google/Apple) must confirm before using the app;
   // accounts that existed before the policy were backfilled.
   adultAttestedAt    DateTime?
+  // Turned off from the owner console. Sign-in is refused and every
+  // session and token was revoked when it was set (lib/owner/access.ts).
+  disabledAt         DateTime?
+  disabledReason     String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
@@ -1442,6 +1452,11 @@ model ErrorLog {
   // Release tracking
   release     String?
   environment String?
+  // Where it happened: "compass" (pages, actions), "compass-api"
+  // (/api/v1), or "<product>-app" for a crash an app reported through
+  // POST /api/v1/errors. context is what the app sent with it.
+  service     String?
+  context     Json?
   createdAt   DateTime @default(now())
 
   org  Org?  @relation(fields: [orgId], references: [id], onDelete: SetNull)
@@ -1450,6 +1465,51 @@ model ErrorLog {
   @@index([fingerprint, createdAt])
   @@index([createdAt])
   @@index([orgId, createdAt])
+  @@index([service, createdAt])
+}
+
+// An error the owner marked fixed in the owner console. The group shows
+// as fixed until it happens again after resolvedAt.
+model ErrorResolution {
+  fingerprint  String   @id
+  resolvedAt   DateTime @default(now())
+  resolvedById String?
+  note         String?
+}
+
+// The owner console's state for one sign-up (a new unit or account):
+// new, approved, follow_up, declined or done, with the owner's note and
+// the day to follow up by. No foreign key, so it outlives the row it
+// describes the way AuditLog does.
+model SignupReview {
+  id          String    @id @default(cuid())
+  entityType  String // "Org" | "User"
+  entityId    String
+  status      String    @default("new")
+  note        String?
+  followUpOn  DateTime?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([entityType, entityId])
+  @@index([status, followUpOn])
+}
+
+// Someone the owner invited by email to try a product. The sign-ups
+// queue matches it to an account by email once they sign up.
+model OwnerInvite {
+  id          String   @id @default(cuid())
+  email       String
+  name        String?
+  product     String // "compass" | "waypoint" | "lantern"
+  note        String?
+  sendCount   Int      @default(1)
+  lastSentAt  DateTime @default(now())
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([email])
 }
 
 // Driver / carpool plan. Distinct from SignupSlot's generic
@@ -2074,11 +2134,34 @@ model SupportTicket {
   viewportPath       String? // pathname the user was on when they hit "report bug"
   viewportWidth      Int?
   viewportHeight     Int?
+  // Which product it came from: "compass" | "waypoint" | "lantern", or
+  // null for older rows. context holds what the app sent with it (app
+  // version, platform, screen) for the owner console inbox.
+  product            String?
+  context            Json?
 
-  org Org? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  org     Org?           @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  replies SupportReply[]
 
   @@index([status, createdAt])
   @@index([orgId])
+  @@index([product, status])
+}
+
+// The owner's answer to a question in the owner console inbox, emailed
+// to the person who asked (emailed = the send went through).
+model SupportReply {
+  id           String   @id @default(cuid())
+  ticketId     String
+  authorUserId String?
+  authorName   String?
+  body         String
+  emailed      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([ticketId, createdAt])
 }
 
 // Operator-issued refund / billing credit. Compass doesn't process
@@ -2895,6 +2978,28 @@ model DemoOutboxMessage {
 // "treasury:pi_123" or "event:evt_123", so a payment that arrives as two
 // different events, or the same event delivered twice at once, is
 // applied once.
+// A paid Stripe invoice for a unit's subscription, recorded by the
+// webhook (lib/billing/stripe.ts) so the owner console's billing report
+// can total what was collected without calling Stripe. Refunds are
+// handled in Stripe and don't show here. orgId SetNull keeps the money
+// history when a unit is deleted.
+model BillingPayment {
+  id               String   @id @default(cuid())
+  orgId            String?
+  stripeInvoiceId  String   @unique
+  stripeCustomerId String?
+  amountCents      Int
+  currency         String
+  livemode         Boolean  @default(false)
+  paidAt           DateTime
+  createdAt        DateTime @default(now())
+
+  org Org? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  @@index([paidAt])
+  @@index([orgId, paidAt])
+}
+
 model StripeWebhookReceipt {
   key       String   @id
   eventId   String

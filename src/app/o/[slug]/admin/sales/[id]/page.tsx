@@ -130,7 +130,7 @@ export default async function CampaignDetailPage({
       </StatRow>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Edit campaign</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Edit campaign</h2>
         <CampaignForm
           orgSlug={slug}
           funds={funds}
@@ -150,7 +150,7 @@ export default async function CampaignDetailPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Products</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Products</h2>
         {products.length === 0 ? (
           <p className="text-sm text-slate-muted mb-3">No products yet.</p>
         ) : (
@@ -170,7 +170,7 @@ export default async function CampaignDetailPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Prize tiers</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Prize tiers</h2>
         {prizes.length === 0 ? (
           <p className="text-sm text-slate-muted mb-3">No prize tiers yet.</p>
         ) : (
@@ -190,13 +190,13 @@ export default async function CampaignDetailPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Leaderboard</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Leaderboard</h2>
         {board.length === 0 ? (
           <p className="text-sm text-slate-muted">No orders yet.</p>
         ) : (
           <div className="overflow-hidden rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+              <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Rank</th>
                   <th className="px-4 py-2 font-semibold">Scout</th>
@@ -239,7 +239,7 @@ export default async function CampaignDetailPage({
 
       {campaign.publicSlug ? (
         <div>
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Per-Scout sales links</h2>
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Per-Scout sales links</h2>
           <p className="text-sm text-slate-muted mb-3">
             Generate a public URL per active youth so each Scout has a personal page.
           </p>
@@ -252,7 +252,7 @@ export default async function CampaignDetailPage({
       ) : null}
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">New manual order</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">New manual order</h2>
         <ManualOrderForm
           orgSlug={slug}
           campaignId={campaign.id}
@@ -263,13 +263,13 @@ export default async function CampaignDetailPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Recent orders</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Recent orders</h2>
         {orders.length === 0 ? (
           <p className="text-sm text-slate-muted">No orders yet.</p>
         ) : (
           <div className="overflow-hidden rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+              <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 <tr>
                   <th className="px-4 py-2 font-semibold">When</th>
                   <th className="px-4 py-2 font-semibold">Buyer</th>
@@ -343,7 +343,7 @@ export default async function CampaignDetailPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Booth sales</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Booth sales</h2>
         {booths.length === 0 ? (
           <p className="text-sm text-slate-muted mb-3">No booth sales recorded.</p>
         ) : (

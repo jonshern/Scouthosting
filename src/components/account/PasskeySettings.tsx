@@ -93,12 +93,12 @@ export function AddPasskey({
         </div>
       )}
       {error && (
-        <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div role="alert" className="rounded border border-danger-line bg-danger-soft p-3 text-sm text-danger">
           {error}
         </div>
       )}
       {added && (
-        <div role="status" className="rounded border border-green-200 bg-green-50 p-3 text-sm text-green-700">
+        <div role="status" className="rounded border border-done/30 bg-done-soft p-3 text-sm text-done-text">
           Passkey added.
         </div>
       )}

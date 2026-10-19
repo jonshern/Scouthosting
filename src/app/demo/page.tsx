@@ -40,8 +40,8 @@ export default async function DemoPage({
   return (
     <main className="min-h-screen bg-bg px-5 py-12 text-ink md:py-16">
       <div className="mx-auto max-w-4xl">
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-accent">Compass demo</p>
-        <h1 className="mt-3 font-display text-4xl font-normal tracking-[-0.015em] md:text-5xl">
+        <p className="eyebrow">Compass demo</p>
+        <h1 className="mt-3 font-display text-4xl font-semibold tracking-[-0.015em] md:text-5xl">
           Try Compass with a <span className="italic text-accent">sample troop.</span>
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-[1.6] text-ink-muted">
@@ -52,16 +52,16 @@ export default async function DemoPage({
         </p>
 
         {error && ERRORS[error] ? (
-          <p className="mt-6 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{ERRORS[error]}</p>
+          <p className="mt-6 rounded border border-danger-line bg-danger-soft p-3 text-sm text-danger">{ERRORS[error]}</p>
         ) : null}
         {reset ? (
-          <p className="mt-6 rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+          <p className="mt-6 rounded border border-done/30 bg-done-soft p-3 text-sm text-done-text">
             The demo is back to its starting point. Sign in again to keep exploring.
           </p>
         ) : null}
 
         <section aria-labelledby="accounts" className="mt-10">
-          <h2 id="accounts" className="font-display text-2xl tracking-tight">
+          <h2 id="accounts" className="font-display font-semibold text-2xl tracking-tight">
             Pick who to be
           </h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -69,8 +69,8 @@ export default async function DemoPage({
               <form key={a.role} action={demoSignInAction} className="flex flex-col rounded-xl border border-line bg-white p-5">
                 <CsrfTokenInput />
                 <input type="hidden" name="role" value={a.role} />
-                <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">{a.title}</p>
-                <p className="mt-1 font-display text-xl">{a.displayName}</p>
+                <p className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">{a.title}</p>
+                <p className="mt-1 font-display font-semibold text-xl">{a.displayName}</p>
                 <p className="mt-2 flex-1 text-sm leading-[1.55] text-ink-muted">{a.summary}</p>
                 <p className="mt-3 font-mono text-xs text-ink-muted">{a.email}</p>
                 <button

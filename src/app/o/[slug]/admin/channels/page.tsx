@@ -100,7 +100,7 @@ export default async function ChannelsAdminPage({
               </div>
             </div>
             {c.isSuspended && (
-              <p className="text-xs text-amber-700 mt-2">
+              <p className="text-xs text-attention-text mt-2">
                 Paused: {c.suspendedReason ?? "two-deep failed"}
               </p>
             )}

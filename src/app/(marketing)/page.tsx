@@ -1,10 +1,9 @@
-// Marketing home — port of design-handoff/marketing-balanced.jsx.
-// Slate & Sky / "balanced" palette. Copy is the source of truth in
-// the design file; if the design copy changes, update it here.
+// Marketing home, in the suite's Modern Clean look (src/styles/tokens.ts).
 
 import Link from "next/link";
 import { PRICES, PRICE_LINE, YEARLY_SAVINGS_USD } from "@/lib/billing/pricing";
 import { supportEmail } from "@/lib/support";
+import { PhotoPlaceholder } from "@/components/ui/PhotoPlaceholder";
 
 const FEATURES = [
   {
@@ -12,36 +11,32 @@ const FEATURES = [
     kw: "Calendar",
     title: "A calendar that handles RSVPs, money, and rides.",
     body: "Publish a campout, attach the permission slip, accept payment, and assign carpools — without a single PDF email.",
-    accent: "#1d4ed8",
   },
   {
     num: "02",
     kw: "Website",
     title: "A public homepage that recruits new families.",
     body: "Pick from six templates, drop in your troop number, and you're live on a custom subdomain. Scouts can edit it during a Tuesday meeting.",
-    accent: "#f59e0b",
   },
   {
     num: "03",
     kw: "Security",
-    title: "Encryption, audit logs, and serious uptime.",
-    body: "AES-256 field-level encryption, per-org keys, argon2id for passphrases. Tamper-evident audit log on every admin action. Cloud-hosted with daily Postgres snapshots — no server in someone's basement, no Tuesday-night outage.",
-    accent: "#0f172a",
+    title: "Encryption, audit logs, and tested backups.",
+    body: "AES-256 field-level encryption, per-org keys, argon2id for passphrases. Tamper-evident audit log on every admin action. Encrypted backups every day, plus one before every update, and we practice restoring them.",
   },
   {
     num: "04",
     kw: "Communication",
     title: "Email, push, and text — one composer.",
     body: "Send a Sunday email digest, a mobile push for the 7am cancellation, or an SMS broadcast when a campout reroutes. Threaded replies, two-deep enforced, every message logged. No more “did you get the flier?”",
-    accent: "#475569",
   },
 ];
 
 const STATS = [
-  { n: "AES-256", l: "encryption at rest & in transit", c: "#1d4ed8" },
-  { n: "99.9%", l: "uptime, US data residency", c: "#0891b2" },
-  { n: "Daily", l: "encrypted off-site backups", c: "#f59e0b" },
-  { n: PRICES.year.short, l: `per unit, per year (or ${PRICES.month.long})`, c: "#475569" },
+  { n: "AES-256", l: "encryption at rest & in transit" },
+  { n: "2-step", l: "sign-in for every leader and admin" },
+  { n: "Daily", l: "encrypted off-site backups" },
+  { n: PRICES.year.short, l: `per unit, per year (or ${PRICES.month.long})` },
 ];
 
 const IMPORT_SOURCES = [
@@ -56,99 +51,59 @@ const IMPORT_SOURCES = [
   "A shared Drive folder",
 ];
 
-function PhotoTile({ tone, label }: { tone: string; label: string }) {
-  return (
-    <div
-      className="relative h-full w-full overflow-hidden rounded-md"
-      style={{ background: `linear-gradient(135deg, ${tone}, ${tone}aa 60%, #0f172a)` }}
-    >
-      <svg
-        viewBox="0 0 100 75"
-        preserveAspectRatio="xMidYMid slice"
-        className="absolute inset-0 h-full w-full opacity-30"
-      >
-        <polygon points="0,55 30,32 60,48 100,38 100,75 0,75" fill="#0f172a" />
-      </svg>
-      <span className="absolute bottom-3 left-4 text-xs font-medium uppercase tracking-[0.16em] text-white/85">
-        {label}
-      </span>
-    </div>
-  );
-}
-
 export default function MarketingHome() {
   return (
     <>
-      {/* Hero — kicker masthead + oversized italic headline */}
-      <section className="mx-auto max-w-content px-6 pt-6 pb-14">
-        <div className="border-t-2 border-ink pt-4 grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-soft mb-8">
+      {/* Hero */}
+      <section className="mx-auto max-w-content px-6 pt-16 pb-14 md:pt-20">
+        <div className="mb-10 flex flex-wrap gap-x-6 gap-y-1 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
           <span>Volume 1 · Issue 04</span>
           <span className="hidden md:block">The Compass Field Notes</span>
           <span className="hidden md:block">Modern Software for Volunteer Units</span>
           <span className="hidden md:block">Independent · Not affiliated with BSA</span>
         </div>
 
-        <div className="grid gap-12 md:grid-cols-[1.3fr_0.7fr] items-end">
-          <h1 className="font-display font-normal leading-[0.92] tracking-[-0.035em] text-[64px] md:text-[96px] lg:text-[116px]">
-            Modern,
-            <br />
-            secure software
-            <br />
-            <span className="inline bg-sky text-white italic font-medium px-3 md:px-4 py-1">
-              for your scouting unit.
+        <div className="grid items-center gap-12 md:grid-cols-[1.15fr_0.85fr]">
+          <div className="flex flex-col gap-6">
+            <span className="inline-flex items-center gap-2 self-start rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] text-ink-2">
+              <span aria-hidden className="h-2 w-2 rounded-full bg-done" />
+              Security · ease of use · every feature you need
             </span>
-          </h1>
-          <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-ink text-white px-3 py-1.5 text-[11px] font-semibold tracking-[0.08em] mb-5">
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-sky" />
-              SECURITY · EASE OF USE · EVERY FEATURE YOU NEED
-            </span>
-            <p className="text-slate-soft text-[17px] leading-[1.55] mb-6">
+            <h1 className="text-[44px] font-semibold leading-[1.02] tracking-[-0.035em] md:text-[64px]">
+              Modern, secure software{" "}
+              <span className="text-muted">for your scouting unit.</span>
+            </h1>
+            <p className="max-w-[540px] text-[19px] leading-[1.55] text-ink-2">
               A calendar, public site, photo library, and parent app — designed
               for the volunteer leaders who keep things running. Sign in with
               Google or Apple, encrypted by default, and built to play nicely
               with Scouting.org and Scoutbook.
             </p>
             <div className="flex flex-wrap gap-3">
-              <Link href="/start" className="btn-primary text-base px-5 py-3">
+              <Link href="/start" className="btn-primary min-h-[48px] px-5 text-[15px]">
                 Start your free month →
               </Link>
-              <Link href="/plans" className="btn-secondary text-base px-5 py-3">
+              <Link href="/plans" className="btn-secondary min-h-[48px] px-5 text-[15px]">
                 See every feature
               </Link>
             </div>
           </div>
+          <div className="aspect-[5/4]">
+            <PhotoPlaceholder label="Troop meeting" />
+          </div>
         </div>
 
-        {/* Hero photo strip — colored top borders matching the design */}
-        <div className="mt-12 grid gap-2 md:grid-cols-[2fr_1fr_1fr] h-[260px] md:h-[360px]">
-          <div className="border-t-[5px] border-sky overflow-hidden rounded-md">
-            <PhotoTile tone="#0891b2" label="Canoe trip" />
-          </div>
-          <div className="border-t-[5px] border-sky overflow-hidden rounded-md">
-            <PhotoTile tone="#1d4ed8" label="Troop meeting" />
-          </div>
-          <div className="border-t-[5px] border-plum overflow-hidden rounded-md">
-            <PhotoTile tone="#f59e0b" label="Campfire" />
-          </div>
-        </div>
       </section>
 
-      {/* Stats strip — dark slate band with spectrum top-borders */}
-      <section className="bg-surface-dark text-white">
-        <div className="mx-auto max-w-content px-6 py-12 grid gap-6 md:grid-cols-4">
+      {/* Stats strip */}
+      <section className="mx-auto max-w-content px-6">
+        <div className="grid gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 md:grid-cols-4">
           {STATS.map((s) => (
-            <div
-              key={s.n}
-              className="pt-5 border-t-[3px]"
-              style={{ borderColor: s.c }}
-            >
-              <div className="font-display text-[44px] md:text-[56px] font-normal leading-none tracking-[-0.025em]">
+            <div key={s.n} className="flex flex-col gap-1.5 bg-surface p-6">
+              <div className="text-[32px] font-semibold leading-none tracking-[-0.025em] md:text-[40px]">
                 {s.n}
               </div>
-              <div className="mt-2 text-xs uppercase tracking-[0.04em] text-white/70">
-                {s.l}
-              </div>
+              <div className="text-[13px] text-muted">{s.l}</div>
             </div>
           ))}
         </div>
@@ -157,63 +112,45 @@ export default function MarketingHome() {
       {/* Features — editorial blocks alternating image/text */}
       <section className="mx-auto max-w-content px-6 py-20">
         <div className="mb-12">
-          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
+          <div className="eyebrow mb-3">
             § The Product
           </div>
-          <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-3xl">
+          <h2 className="text-[32px] md:text-[44px] font-semibold leading-[1.05] tracking-[-0.03em] max-w-3xl">
             Built around the four things{" "}
-            <em className="text-sky font-normal">volunteers actually need.</em>
+            <span className="text-muted">volunteers actually need.</span>
           </h2>
         </div>
 
-        {FEATURES.map((f, i) => {
-          const reversed = i % 2 === 1;
-          return (
-            <div
-              key={f.num}
-              className={`grid gap-10 items-center py-10 border-t-2 border-ink ${
-                reversed ? "md:grid-cols-[1.3fr_1fr]" : "md:grid-cols-[1fr_1.3fr]"
-              }`}
-            >
-              <div
-                className={`relative h-[260px] md:h-[360px] rounded-md overflow-hidden ${
-                  reversed ? "md:order-2" : ""
-                }`}
-              >
-                <PhotoTile tone={f.accent} label={f.kw} />
-                <span
-                  className="absolute top-4 left-4 text-[11px] font-bold tracking-[0.12em] uppercase rounded-sm px-2.5 py-1 text-white"
-                  style={{ background: f.accent }}
-                >
+        <div className="grid gap-4 md:grid-cols-2">
+          {FEATURES.map((f) => (
+            <article key={f.num} className="flex flex-col gap-5 rounded-xl border border-line bg-surface p-6">
+              <div className="h-[200px]">
+                <PhotoPlaceholder label={f.kw} />
+              </div>
+              <div className="flex items-baseline gap-3">
+                <span className="font-mono text-[12px] font-medium text-muted">{f.num}</span>
+                <span className="rounded-md bg-accent-soft px-2 py-0.5 text-xs font-medium text-accent-soft-text">
                   {f.kw}
                 </span>
               </div>
-              <div className={reversed ? "md:order-1" : ""}>
-                <div
-                  className="font-display italic text-[64px] md:text-[88px] font-normal leading-[0.9] tracking-[-0.03em] mb-4"
-                  style={{ color: f.accent }}
-                >
-                  {f.num}
-                </div>
-                <h3 className="font-display text-[28px] md:text-[40px] font-normal leading-[1.1] tracking-[-0.02em] mb-4">
-                  {f.title}
-                </h3>
-                <p className="text-slate-soft text-base leading-relaxed">{f.body}</p>
-              </div>
-            </div>
-          );
-        })}
+              <h3 className="text-[22px] font-semibold leading-[1.2] tracking-[-0.02em] md:text-[26px]">
+                {f.title}
+              </h3>
+              <p className="text-[15px] leading-relaxed text-ink-2">{f.body}</p>
+            </article>
+          ))}
+        </div>
       </section>
 
       {/* Migration band */}
-      <section className="border-y-2 border-ink bg-surface-alt">
+      <section className="border-y border-line bg-surface">
         <div className="mx-auto max-w-content px-6 py-16 grid gap-12 md:grid-cols-[1fr_1.4fr] items-center">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
+            <div className="eyebrow mb-3">
               § Migration
             </div>
-            <h3 className="font-display text-[32px] md:text-[44px] font-normal leading-[1.05] tracking-[-0.025em] mb-4">
-              Bring your <em className="text-sky font-normal">18 years</em> of troop
+            <h3 className="text-[28px] md:text-[36px] font-semibold leading-[1.1] tracking-[-0.03em] mb-4">
+              Bring your <span className="text-muted">18 years</span> of troop
               history with you.
             </h3>
             <p className="text-slate-soft text-[15px] leading-relaxed">
@@ -227,9 +164,9 @@ export default function MarketingHome() {
             {IMPORT_SOURCES.map((src) => (
               <div
                 key={src}
-                className="bg-surface-alt border border-line rounded-md px-4 py-3 text-[13px] font-medium flex items-center gap-2.5"
+                className="bg-surface border border-line rounded-md px-4 py-3 text-[13px] font-medium flex items-center gap-2.5"
               >
-                <span aria-hidden className="h-2 w-2 rounded-full bg-sky shrink-0" />
+                <span aria-hidden className="h-2 w-2 rounded-full bg-accent shrink-0" />
                 {src}
               </div>
             ))}
@@ -240,27 +177,27 @@ export default function MarketingHome() {
       {/* Pricing — one plan, paid yearly or monthly (lib/billing/pricing.ts) */}
       <section className="mx-auto max-w-content px-6 py-20">
         <div className="mb-12">
-          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
+          <div className="eyebrow mb-3">
             § Pricing
           </div>
-          <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-4xl">
+          <h2 className="text-[32px] md:text-[44px] font-semibold leading-[1.05] tracking-[-0.03em] max-w-4xl">
             One price per unit — pack, troop, crew, ship, or post.{" "}
-            <em className="text-sky font-normal">No per-scout</em> fees, ever.
+            <span className="text-muted">No per-scout</span> fees, ever.
           </h2>
         </div>
 
         <div className="grid gap-4 md:grid-cols-[1fr_1.4fr]">
-          <div className="rounded-xl border-2 border-line bg-surface-alt p-8 flex flex-col">
-            <div className="font-display italic text-[24px] text-sky mb-2">Every unit</div>
+          <div className="rounded-xl border border-line bg-surface p-8 flex flex-col">
+            <div className="text-lg font-semibold mb-4">Every unit</div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
+                <div className="text-[48px] font-semibold leading-none tracking-[-0.035em]">
                   {PRICES.year.short}
                 </div>
                 <div className="text-xs text-slate-muted mt-1">per year · saves ${YEARLY_SAVINGS_USD}</div>
               </div>
               <div>
-                <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
+                <div className="text-[48px] font-semibold leading-none tracking-[-0.035em]">
                   {PRICES.month.short}
                 </div>
                 <div className="text-xs text-slate-muted mt-1">per month</div>
@@ -275,8 +212,8 @@ export default function MarketingHome() {
             </Link>
           </div>
 
-          <div className="rounded-xl border-2 border-ink bg-surface-dark text-white p-8">
-            <div className="font-display italic text-[24px] text-sky mb-2">Everything included</div>
+          <div className="rounded-xl bg-ink text-white p-8">
+            <div className="text-lg font-semibold mb-4">Everything included</div>
             <ul className="grid gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
               {[
                 "Public website + custom subdomain",
@@ -292,8 +229,8 @@ export default function MarketingHome() {
                 "Each scout's path to Eagle (Lantern)",
                 "White-glove migration from your old site",
               ].map((f) => (
-                <li key={f} className="flex gap-2.5 leading-snug text-white/90">
-                  <span className="text-sky font-bold shrink-0">✓</span>
+                <li key={f} className="flex gap-2.5 leading-snug text-white">
+                  <span className="text-on-ink-muted font-semibold shrink-0">✓</span>
                   {f}
                 </li>
               ))}
@@ -307,18 +244,18 @@ export default function MarketingHome() {
         </p>
       </section>
 
-      {/* Old vs new — comparison band on dark forest */}
-      <section className="bg-surface-dark text-white">
-        <div className="mx-auto max-w-content px-6 py-20">
+      {/* Old vs new: the comparison panel */}
+      <section className="mx-auto max-w-content px-6"><div className="rounded-2xl bg-ink text-white">
+        <div className="mx-auto max-w-content px-6 py-14 md:px-12">
           <div className="mb-10">
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
+            <div className="eyebrow mb-3 !text-on-ink-muted">
               § The status quo
             </div>
-            <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-3xl">
+            <h2 className="text-[32px] md:text-[44px] font-semibold leading-[1.05] tracking-[-0.03em] max-w-3xl">
               The site your families see{" "}
-              <em className="text-sky font-normal">is your front door.</em>
+              <span className="text-on-ink-muted">is your front door.</span>
             </h2>
-            <p className="mt-5 max-w-2xl text-base leading-[1.6] text-white/75">
+            <p className="mt-5 max-w-2xl text-base leading-[1.6] text-on-ink-muted">
               Recruiting families compare your unit to the soccer club, the Y, the
               music school. If your homepage looks like a 2008 phpBB install,
               you&apos;re losing scouts before the first parent night.
@@ -329,8 +266,8 @@ export default function MarketingHome() {
             {/* OLD — TroopWebHost-style */}
             <div>
               <div className="mb-3 flex items-center gap-2">
-                <span aria-hidden className="h-2 w-2 rounded-full bg-red-500" />
-                <span className="text-xs font-semibold uppercase tracking-[0.1em] text-white/55">
+                <span aria-hidden className="h-2 w-2 rounded-full bg-danger" />
+                <span className="eyebrow !text-on-ink-muted">
                   Today · Old hosting platform
                 </span>
               </div>
@@ -432,7 +369,7 @@ export default function MarketingHome() {
                 </div>
               </div>
               <p className="mt-3 text-xs leading-relaxed text-white/70">
-                <span className="font-bold text-red-500">●</span> Broken on
+                <span className="font-bold text-danger">●</span> Broken on
                 phones. No HTTPS-only enforcement. Tables for layout. Member
                 roster behind a single shared password. Photos uploaded to a
                 public Google Drive folder.
@@ -442,8 +379,8 @@ export default function MarketingHome() {
             {/* NEW — Compass */}
             <div>
               <div className="mb-3 flex items-center gap-2">
-                <span aria-hidden className="h-2 w-2 rounded-full bg-sky" />
-                <span className="text-xs font-semibold uppercase tracking-[0.1em] text-sky">
+                <span aria-hidden className="h-2 w-2 rounded-full bg-done" />
+                <span className="eyebrow !text-on-ink-muted">
                   Compass · next Tuesday
                 </span>
               </div>
@@ -458,7 +395,7 @@ export default function MarketingHome() {
                 </div>
                 <div className="min-h-[280px] bg-bg p-4">
                   <div className="mb-3.5 flex items-center justify-between">
-                    <div className="font-display text-[16px] font-medium">
+                    <div className="font-display text-[16px] font-semibold">
                       Troop 12 ·{" "}
                       <span className="italic text-slate-soft">Anytown</span>
                     </div>
@@ -477,7 +414,7 @@ export default function MarketingHome() {
                     <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.14em] text-sky">
                       This Friday
                     </div>
-                    <div className="mb-1.5 font-display text-[20px] font-normal leading-tight">
+                    <div className="mb-1.5 font-display text-[20px] font-semibold leading-tight">
                       Spring Campout —
                       <br />
                       Birch Lake State Park
@@ -525,24 +462,24 @@ export default function MarketingHome() {
             </div>
           </div>
         </div>
-      </section>
+      </div></section>
 
       {/* CTA */}
       <section className="mx-auto max-w-content px-6 py-24 text-center">
-        <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sky text-white text-[11px] font-bold tracking-[0.14em] uppercase mb-6">
+        <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-soft text-accent-soft-text text-[13px] font-medium mb-6">
           First month free
         </span>
-        <h2 className="font-display text-[44px] md:text-[72px] font-normal leading-[0.98] tracking-[-0.03em] max-w-3xl mx-auto mb-8">
+        <h2 className="text-[36px] md:text-[52px] font-semibold leading-[1.05] tracking-[-0.035em] max-w-3xl mx-auto mb-8">
           Set up your troop&apos;s home base{" "}
-          <em className="text-sky font-normal">before next week&apos;s meeting.</em>
+          <span className="text-muted">before next week&apos;s meeting.</span>
         </h2>
         <div className="flex flex-wrap gap-3 justify-center mb-6">
-          <Link href="/start" className="btn-primary text-[15px] px-7 py-4 rounded-full">
+          <Link href="/start" className="btn-primary min-h-[48px] px-6 text-[15px]">
             Start free trial →
           </Link>
           <Link
             href={`mailto:${supportEmail()}`}
-            className="btn-secondary text-[15px] px-7 py-4 rounded-full"
+            className="btn-secondary min-h-[48px] px-6 text-[15px]"
           >
             Talk to a person
           </Link>

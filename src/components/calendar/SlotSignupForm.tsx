@@ -61,15 +61,15 @@ export function SlotSignupForm({ orgSlug, slotId, signedIn, csrf, full, allowWai
       </button>
 
       {state?.error && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-xs text-danger">
           {state.error}
         </p>
       )}
       {state?.ok && state.waitlisted && (
-        <p className="text-xs text-amber-700">Added to the waitlist — we'll auto-promote when a spot opens.</p>
+        <p className="text-xs text-attention-text">Added to the waitlist — we'll auto-promote when a spot opens.</p>
       )}
       {state?.ok && !state.waitlisted && (
-        <p className="text-xs text-emerald-700">Signed up — thanks!</p>
+        <p className="text-xs text-done-text">Signed up — thanks!</p>
       )}
     </form>
   );

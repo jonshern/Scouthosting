@@ -1,19 +1,17 @@
-// Admin overview. Mirrors AdminBalanced from
-// design_handoff_compass/designs/admin-pages.jsx — dark slate hero
-// band with day-of-week display, four color-top-border stat cards,
-// "What's coming up" events list with RSVP progress bars, and a
-// "Recent activity" feed.
+// Admin overview (Modern Clean, Admin board): the day and a greeting
+// with the two main actions, a joined stat strip, then "What's coming
+// up" with RSVP bars beside "The last few hours" of activity.
 
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAdminPage } from "@/lib/admin/guard";
 
-const SECONDARY = {
-  sky: "var(--accent)", // #1d4ed8
-  ember: "var(--ember)", // #f59e0b
-  teal: "var(--teal)", // #0891b2
-  plum: "var(--plum)", // #475569
+// Icon wells in the activity feed: a soft fill with matching text.
+const WELL = {
+  accent: "bg-accent-soft text-accent-soft-text",
+  attention: "bg-attention-soft text-attention-text",
+  neutral: "bg-sunk text-ink-2",
 } as const;
 
 function dayOfWeek(d: Date): string {
@@ -119,16 +117,16 @@ export default async function AdminOverview({
   ]);
 
   const stats = [
-    { label: "Members", value: activeMembersCount, hint: "active in roster", color: SECONDARY.sky },
-    { label: "Upcoming", value: upcomingEventsCount, hint: "events scheduled", color: SECONDARY.ember },
-    { label: "Posts", value: org._count.announcements, hint: "announcements published", color: SECONDARY.teal },
-    { label: "Photos", value: photoCount, hint: "in galleries", color: SECONDARY.plum },
+    { label: "Members", value: activeMembersCount, hint: "active in roster" },
+    { label: "Upcoming", value: upcomingEventsCount, hint: "events scheduled" },
+    { label: "Posts", value: org._count.announcements, hint: "announcements published" },
+    { label: "Photos", value: photoCount, hint: "in galleries" },
   ];
 
   const vaultOk = !!org.encryptedDek;
 
   // Build a unified activity feed.
-  type Activity = { who: string; what: string; when: Date; icon: "mail" | "image" | "user"; color: string };
+  type Activity = { who: string; what: string; when: Date; icon: "mail" | "image" | "user"; tone: string };
   const activity: Activity[] = [];
   for (const p of recentPosts) {
     activity.push({
@@ -136,7 +134,7 @@ export default async function AdminOverview({
       what: `posted "${p.title}"`,
       when: p.createdAt,
       icon: "mail",
-      color: SECONDARY.sky,
+      tone: WELL.accent,
     });
   }
   for (const ph of recentPhotos) {
@@ -145,7 +143,7 @@ export default async function AdminOverview({
       what: `uploaded a photo${ph.album?.title ? ` to ${ph.album.title}` : ""}`,
       when: ph.createdAt,
       icon: "image",
-      color: SECONDARY.plum,
+      tone: WELL.neutral,
     });
   }
   for (const m of recentMembers) {
@@ -154,52 +152,63 @@ export default async function AdminOverview({
       what: "added a new member",
       when: m.createdAt,
       icon: "user",
-      color: SECONDARY.teal,
+      tone: WELL.attention,
     });
   }
   activity.sort((a, b) => b.when.getTime() - a.when.getTime());
   const feed = activity.slice(0, 8);
 
+  const today = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+
   return (
-    <section>
-      {/* Hero band */}
-      <div className="relative overflow-hidden rounded-2xl bg-surface-dark px-9 py-8 text-white">
-        <span className="inline-flex items-center rounded-full bg-sky px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white">
-          {(org.unitType ?? "Org")} {org.unitNumber ?? ""} · This week
-        </span>
-        <h1 className="mt-4 font-display text-5xl font-normal leading-[0.95] tracking-[-0.03em]">
-          {dayOfWeek(now)}
-          <span className="italic text-sky">, {partOfDay(now)}.</span>
-        </h1>
-        <p className="mt-3 max-w-xl text-sm text-white/70">
-          {upcomingEventsCount > 0
-            ? `${upcomingEventsCount} upcoming event${upcomingEventsCount === 1 ? "" : "s"} · ${activeMembersCount} member${activeMembersCount === 1 ? "" : "s"} on roster`
-            : "No upcoming events scheduled — add one to get started."}
-        </p>
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link
-            href={`/o/${slug}/admin/announcements`}
-            className="inline-flex items-center rounded-full border border-white/30 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/10"
-          >
+    <section className="flex flex-col gap-8">
+      {/* Greeting and actions */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-sm text-muted">
+            {(org.unitType ?? "Org")} {org.unitNumber ?? ""} · This week · {today}
+          </span>
+          <h1 className="text-[32px] font-semibold leading-tight tracking-[-0.03em] md:text-[36px]">
+            {dayOfWeek(now)}
+            <span className="text-muted">, {partOfDay(now)}.</span>
+          </h1>
+          <p className="text-[15px] text-ink-2">
+            {upcomingEventsCount > 0
+              ? `${upcomingEventsCount} upcoming event${upcomingEventsCount === 1 ? "" : "s"} · ${activeMembersCount} member${activeMembersCount === 1 ? "" : "s"} on roster`
+              : "No upcoming events scheduled — add one to get started."}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2.5">
+          <Link href={`/o/${slug}/admin/announcements`} className="btn-secondary no-underline">
             Send announcement
           </Link>
-          <Link
-            href={`/o/${slug}/admin/events/new`}
-            className="inline-flex items-center rounded-full bg-sky px-5 py-2 text-sm font-semibold text-white transition-colors hover:bg-sky/90"
-          >
+          <Link href={`/o/${slug}/admin/events/new`} className="btn-primary no-underline">
             + New event
           </Link>
         </div>
       </div>
 
-      {/* Encryption status banner */}
+      {/* Stats: one joined strip */}
+      <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+        {stats.map((s) => (
+          <div key={s.label} className="flex flex-col gap-1.5 bg-surface p-5">
+            <div className="text-[13px] text-muted">{s.label}</div>
+            <div className="text-[30px] font-semibold leading-none tracking-[-0.02em] text-ink">
+              {s.value}
+            </div>
+            <div className="text-[13px] text-muted">{s.hint}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Encryption status */}
       <Link
         href={`/o/${slug}/admin/security`}
         className={
-          "mt-6 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs " +
+          "inline-flex items-center gap-2 self-start rounded-full px-3 py-1.5 text-xs font-medium no-underline " +
           (vaultOk
-            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-            : "border-amber-200 bg-amber-50 text-amber-800")
+            ? "bg-done-soft text-done-text hover:text-done-text"
+            : "bg-attention-soft text-attention-text hover:text-attention-text")
         }
       >
         <span aria-hidden>{vaultOk ? "🔒" : "⚠"}</span>
@@ -209,132 +218,87 @@ export default async function AdminOverview({
           : "not provisioned"}
       </Link>
 
-      {/* Stats — 4-up, color-top-border */}
-      <div className="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {stats.map((s) => (
-          <div
-            key={s.label}
-            className="rounded-lg border border-line bg-white p-6"
-            style={{ borderTop: `4px solid ${s.color}` }}
-          >
-            <div
-              className="mb-2 text-[11px] font-bold uppercase tracking-[0.08em]"
-              style={{ color: s.color }}
-            >
-              {s.label}
+      {/* Body: events + activity */}
+      <div className="flex flex-wrap items-start gap-6">
+        <section className="min-w-0 flex-[999_1_560px] rounded-xl border border-line bg-surface">
+          <div className="flex items-center justify-between border-b border-divider px-6 py-5">
+            <div>
+              <div className="eyebrow mb-1">§ Calendar</div>
+              <h2 className="text-[17px] font-semibold tracking-[-0.01em]">What&apos;s coming up.</h2>
             </div>
-            <div className="font-display text-5xl font-normal leading-none tracking-[-0.025em] text-slate-ink">
-              {s.value}
-            </div>
-            <div className="mt-2.5 text-xs text-slate-soft">{s.hint}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Body grid: events + activity */}
-      <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1.5fr_1fr]">
-        <div>
-          <div className="mb-1.5 font-display text-xs italic text-sky">§ Calendar</div>
-          <div className="mb-5 flex items-baseline justify-between">
-            <h2 className="font-display text-3xl font-normal tracking-[-0.015em]">
-              What&apos;s coming up.
-            </h2>
-            <Link
-              href={`/o/${slug}/admin/events`}
-              className="text-xs font-medium text-sky hover:text-slate-ink"
-            >
+            <Link href={`/o/${slug}/admin/events`} className="text-[13px] font-medium no-underline">
               All events →
             </Link>
           </div>
           {upcomingEvents.length === 0 ? (
-            <p className="text-sm text-slate-muted">
-              No upcoming events.{" "}
-              <Link href={`/o/${slug}/admin/events/new`} className="text-sky hover:text-slate-ink">
-                Add one
-              </Link>
-              .
+            <p className="px-6 py-5 text-sm text-muted">
+              No upcoming events. <Link href={`/o/${slug}/admin/events/new`}>Add one</Link>.
             </p>
           ) : (
-            upcomingEvents.map((e, i) => {
-              const accent = [SECONDARY.sky, SECONDARY.ember, SECONDARY.teal, SECONDARY.plum][i % 4]!;
-              return (
-                <Link
-                  key={e.id}
-                  href={`/o/${slug}/admin/events/${e.id}`}
-                  className="grid grid-cols-[90px_1fr_180px] items-center gap-5 border-t-2 py-5 transition-colors hover:bg-line-soft/40"
-                  style={{ borderTopColor: accent }}
-                >
-                  <div
-                    className="font-display text-2xl font-medium italic"
-                    style={{ color: accent }}
-                  >
-                    {shortDate(e.startsAt)}
-                  </div>
-                  <div>
-                    <div className="text-base font-semibold text-slate-ink">{e.title}</div>
-                    <div className="mt-0.5 text-xs text-slate-soft">
-                      {dayName(e.startsAt)} · {timeOfDay(e.startsAt)}
-                      {e.location ? ` · ${e.location}` : ""}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="mb-1.5 text-xs text-slate-soft">
-                      {e._count.rsvps} RSVP{e._count.rsvps === 1 ? "" : "s"}
-                    </div>
-                    <div className="h-1.5 overflow-hidden rounded-sm bg-line-soft">
-                      <div
-                        className="h-full"
-                        style={{
-                          background: accent,
-                          width: `${Math.min(
-                            100,
-                            (e._count.rsvps / Math.max(activeMembersCount, 1)) * 100,
-                          )}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                </Link>
-              );
-            })
-          )}
-        </div>
-
-        <div>
-          <div className="mb-1.5 font-display text-xs italic text-sky">§ Activity</div>
-          <h2 className="mb-5 font-display text-3xl font-normal tracking-[-0.015em]">
-            The last few hours.
-          </h2>
-          {feed.length === 0 ? (
-            <p className="text-sm text-slate-muted">No recent activity.</p>
-          ) : (
-            feed.map((a, i) => (
-              <div
-                key={i}
-                className={
-                  "flex items-start gap-3.5 py-3 " +
-                  (i > 0 ? "border-t border-line-soft" : "border-t border-line")
-                }
+            upcomingEvents.map((e) => (
+              <Link
+                key={e.id}
+                href={`/o/${slug}/admin/events/${e.id}`}
+                className="grid grid-cols-[64px_1fr] items-center gap-4 border-b border-divider px-6 py-4 text-ink no-underline transition-colors last:border-b-0 hover:bg-bg hover:text-ink sm:grid-cols-[64px_1fr_160px]"
               >
-                <div
-                  className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-full text-white"
-                  style={{ background: a.color }}
-                >
-                  <ActivityIcon icon={a.icon} />
+                <div className="flex h-14 w-14 flex-col items-center justify-center rounded-lg bg-sunk">
+                  <span className="font-mono text-[11px] uppercase text-muted">{dayName(e.startsAt)}</span>
+                  <span className="text-[15px] font-semibold leading-tight">{shortDate(e.startsAt)}</span>
                 </div>
-                <div className="flex-1">
-                  <div className="text-sm">
-                    <span className="font-semibold">{a.who}</span>{" "}
-                    <span className="text-slate-soft">{a.what}</span>
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-slate-muted">
-                    {relativeTime(a.when, now)}
+                <div className="min-w-0">
+                  <div className="truncate text-[15px] font-medium">{e.title}</div>
+                  <div className="mt-0.5 text-[13px] text-muted">
+                    {timeOfDay(e.startsAt)}
+                    {e.location ? ` · ${e.location}` : ""}
                   </div>
                 </div>
-              </div>
+                <div className="col-span-2 sm:col-span-1">
+                  <div className="mb-1.5 text-[13px] text-muted">
+                    {e._count.rsvps} RSVP{e._count.rsvps === 1 ? "" : "s"}
+                  </div>
+                  <div className="h-1.5 overflow-hidden rounded-full bg-line">
+                    <div
+                      className="h-full rounded-full bg-accent"
+                      style={{
+                        width: `${Math.min(
+                          100,
+                          (e._count.rsvps / Math.max(activeMembersCount, 1)) * 100,
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              </Link>
             ))
           )}
-        </div>
+        </section>
+
+        <section className="min-w-0 flex-[1_1_340px] rounded-xl border border-line bg-surface">
+          <div className="border-b border-divider px-6 py-5">
+            <div className="eyebrow mb-1">§ Activity</div>
+            <h2 className="text-[17px] font-semibold tracking-[-0.01em]">The last few hours.</h2>
+          </div>
+          {feed.length === 0 ? (
+            <p className="px-6 py-5 text-sm text-muted">No recent activity.</p>
+          ) : (
+            <div className="flex flex-col px-3 py-2">
+              {feed.map((a, i) => (
+                <div key={i} className="flex items-start gap-3.5 rounded-lg p-3">
+                  <div className={`grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] ${a.tone}`}>
+                    <ActivityIcon icon={a.icon} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-sm">
+                      <span className="font-medium">{a.who}</span>{" "}
+                      <span className="text-ink-2">{a.what}</span>
+                    </div>
+                    <div className="mt-0.5 text-[13px] text-muted">{relativeTime(a.when, now)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </section>
   );

@@ -20,7 +20,7 @@ function ErrorPage({ children }: { children: React.ReactNode }) {
   return (
     <main className="mx-auto max-w-content px-6 py-16 text-center">
       <Wordmark />
-      <h1 className="mt-8 font-display text-3xl text-ink">Link expired or invalid</h1>
+      <h1 className="mt-8 font-display font-semibold text-3xl text-ink">Link expired or invalid</h1>
       <p className="mt-3 text-sm text-slate-soft">{children}</p>
     </main>
   );
@@ -72,10 +72,10 @@ export default async function PermissionSlipSignPage({
     <main className="mx-auto max-w-2xl px-6 py-16">
       <Wordmark />
       <header className="mt-10">
-        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky">
+        <div className="eyebrow">
           § Permission slip
         </div>
-        <h1 className="mt-2 font-display text-3xl font-normal tracking-[-0.02em] text-ink">
+        <h1 className="mt-2 font-display text-3xl font-semibold tracking-[-0.02em] text-ink">
           {event.title}
         </h1>
         <p className="mt-2 text-sm text-slate-soft">
@@ -88,7 +88,7 @@ export default async function PermissionSlipSignPage({
       </header>
 
       <section className="mt-8 rounded-xl border border-line bg-surface p-6">
-        <h2 className="font-display text-lg text-ink">Consent text</h2>
+        <h2 className="font-display font-semibold text-lg text-ink">Consent text</h2>
         <p className="mt-3 text-sm leading-relaxed text-slate-soft whitespace-pre-line">
           {slipText}
         </p>
@@ -96,7 +96,7 @@ export default async function PermissionSlipSignPage({
 
       {signed ? (
         <section className="mt-8 rounded-xl border border-success/30 bg-success-soft p-6">
-          <h2 className="font-display text-lg text-success">Signed — thank you</h2>
+          <h2 className="font-display font-semibold text-lg text-success">Signed — thank you</h2>
           <p className="mt-2 text-sm text-slate-soft">
             We&rsquo;ve recorded your permission for {scoutName} to attend{" "}
             {event.title}. Your unit&rsquo;s leadership has been notified.

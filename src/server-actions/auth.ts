@@ -114,6 +114,9 @@ export async function loginAction(_prev: ActionState, formData: FormData): Promi
           `This account runs a unit and has no two-step sign-in yet, so a password isn't enough. Sign in with Google or Apple using this email, or write to ${supportEmail()}.`,
       };
     }
+    if (code === "ACCOUNT_DISABLED") {
+      return { error: `This account is turned off. Write to ${supportEmail()} if you think that's a mistake.` };
+    }
     if (code) return { error: "Invalid email or password." };
     throw e;
   }

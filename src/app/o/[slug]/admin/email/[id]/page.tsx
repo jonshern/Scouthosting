@@ -34,11 +34,11 @@ export default async function AdminEmailDetail({
         </div>
       )}
       {log.errors && (
-        <pre className="card text-xs text-red-700 bg-red-50 whitespace-pre-wrap">{log.errors}</pre>
+        <pre className="card text-xs text-danger bg-danger-soft whitespace-pre-wrap">{log.errors}</pre>
       )}
 
       <div className="card">
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-2">Body preview</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-2">Body preview</h2>
         <div
           className="prose prose-stone"
           // eslint-disable-next-line react/no-danger
@@ -47,7 +47,7 @@ export default async function AdminEmailDetail({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-2">Recipients</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-2">Recipients</h2>
         <ul className="text-sm divide-y divide-ink-muted/15">
           {recipients.map((r, i) => (
             <li key={`${r.email}-${i}`} className="py-2 flex justify-between gap-4">

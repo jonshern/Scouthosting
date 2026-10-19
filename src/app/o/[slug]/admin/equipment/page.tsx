@@ -135,7 +135,7 @@ export default async function EquipmentPage({
       </StatRow>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">
           Active loans
         </h2>
         {activeLoanRows.length === 0 ? (
@@ -143,7 +143,7 @@ export default async function EquipmentPage({
         ) : (
           <div className="overflow-hidden rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+              <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Item</th>
                   <th className="px-4 py-2 font-semibold">Borrower</th>
@@ -184,7 +184,7 @@ export default async function EquipmentPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">
           Inventory
         </h2>
         {categories.length === 0 ? (
@@ -195,7 +195,7 @@ export default async function EquipmentPage({
           <div className="space-y-6">
             {categories.map((cat) => (
               <section key={cat}>
-                <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted mb-2">
+                <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted mb-2">
                   {cat}
                 </h3>
                 <ul className="space-y-3">
@@ -236,7 +236,7 @@ export default async function EquipmentPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">
           Add equipment
         </h2>
         <EquipmentItemForm orgSlug={slug} csrf={<CsrfTokenInput />} />

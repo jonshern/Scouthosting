@@ -8,7 +8,7 @@
 
 import { prisma } from "@/lib/db";
 import { roleInOrg } from "./role";
-import { checkScope, SCOPES } from "./permissions";
+import { checkScope, positionHasScope, SCOPES } from "./permissions";
 
 export function treasuryAllowed(
   role: string | null | undefined,
@@ -37,3 +37,25 @@ export async function canManageTreasury(
 
 export const TREASURY_FORBIDDEN =
   "Only admins and the unit's treasurer can use the treasury.";
+
+// Treasury access follows the treasurer position on the roster, so giving
+// someone that position (or pointing a treasurer row at another email) is
+// the same as handing them the unit's money. Only admins may do it; a
+// leader editing the roster must not be able to make themselves treasurer.
+export function changesTreasurerAccess(
+  before: { position?: string | null; email?: string | null } | null,
+  after: { position?: string | null; email?: string | null },
+): boolean {
+  const afterPosition = after.position === undefined ? before?.position : after.position;
+  const wasTreasurer = positionHasScope(before?.position, SCOPES.TREASURER);
+  const isTreasurer = positionHasScope(afterPosition, SCOPES.TREASURER);
+  if (!wasTreasurer && !isTreasurer) return false;
+  if (!before) return isTreasurer;
+  const norm = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
+  const positionChanged = norm(before.position) !== norm(afterPosition);
+  const emailChanged = after.email !== undefined && norm(before.email) !== norm(after.email);
+  return positionChanged || emailChanged;
+}
+
+export const TREASURER_CHANGE_FORBIDDEN =
+  "Only an admin can give someone a treasurer position or change a treasurer's email.";

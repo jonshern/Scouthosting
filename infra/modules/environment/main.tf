@@ -30,8 +30,9 @@ locals {
     # Compass's rate limits trust only that one.
     CLIENT_IP_HEADER   = "x-forwarded-for"
     CLIENT_IP_XFF_HOPS = "1"
-    # Google sends people back here after sign-in; register it on the OAuth client.
-    GOOGLE_REDIRECT_URI = "https://${local.app_host}/api/auth/google/callback"
+    # Google and Apple send people back to <host>/api/auth/callback/<provider>
+    # on whichever of these hosts they started (Compass and the websites
+    # below); register each on the OAuth client (docs/sign-in-providers.md).
     # Waypoint's and Lantern's websites sign in through Compass and get the
     # token back at <origin>/signed-in; only these exact origins may.
     WEB_SIGNIN_ORIGINS = join(",", values(local.web_urls))
@@ -52,6 +53,9 @@ locals {
     AUTH_TOKEN_SECRET  = "auth-token-secret"
     PERM_SLIP_SECRET   = "perm-slip-secret"
     TASKS_TOKEN        = "tasks-token"
+    # The load balancer sends it as X-Compass-Edge (edge.tf); harmless
+    # without one.
+    CLIENT_IP_EDGE_TOKEN = "edge-token"
   }
 
   # Created with a placeholder; set the real value by hand (runbooks.md).

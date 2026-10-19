@@ -42,7 +42,9 @@ flowchart LR
 | Piece | Service | Notes |
 |---|---|---|
 | Core service | Cloud Run `core-<env>` (Node 22, port 3000, 1 GiB) | This repository's Dockerfile. Its `CMD` runs `next start` directly (the image has no npm/npx); it never migrates on boot. Scales to zero. |
-| Database | Cloud SQL Postgres 16 `core-pg` (`db-f1-micro`) | One instance for the family; `compass_staging` and `compass_prod` databases on it. Daily backups, 7-day point-in-time restore, deletion protection. |
+| Database | Cloud SQL Postgres 16 `core-pg` (`db-f1-micro`, `db-g1-small` past about 30 units) | One instance for the family; `compass_staging` and `compass_prod` databases on it. Daily backups, 7-day point-in-time restore, deletion protection. |
+| Off-instance backups | Bucket `<project>-backups` in `us-east1` (`infra/backups.tf`) | Nightly export of `compass_prod` at 02:30 Central and a copy of the prod uploads, 30 days of versions, alert if either fails. The Mac's off-site copy, in the cloud. |
+| Custom domain | Global HTTPS load balancer (`infra/modules/environment/edge.tf`) | Only when `app_domains` is set. One Google-managed certificate for the host and `*.host`, so every unit gets `<slug>.<host>`; Cloud Run's own domain mappings can't do wildcards. |
 | Migrations | Cloud Run job `core-migrate-<env>` (`scripts/migrate.sh`) | Runs with the schema owner's login before traffic moves, then grants the server's login row access only. A failed migration stops the deploy. |
 | Web apps | Firebase Hosting, sites `<prefix>-waypoint`, `<prefix>-lantern` and `<prefix>-landing` (`-staging` for staging) | Created here; Waypoint's and Lantern's repositories build and publish to them, and rewrite `/api/**` to `core-<env>` in their own `firebase.json`. `landing` is the family's one static page (bluecard `marketing/landing/`), served on the apex domain with `www` redirecting to it. |
 | Uploads | Cloud Storage (`STORAGE_DRIVER=gcs`) | Private bucket. Photo bytes are encrypted per organization before they are stored. |
@@ -89,7 +91,7 @@ Every deploy of the core service is blue-green. The live revision (blue) keeps s
 Three decisions are open and block any of this from running:
 
 1. **One GCP project for the family?** The setup assumes yes.
-2. **The domain.** Compass is `scoutingcompass.com`; Waypoint and Lantern would be subdomains or their own names (`app_domains`, `custom_domains`), and the landing page takes the apex (`custom_domains = { prod = { landing = "example.org" } }`, plus `www` added as a redirect in the Firebase console).
+2. **The domain.** Setting `app_domains = { prod = "<host>" }` adds the load balancer (~$18/month) and prints the three DNS records to add (`terraform output environments`, `edge_dns`): the host and `*.host` pointing at its address, and a CNAME that lets Google issue the certificate (usually within the hour). Compass is `scoutingcompass.com`; Waypoint and Lantern would be subdomains or their own names (`app_domains`, `custom_domains`), and the landing page takes the apex (`custom_domains = { prod = { landing = "example.org" } }`, plus `www` added as a redirect in the Firebase console).
 3. **Moving Compass to GCP.** fly.io is shut down. Compass currently runs on Jon's Mac, so there is no fly.io data to import: unless Jon exported some, the first apply generates a fresh `MASTER_KEY` and starts from an empty database (migrations, then seed if wanted). The `MASTER_KEY` encrypts every organization's roster and photos, so whichever database moves to `compass_prod` must come with the key it was written under.
 
    **Optional: importing an existing database.** If Jon has a `MASTER_KEY` (hex) and a Postgres dump to keep (from the Mac or an old fly.io export), import the key before the first apply that creates `core-prod`, or that data becomes unreadable without each organization's recovery code:
@@ -125,7 +127,7 @@ You need `gcloud`, `terraform` (1.9 or newer) and `gh`.
    gh variable set ALERT_EMAIL --body you@example.org
    ```
    If Terraform says the Firebase terms have not been accepted, add the project once at console.firebase.google.com and apply again.
-4. **Google sign-in.** Create an OAuth client with the redirect URI `https://<core host>/api/auth/google/callback`, then add `core-<env>-google-client-id` and `core-<env>-google-client-secret` with `gcloud secrets versions add`. Admins must use Google (or Apple) in production.
+4. **Google sign-in.** Create an OAuth client with the redirect URIs `https://<core host>/api/auth/callback/google` and the same path on each website in `WEB_SIGNIN_ORIGINS`, then add `core-<env>-google-client-id` and `core-<env>-google-client-secret` with `gcloud secrets versions add`. Admins must use Google (or Apple) in production. Full steps, including Apple: [sign-in-providers.md](sign-in-providers.md).
 5. **Email.** Verify the sending domain in Resend, add `core-prod-resend-api-key`, then set `mail_drivers = { prod = "resend" }` and apply. Until then mail is logged, not sent.
 6. **Billing (when you're ready to charge).** Create the Stripe account and its yearly and monthly prices, add `core-<env>-stripe-secret-key` and `core-<env>-stripe-webhook-secret`, set `stripe_prices = { prod = { yearly = "price_…", monthly = "price_…" } }` and apply ([billing.md](billing.md)). Until then trials run but nothing locks.
 7. **GitHub.** Create the `staging` and `production` environments in this repository; add yourself as a required reviewer on `production`.
@@ -139,7 +141,7 @@ Terraform sets all of these on `core-<env>` (`infra/modules/environment/main.tf`
 | Setting | Where it comes from |
 |---|---|
 | `DATABASE_URL`, `MASTER_KEY`, `BETTER_AUTH_SECRET`, `SESSION_SECRET`, `RSVP_SECRET`, `UNSUB_SECRET`, `INVITE_SECRET`, `AUTH_TOKEN_SECRET`, `PERM_SLIP_SECRET`, `TASKS_TOKEN` | Generated by Terraform into Secret Manager. `MASTER_KEY` can never change (see "Before the first apply") |
-| `APEX_HOST`, `APEX_DOMAIN`, `GOOGLE_REDIRECT_URI` | The `run.app` host, or `app_domains.<env>` once there is a domain |
+| `APEX_HOST`, `APEX_DOMAIN` | The `run.app` host, or `app_domains.<env>` once there is a domain |
 | `WEB_SIGNIN_ORIGINS` | The Waypoint, Lantern and landing Hosting URLs (or their `custom_domains`), so those sites can sign in through Compass |
 | `MCP_PUBLIC_URL` | Not set: the Claude connector defaults to `https://<APEX_HOST>`, which is right unless Compass sits behind another name ([mcp.md](mcp.md)) |
 | `CATALOG_PATH` | Not set yet: the image has no requirement catalog, so the Claude connector can't name requirements in the cloud until the catalog is bundled |
@@ -167,4 +169,4 @@ The migrate job gets the schema owner's `DATABASE_URL` and `APP_DB_ROLE` instead
 
 ## Monthly cost
 
-About $12 to $17 for the whole family at troop scale: Cloud SQL `db-f1-micro` with backups ($9.50 to $11), Cloud Run within the free tier ($0 to $2), monitoring ($1 to $2), the rest under $1. Keeping prod warm adds $12 to $15 while on. The bootstrap sets a $25 budget alert.
+About **$33** at launch with a custom domain ($15 without one), and about **$62** at 100 units ($75 with prod kept warm). The load balancer is $18 of the launch figure and the database most of the rest. Line by line, per environment, with when to resize: [`infra/COSTS.md`](../infra/COSTS.md). Email (Resend) is billed separately: free to 3,000 a month, then $20. The bootstrap sets a $50 budget alert.
