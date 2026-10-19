@@ -24,7 +24,7 @@ import {
   signUp,
   uid,
 } from "./helpers/flows";
-import { memberIdByEmail, mintPermSlipToken, orgId } from "./helpers/db";
+import { confirmEmail, memberIdByEmail, mintPermSlipToken, orgId } from "./helpers/db";
 
 test.describe("permission slips", () => {
   test.afterAll(cleanupCreatedEvents);
@@ -62,6 +62,7 @@ test.describe("permission slips", () => {
     // Youth: own account, RSVP yes.
     const scoutSide = await freshPage(browser);
     await signUp(scoutSide.page, `${youth.first} ${youth.last}`, youth.email);
+    await confirmEmail(youth.email);
     await scoutSide.page.goto(`${TENANT}/calendar`);
     await rsvpOnCalendar(scoutSide.page, eventId, "yes");
     await scoutSide.ctx.close();
@@ -84,6 +85,7 @@ test.describe("permission slips", () => {
     const parentSide = await freshPage(browser);
     const pp = parentSide.page;
     await signUp(pp, `${parent.first} ${parent.last}`, parent.email);
+    await confirmEmail(parent.email);
     // /account lives on the apex and cookies are host-scoped.
     await signIn(pp, parent.email, USER_PASSWORD, APEX);
     await pp.goto(`${APEX}/account/my-scouts`);
