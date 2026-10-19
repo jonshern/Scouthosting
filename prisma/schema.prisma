@@ -1477,6 +1477,41 @@ model ErrorResolution {
   note         String?
 }
 
+// The owner console's state for one sign-up (a new unit or account):
+// new, approved, follow_up, declined or done, with the owner's note and
+// the day to follow up by. No foreign key, so it outlives the row it
+// describes the way AuditLog does.
+model SignupReview {
+  id          String    @id @default(cuid())
+  entityType  String // "Org" | "User"
+  entityId    String
+  status      String    @default("new")
+  note        String?
+  followUpOn  DateTime?
+  updatedById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([entityType, entityId])
+  @@index([status, followUpOn])
+}
+
+// Someone the owner invited by email to try a product. The sign-ups
+// queue matches it to an account by email once they sign up.
+model OwnerInvite {
+  id          String   @id @default(cuid())
+  email       String
+  name        String?
+  product     String // "compass" | "waypoint" | "lantern"
+  note        String?
+  sendCount   Int      @default(1)
+  lastSentAt  DateTime @default(now())
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  @@index([email])
+}
+
 // Driver / carpool plan. Distinct from SignupSlot's generic
 // "Drivers / carpool" template — that captures *who can drive*. CarRide
 // captures *the actual ride*: vehicle, seats, departure plan, and the

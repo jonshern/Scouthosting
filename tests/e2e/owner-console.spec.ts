@@ -44,6 +44,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => {
   await db().billingPayment.deleteMany({ where: { stripeInvoiceId: `in_e2e_${stamp}` } });
+  if (orgId) await db().signupReview.deleteMany({ where: { entityId: orgId } });
   if (orgId) await db().org.delete({ where: { id: orgId } }).catch(() => {});
 });
 
@@ -214,6 +215,93 @@ test("a new unit waits in the sign-ups queue until it's marked done", async ({ p
   await page.getByRole("button", { name: `Done with ${name}` }).click();
   await expect(page.getByRole("status")).toContainText("Taken off the queue");
   await expect(page.getByRole("link", { name })).toHaveCount(0);
-  await page.goto(`${APEX}/super-admin/signups?all=1`);
+  await page.goto(`${APEX}/super-admin/signups?view=done`);
   await expect(page.getByRole("link", { name })).toBeVisible();
+});
+
+test("managing sign-ups: follow-up note, free access, ask to pay, decline and approve, filter by app", async ({ page }) => {
+  test.setTimeout(90_000);
+  const unitName = `Signup E2E Troop ${stamp}`;
+  const personName = `Signup Person ${stamp}`;
+  const org = await db().org.create({
+    data: {
+      slug: `signup-e2e-${stamp}`,
+      unitType: "Troop",
+      unitNumber: "8765",
+      displayName: unitName,
+      charterOrg: "Test Church",
+      city: "Anytown",
+      state: "MN",
+      scoutmasterName: "Signup Leader",
+      scoutmasterEmail: `signup-leader-${stamp}@example.invalid`,
+      trialEndsAt: new Date(Date.now() + 20 * DAY),
+    },
+  });
+  const person = await db().user.create({
+    data: { email: `signup-person-${stamp}@example.invalid`, displayName: personName },
+  });
+  const inviteEmail = `invitee-${stamp}@example.invalid`;
+  try {
+    await signInOwner(page);
+    await page.goto(`${APEX}/super-admin/signups`);
+    const unitRow = page.getByRole("listitem", { name: unitName });
+    await expect(unitRow.locator("span").getByText("New", { exact: true })).toBeVisible();
+
+    // Follow up in three days, with a note.
+    await unitRow.getByText("Manage").click();
+    await unitRow.getByLabel("Status").selectOption("follow_up");
+    const by = new Date(Date.now() + 3 * DAY).toISOString().slice(0, 10);
+    await unitRow.getByLabel("Follow up by").fill(by);
+    await unitRow.getByLabel("Note").fill("Wants a call about patrols");
+    await unitRow.getByRole("button", { name: "Save" }).click();
+    await expect(page.getByRole("status")).toContainText(`Saved ${unitName}`);
+    await expect(unitRow.locator("span").getByText("Follow up", { exact: true })).toBeVisible();
+    await expect(unitRow).toContainText("Wants a call about patrols");
+
+    // Ask to pick a plan (an email, no charge), then give free access instead.
+    await unitRow.getByText("Manage").click();
+    await unitRow.getByRole("button", { name: "Ask to pick a plan" }).click();
+    await expect(page.getByRole("status")).toContainText(`Asked signup-leader-${stamp}@example.invalid to pick a plan`);
+    await unitRow.getByText("Manage").click();
+    await unitRow.getByRole("button", { name: "Give free access" }).click();
+    await expect(page.getByRole("status")).toContainText(`${unitName} is free until`);
+    await expect(unitRow.locator("span").getByText("Free access", { exact: true })).toBeVisible();
+
+    // The unit is Compass, so the Lantern filter hides it.
+    await page.goto(`${APEX}/super-admin/signups?view=all&product=lantern`);
+    await expect(page.getByRole("link", { name: unitName })).toHaveCount(0);
+    await page.goto(`${APEX}/super-admin/signups?view=all&product=compass`);
+    await expect(page.getByRole("link", { name: unitName })).toBeVisible();
+
+    // Decline the account: it's turned off; approving turns it back on.
+    await page.goto(`${APEX}/super-admin/signups`);
+    const personRow = page.getByRole("listitem", { name: personName });
+    await expect(personRow.getByText("email not confirmed")).toBeVisible();
+    await personRow.getByText("Manage").click();
+    await personRow.getByLabel("Decline reason").fill("Spam sign-up");
+    await personRow.getByRole("button", { name: "Decline and turn off" }).click();
+    await expect(page.getByRole("status")).toContainText(`Declined signup-person-${stamp}@example.invalid`);
+    await expect(page.getByRole("link", { name: personName })).toHaveCount(0);
+    expect((await db().user.findUniqueOrThrow({ where: { id: person.id } })).disabledAt).not.toBeNull();
+    await page.goto(`${APEX}/super-admin/signups?view=declined`);
+    await page.getByRole("button", { name: `Approve ${personName}` }).click();
+    await expect(page.getByRole("status")).toContainText("turned it back on");
+    expect((await db().user.findUniqueOrThrow({ where: { id: person.id } })).disabledAt).toBeNull();
+
+    // Invite someone, and the resend guard.
+    await page.getByLabel("Invite email").fill(inviteEmail);
+    await page.getByLabel("Invite to").selectOption("waypoint");
+    await page.getByRole("button", { name: "Send invite" }).click();
+    await expect(page.getByRole("status")).toContainText(`Invited ${inviteEmail}`);
+    await page.getByRole("button", { name: `Resend invite to ${inviteEmail}` }).click();
+    await expect(page.getByRole("status")).toContainText("under a minute ago");
+
+    await page.goto(`${APEX}/super-admin/audit`);
+    await expect(page.getByText("signup.decline").first()).toBeVisible();
+  } finally {
+    await db().signupReview.deleteMany({ where: { entityId: { in: [org.id, person.id] } } });
+    await db().ownerInvite.deleteMany({ where: { email: inviteEmail } });
+    await db().org.delete({ where: { id: org.id } }).catch(() => {});
+    await db().user.delete({ where: { id: person.id } }).catch(() => {});
+  }
 });
