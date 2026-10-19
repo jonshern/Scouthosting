@@ -13,6 +13,7 @@ import {
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 import { verifyMfaCodeForUser } from "@/lib/auth/mfa-verify";
+import { rateLimit } from "@/lib/security/rate-limit";
 import { accountStanding, mfaLocked } from "@/lib/auth/requirements";
 import { DEMO_LOCKED_MESSAGE, isDemoMode } from "@/lib/demo/mode";
 
@@ -139,6 +140,17 @@ export async function confirmMfa(_prev: MfaState, formData: FormData): Promise<M
   return { ok: true };
 }
 
+// A signed-in session can ask for a code check here over and over, and
+// Better Auth's limiter only covers its HTTP endpoints. Without a cap, a
+// stolen session could guess its way to fresh backup codes.
+const STEP_UP_LIMIT = 5;
+const STEP_UP_WINDOW_MS = 15 * 60_000;
+const TOO_MANY = "Too many codes tried. Wait 15 minutes and try again.";
+
+async function stepUpAllowed(userId: string): Promise<boolean> {
+  return (await rateLimit(`mfa-step-up:${userId}`, STEP_UP_LIMIT, STEP_UP_WINDOW_MS)).ok;
+}
+
 export async function verifyMfa(_prev: MfaState, formData: FormData): Promise<MfaState> {
   const fail = await preFlight(formData);
   if (fail) return fail;
@@ -146,6 +158,7 @@ export async function verifyMfa(_prev: MfaState, formData: FormData): Promise<Mf
   if (!user) return { error: "Not signed in." };
   const code = String(formData.get("code") ?? "").trim();
   if (!code) return { error: "Enter your 6-digit code or a backup code." };
+  if (!(await stepUpAllowed(user.id))) return { error: TOO_MANY };
   const ok = await verifyMfaCodeForUser(user.id, code);
   return ok ? { ok: true } : { error: "That code is invalid." };
 }
@@ -166,6 +179,7 @@ export async function disableMfa(_prev: MfaState, formData: FormData): Promise<M
   if (mfaLocked(await accountStanding(user.id))) {
     return { error: "Leaders and admins must keep two-step sign-in on. Add a passkey first if you want to turn off the authenticator app." };
   }
+  if (!(await stepUpAllowed(user.id))) return { error: TOO_MANY };
   const ok = await verifyMfaCodeForUser(user.id, code);
   if (!ok) return { error: "That code is invalid." };
   await prisma.$transaction([
@@ -199,6 +213,7 @@ export async function regenerateBackupCodes(formData: FormData): Promise<Regener
   });
   if (!dbUser) return { ok: false, error: "Not signed in." };
   if (!dbUser.totpEnrolledAt) return { ok: false, error: "MFA is not enabled." };
+  if (!(await stepUpAllowed(user.id))) return { ok: false, error: TOO_MANY };
   const ok = await verifyMfaCodeForUser(user.id, code);
   if (!ok) return { ok: false, error: "That code is invalid." };
   const { plaintext, hashes } = await generateBackupCodes(10);
