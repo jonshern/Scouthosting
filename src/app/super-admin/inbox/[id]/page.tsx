@@ -52,7 +52,7 @@ export default async function OwnerInboxItemPage({
           ← Inbox
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-display font-semibold text-3xl">{t.subject}</h2>
+          <h2 className="text-[32px] font-semibold leading-tight tracking-[-0.03em]">{t.subject}</h2>
           <Pill tone={t.status === "closed" ? "muted" : t.status === "answered" ? "good" : "warn"}>{t.status}</Pill>
         </div>
         <p className="text-sm text-ink-muted">

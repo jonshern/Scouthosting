@@ -75,7 +75,7 @@ export default async function ChatPage({
       <h1 className="font-display font-semibold text-3xl mb-6">Chat</h1>
       <div className="grid grid-cols-[200px_1fr] gap-6">
         <aside>
-          <h2 className="text-xs uppercase tracking-wide text-ink-muted mb-2">
+          <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted mb-2">
             Channels
           </h2>
           <ul className="space-y-1">
@@ -101,7 +101,7 @@ export default async function ChatPage({
             <p className="text-ink-muted">Pick a channel.</p>
           ) : (
             <>
-              <header className="mb-4 pb-3 border-b border-ink-muted/15">
+              <header className="mb-4 pb-3 border-b border-line">
                 <h2 className="font-display font-semibold text-xl">{activeChannel.name}</h2>
                 {activeChannel.isSuspended && (
                   <p className="text-xs text-attention-text mt-1">

@@ -30,6 +30,9 @@ export const dynamic = "force-dynamic";
 
 const WINDOWS = [1, 7, 30, 90] as const;
 
+const CHIP_ON = "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white";
+const CHIP_OFF = "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink";
+
 const PRODUCT_NAME: Record<string, string> = {
   landing: "Landing page",
   compass: "Compass",
@@ -87,19 +90,19 @@ export default async function OwnerUsagePage({
   return (
     <div className="space-y-8">
       <div className="space-y-3">
-        <h2 className="font-display font-semibold text-2xl">Usage{product ? ` · ${PRODUCT_NAME[product]}` : ""}</h2>
+        <h2 className="text-[28px] font-semibold leading-tight tracking-[-0.03em]">Usage{product ? ` · ${PRODUCT_NAME[product]}` : ""}</h2>
         <nav aria-label="Usage filters" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           {WINDOWS.map((d) => (
-            <Link key={d} href={href({ days: String(d) })} className={days === d ? "font-semibold underline" : ""}>
+            <Link key={d} href={href({ days: String(d) })} className={days === d ? CHIP_ON : CHIP_OFF}>
               {d === 1 ? "Last day" : `Last ${d} days`}
             </Link>
           ))}
           <span className="text-ink-muted">·</span>
-          <Link href={href({ product: null })} className={!product ? "font-semibold underline" : ""}>
+          <Link href={href({ product: null })} className={!product ? CHIP_ON : CHIP_OFF}>
             Everything
           </Link>
           {USAGE_PRODUCTS.map((p) => (
-            <Link key={p} href={href({ product: p })} className={product === p ? "font-semibold underline" : ""}>
+            <Link key={p} href={href({ product: p })} className={product === p ? CHIP_ON : CHIP_OFF}>
               {PRODUCT_NAME[p]}
             </Link>
           ))}
@@ -165,7 +168,7 @@ export default async function OwnerUsagePage({
               <div className="text-xs text-ink-muted">
                 {i + 1}. {s.label}
               </div>
-              <div className="mt-1 font-display font-semibold text-2xl">{fmt(s.count)}</div>
+              <div className="mt-1 text-[28px] font-semibold leading-tight tracking-[-0.02em]">{fmt(s.count)}</div>
               <div className="text-xs text-ink-muted">
                 {s.hint}
                 {i > 0 && funnel[i - 1].count > 0 ? ` · ${Math.round((s.count / funnel[i - 1].count) * 100)}% of step ${i}` : ""}

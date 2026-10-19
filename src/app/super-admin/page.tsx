@@ -12,9 +12,9 @@ export const dynamic = "force-dynamic";
 function UnitList({ units, empty }: { units: UnitRow[]; empty: string }) {
   if (units.length === 0) return <p className="text-sm text-ink-muted">{empty}</p>;
   return (
-    <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+    <ul className="divide-y divide-divider rounded-xl border border-line bg-surface">
       {units.map((u) => (
-        <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm">
+        <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 text-sm">
           <Link href={`/super-admin/orgs/${u.slug}`} className="font-medium">
             {u.displayName}
           </Link>
@@ -34,6 +34,12 @@ export default async function OwnerOverviewPage() {
 
   return (
     <div className="space-y-10">
+      <div className="flex flex-col gap-1.5">
+        <span className="text-sm text-muted">
+          {new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
+        </span>
+        <h2 className="text-[32px] font-semibold leading-tight tracking-[-0.03em]">Overview</h2>
+      </div>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
         <Stat label="Units" value={o.totalUnits} hint={`${o.newUnits7d} new this week`} href="/super-admin/orgs" />
         <Stat label="Paying" value={paying} hint={`${o.units.canceling} canceling`} href="/super-admin/orgs?kind=paid" />
@@ -80,9 +86,9 @@ export default async function OwnerOverviewPage() {
       </div>
 
       <Section title="Newest units" action={<Link href="/super-admin/orgs" className="text-sm">All units →</Link>}>
-        <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+        <ul className="divide-y divide-divider rounded-xl border border-line bg-surface">
           {o.recentUnits.map((u) => (
-            <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-2 text-sm">
+            <li key={u.id} className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 text-sm">
               <span>
                 <Link href={`/super-admin/orgs/${u.slug}`} className="font-medium">
                   {u.displayName}

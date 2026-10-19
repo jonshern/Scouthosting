@@ -12,7 +12,9 @@ export const TENANT_HOST_HEADER = "x-compass-tenant-host";
 //   host the leader sent it from.
 // /account — the signed-in user's own pages (the admin avatar links here).
 // /contact — questions and feedback to the owner, from any unit's site too.
+// /api/public/ — the unit home page's live widgets (events, photos,
+//   posts), which name the org in the path.
 // /mcp, /.well-known/ — the Claude connector and its OAuth discovery
 //   documents (src/lib/mcp); not per-org.
 // /api/v1/usage — page views from a troop site's own pages (lib/usage).
-export const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/contact", "/api/events/", "/api/v1/usage", "/staff-rsvp", "/account", "/mcp", "/.well-known/"];
+export const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/contact", "/api/events/", "/api/public/", "/api/v1/usage", "/staff-rsvp", "/account", "/mcp", "/.well-known/"];

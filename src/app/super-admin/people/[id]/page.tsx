@@ -90,7 +90,7 @@ export default async function OwnerPersonPage({
           ← People
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-display font-semibold text-3xl">{user.displayName}</h2>
+          <h2 className="text-[32px] font-semibold leading-tight tracking-[-0.03em]">{user.displayName}</h2>
           {user.disabledAt ? <Pill tone="bad">Turned off</Pill> : null}
           {user.isSuperAdmin ? <Pill tone="info">Owner</Pill> : null}
           {products.map((p) => (

@@ -50,6 +50,11 @@ export const color = {
   onInkMuted: "#C4C8CF",
   /** Lines on an ink panel. */
   onInkLine: "#2A2F38",
+  /** Photo placeholders: sky, far hills, near hills. */
+  photoSky: "#E9EDF3",
+  photoHill: "#D5DCE6",
+  photoHillNear: "#C2CBD8",
+  photoSun: "#F4F6F9",
   /** A filled row on an ink panel (the current item in a dark sidebar). */
   onInkRaised: "#1F242C",
 } as const;

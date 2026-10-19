@@ -57,7 +57,7 @@ export default async function TrainingPage({
         <p className="text-slate-soft">No training rows yet.</p>
       ) : (
         <table className="w-full text-sm">
-          <thead className="text-left text-xs uppercase tracking-wide text-slate-muted border-b border-ink-muted/15">
+          <thead className="text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted border-b border-line">
             <tr>
               <th className="py-2">Member</th>
               <th>Course</th>
@@ -71,7 +71,7 @@ export default async function TrainingPage({
               const expired = exp && exp.getTime() < now;
               const expiringSoon = exp && exp.getTime() - now < ninetyDays && !expired;
               return (
-                <tr key={t.id} className="border-b border-ink-muted/10">
+                <tr key={t.id} className="border-b border-line">
                   <td className="py-2">
                     {t.member.firstName} {t.member.lastName}
                   </td>

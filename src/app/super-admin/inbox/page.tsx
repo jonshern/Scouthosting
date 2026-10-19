@@ -42,18 +42,18 @@ export default async function OwnerInboxPage({
   return (
     <div className="space-y-10">
       <Section title="Questions and feedback">
-        <nav aria-label="Status" className="flex flex-wrap gap-4 text-sm">
+        <nav aria-label="Status" className="flex flex-wrap items-center gap-2 text-sm">
           {(["open", "answered", "closed", "all"] as const).map((s) => (
-            <Link key={s} href={href(s, product)} className={status === s ? "font-semibold underline" : ""}>
+            <Link key={s} href={href(s, product)} className={status === s ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
               {STATUS_LABEL[s]}
             </Link>
           ))}
           <span className="text-ink-muted">·</span>
-          <Link href={href(status, null)} className={!product ? "font-semibold underline" : ""}>
+          <Link href={href(status, null)} className={!product ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
             Every product
           </Link>
           {PRODUCTS.map((p) => (
-            <Link key={p} href={href(status, p)} className={product === p ? "font-semibold underline" : ""}>
+            <Link key={p} href={href(status, p)} className={product === p ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
               {PRODUCT_NAMES[p]}
             </Link>
           ))}
@@ -61,7 +61,7 @@ export default async function OwnerInboxPage({
         {items.length === 0 ? (
           <p className="text-sm text-ink-muted">Nothing here.</p>
         ) : (
-          <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+          <ul className="divide-y divide-divider rounded-xl border border-line bg-surface">
             {items.map((t) => (
               <li key={t.id} className="px-4 py-3 text-sm">
                 <div className="flex flex-wrap items-center gap-2">

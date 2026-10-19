@@ -17,7 +17,7 @@ export function PublicPageHeader({
 }) {
   return (
     <header className="mx-auto mb-10 max-w-content px-6 pt-14">
-      <div className="mb-1.5 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
+      <div className="mb-1.5 eyebrow">
         {kicker.startsWith("§") ? kicker : `§ ${kicker}`}
       </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

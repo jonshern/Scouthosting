@@ -97,7 +97,8 @@ function buildSecondary(slug: string): NavItem[] {
   ];
 }
 
-function isActive(pathname: string, item: NavItem): boolean {
+function isActive(pathname: string, item: NavItem, exact = false): boolean {
+  if (exact) return pathname === item.href;
   const matches = item.match ?? [item.href];
   // Order longest-first so /admin/members/import lights Roster (not
   // Overview) — startsWith on /admin alone would match everything.
@@ -121,10 +122,8 @@ export function AdminTopNav({
   const primary = buildPrimary(slug);
   const secondary = buildSecondary(slug);
   const overviewHref = `/o/${slug}/admin`;
-  // Treat /admin (exactly) as Overview, so deeper routes don't double-light it.
-  const primaryWithExactOverview = primary.map((it) =>
-    it.href === overviewHref ? { ...it, match: [overviewHref] } : it,
-  );
+  // Overview lights only on /admin itself, so deeper routes don't double-light it.
+  const primaryWithExactOverview = primary;
   const settingsLink = (it: NavItem) => {
     const active = isActive(pathname, it);
     return (
@@ -173,7 +172,7 @@ export function AdminTopNav({
       <div className="mx-auto flex max-w-[1400px] items-center gap-4 overflow-x-auto px-4 sm:px-8">
         <nav aria-label="Admin sections" className="flex items-center gap-1 text-sm font-medium">
           {primaryWithExactOverview.map((it) => {
-            const active = isActive(pathname, it);
+            const active = isActive(pathname, it, it.href === overviewHref);
             return (
               <Link
                 key={it.href}

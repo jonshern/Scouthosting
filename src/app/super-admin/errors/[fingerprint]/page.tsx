@@ -51,7 +51,7 @@ export default async function OwnerErrorPage({
           ← Errors
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-display font-semibold text-2xl">
+          <h2 className="text-[28px] font-semibold leading-tight tracking-[-0.03em]">
             {latest.errorName || "Error"}: {latest.message.slice(0, 200)}
           </h2>
           <Pill tone="muted">{latest.service ?? "compass"}</Pill>
