@@ -328,7 +328,10 @@ password/email/two-step changes refused, and a wipe-and-reseed of every
 table on a schedule. It needs its own database; the reset refuses if any
 `Org.isDemo = false` row exists. `Org.isDemo` alone (the troop100 seed)
 only skips billing. New code that sends mail or texts must go through
-`sendMail` / `sendSms` so the demo catches it. `make demo` runs it on
+`sendMail` / `sendSms` so the demo catches it. Its sign-in cookies are
+`compass_demo_*` (`COOKIE_PREFIX`, `src/lib/env.ts`), so on one host name
+it never shares a session cookie with a real Compass; browsers ignore
+the port when scoping cookies. `make demo` runs it on
 :3100 against `compass_demo`.
 
 ### 16. Deleting an account anonymizes the User row
