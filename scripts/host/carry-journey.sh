@@ -23,6 +23,8 @@
 # made after the backup (its User row isn't in TO_DB).
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# Backups and their scratch copies hold every unit's data: owner-only.
+umask 077
 
 FROM="${1:-}"; TO="${2:-}"; SINCE="${3:-}"
 [ -n "$FROM" ] && [ -n "$TO" ] && [ -n "$SINCE" ] || die "usage: carry-journey.sh FROM_DB TO_DB SINCE"
