@@ -31,13 +31,13 @@ const BUTTONS: Record<SocialProviderId, { label: string; icon: () => React.React
   google: {
     label: "Continue with Google",
     icon: GoogleIcon,
-    className: "border border-line bg-white text-slate-ink hover:border-slate-ink/40",
+    className: "border border-control bg-surface text-ink hover:bg-sunk hover:text-ink",
   },
   // Apple's guidelines ask for a black (or white) button with the logo.
   apple: {
     label: "Continue with Apple",
     icon: AppleIcon,
-    className: "border border-black bg-black text-white hover:bg-black/85",
+    className: "border border-ink bg-ink text-white hover:bg-ink-2 hover:text-white",
   },
 };
 
@@ -55,7 +55,7 @@ export async function SocialSignIn({ next, className = "" }: { next?: string | n
           <a
             key={p}
             href={signInHref(p, next, { tenantSlug, apexOrigin })}
-            className={`inline-flex w-full items-center justify-center gap-3 rounded-lg px-4 py-3 text-sm font-medium transition-colors ${b.className}`}
+            className={`inline-flex w-full items-center justify-center gap-3 min-h-[46px] rounded-md px-4 text-[15px] font-medium no-underline transition-colors ${b.className}`}
           >
             <Icon />
             {b.label}

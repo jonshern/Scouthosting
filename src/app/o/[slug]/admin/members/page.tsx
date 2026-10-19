@@ -467,7 +467,7 @@ function StatTile({
   }[tone];
   return (
     <div className="rounded-xl border border-line bg-surface p-4">
-      <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted">
+      <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
         {label}
       </div>
       <div className={`font-display text-3xl font-semibold mt-1 ${valueClass}`}>
@@ -538,7 +538,7 @@ function CounselorList({
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-surface">
       <table className="w-full text-sm">
-        <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+        <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
           <tr>
             <th className="px-4 py-2 font-semibold">Name</th>
             <th className="px-4 py-2 font-semibold">Type</th>
@@ -595,7 +595,7 @@ function PendingList({
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-surface">
       <table className="w-full text-sm">
-        <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+        <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
           <tr>
             <th className="px-4 py-2 font-semibold">Name</th>
             <th className="px-4 py-2 font-semibold">Email</th>

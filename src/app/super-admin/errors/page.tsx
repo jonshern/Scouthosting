@@ -43,22 +43,22 @@ export default async function OwnerErrorsPage({
 
   return (
     <section className="space-y-5">
-      <h2 className="font-display font-semibold text-2xl">
+      <h2 className="text-[28px] font-semibold leading-tight tracking-[-0.03em]">
         Errors{org ? ` in ${org.displayName}` : ""} ({groups.length})
       </h2>
 
       <nav aria-label="Error filters" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
         {WINDOWS.map((w) => (
-          <Link key={w} href={href({ days: String(w) })} className={days === w ? "font-semibold underline" : ""}>
+          <Link key={w} href={href({ days: String(w) })} className={days === w ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
             {w === 1 ? "Last day" : `Last ${w} days`}
           </Link>
         ))}
         <span className="text-ink-muted">·</span>
-        <Link href={href({ service: null })} className={!sp.service ? "font-semibold underline" : ""}>
+        <Link href={href({ service: null })} className={!sp.service ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
           Everywhere
         </Link>
         {services.map((s) => (
-          <Link key={s} href={href({ service: s })} className={sp.service === s ? "font-semibold underline" : ""}>
+          <Link key={s} href={href({ service: s })} className={sp.service === s ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
             {s}
           </Link>
         ))}
@@ -70,7 +70,7 @@ export default async function OwnerErrorsPage({
       {groups.length === 0 ? (
         <p className="text-ink-muted">No errors in this window.</p>
       ) : (
-        <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+        <ul className="divide-y divide-divider rounded-xl border border-line bg-surface">
           {groups.map((g) => (
             <li key={g.fingerprint} className="px-4 py-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">

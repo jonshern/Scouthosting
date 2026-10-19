@@ -53,7 +53,7 @@ export function AnnouncementsWidget({ orgSlug }: { orgSlug: string }) {
         {Array.from({ length: 2 }).map((_, i) => (
           <div
             key={i}
-            className="h-20 animate-pulse rounded bg-line-soft"
+            className="h-20 animate-pulse rounded-xl bg-sunk"
             aria-hidden
           />
         ))}
@@ -71,14 +71,14 @@ export function AnnouncementsWidget({ orgSlug }: { orgSlug: string }) {
     return <p className="text-sm text-slate-muted">No announcements yet.</p>;
   }
   return (
-    <ul className="space-y-4">
+    <ul className="divide-y divide-divider rounded-xl border border-line bg-surface">
       {state.items.map((a) => (
-        <li key={a.id} className="border-t border-line-soft pt-4">
-          <div className="text-xs text-slate-muted">
+        <li key={a.id} className="p-5">
+          <div className="font-mono text-xs text-muted">
             {relativeDate(a.createdAt)}
           </div>
-          <div className="mt-1 font-semibold text-slate-ink">{a.title}</div>
-          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-soft">
+          <div className="mt-1.5 text-base font-semibold text-ink">{a.title}</div>
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-muted">
             {a.body}
           </p>
         </li>

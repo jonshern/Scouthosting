@@ -77,7 +77,7 @@ export default function ComingSoonPage() {
 
           <h1 className="font-display text-[56px] font-semibold leading-[0.98] tracking-[-0.03em] md:text-[84px]">
             One place for your{" "}
-            <em className="font-normal not-italic text-sky md:italic">whole troop.</em>
+            <span className="text-muted">whole troop.</span>
           </h1>
 
           <p className="mt-7 max-w-[560px] text-base leading-[1.55] text-white/75 md:text-lg">
@@ -100,7 +100,7 @@ export default function ComingSoonPage() {
 
           <ComingSoonForm />
 
-          <div className="mt-7 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-slate-muted">
+          <div className="mt-7 flex items-center gap-3 text-[13px] text-muted">
             <span className="h-px flex-1 bg-line" />
             <span>No code?</span>
             <span className="h-px flex-1 bg-line" />

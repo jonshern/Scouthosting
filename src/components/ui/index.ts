@@ -6,3 +6,4 @@ export { PrintButton } from "./PrintButton";
 export { SectionHeader } from "./SectionHeader";
 export { Stat, StatRow } from "./Stat";
 export { Wordmark } from "./Wordmark";
+export { PhotoPlaceholder } from "./PhotoPlaceholder";

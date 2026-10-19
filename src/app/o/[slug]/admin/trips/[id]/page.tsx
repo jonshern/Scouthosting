@@ -136,7 +136,7 @@ export default async function TripDetailPage({
         ) : (
           groups.map((g) => (
             <div key={g.category} className="mb-3">
-              <h3 className="text-sm font-medium uppercase tracking-wide text-ink-muted">
+              <h3 className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 {g.category}
               </h3>
               <ul className="text-sm">

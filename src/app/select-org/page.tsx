@@ -70,10 +70,10 @@ export default async function SelectOrgPage() {
       </header>
 
       <section className="mx-auto max-w-[840px] px-6 py-12">
-        <div className="mb-1.5 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">§ Sign-in</div>
+        <div className="mb-1.5 eyebrow">§ Sign-in</div>
         <h1 className="font-display text-4xl font-semibold tracking-[-0.02em] md:text-5xl">
           Which unit are we{" "}
-          <em className="not-italic text-sky md:italic">opening today?</em>
+          <span className="text-muted">opening today?</span>
         </h1>
         <p className="mt-3 max-w-xl text-sm text-slate-soft">
           You&apos;re a member of {memberships.length} units. Pick one to jump

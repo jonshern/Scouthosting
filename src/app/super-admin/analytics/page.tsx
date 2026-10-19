@@ -26,7 +26,7 @@ export default async function SuperAnalyticsPage() {
 
   return (
     <section className="space-y-6">
-      <h2 className="font-display font-semibold text-xl">Last 7 days</h2>
+      <h2 className="text-[17px] font-semibold">Last 7 days</h2>
 
       <div className="grid grid-cols-3 gap-4">
         <Stat label="Events" value={summary.totals.events} />
@@ -115,7 +115,7 @@ function Stat({ label, value }: { label: string; value: number }) {
   return (
     <div className="card text-center">
       <div className="text-2xl font-display font-semibold">{value}</div>
-      <div className="text-xs text-ink-muted uppercase tracking-wide">{label}</div>
+      <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">{label}</div>
     </div>
   );
 }

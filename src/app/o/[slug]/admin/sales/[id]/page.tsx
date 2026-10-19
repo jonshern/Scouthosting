@@ -196,7 +196,7 @@ export default async function CampaignDetailPage({
         ) : (
           <div className="overflow-hidden rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+              <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 <tr>
                   <th className="px-4 py-2 font-semibold">Rank</th>
                   <th className="px-4 py-2 font-semibold">Scout</th>
@@ -269,7 +269,7 @@ export default async function CampaignDetailPage({
         ) : (
           <div className="overflow-hidden rounded-xl border border-line bg-surface">
             <table className="w-full text-sm">
-              <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
+              <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 <tr>
                   <th className="px-4 py-2 font-semibold">When</th>
                   <th className="px-4 py-2 font-semibold">Buyer</th>

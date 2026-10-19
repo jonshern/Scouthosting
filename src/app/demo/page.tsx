@@ -40,7 +40,7 @@ export default async function DemoPage({
   return (
     <main className="min-h-screen bg-bg px-5 py-12 text-ink md:py-16">
       <div className="mx-auto max-w-4xl">
-        <p className="text-[11px] font-medium uppercase tracking-[0.14em] text-accent">Compass demo</p>
+        <p className="eyebrow">Compass demo</p>
         <h1 className="mt-3 font-display text-4xl font-semibold tracking-[-0.015em] md:text-5xl">
           Try Compass with a <span className="italic text-accent">sample troop.</span>
         </h1>
@@ -69,7 +69,7 @@ export default async function DemoPage({
               <form key={a.role} action={demoSignInAction} className="flex flex-col rounded-xl border border-line bg-white p-5">
                 <CsrfTokenInput />
                 <input type="hidden" name="role" value={a.role} />
-                <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink-muted">{a.title}</p>
+                <p className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">{a.title}</p>
                 <p className="mt-1 font-display font-semibold text-xl">{a.displayName}</p>
                 <p className="mt-2 flex-1 text-sm leading-[1.55] text-ink-muted">{a.summary}</p>
                 <p className="mt-3 font-mono text-xs text-ink-muted">{a.email}</p>

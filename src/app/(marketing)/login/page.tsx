@@ -1,6 +1,6 @@
-// Login page. Layout follows design-handoff/signin-flow.jsx — split
-// screen with a dark brand panel on the left and the auth card on
-// the right. Google and Apple come first when their keys are set
+// Login page (Modern Clean, shared sign-in board): the sign-in form on
+// the left, a white panel on the right saying one account covers every
+// unit and app. Google and Apple come first when their keys are set
 // (components/auth/SocialSignIn.tsx), then passkeys, and email +
 // password is folded behind a small link (open when the browser has no
 // passkeys). With no Google/Apple keys the page starts at passkeys.
@@ -8,24 +8,12 @@
 import Link from "next/link";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { PasskeySignIn, PasswordSignIn } from "@/components/auth/PasskeySignIn";
-import { SocialSignIn, socialSignInAvailable } from "@/components/auth/SocialSignIn";
 import { readCsrfToken } from "@/lib/security/csrf";
 import { supportEmail } from "@/lib/support";
+import { SuiteApps } from "@/components/auth/SuiteApps";
+import { SocialSignIn, socialSignInAvailable } from "@/components/auth/SocialSignIn";
 
 export const metadata = { title: "Sign in" };
-
-function CompassMark({ size = 26 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 40 40" aria-hidden focusable="false">
-      <circle cx="20" cy="20" r="18.5" fill="none" stroke="currentColor" strokeWidth="1.25" />
-      <circle cx="20" cy="20" r="11" fill="none" stroke="currentColor" strokeWidth="0.75" opacity="0.4" />
-      <path d="M20 3 L23.5 20 L20 16.5 L16.5 20 Z" fill="#1d4ed8" />
-      <path d="M20 37 L16.5 20 L20 23.5 L23.5 20 Z" fill="currentColor" opacity="0.85" />
-      <path d="M3 20 L20 23.5 L16.5 20 L20 16.5 Z" fill="currentColor" opacity="0.4" />
-      <path d="M37 20 L20 16.5 L23.5 20 L20 23.5 Z" fill="currentColor" opacity="0.4" />
-    </svg>
-  );
-}
 
 // Google/Apple sign-in failures come back as /login?error=<code>.
 function ssoErrorMessage(code: string): string {
@@ -48,70 +36,21 @@ export default async function LoginPage({
   const ssoError = error ? ssoErrorMessage(error) : null;
   const csrf = (await readCsrfToken()) ?? "";
   return (
-    <main className="min-h-screen bg-bg md:grid md:grid-cols-[1fr_560px]">
-      {/* Brand panel */}
-      <aside className="relative hidden flex-col justify-between overflow-hidden bg-surface-dark px-12 py-14 text-white md:flex md:px-16">
-        <svg className="pointer-events-none absolute inset-0 h-full w-full opacity-[0.05]" aria-hidden>
-          <defs>
-            <pattern id="signin-topo" width="48" height="48" patternUnits="userSpaceOnUse">
-              <circle cx="24" cy="24" r="1" fill="currentColor" />
-              <path d="M0 32 Q 24 24 48 32" fill="none" stroke="currentColor" strokeWidth="0.5" />
-              <path d="M0 16 Q 24 8 48 16" fill="none" stroke="currentColor" strokeWidth="0.5" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#signin-topo)" />
-        </svg>
-
-        <div className="relative flex items-center gap-3">
-          <CompassMark size={26} />
-          <span className="font-display font-semibold text-xl tracking-tight">
-            Compass<span className="text-sky">.</span>
-          </span>
-        </div>
-
-        <div className="relative max-w-[540px]">
-          <h1 className="font-display text-[44px] font-semibold leading-[1.05] tracking-[-0.02em] text-balance md:text-[56px]">
-            Welcome back.
-            <br />
-            <em className="font-normal not-italic text-sky md:italic">
-              Pick up where the troop left off.
-            </em>
-          </h1>
-          <p className="mt-6 max-w-[460px] text-base leading-[1.55] text-white/75">
-            One sign-in covers every unit you serve. Compass remembers which
-            troop you opened last and lands you there — switch any time from
-            the top nav.
-          </p>
-        </div>
-
-        <div className="relative flex gap-6 text-xs text-white/55">
-          <span>Encrypted at rest</span>
-          <span aria-hidden>·</span>
-          <span>COPPA-conscious</span>
-          <span aria-hidden>·</span>
-          <span>US-hosted</span>
-        </div>
-      </aside>
-
-      {/* Auth card */}
-      <section className="flex flex-col justify-center px-6 py-14 md:px-16">
-        <div className="mx-auto w-full max-w-md">
-          <h2 className="font-display text-3xl font-semibold tracking-[-0.015em] md:text-4xl">
-            Sign in
-          </h2>
-          <p className="mt-2 text-sm text-slate-muted">
-            New here?{" "}
-            <Link
-              href={`/signup${signupQuery}`}
-              className="font-medium text-sky hover:text-slate-ink"
-            >
+    <main className="bg-bg md:grid md:grid-cols-[minmax(0,1fr)_minmax(0,460px)] lg:grid-cols-[minmax(0,1fr)_minmax(0,520px)]">
+      {/* Sign-in form */}
+      <section className="flex flex-col justify-center px-6 py-14 md:px-12 md:py-20">
+        <div className="mx-auto w-full max-w-[400px]">
+          <h1 className="text-[32px] font-semibold tracking-[-0.03em]">Sign in</h1>
+          <p className="mt-2 text-[15px] text-muted">
+            Welcome back. Pick up where the troop left off. New here?{" "}
+            <Link href={`/signup${signupQuery}`} className="font-medium no-underline">
               Create an account
             </Link>
             .
           </p>
 
           {ssoError && (
-            <div role="alert" className="mt-6 rounded border border-danger-line bg-danger-soft p-3 text-sm text-danger">
+            <div role="alert" className="mt-6 rounded-md border border-danger-line bg-danger-soft p-3 text-sm text-danger">
               {ssoError}
             </div>
           )}
@@ -119,7 +58,7 @@ export default async function LoginPage({
           {socialSignInAvailable() && (
             <>
               <SocialSignIn next={next} className="mt-8" />
-              <div className="mt-6 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-slate-muted">
+              <div className="mt-6 flex items-center gap-3 text-[13px] text-muted">
                 <span className="h-px flex-1 bg-line" />
                 <span>Or</span>
                 <span className="h-px flex-1 bg-line" />
@@ -140,19 +79,34 @@ export default async function LoginPage({
             />
           </div>
 
-          <p className="mt-6 text-xs leading-[1.55] text-slate-muted">
+          <p className="mt-8 text-[13px] leading-[1.55] text-muted">
             Trouble signing in? Ask the unit&apos;s scoutmaster to re-send your
-            invite, or{" "}
-            <a
-              href={`mailto:${supportEmail()}`}
-              className="text-sky hover:text-slate-ink"
-            >
-              email us
-            </a>
-            .
+            invite, or <a href={`mailto:${supportEmail()}`}>email us</a>.
           </p>
         </div>
       </section>
+
+      {/* One account panel */}
+      <aside className="flex flex-col justify-center gap-7 border-t border-line bg-surface px-6 py-12 md:border-l md:border-t-0 md:px-10">
+        <div className="flex flex-col gap-2.5">
+          <span className="eyebrow">One account</span>
+          <h2 className="max-w-[400px] text-[26px] font-semibold leading-[1.2] tracking-[-0.02em]">
+            One sign-in covers every unit you serve.
+          </h2>
+          <p className="max-w-[420px] text-[15px] leading-[1.55] text-ink-2">
+            Compass remembers which troop you opened last and lands you there —
+            switch any time from the top nav.
+          </p>
+        </div>
+        <SuiteApps />
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+          <span>Encrypted at rest</span>
+          <span aria-hidden>·</span>
+          <span>COPPA-conscious</span>
+          <span aria-hidden>·</span>
+          <span>US-hosted</span>
+        </div>
+      </aside>
     </main>
   );
 }

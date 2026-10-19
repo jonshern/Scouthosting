@@ -115,7 +115,7 @@ export default async function AdminEventsList({
           {dow.map((d) => (
             <div
               key={d}
-              className="bg-surface-alt text-[11px] uppercase tracking-[0.12em] text-slate-muted px-2 py-1.5 font-semibold"
+              className="bg-surface-alt font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted px-2 py-1.5 font-semibold"
             >
               {d}
             </div>

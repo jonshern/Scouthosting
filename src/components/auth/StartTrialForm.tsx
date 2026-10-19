@@ -35,7 +35,7 @@ export function StartTrialForm({ csrf }: { csrf: React.ReactNode }) {
           won&apos;t be charged before the trial ends.
         </p>
         <div className="rounded-lg border border-amber/60 bg-amber/5 p-4">
-          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted">
+          <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
             Recovery code, shown once
           </div>
           <p className="mt-2 break-all font-mono text-base text-ink" data-testid="recovery-code">

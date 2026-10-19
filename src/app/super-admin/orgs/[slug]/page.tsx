@@ -65,7 +65,7 @@ export default async function OwnerUnitPage({
           ← Units
         </Link>
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-display font-semibold text-3xl">{org.displayName}</h2>
+          <h2 className="text-[32px] font-semibold leading-tight tracking-[-0.03em]">{org.displayName}</h2>
           <LicensePill license={license} />
         </div>
         <p className="text-sm text-ink-muted">
@@ -209,7 +209,7 @@ export default async function OwnerUnitPage({
       </Section>
 
       <Section title={`Accounts (${memberships.length})`}>
-        <ul className="divide-y divide-line rounded-lg border border-line bg-surface text-sm">
+        <ul className="divide-y divide-divider rounded-xl border border-line bg-surface text-sm">
           {memberships.map((m) => (
             <li key={m.user.id} className="flex flex-wrap justify-between gap-2 px-4 py-2">
               <Link href={`/super-admin/people/${m.user.id}`}>
