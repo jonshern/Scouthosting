@@ -7,6 +7,8 @@ import { getSession } from "@/lib/auth/session";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Survey" };
+
 type Question = {
   id: string;
   type: string;
@@ -45,7 +47,7 @@ export default async function SurveyDetailPage({
   const questions = (survey.questions as unknown as Question[]) ?? [];
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader
         kicker="Forms"
         title={survey.title}
@@ -113,7 +115,7 @@ export default async function SurveyDetailPage({
           ))}
         </ul>
       </section>
-    </main>
+    </section>
   );
 }
 

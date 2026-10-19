@@ -7,6 +7,8 @@ import { getSession } from "@/lib/auth/session";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Surveys" };
+
 export default async function SurveysPage({
   params,
 }: {
@@ -34,7 +36,7 @@ export default async function SurveysPage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader
         kicker="Forms"
         title="Surveys"
@@ -71,6 +73,6 @@ export default async function SurveysPage({
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

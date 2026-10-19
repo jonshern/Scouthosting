@@ -49,6 +49,6 @@ test.describe("account flows", () => {
   test("api tokens: page renders without error", async ({ page }) => {
     await signIn(page);
     await page.goto("/account/api-tokens");
-    await expect(page.getByRole("heading", { name: /api tokens/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /apps and claude/i })).toBeVisible();
   });
 });

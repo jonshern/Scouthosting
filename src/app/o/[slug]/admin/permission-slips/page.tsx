@@ -15,6 +15,8 @@ import {
 import { Pill } from "@/components/ui";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Permission slips" };
+
 export default async function OrgPermissionSlipsPage({
   params,
 }: {

@@ -27,6 +27,8 @@ import {
 } from "@/lib/sales";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Fundraiser" };
+
 export default async function CampaignDetailPage({
   params,
 }: {
@@ -107,12 +109,12 @@ export default async function CampaignDetailPage({
         actions={
           <>
             <Link href={`/o/${slug}/admin/sales`} className="btn-secondary">← Campaigns</Link>
-            <Link
+            <a
               href={`/o/${slug}/admin/sales/${campaign.id}/export.csv`}
               className="btn-secondary"
             >
               Council CSV
-            </Link>
+            </a>
             {campaign.publicSlug ? (
               <Link href={`/sell/${campaign.publicSlug}`} className="btn-secondary">
                 Public page →

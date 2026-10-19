@@ -16,6 +16,8 @@ import { decryptMemberPii } from "@/lib/members/crypto";
 import { Pill, Stat, StatRow } from "@/components/ui";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Scoutbook sync" };
+
 export default async function ScoutbookAdmin({
   params,
 }: {

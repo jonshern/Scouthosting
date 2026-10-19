@@ -11,6 +11,8 @@ import {
 } from "@/components/admin/PatrolForms";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Patrol" };
+
 export default async function PatrolDetail({
   params,
 }: {

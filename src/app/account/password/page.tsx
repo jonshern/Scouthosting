@@ -5,12 +5,14 @@ import { getSession } from "@/lib/auth/session";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { changePassword } from "@/server-actions/account";
 
+export const metadata = { title: "Change password" };
+
 export default async function PasswordPage() {
   const { user } = await getSession();
   if (!user) redirect("/login?next=/account/password");
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <div className="max-w-xl">
       <h1 className="font-display font-semibold text-3xl mb-6">Change password</h1>
       <form action={changePassword} className="space-y-4 max-w-md">
         <CsrfTokenInput />
@@ -42,6 +44,6 @@ export default async function PasswordPage() {
           Change password
         </button>
       </form>
-    </main>
+    </div>
   );
 }

@@ -13,6 +13,8 @@ import { emergencyContactsForEvent } from "@/lib/events/emergency-contacts";
 import { Pill, PrintButton } from "@/components/ui";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Emergency contacts" };
+
 function fmtPhone(p: string | null): string {
   return p && p.trim() ? p : "—";
 }

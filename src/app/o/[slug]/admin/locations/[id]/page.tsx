@@ -9,6 +9,8 @@ import {
 } from "@/components/admin/LocationForms";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Location" };
+
 export default async function LocationDetail({
   params,
 }: {

@@ -7,6 +7,8 @@ import { getSession } from "@/lib/auth/session";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Car rides" };
+
 export default async function CarRidesPage({
   params,
 }: {
@@ -37,7 +39,7 @@ export default async function CarRidesPage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Calendar" title="Car rides" />
       {rides.length === 0 ? (
         <p className="text-slate-soft">
@@ -76,6 +78,6 @@ export default async function CarRidesPage({
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

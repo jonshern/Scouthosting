@@ -17,6 +17,8 @@ import {
 import { LicensePill, Section, Stat, UsageStatePill, shortDate } from "@/components/owner/ConsoleBits";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Usage" };
+
 export const dynamic = "force-dynamic";
 
 const DAYS = [7, 30, 90];

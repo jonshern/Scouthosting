@@ -12,6 +12,8 @@ import { Done, Pill, Section, shortDate } from "@/components/owner/ConsoleBits";
 import { disableAccountAction, enableAccountAction } from "@/server-actions/super-admin";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Person" };
+
 export const dynamic = "force-dynamic";
 
 export default async function OwnerPersonPage({

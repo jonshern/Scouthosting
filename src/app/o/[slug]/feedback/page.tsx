@@ -11,6 +11,8 @@ import {
   toggleFeedbackVote,
 } from "@/server-actions/feedback";
 
+export const metadata = { title: "Feedback" };
+
 export default async function FeedbackPage({
   params,
 }: {

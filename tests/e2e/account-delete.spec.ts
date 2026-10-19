@@ -13,7 +13,7 @@ test.describe("delete account", () => {
     await signUp(page, "Leaving Parent", email, USER_PASSWORD, APEX);
 
     await page.goto(`${APEX}/account/profile`);
-    await page.getByRole("link", { name: "Delete my account" }).click();
+    await page.getByRole("link", { name: "Delete account" }).click();
     await expect(page.getByRole("heading", { name: "Delete account" })).toBeVisible();
 
     await page.getByLabel(/to confirm/).fill("someone-else@example.invalid");

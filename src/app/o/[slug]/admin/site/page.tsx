@@ -17,6 +17,8 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { PreviewPane } from "@/components/admin/PreviewPane";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Site editor" };
+
 export default async function AdminSite({
   params,
   searchParams,

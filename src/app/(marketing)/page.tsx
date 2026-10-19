@@ -247,8 +247,8 @@ export default function MarketingHome() {
       </section>
 
       {/* Old vs new: the comparison panel */}
-      <section className="mx-auto max-w-content px-6"><div className="rounded-2xl bg-ink text-white">
-        <div className="mx-auto max-w-content px-6 py-14 md:px-12">
+      <section className="mx-auto max-w-content px-4 sm:px-6"><div className="rounded-2xl bg-ink text-white">
+        <div className="mx-auto max-w-content px-5 py-14 md:px-12">
           <div className="mb-10">
             <div className="eyebrow mb-3 !text-on-ink-muted">
               § The status quo
@@ -266,7 +266,7 @@ export default function MarketingHome() {
 
           <div className="grid gap-6 md:grid-cols-2">
             {/* OLD — TroopWebHost-style */}
-            <div>
+            <div className="min-w-0">
               <div className="mb-3 flex items-center gap-2">
                 <span aria-hidden className="h-2 w-2 rounded-full bg-danger" />
                 <span className="eyebrow !text-on-ink-muted">
@@ -298,7 +298,7 @@ export default function MarketingHome() {
                   <div className="border-b border-[#c0c0a8] bg-[#e8e8d8] px-3 py-1 text-[11px] text-[#444]">
                     Home &gt; Welcome
                   </div>
-                  <div className="grid grid-cols-[150px_1fr] min-h-[280px]">
+                  <div className="grid grid-cols-[104px_1fr] sm:grid-cols-[150px_1fr] min-h-[280px]">
                     <div className="border-r border-[#c8c8b0] bg-[#f0eed8] p-2.5 text-[11px]">
                       <div className="mb-2 font-bold text-[#234]">MAIN MENU</div>
                       {[
@@ -379,7 +379,7 @@ export default function MarketingHome() {
             </div>
 
             {/* NEW — Compass */}
-            <div>
+            <div className="min-w-0">
               <div className="mb-3 flex items-center gap-2">
                 <span aria-hidden className="h-2 w-2 rounded-full bg-done" />
                 <span className="eyebrow !text-on-ink-muted">

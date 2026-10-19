@@ -27,12 +27,12 @@ function totp(secret: string, windowOffset = 0): string {
 /** Turn on two-step sign-in from /account/security; returns the secret. */
 async function enrollTotp(page: Page): Promise<string> {
   await page.goto(`${APEX}/account/security`);
-  await page.getByRole("button", { name: "Set up 2FA" }).click();
+  await page.getByRole("button", { name: "Set up an authenticator app" }).click();
   const secret = (await page.locator("p", { hasText: "Manual secret:" }).locator("code").textContent())!.trim();
   expect(secret).toMatch(/^[A-Z2-7]+=*$/);
   await page.getByLabel("Code from your authenticator").fill(totp(secret));
   await page.getByRole("button", { name: /confirm and enable 2fa/i }).click();
-  await expect(page.getByRole("status").filter({ hasText: "2FA enabled." })).toBeVisible();
+  await expect(page.getByRole("status").filter({ hasText: "Two-step sign-in is on." })).toBeVisible();
   return secret;
 }
 

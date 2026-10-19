@@ -3,6 +3,8 @@ import { CustomPageForm } from "@/components/admin/CustomPageForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "New page" };
+
 export default async function NewCustomPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   await requireAdminPage(slug);

@@ -10,6 +10,8 @@ import { setCustomDomain, clearCustomDomain } from "@/server-actions/domain";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Custom domain" };
+
 export default async function CustomDomainPage({
   params,
 }: {
@@ -33,7 +35,7 @@ export default async function CustomDomainPage({
   const subdomainHost = `${slug}.${apex}`;
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader
         kicker="Settings"
         title="Custom domain"
@@ -108,6 +110,6 @@ export default async function CustomDomainPage({
           </button>
         </form>
       </section>
-    </main>
+    </section>
   );
 }

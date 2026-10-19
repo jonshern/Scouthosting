@@ -34,7 +34,7 @@ test.describe("account settings", () => {
   test("api tokens page renders empty state for fresh seeded user", async ({ page }) => {
     await signIn(page);
     await page.goto("/account/api-tokens");
-    await expect(page.getByRole("heading", { level: 1, name: /api tokens/i })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1, name: /apps and claude/i })).toBeVisible();
   });
 
   test("account routes redirect anonymous users to login", async ({ page }) => {

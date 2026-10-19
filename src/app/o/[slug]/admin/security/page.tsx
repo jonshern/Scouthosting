@@ -8,6 +8,8 @@ import { prisma } from "@/lib/db";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Security" };
+
 export const dynamic = "force-dynamic";
 
 export default async function OrgSecurityPage({

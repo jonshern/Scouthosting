@@ -9,6 +9,8 @@ import {
 } from "@/components/admin/MemberDetailBody";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Member" };
+
 export default async function AdminMemberEdit({
   params,
   searchParams,

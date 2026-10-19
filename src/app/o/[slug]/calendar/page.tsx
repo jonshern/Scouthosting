@@ -14,6 +14,8 @@ import {
   monthLabel,
 } from "@/lib/calendar/month-grid";
 
+export const metadata = { title: "Calendar" };
+
 type Search = { view?: string; ym?: string };
 
 function parseYm(ym: string | undefined): { year: number; month0: number } {
@@ -103,13 +105,13 @@ export default async function PublicCalendar({
               <Link href={`/o/${slug}/calendar`} className="btn-secondary">
                 List view
               </Link>
-              <Link
+              <a
                 href={`/o/${slug}/calendar.ical`}
                 className="btn-secondary"
                 aria-label="Subscribe via iCal"
               >
                 iCal
-              </Link>
+              </a>
             </>
           }
         />
@@ -214,13 +216,13 @@ export default async function PublicCalendar({
             >
               Month view
             </Link>
-            <Link
+            <a
               href={`/o/${slug}/calendar.ical`}
               className="btn-secondary"
               aria-label="Subscribe via iCal"
             >
               Subscribe (iCal)
-            </Link>
+            </a>
           </>
         }
       />

@@ -7,6 +7,8 @@ import { roleInOrg } from "@/lib/auth/role";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { submitSurvey } from "@/server-actions/surveys";
 
+export const metadata = { title: "Survey" };
+
 type Question = {
   id: string;
   type: string;

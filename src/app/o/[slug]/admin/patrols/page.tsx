@@ -11,6 +11,8 @@ import { decryptMemberPii } from "@/lib/members/crypto";
 import { PatrolForm } from "@/components/admin/PatrolForms";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Patrols" };
+
 export default async function PatrolsAdmin({
   params,
 }: {

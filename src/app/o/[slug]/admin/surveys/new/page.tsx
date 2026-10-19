@@ -10,6 +10,8 @@ import { createSurvey } from "@/server-actions/surveys";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "New survey" };
+
 export default async function NewSurveyPage({
   params,
 }: {
@@ -30,7 +32,7 @@ export default async function NewSurveyPage({
   }
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Forms" title="New survey" />
       <form action={createSurvey} className="space-y-4 max-w-xl">
         <CsrfTokenInput />
@@ -82,6 +84,6 @@ export default async function NewSurveyPage({
           Create survey
         </button>
       </form>
-    </main>
+    </section>
   );
 }

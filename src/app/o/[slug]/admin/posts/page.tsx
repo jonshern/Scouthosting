@@ -6,6 +6,8 @@ import { PostForm } from "@/components/admin/PostForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Posts" };
+
 export default async function AdminPostsIndex({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   await requireAdminPage(slug);

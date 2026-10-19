@@ -6,6 +6,8 @@ import { getSession } from "@/lib/auth/session";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Order of the Arrow" };
+
 export default async function OaPage({
   params,
 }: {
@@ -32,7 +34,7 @@ export default async function OaPage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Roster" title="Order of the Arrow" />
       {elections.length === 0 ? (
         <p className="text-slate-soft">No elections recorded.</p>
@@ -74,6 +76,6 @@ export default async function OaPage({
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

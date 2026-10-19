@@ -15,6 +15,8 @@ import { centsToDollars, formatBalance } from "@/lib/treasury/money";
 import { Pill, PrintButton } from "@/components/ui";
 import { requireTreasuryPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Treasury reports" };
+
 export default async function TreasuryReports({
   params,
   searchParams,
@@ -86,12 +88,12 @@ export default async function TreasuryReports({
           <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Fund balances
           </h2>
-          <Link
+          <a
             href={`/o/${slug}/admin/treasury/reports/funds.csv`}
             className="text-sm text-slate-soft hover:text-sky"
           >
             Download CSV →
-          </Link>
+          </a>
         </header>
         <div className="mt-4 overflow-hidden rounded-xl border border-line bg-surface">
           <table className="w-full text-sm">
@@ -128,12 +130,12 @@ export default async function TreasuryReports({
           <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Account balances (non-zero only)
           </h2>
-          <Link
+          <a
             href={`/o/${slug}/admin/treasury/reports/accounts.csv`}
             className="text-sm text-slate-soft hover:text-sky"
           >
             Download CSV →
-          </Link>
+          </a>
         </header>
         {accounts.length === 0 ? (
           <p className="mt-2 text-sm text-slate-muted">All members at zero.</p>
@@ -188,12 +190,12 @@ export default async function TreasuryReports({
             Budget vs. actual
           </h2>
           {activeFy ? (
-            <Link
+            <a
               href={`/o/${slug}/admin/treasury/reports/budget.csv?fy=${activeFy.id}`}
               className="text-sm text-slate-soft hover:text-sky"
             >
               Download CSV →
-            </Link>
+            </a>
           ) : null}
         </header>
         {!activeFy ? (
@@ -252,12 +254,12 @@ export default async function TreasuryReports({
           <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Year over year
           </h2>
-          <Link
+          <a
             href={`/o/${slug}/admin/treasury/reports/yoy.csv`}
             className="text-sm text-slate-soft hover:text-sky"
           >
             Download CSV →
-          </Link>
+          </a>
         </header>
         {yoy.length === 0 ? (
           <p className="mt-2 text-sm text-slate-muted">

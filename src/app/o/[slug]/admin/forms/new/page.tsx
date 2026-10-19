@@ -8,6 +8,8 @@ import { createForm } from "@/server-actions/forms";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "New form" };
+
 export default async function NewFormPage({
   params,
 }: {
@@ -28,7 +30,7 @@ export default async function NewFormPage({
   }
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Forms" title="New form" />
       <form
         action={createForm}
@@ -75,6 +77,6 @@ export default async function NewFormPage({
           Create form
         </button>
       </form>
-    </main>
+    </section>
   );
 }

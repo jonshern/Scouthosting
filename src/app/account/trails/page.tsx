@@ -37,7 +37,7 @@ export default async function TrailsPage({
   const n = (k: string) => Number(q[k] ?? 0) || 0;
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <div className="max-w-2xl">
       <h1 className="font-display font-semibold text-3xl mb-2">Lantern trails</h1>
       <p className="max-w-xl text-sm text-slate-muted">
         Every check mark, log, note and photo on your scouts&apos; trails is saved here in Compass and
@@ -122,6 +122,6 @@ export default async function TrailsPage({
           </button>
         </form>
       </section>
-    </main>
+    </div>
   );
 }

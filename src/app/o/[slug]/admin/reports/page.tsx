@@ -16,6 +16,8 @@ import {
 import { Pill, PrintButton } from "@/components/ui";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Roster reports" };
+
 export default async function ReportsPage({
   params,
 }: {
@@ -160,12 +162,12 @@ export default async function ReportsPage({
           <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Scouts by age
           </h2>
-          <Link
+          <a
             href={`/o/${slug}/admin/reports/ages.csv`}
             className="text-sm text-slate-soft hover:text-sky print:hidden"
           >
             Download CSV →
-          </Link>
+          </a>
         </header>
         {ageBuckets.size > 0 ? (
           <div className="flex flex-wrap gap-2 text-xs">
@@ -225,12 +227,12 @@ function Section<T>({
         <header className="flex flex-wrap items-baseline justify-between gap-3">
           <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">{title}</h2>
           {csv ? (
-            <Link
+            <a
               href={csv}
               className="text-sm text-slate-soft hover:text-sky print:hidden"
             >
               Download CSV →
-            </Link>
+            </a>
           ) : null}
         </header>
       ) : null}

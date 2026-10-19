@@ -11,6 +11,8 @@ import { Done, Pill, Section, shortDate } from "@/components/owner/ConsoleBits";
 import { markErrorFixedAction, reopenErrorAction } from "@/server-actions/super-admin";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Error" };
+
 export const dynamic = "force-dynamic";
 
 function when(d: Date): string {

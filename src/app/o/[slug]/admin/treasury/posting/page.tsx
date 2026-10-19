@@ -15,6 +15,8 @@ import {
 } from "@/components/admin/TreasuryForms";
 import { requireTreasuryPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Posting" };
+
 export default async function TreasuryPostingPage({
   params,
 }: {

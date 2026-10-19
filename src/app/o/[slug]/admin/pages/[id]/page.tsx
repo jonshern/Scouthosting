@@ -6,6 +6,8 @@ import { CustomPageForm } from "@/components/admin/CustomPageForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Edit page" };
+
 export default async function EditCustomPage({
   params,
 }: {

@@ -14,7 +14,7 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { PayBalanceForm } from "@/components/account/PayBalanceForm";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "My Scouts" };
+export const metadata = { title: "My scouts" };
 
 export default async function MyScoutsPage() {
   const { user } = await getSession();
@@ -32,10 +32,10 @@ export default async function MyScoutsPage() {
   const canPayBySlug = new Map(stripeOrgs.map((o) => [o.slug, !!o.treasuryStripeKeyPrefix]));
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <div>
       <SectionHeader
         eyebrow="Family"
-        title="My Scouts"
+        title="My scouts"
         description="Every Scout linked to you across the units you belong to. RSVPs, permission-slip status, and upcoming dates all in one place."
       />
 
@@ -199,6 +199,6 @@ export default async function MyScoutsPage() {
           ))}
         </div>
       )}
-    </main>
+    </div>
   );
 }

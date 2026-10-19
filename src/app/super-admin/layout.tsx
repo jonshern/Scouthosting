@@ -6,6 +6,8 @@
 import { OwnerNav } from "@/components/owner/OwnerNav";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: { default: "Owner console", template: "%s — Owner console" } };
+
 export default async function SuperLayout({ children }: { children: React.ReactNode }) {
   await requireOwnerPage();
 

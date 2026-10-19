@@ -28,7 +28,7 @@ export default async function PasskeyPromptPage({ searchParams }: { searchParams
   if (!rp || hasPasskey > 0) redirect(target);
 
   return (
-    <section className="mx-auto max-w-md px-6 py-16 space-y-6">
+    <section className="mx-auto max-w-md space-y-6 py-4">
       <header className="space-y-2">
         <h1 className="font-display text-3xl font-semibold">Sign in faster next time</h1>
         <p className="text-sm text-ink-muted">
@@ -43,7 +43,7 @@ export default async function PasskeyPromptPage({ searchParams }: { searchParams
           Skip for now
         </Link>
       </p>
-      <p className="text-xs text-ink-muted">You can add or remove passkeys any time from your account&apos;s Security page.</p>
+      <p className="text-xs text-ink-muted">You can add or remove passkeys any time from Sign-in and security in your account.</p>
     </section>
   );
 }

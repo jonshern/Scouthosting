@@ -13,6 +13,8 @@ import { formatBalance } from "@/lib/treasury/money";
 import { Pill } from "@/components/ui";
 import { requireTreasuryPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Balance updates" };
+
 export default async function TreasuryBalancesPage({
   params,
 }: {

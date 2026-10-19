@@ -9,6 +9,8 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { CampaignForm } from "@/components/admin/SalesForms";
 import { Pill } from "@/components/ui";
 import { requireAdminPage } from "@/lib/admin/guard";
+
+export const metadata = { title: "Fundraising" };
 export default async function SalesHub({
   params,
 }: {

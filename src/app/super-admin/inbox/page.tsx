@@ -8,6 +8,8 @@ import { KIND_NAMES, listInbox, PRODUCT_NAMES, PRODUCTS, STATUSES, type InboxPro
 import { Pill, Section, shortDate } from "@/components/owner/ConsoleBits";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Inbox" };
+
 export const dynamic = "force-dynamic";
 
 const STATUS_LABEL: Record<InboxStatus | "all", string> = {

@@ -8,6 +8,8 @@ import { getSession } from "@/lib/auth/session";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Direct messages" };
+
 export default async function DmAdminPage({
   params,
 }: {
@@ -47,7 +49,7 @@ export default async function DmAdminPage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Messages" title="Direct messages" />
       {threads.length === 0 ? (
         <p className="text-slate-soft">
@@ -74,6 +76,6 @@ export default async function DmAdminPage({
           })}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

@@ -5,6 +5,8 @@ import { renderMarkdownLite } from "@/lib/markdown";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Email" };
+
 export default async function AdminEmailDetail({
   params,
 }: {

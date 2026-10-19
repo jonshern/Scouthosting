@@ -10,6 +10,8 @@ import { mealConflicts } from "@/lib/trips/dietary";
 import { unwrapDekWithMaster, decryptField } from "@/lib/encryption";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Trip" };
+
 export default async function TripDetailPage({
   params,
 }: {
@@ -96,7 +98,7 @@ export default async function TripDetailPage({
   const conflicts = mealConflicts(members, allMealTags);
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12 space-y-6">
+    <section className="space-y-6">
       <header>
         <h1 className="font-display font-semibold text-3xl">{trip.event.title}</h1>
         <p className="text-ink-muted text-sm mt-1">
@@ -184,6 +186,6 @@ export default async function TripDetailPage({
           </ul>
         </section>
       )}
-    </main>
+    </section>
   );
 }

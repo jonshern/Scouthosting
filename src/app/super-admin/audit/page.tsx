@@ -8,6 +8,8 @@ import { listAuditLogs, entityTypeOptions } from "@/lib/audit-query";
 import { prisma } from "@/lib/db";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Audit log" };
+
 type Search = {
   org?: string;
   entity?: string;

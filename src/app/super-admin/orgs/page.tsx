@@ -7,6 +7,8 @@ import { LICENSE_KINDS, type LicenseKind } from "@/lib/owner/license";
 import { LicensePill, shortDate } from "@/components/owner/ConsoleBits";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Units" };
+
 export const dynamic = "force-dynamic";
 
 const KINDS = new Set<string>(LICENSE_KINDS.map((k) => k.kind));

@@ -8,6 +8,8 @@ import { prisma } from "@/lib/db";
 import { requireAdminPage } from "@/lib/admin/guard";
 import { GettingStarted } from "@/components/admin/GettingStarted";
 
+export const metadata = { title: "Overview" };
+
 // Icon wells in the activity feed: a soft fill with matching text.
 const WELL = {
   accent: "bg-accent-soft text-accent-soft-text",

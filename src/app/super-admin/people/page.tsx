@@ -9,6 +9,8 @@ import { listPeople, PRODUCT_LABEL, type Product } from "@/lib/owner/console";
 import { Pill, shortDate } from "@/components/owner/ConsoleBits";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "People" };
+
 export const dynamic = "force-dynamic";
 
 const FILTERS: { key: Product | "none"; label: string }[] = [

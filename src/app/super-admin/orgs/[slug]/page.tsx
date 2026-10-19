@@ -20,6 +20,8 @@ import {
 } from "@/server-actions/super-admin";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Unit" };
+
 export const dynamic = "force-dynamic";
 
 const PLANS = ["patrol", "troop", "council"] as const;
