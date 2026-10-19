@@ -28,6 +28,8 @@ node_modules
 .env
 .env.local
 .env.*.local
+# Short-lived cloud credentials google-github-actions/auth writes in CI
+gha-creds-*.json
 **/.env
 **/.env.local
 

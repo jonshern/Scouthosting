@@ -21,6 +21,8 @@
 # failure leaves $BACKUP_DIR/.offsite-failed, which the watchdog alerts on.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# Backups and their scratch copies hold every unit's data: owner-only.
+umask 077
 
 DEST_DIR="$(env_get OFFSITE_DIR)"; DEST_DIR="${DEST_DIR/#\~/$HOME}"
 DEST_URL="$(env_get OFFSITE_URL)"

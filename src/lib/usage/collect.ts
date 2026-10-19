@@ -163,6 +163,8 @@ export function recordAction(
   },
   prismaClient: PrismaClient = defaultPrisma,
 ): void {
+  // Nothing is recorded from a scout.
+  if (args.role === "scout") return;
   const props = cleanProps(args.props);
   const failed = (err: unknown) =>
     log.warn("usage action not recorded", { name, err: err instanceof Error ? err.message : String(err) });

@@ -2,8 +2,8 @@
 // new sign-in (the session hook in lib/auth/auth.ts refuses it),
 // getSession treats any session left as signed out, and every way in
 // that already exists is revoked here, in one transaction: web sessions,
-// app tokens, Claude connector tokens and the scout devices paired to
-// the account's Lantern trails.
+// app tokens, Claude connector tokens and codes, and the scout devices
+// (and unused pairing codes) of the account's Lantern trails.
 
 import { prisma } from "@/lib/db";
 
@@ -27,6 +27,10 @@ export async function disableAccount(userId: string, reason: string, now: Date =
       where: { scout: { ownerUserId: userId }, revokedAt: null },
       data: { revokedAt: now },
     });
+    // Codes not yet traded in would still mint a connector token or pair
+    // a new scout device after the account is off.
+    await tx.mcpAuthCode.deleteMany({ where: { userId } });
+    await tx.journeyPairCode.deleteMany({ where: { scout: { ownerUserId: userId } } });
     return {
       user,
       revoked: {

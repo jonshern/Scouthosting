@@ -11,6 +11,7 @@ import {
   VERIFY_RUNBOOK,
 } from "@/content/architecture";
 import { masterKeyConfigured } from "@/lib/encryption";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -75,6 +76,7 @@ function pct(n: number, d: number): string {
 }
 
 export default async function ArchitecturePage() {
+  await requireOwnerPage();
   const coverage = await loadCoverage();
   const masterKey = masterKeyConfigured();
 

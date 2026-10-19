@@ -121,14 +121,15 @@ describe.skipIf(!db)("usage tracking", () => {
     expect((await personTimeline(adult.id)).length).toBe(2);
   });
 
-  it("keeps no visitor hash for a scout", async () => {
+  it("records nothing from a scout", async () => {
     await post({ product: "lantern", role: "scout", events: [{ name: "view", path: `/t-${S}/scout` }] });
-    const row = await prisma.usageEvent.findFirstOrThrow({ where: { path: `/t-${S}/scout` } });
-    expect(row).toMatchObject({ role: "scout", visitorHash: null });
+    recordAction("step_checked", { product: "lantern", role: "scout", scoutId: scout.id });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(await prisma.usageEvent.count({ where: { OR: [{ path: `/t-${S}/scout` }, { scoutId: scout.id }] } })).toBe(0);
   });
 
   it("goes with the scout's trail", async () => {
-    recordAction("step_checked", { product: "lantern", role: "scout", scoutId: scout.id, props: { steps: 2 } });
+    recordAction("step_checked", { product: "lantern", userId: adult.id, scoutId: scout.id, props: { steps: 2 } });
     await vi.waitFor(async () => expect(await prisma.usageEvent.count({ where: { scoutId: scout.id } })).toBe(1));
     await prisma.journeyScout.delete({ where: { id: scout.id } });
     expect(await prisma.usageEvent.count({ where: { scoutId: scout.id } })).toBe(0);

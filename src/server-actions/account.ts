@@ -67,6 +67,11 @@ export async function changePassword(formData: FormData): Promise<void> {
   if (isDemoMode()) throw new Error(DEMO_LOCKED_MESSAGE);
   const parsed = PasswordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) throw new Error(parsed.error.issues[0]?.message ?? "Invalid input.");
+  // The current-password check runs through auth.api, outside Better
+  // Auth's HTTP rate limit, so a stolen session could guess it here.
+  if (!(await rateLimit(`change-password:${user.id}`, 5, 15 * 60_000)).ok) {
+    throw new Error("Too many tries. Wait 15 minutes and try again.");
+  }
 
   try {
     // Also signs out every other browser, so a password change locks out

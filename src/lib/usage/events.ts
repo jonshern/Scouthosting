@@ -8,9 +8,12 @@
 // - no cookies, no local storage, no IP address stored (collect.ts
 //   keeps only a hash with a salt that's deleted the next day);
 // - paths lose their query string and anything that looks like an id
-//   or a token, so a reset link or a scout's id never lands here;
+//   or a token (and go through the error log's scrubPath), so a reset
+//   link or a scout's id never lands here;
 // - the referrer is a host name only;
-// - a scout's events carry no visitor hash.
+// - nothing is recorded from a scout's device or a scout's account.
+
+import { scrubPath } from "@/lib/ops/error-tracker";
 
 export const USAGE_PRODUCTS = ["landing", "compass", "waypoint", "lantern"] as const;
 export type UsageProduct = (typeof USAGE_PRODUCTS)[number];
@@ -35,7 +38,6 @@ export const ACTIONS: Record<string, string> = {
   signed_in: "Signed in",
   badge_day_signup: "Signed up for a badge day",
   step_checked: "Checked off a requirement",
-  scout_paired: "Paired a scout's device",
   trail_added: "Added a scout trail",
   feedback_sent: "Sent feedback",
   cta_clicked: "Clicked a button on the landing page",
@@ -94,7 +96,8 @@ export function cleanPath(raw: string | null | undefined): { path: string | null
     }
     return isIdLike(seg) ? ":id" : seg.slice(0, 60);
   });
-  const out = `/${segs.join("/")}`.slice(0, MAX_PATH);
+  // Signed links (/rsvp/<token> and the like) lose their token here.
+  const out = scrubPath(`/${segs.join("/")}`).slice(0, MAX_PATH);
   return { path: out, slug };
 }
 

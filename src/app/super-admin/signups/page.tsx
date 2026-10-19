@@ -28,6 +28,7 @@ import {
   resendInviteAction,
   saveSignupAction,
 } from "@/server-actions/super-admin";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export default async function OwnerSignupsPage({
 }: {
   searchParams: Promise<{ view?: string; product?: string; days?: string; all?: string; done?: string }>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   // ?all=1 is the old "Show followed up too" link.
   const view: SignupView = isSignupView(sp.view) ? sp.view : sp.all === "1" ? "all" : "todo";

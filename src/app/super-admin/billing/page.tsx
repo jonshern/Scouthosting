@@ -14,6 +14,7 @@ import {
   type Mode,
 } from "@/lib/owner/billing-report";
 import { Pill, Section, Stat, shortDate } from "@/components/owner/ConsoleBits";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function OwnerBillingPage({
 }: {
   searchParams: Promise<{ mode?: string }>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   const mode: Mode = sp.mode === "live" || sp.mode === "test" ? sp.mode : await defaultMode();
   const [units, payments, events] = await Promise.all([listUnits(), paymentReport(mode), billingEvents()]);

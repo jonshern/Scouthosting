@@ -16,6 +16,11 @@ describe("cleanPath", () => {
     expect(cleanPath("/badge-days/plumbing-day-2026").path).toBe("/badge-days/plumbing-day-2026");
   });
 
+  it("drops the token from signed links", () => {
+    expect(cleanPath("/rsvp/abc.def/yes").path).toBe("/rsvp/[token]/yes");
+    expect(cleanPath("/o/troop100/unsubscribe/xyz").path).toBe("/unsubscribe/[token]");
+  });
+
   it("moves a unit's /o/<slug> prefix out of the path", () => {
     expect(cleanPath("/o/troop100/admin/roster")).toEqual({ path: "/admin/roster", slug: "troop100" });
     expect(cleanPath("/o/troop100")).toEqual({ path: "/", slug: "troop100" });

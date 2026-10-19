@@ -1,9 +1,9 @@
 // POST /api/v1/usage — page and screen views, and key actions, from the
 // landing page, Compass, Waypoint and Lantern, for the owner console's
 // usage pages (/super-admin/analytics). Works signed out. A Compass or
-// adult bearer token ties the events to that account; a Lantern scout
-// device's token marks them as a scout's (no visitor hash, deleted with
-// the trail). Compass's own pages are matched to the signed-in session.
+// adult bearer token ties the events to that account. Nothing is kept
+// from a scout's device or account. Compass's own pages are matched to
+// the signed-in session.
 //
 // { product, platform?, role?: "scout", events: [{ name, path?,
 //   referrer?, source?, props? }] }  →  { ok: true }
@@ -115,11 +115,12 @@ export const POST = v1PublicRoute(
     const counted = countingIp(req, ip);
     const limit = await rateLimit(`usage:${counted ?? "unknown"}`, counted ? 240 : 2400, 60_000);
     if (!limit.ok) return ok;
+    // Nothing is recorded from a scout: a Lantern scout device, a
+    // scout's own account, or Lantern outside grown-up mode (it says
+    // role "scout" then, even on a parent's signed-in phone).
+    if (input.role === "scout") return ok;
     const who = await whoIsAsking(req, input.product);
-    // Lantern says when the scout is the one holding the phone (not in
-    // grown-up mode), even on a parent's signed-in phone. That only ever
-    // lowers what's kept: no visitor hash, and never listed by name.
-    if (input.role === "scout") who.role = "scout";
+    if (who.role === "scout") return ok;
     const host = req.headers.get("host");
     if (input.product === "compass" && !who.orgId) {
       const org = await resolveOrgFromHost(host).catch(() => null);

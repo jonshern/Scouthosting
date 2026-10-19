@@ -5,6 +5,7 @@ import { canManageTreasury } from "@/lib/auth/treasury-access";
 import { accountBalancesReport } from "@/lib/treasury/reports";
 import { buildCsv, csvHeaders } from "@/lib/csv";
 import { centsToDollars } from "@/lib/treasury/money";
+import { organizerStandingOk } from "@/lib/admin/guard";
 
 export async function GET(_req: Request, { params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -14,6 +15,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ slug: s
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!(await canManageTreasury(user, org.id))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  if (!(await organizerStandingOk(user.id))) {
+    return NextResponse.json({ error: "two_step_required" }, { status: 403 });
   }
   const rows = await accountBalancesReport(org, { onlyNonZero: false });
   return new NextResponse(

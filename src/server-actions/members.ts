@@ -12,8 +12,10 @@ import { audit } from "@/lib/audit";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii, encryptMemberPii } from "@/lib/members/crypto";
 import { ownedIds } from "@/lib/tenancy/owned";
+import { changesTreasurerAccess, TREASURER_CHANGE_FORBIDDEN } from "@/lib/auth/treasury-access";
 
 type AuthOk = {
+  isAdmin: boolean;
   user: NonNullable<Awaited<ReturnType<typeof getSession>>["user"]>;
   org: NonNullable<Awaited<ReturnType<typeof prisma.org.findUnique>>>;
 };
@@ -26,7 +28,7 @@ async function authorizeLeader(orgSlug: string): Promise<AuthOk | AuthErr> {
   if (!org) return { error: "Site not found." };
   const role = await roleInOrg(user.id, org.id);
   if (!isLeaderRole(role) && !user.isSuperAdmin) return { error: "Not authorized." };
-  return { user, org };
+  return { user, org, isAdmin: role === "admin" || !!user.isSuperAdmin };
 }
 
 const MemberInput = z.object({
@@ -120,6 +122,9 @@ export async function upsertMember(_prev: MemberState, formData: FormData): Prom
   if (d.id) {
     const existing = await prisma.member.findUnique({ where: { id: d.id } });
     if (!existing || existing.orgId !== auth.org.id) return { error: "Member not found." };
+    if (!auth.isAdmin && changesTreasurerAccess(existing, { position: data.position, email: data.email })) {
+      return { error: TREASURER_CHANGE_FORBIDDEN };
+    }
     await prisma.member.update({
       where: { id: existing.id },
       data: { ...data, leftAt: leftAtFor(existing, d.status) },
@@ -134,6 +139,9 @@ export async function upsertMember(_prev: MemberState, formData: FormData): Prom
       summary: `Updated ${d.firstName} ${d.lastName}`,
     });
   } else {
+    if (!auth.isAdmin && changesTreasurerAccess(null, { position: data.position, email: data.email })) {
+      return { error: TREASURER_CHANGE_FORBIDDEN };
+    }
     const created = await prisma.member.create({ data: { ...data, leftAt: leftAtFor(null, d.status) } });
     audit({
       orgId: auth.org.id,

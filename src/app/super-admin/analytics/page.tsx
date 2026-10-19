@@ -1,10 +1,11 @@
 // /super-admin/analytics — who visits and what they do, across the
 // landing page, Compass, Waypoint and Lantern (lib/usage). Filter by
 // time window and product. Signed-in adults are listed by name and
-// open to a timeline; signed-out visitors show only as a daily hash;
-// scouts show only as counts.
+// open to a timeline; signed-out visitors show only as a daily hash.
+// Nothing is recorded from scouts.
 
 import Link from "next/link";
+import { requireOwnerPage } from "@/lib/owner/guard";
 import { Pill, Section, Stat, shortDate } from "@/components/owner/ConsoleBits";
 import { actionLabel, USAGE_PRODUCTS, type UsageProduct } from "@/lib/usage/events";
 import {
@@ -56,6 +57,7 @@ export default async function OwnerUsagePage({
 }: {
   searchParams: Promise<{ days?: string; product?: string }>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   const days = WINDOWS.find((w) => String(w) === sp.days) ?? 7;
   const product = (USAGE_PRODUCTS as readonly string[]).includes(sp.product ?? "") ? (sp.product as UsageProduct) : null;
@@ -114,7 +116,7 @@ export default async function OwnerUsagePage({
         <Stat label="Visitors" value={fmt(sum.visitors)} hint="one person on one day" />
         <Stat label="Visits" value={fmt(sum.visits)} hint={sum.visits ? `${(sum.views / sum.visits).toFixed(1)} pages each` : "no gap over 30 min"} />
         <Stat label="Page views" value={fmt(sum.views)} hint="pages and app screens" />
-        <Stat label="Signed-in people" value={fmt(sum.signedIn)} hint={sum.scoutDevices ? `plus ${fmt(sum.scoutDevices)} scout trails` : "adults and scouts"} />
+        <Stat label="Signed-in people" value={fmt(sum.signedIn)} hint="grown-ups with an account" />
       </div>
 
       {empty ? (
@@ -243,7 +245,7 @@ export default async function OwnerUsagePage({
             ago(p.lastSeen),
           ])}
         />
-        <p className="text-xs text-ink-muted">Adults only. Scouts are counted above but never listed.</p>
+        <p className="text-xs text-ink-muted">Grown-ups only. Nothing is recorded from scouts or their devices.</p>
       </Section>
 
       <Section title="Signed-out visits">

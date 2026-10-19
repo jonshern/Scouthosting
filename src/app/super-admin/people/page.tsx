@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { listPeople, PRODUCT_LABEL, type Product } from "@/lib/owner/console";
 import { Pill, shortDate } from "@/components/owner/ConsoleBits";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function OwnerPeoplePage({
 }: {
   searchParams: Promise<{ product?: string; q?: string }>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   const product = FILTERS.find((f) => f.key === sp.product)?.key ?? null;
   const people = await listPeople({ q: sp.q, product });

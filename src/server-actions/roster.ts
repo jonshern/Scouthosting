@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
+import { changesTreasurerAccess, TREASURER_CHANGE_FORBIDDEN } from "@/lib/auth/treasury-access";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import {
   parseRoster,
@@ -41,7 +42,7 @@ type AuthedOrg = {
 
 async function authorize(
   orgSlug: string,
-): Promise<{ error: string } | { org: AuthedOrg }> {
+): Promise<{ error: string } | { org: AuthedOrg; isAdmin: boolean }> {
   const { user } = await getSession();
   if (!user) return { error: "Sign in." };
   const org = await prisma.org.findUnique({
@@ -56,7 +57,7 @@ async function authorize(
   if (!m || (m.role !== "leader" && m.role !== "admin")) {
     return { error: "Forbidden." };
   }
-  return { org };
+  return { org, isAdmin: m.role === "admin" };
 }
 
 async function loadInputRows(formData: FormData, orgId: string): Promise<RosterRow[] | { error: string }> {
@@ -134,6 +135,24 @@ async function buildPlan(
   return planRosterImport({ rows, existing });
 }
 
+async function planChangesTreasurerAccess(plan: ImportPlan, orgId: string): Promise<boolean> {
+  if (plan.creates.some((r) => changesTreasurerAccess(null, { position: r.position, email: r.email }))) {
+    return true;
+  }
+  if (!plan.updates.length) return false;
+  const before = await prisma.member.findMany({
+    where: { orgId, id: { in: plan.updates.map((u) => u.id) } },
+    select: { id: true, position: true, email: true },
+  });
+  const byId = new Map(before.map((m) => [m.id, m]));
+  return plan.updates.some((u) =>
+    changesTreasurerAccess(byId.get(u.id) ?? null, {
+      position: "position" in u.data ? (u.data.position as string | null) : undefined,
+      email: "email" in u.data ? (u.data.email as string | null) : undefined,
+    }),
+  );
+}
+
 export async function runRosterImport(
   _prev: RosterImportState,
   formData: FormData,
@@ -155,6 +174,9 @@ export async function runRosterImport(
     return { error: "Org encryption vault is not provisioned." };
   }
   const plan = await buildPlan(rows, auth.org);
+  if (!auth.isAdmin && (await planChangesTreasurerAccess(plan, auth.org.id))) {
+    return { error: TREASURER_CHANGE_FORBIDDEN };
+  }
   const mode = String(formData.get("mode") ?? "preview");
 
   if (mode !== "commit") {

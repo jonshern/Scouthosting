@@ -55,6 +55,14 @@ export async function userIdByEmail(email: string): Promise<string> {
   return u.id;
 }
 
+/**
+ * Marks an account's email confirmed, as following the emailed link would. RSVPs and My Scouts
+ * match roster entries by confirmed email only.
+ */
+export async function confirmEmail(email: string): Promise<void> {
+  await db().user.update({ where: { email: email.toLowerCase() }, data: { emailVerified: true } });
+}
+
 export async function memberIdByEmail(email: string): Promise<string> {
   const m = await db().member.findFirstOrThrow({
     where: { orgId: await orgId(), email: email.toLowerCase(), deletedAt: null },

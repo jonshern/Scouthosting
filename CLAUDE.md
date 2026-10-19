@@ -361,9 +361,9 @@ Page and screen views and key actions from the landing page, Compass,
 Waypoint and Lantern go to `POST /api/v1/usage` (`src/lib/usage/`) and
 show at `/super-admin/analytics`. No third-party analytics, no cookies,
 no IP stored: signed-out visitors get a daily hash whose salt
-(`UsageSalt`) is deleted the next day. Scout events (Lantern outside
-grown-up mode, scout logins) never get that hash and aren't listed by
-name. Server code records key actions with `recordAction()`; a new one
+(`UsageSalt`) is deleted the next day. Nothing is recorded from scouts
+(Lantern outside grown-up mode, scout devices, scout logins), and paths
+go through `scrubPath`. Server code records key actions with `recordAction()`; a new one
 gets a label in `ACTIONS` (`events.ts`). Rows go after 13 months, with
 the account, the Lantern trail and the scout retention purge; the
 privacy draft (`business/drafts/privacy-policy.md`) describes all this,

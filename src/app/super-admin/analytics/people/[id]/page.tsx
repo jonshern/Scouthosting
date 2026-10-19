@@ -3,6 +3,7 @@
 // timeline here.
 
 import Link from "next/link";
+import { requireOwnerPage } from "@/lib/owner/guard";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { Pill, Section } from "@/components/owner/ConsoleBits";
@@ -12,6 +13,7 @@ import { personTimeline } from "@/lib/usage/report";
 export const dynamic = "force-dynamic";
 
 export default async function OwnerPersonUsagePage({ params }: { params: Promise<{ id: string }> }) {
+  await requireOwnerPage();
   const { id } = await params;
   const user = await prisma.user.findUnique({ where: { id }, select: { id: true, displayName: true, email: true } });
   if (!user) notFound();

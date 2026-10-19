@@ -10,6 +10,7 @@ import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 import { buildCsv, csvHeaders } from "@/lib/csv";
 import { centsToDollars } from "@/lib/treasury/money";
+import { organizerStandingOk } from "@/lib/admin/guard";
 
 export async function GET(
   _req: Request,
@@ -23,6 +24,9 @@ export async function GET(
   const role = await roleInOrg(user.id, org.id);
   if (!isLeaderRole(role) && !user.isSuperAdmin) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  if (!(await organizerStandingOk(user.id))) {
+    return NextResponse.json({ error: "two_step_required" }, { status: 403 });
   }
   const campaign = await prisma.salesCampaign.findUnique({
     where: { id, orgId: org.id },

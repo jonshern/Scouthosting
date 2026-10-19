@@ -3,6 +3,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
+import { roleInOrg } from "@/lib/auth/role";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { submitSurvey } from "@/server-actions/surveys";
 
@@ -53,6 +54,16 @@ export default async function PublicSurveyPage({
         >
           Sign in
         </a>
+      </main>
+    );
+  }
+
+  // Anyone can make an account, so a signed-in visitor isn't a member.
+  if (requiresAuth && user && !user.isSuperAdmin && !(await roleInOrg(user.id, survey.orgId))) {
+    return (
+      <main className="mx-auto max-w-content px-6 py-16 text-center">
+        <h1 className="font-display text-3xl">{survey.title}</h1>
+        <p className="mt-2 text-ink-muted">This survey is for members of the unit.</p>
       </main>
     );
   }
