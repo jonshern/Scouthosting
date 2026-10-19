@@ -43,7 +43,7 @@ export default async function OwnerErrorsPage({
 
   return (
     <section className="space-y-5">
-      <h2 className="font-display text-2xl">
+      <h2 className="font-display font-semibold text-2xl">
         Errors{org ? ` in ${org.displayName}` : ""} ({groups.length})
       </h2>
 

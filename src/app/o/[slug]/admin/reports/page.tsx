@@ -157,7 +157,7 @@ export default async function ReportsPage({
 
       <div id="ages" className="space-y-4">
         <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Scouts by age
           </h2>
           <Link
@@ -223,7 +223,7 @@ function Section<T>({
     <div id={id} className="space-y-3">
       {title ? (
         <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">{title}</h2>
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">{title}</h2>
           {csv ? (
             <Link
               href={csv}

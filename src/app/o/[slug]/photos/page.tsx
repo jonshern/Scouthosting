@@ -55,7 +55,7 @@ export default async function PublicPhotosIndex({ params }: { params: Promise<{ 
                     <div className="aspect-video w-full bg-line-soft" aria-hidden />
                   )}
                   <div className="p-5">
-                    <div className="font-display text-lg font-medium text-slate-ink">
+                    <div className="font-display text-lg font-semibold text-slate-ink">
                       {a.title}
                     </div>
                     <div className="mt-1 text-sm text-slate-soft">

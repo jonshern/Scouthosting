@@ -40,7 +40,7 @@ export default async function StaffRsvpPage({
   if (!token || !staff) {
     return (
       <main className="mx-auto max-w-content px-6 py-16 text-center">
-        <h1 className="font-display text-3xl">Link not valid</h1>
+        <h1 className="font-display font-semibold text-3xl">Link not valid</h1>
         <p className="mt-2 text-ink-muted">
           This link doesn&apos;t match an invitation. Ask the event organizer to send it again.
         </p>
@@ -51,7 +51,7 @@ export default async function StaffRsvpPage({
   if (isEventOver(staff.event)) {
     return (
       <main className="mx-auto max-w-content px-6 py-16 text-center">
-        <h1 className="font-display text-3xl">This event is over</h1>
+        <h1 className="font-display font-semibold text-3xl">This event is over</h1>
         <p className="mt-2 text-ink-muted">
           {staff.event.title} has ended, so this link no longer takes answers. Thanks for being willing to help.
         </p>
@@ -63,7 +63,7 @@ export default async function StaffRsvpPage({
   return (
     <main className="mx-auto max-w-xl px-6 py-16">
       <p className="text-sm text-ink-muted">{staff.event.org.displayName}</p>
-      <h1 className="font-display text-3xl">{staff.event.title}</h1>
+      <h1 className="font-display font-semibold text-3xl">{staff.event.title}</h1>
       <p className="mt-2 text-ink-muted">
         {staff.event.startsAt.toLocaleString()}
         {staff.event.location ? ` · ${staff.event.location}` : ""}

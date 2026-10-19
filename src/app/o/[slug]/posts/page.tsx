@@ -38,7 +38,7 @@ export default async function PublicPosts({ params }: { params: Promise<{ slug: 
               <li key={p.id} className="card">
                 <Link
                   href={`/o/${slug}/posts/${p.id}`}
-                  className="font-display text-2xl font-medium text-slate-ink hover:text-sky"
+                  className="font-display text-2xl font-semibold text-slate-ink hover:text-sky"
                 >
                   {p.title ?? p.body.slice(0, 80)}
                 </Link>

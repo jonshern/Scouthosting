@@ -60,7 +60,7 @@ export async function Header() {
       <div className="mx-auto flex max-w-content items-center justify-between px-6 py-4">
         <Link
           href="/"
-          className="flex items-center gap-2.5 font-display text-xl font-medium text-ink"
+          className="flex items-center gap-2.5 font-display text-xl font-semibold text-ink"
         >
           <CompassMark />
           <span>

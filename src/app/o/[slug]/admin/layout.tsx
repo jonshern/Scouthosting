@@ -69,7 +69,7 @@ export default async function AdminLayout({
               ? "border-sky/20 bg-sky/5 text-slate-ink"
               : banner.tone === "warn"
                 ? "border-amber/30 bg-amber/10 text-slate-ink"
-                : "border-red-200 bg-red-50 text-red-900")
+                : "border-danger-line bg-danger-soft text-danger")
           }
         >
           <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-3 gap-y-1">

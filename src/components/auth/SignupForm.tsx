@@ -35,7 +35,7 @@ export function SignupForm({ csrf, next }: { csrf: React.ReactNode; next?: strin
         <span>I confirm I am 18 or older. Scouts join through a parent or guardian&apos;s account.</span>
       </label>
       {state?.error && (
-        <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">
+        <div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">
           {state.error}
         </div>
       )}

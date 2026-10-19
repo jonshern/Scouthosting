@@ -31,7 +31,7 @@ export default async function ThanksPage({
   return (
     <main className="mx-auto max-w-xl px-6 py-16">
       <Wordmark />
-      <h1 className="mt-10 font-display text-3xl text-ink">Thank you!</h1>
+      <h1 className="mt-10 font-display font-semibold text-3xl text-ink">Thank you!</h1>
       <p className="mt-2 text-sm text-slate-soft">
         Your order is in. We&rsquo;ll email a receipt to{" "}
         <strong>{order.buyerEmail ?? "you"}</strong>.
@@ -52,7 +52,7 @@ export default async function ThanksPage({
           ))}
         </ul>
         <div className="mt-3 flex items-baseline justify-between border-t border-line pt-3">
-          <span className="font-display text-lg text-ink">Total</span>
+          <span className="font-display font-semibold text-lg text-ink">Total</span>
           <span className="font-mono text-lg">{centsToDollars(order.totalCents)}</span>
         </div>
       </div>

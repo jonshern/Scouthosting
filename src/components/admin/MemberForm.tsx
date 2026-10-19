@@ -215,7 +215,7 @@ export function MemberForm({
       ) : null}
 
       {state?.error && (
-        <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">{state.error}</div>
+        <div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">{state.error}</div>
       )}
       <button type="submit" disabled={pending} className="btn-primary">
         {pending ? "Saving…" : m.id ? "Save changes" : "Add member"}

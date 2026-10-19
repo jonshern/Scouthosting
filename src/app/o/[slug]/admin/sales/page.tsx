@@ -56,7 +56,7 @@ export default async function SalesHub({
         description="Run popcorn / camp-card / wreath sales. Settlement lands in the Treasury ledger."
       />
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Campaigns</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Campaigns</h2>
         {campaigns.length === 0 ? (
           <p className="text-sm text-slate-muted">No campaigns yet.</p>
         ) : (
@@ -113,7 +113,7 @@ export default async function SalesHub({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">New campaign</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">New campaign</h2>
         <CampaignForm orgSlug={slug} funds={funds} csrf={<CsrfTokenInput />} />
       </div>
     </section>

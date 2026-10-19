@@ -72,7 +72,7 @@ export default async function MyStuffPage() {
             <article key={c.id} className="rounded-xl border border-line bg-surface p-6">
               <header className="flex flex-wrap items-baseline justify-between gap-3">
                 <div>
-                  <h2 className="font-display text-xl text-ink">{c.displayName}</h2>
+                  <h2 className="font-display font-semibold text-xl text-ink">{c.displayName}</h2>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-muted">
                     <Pill tone="accent">{c.orgDisplayName}</Pill>
                     {c.patrol ? <span>· {c.patrol}</span> : null}

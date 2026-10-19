@@ -40,7 +40,7 @@ export function Stat({
   const body = (
     <>
       <div className="text-xs uppercase tracking-wide text-ink-muted">{label}</div>
-      <div className={`mt-1 font-display text-3xl ${tone === "bad" ? "text-danger" : tone === "warn" ? "text-warn" : "text-ink"}`}>
+      <div className={`mt-1 font-display font-semibold text-3xl ${tone === "bad" ? "text-danger" : tone === "warn" ? "text-warn" : "text-ink"}`}>
         {value}
       </div>
       {hint ? <div className="mt-1 text-xs text-ink-muted">{hint}</div> : null}
@@ -60,7 +60,7 @@ export function Section({ title, action, children }: { title: string; action?: R
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="font-display text-xl">{title}</h2>
+        <h2 className="font-display font-semibold text-xl">{title}</h2>
         {action}
       </div>
       {children}

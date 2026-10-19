@@ -82,7 +82,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
           {unitNumber && (
             <span
               aria-hidden
-              className="pointer-events-none absolute -right-10 -top-10 select-none font-display text-[220px] italic leading-none text-sky md:text-[360px]"
+              className="pointer-events-none absolute -right-10 -top-10 select-none font-display font-semibold text-[220px] leading-none text-sky md:text-[360px]"
               style={{ opacity: 0.12 }}
             >
               {unitNumber}
@@ -91,7 +91,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
           <span className="relative mb-6 inline-flex items-center gap-2 self-start rounded-full bg-sky px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
             {org.unitType} · {org.council ?? "Independent"} Council
           </span>
-          <h1 className="relative font-display text-[64px] font-normal leading-[0.88] tracking-[-0.035em] md:text-[96px] lg:text-[120px]">
+          <h1 className="relative font-display text-[64px] font-semibold leading-[0.88] tracking-[-0.035em] md:text-[96px] lg:text-[120px]">
             {page?.heroHeadline ? (
               page.heroHeadline
             ) : (
@@ -134,7 +134,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
             <div className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-sky">
               About our {org.unitType.toLowerCase()}
             </div>
-            <h2 className="mb-4 font-display text-[28px] font-normal leading-[1.15] md:text-[36px]">
+            <h2 className="mb-4 font-display text-[28px] font-semibold leading-[1.15] md:text-[36px]">
               {org.tagline ?? `Scout-led, community-rooted${
                 org.founded ? `, since ${org.founded}` : "."
               }`}
@@ -159,7 +159,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
                 { n: org.meetingTime ?? "—", l: "Meeting time" },
               ].map((s) => (
                 <div key={s.l}>
-                  <div className="font-display text-[24px] font-medium leading-none text-ink md:text-[28px]">
+                  <div className="font-display text-[24px] font-semibold leading-none text-ink md:text-[28px]">
                     {s.n}
                   </div>
                   <div className="mt-1 text-xs text-slate-soft">{s.l}</div>
@@ -171,7 +171,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
           {/* Recent photos — fetched client-side */}
           <section className="mb-12">
             <div className="mb-4 flex items-baseline justify-between">
-              <h3 className="font-display text-[22px] font-normal md:text-[26px]">
+              <h3 className="font-display text-[22px] font-semibold md:text-[26px]">
                 Recent adventures
               </h3>
               <Link href={`${base}/photos`} className="text-xs font-medium text-sky">
@@ -184,7 +184,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
           {/* News / announcements — fetched client-side */}
           <section>
             <div className="mb-4 flex items-baseline justify-between">
-              <h3 className="font-display text-[22px] font-normal md:text-[26px]">
+              <h3 className="font-display text-[22px] font-semibold md:text-[26px]">
                 News & announcements
               </h3>
               <Link href={`${base}/posts`} className="text-xs font-medium text-sky">
@@ -203,7 +203,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
                   return (
                     <section key={b.id}>
                       {b.title && (
-                        <h2 className="font-display text-2xl font-medium">{b.title}</h2>
+                        <h2 className="font-display text-2xl font-semibold">{b.title}</h2>
                       )}
                       {b.body && (
                         <div
@@ -238,7 +238,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
                   return (
                     <section key={b.id} className="card">
                       {b.title && (
-                        <h2 className="font-display text-2xl font-medium">{b.title}</h2>
+                        <h2 className="font-display text-2xl font-semibold">{b.title}</h2>
                       )}
                       {b.body && <p className="mt-2 text-slate-soft">{b.body}</p>}
                       {b.buttonLabel && b.buttonLink && (
@@ -273,7 +273,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
                 <line x1="8" y1="2" x2="8" y2="6" />
                 <line x1="3" y1="10" x2="21" y2="10" />
               </svg>
-              <h3 className="font-display text-[20px] font-medium md:text-[22px]">
+              <h3 className="font-display text-[20px] font-semibold md:text-[22px]">
                 Upcoming events
               </h3>
             </div>
@@ -291,7 +291,7 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
               <div className="mb-2 text-xs uppercase tracking-[0.06em] text-slate-muted">
                 Sponsored by
               </div>
-              <div className="font-display text-[18px]">{org.charterOrg}</div>
+              <div className="font-display font-semibold text-[18px]">{org.charterOrg}</div>
               {(org.city || org.state) && (
                 <div className="mt-2 text-xs leading-[1.5] text-slate-soft">
                   {[org.city, org.state].filter(Boolean).join(", ")}

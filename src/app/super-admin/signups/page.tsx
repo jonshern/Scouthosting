@@ -23,7 +23,7 @@ export default async function OwnerSignupsPage({
   return (
     <section className="space-y-5">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="font-display text-2xl">Sign-ups, last 30 days ({items.length})</h2>
+        <h2 className="font-display font-semibold text-2xl">Sign-ups, last 30 days ({items.length})</h2>
         <Link href={all ? "/super-admin/signups" : "/super-admin/signups?all=1"} className="text-sm">
           {all ? "Only ones to follow up" : "Show followed up too"}
         </Link>

@@ -14,7 +14,7 @@ export default async function UnsubscribePage({
   if (!claims) {
     return (
       <main className="mx-auto max-w-content px-6 py-16 text-center">
-        <h1 className="font-display text-3xl">Link expired</h1>
+        <h1 className="font-display font-semibold text-3xl">Link expired</h1>
         <p className="mt-2 text-ink-muted">
           This unsubscribe link is no longer valid. Reply to any email from your unit and ask
           to be removed.
@@ -30,7 +30,7 @@ export default async function UnsubscribePage({
   if (!member) {
     return (
       <main className="mx-auto max-w-content px-6 py-16 text-center">
-        <h1 className="font-display text-3xl">Already removed</h1>
+        <h1 className="font-display font-semibold text-3xl">Already removed</h1>
       </main>
     );
   }
@@ -42,7 +42,7 @@ export default async function UnsubscribePage({
   }
   return (
     <main className="mx-auto max-w-content px-6 py-16 text-center">
-      <h1 className="font-display text-3xl">Unsubscribed</h1>
+      <h1 className="font-display font-semibold text-3xl">Unsubscribed</h1>
       <p className="mt-3 text-ink-muted">
         We won't send broadcast email to <strong>{member.email}</strong> from this unit.
       </p>

@@ -25,7 +25,7 @@ export function BillingGate({
   if (!locked || open) return <>{children}</>;
   return (
     <section className="mx-auto max-w-xl py-16 text-center" data-testid="billing-wall">
-      <h1 className="font-display text-3xl">Subscribe to keep using Compass</h1>
+      <h1 className="font-display font-semibold text-3xl">Subscribe to keep using Compass</h1>
       <p className="mt-3 text-slate-soft">
         Your unit&apos;s free trial or subscription has ended. Everything you set up is still
         here, and your public site and members&apos; pages are still up.

@@ -83,7 +83,7 @@ export default async function TreasuryReports({
 
       <div>
         <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Fund balances
           </h2>
           <Link
@@ -125,7 +125,7 @@ export default async function TreasuryReports({
 
       <div>
         <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Account balances (non-zero only)
           </h2>
           <Link
@@ -184,7 +184,7 @@ export default async function TreasuryReports({
 
       <div>
         <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Budget vs. actual
           </h2>
           {activeFy ? (
@@ -249,7 +249,7 @@ export default async function TreasuryReports({
 
       <div>
         <header className="flex flex-wrap items-baseline justify-between gap-3">
-          <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">
+          <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">
             Year over year
           </h2>
           <Link

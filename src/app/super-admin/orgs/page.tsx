@@ -28,7 +28,7 @@ export default async function OwnerUnitsPage({
 
   return (
     <section className="space-y-5">
-      <h2 className="font-display text-2xl">Units ({units.length})</h2>
+      <h2 className="font-display font-semibold text-2xl">Units ({units.length})</h2>
 
       <form method="GET" className="flex flex-wrap items-end gap-2">
         {kind ? <input type="hidden" name="kind" value={kind} /> : null}

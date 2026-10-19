@@ -25,7 +25,7 @@ export default async function OneClickRsvp({
   if (!claims) {
     return (
       <main className="mx-auto max-w-content px-6 py-16 text-center">
-        <h1 className="font-display text-3xl">Link expired</h1>
+        <h1 className="font-display font-semibold text-3xl">Link expired</h1>
         <p className="mt-2 text-ink-muted">
           This RSVP link is no longer valid. Open the calendar in your unit's site to RSVP.
         </p>
@@ -40,7 +40,7 @@ export default async function OneClickRsvp({
   if (!event) {
     return (
       <main className="mx-auto max-w-content px-6 py-16 text-center">
-        <h1 className="font-display text-3xl">Event not found</h1>
+        <h1 className="font-display font-semibold text-3xl">Event not found</h1>
       </main>
     );
   }
@@ -49,7 +49,7 @@ export default async function OneClickRsvp({
   if (done) {
     return (
       <main className="mx-auto max-w-content px-6 py-16 text-center">
-        <h1 className="font-display text-3xl">Thanks — RSVP saved</h1>
+        <h1 className="font-display font-semibold text-3xl">Thanks — RSVP saved</h1>
         <p className="mt-3 text-ink-muted">
           We've recorded <strong>{done}</strong> for <strong>{event.title}</strong>
           {event.location ? ` at ${event.location}` : ""}.
@@ -67,13 +67,13 @@ export default async function OneClickRsvp({
 
   return (
     <main className="mx-auto max-w-content px-6 py-16 text-center">
-      <h1 className="font-display text-3xl">RSVP for {event.title}</h1>
+      <h1 className="font-display font-semibold text-3xl">RSVP for {event.title}</h1>
       <p className="mt-3 text-ink-muted">
         Answering as {claims.name}
         {event.location ? ` · ${event.location}` : ""}.
       </p>
       {sp.full !== undefined ? (
-        <p role="alert" className="mt-4 text-sm text-red-700">
+        <p role="alert" className="mt-4 text-sm text-danger">
           {fullNotice(sp.full)}
         </p>
       ) : null}

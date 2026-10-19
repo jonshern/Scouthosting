@@ -35,7 +35,7 @@ export default async function OwnerPeoplePage({
 
   return (
     <section className="space-y-5">
-      <h2 className="font-display text-2xl">People ({people.length})</h2>
+      <h2 className="font-display font-semibold text-2xl">People ({people.length})</h2>
 
       <form method="GET" className="flex flex-wrap items-end gap-2">
         {product ? <input type="hidden" name="product" value={product} /> : null}

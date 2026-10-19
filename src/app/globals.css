@@ -3,100 +3,111 @@
 @tailwind utilities;
 
 /* ------------------------------------------------------------------
-   Compass design tokens — "editorial admin" palette from
-   design_handoff_compass_cms. Warm off-white background, taupe
-   lines, single deep-navy accent, Source Serif 4 + Inter Tight
-   + JetBrains Mono.
+   Compass's look is the suite's Modern Clean system. The tokens live in
+   src/styles/tokens.ts; tailwind.config.ts writes each one to :root as
+   a CSS variable (--bg, --surface, --sunk, --ink, --ink-2, --muted,
+   --line, --divider, --control, --accent, --accent-soft, --done,
+   --attention, --danger, --radius-sm, ...). Use those, never a hex.
    ------------------------------------------------------------------ */
 :root {
-  --bg:           #f6f5f1;
-  --bg-2:         #efece4;
-  --surface:      #ffffff;
-  --surface-alt:  #efece4;
-  --surface-dark: #14171c;
-  --ink:          #14171c;
-  --ink-soft:     #2a2f38;
-  --ink-muted:    #6b7280;
-  --ink-muted-2:  #9aa1ad;
-  --line:         #e6e3da;
-  --line-soft:    #efece4;
-  --line-strong:  #d8d2c2;
-
-  --accent:       #1d3a8a;
-  --accent-soft:  #e6ecff;
-
-  --success:      #15803d;
-  --warn:         #92400e;
-  --danger:       #b91c1c;
-
-  /* Legacy var aliases retained so older components keep rendering. */
+  /* Older variable names, pointed at the tokens. */
+  --bg-2:         var(--sunk);
+  --surface-alt:  var(--sunk);
+  --surface-dark: var(--ink);
+  --ink-soft:     var(--ink-2);
+  --ink-muted:    var(--muted);
+  --ink-muted-2:  var(--muted);
+  --line-soft:    var(--divider);
+  --line-strong:  var(--control);
+  --success:      var(--done);
+  --warn:         var(--attention);
   --forest:       var(--accent);
   --bone:         var(--bg);
-  --ember:        var(--warn);
-  --ember-soft:   #fef3c7;
+  --ember:        var(--attention);
+  --ember-soft:   var(--attention-soft);
   --teal:         #0e7490;
-  --plum:         #475569;
+  --plum:         var(--ink-2);
+  --font-display: var(--font-sans);
 }
 
 html, body {
   background: var(--bg);
   color: var(--ink);
-  font-family: "Inter Tight", "Inter", system-ui, -apple-system, sans-serif;
+  font-family: var(--font-sans), "Geist", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 
-a { color: var(--accent); }
+h1, h2, h3 { letter-spacing: -0.02em; }
+
+a { color: var(--accent-text); }
 a:hover { color: var(--ink); }
 
-/* Italic-serif eyebrow used everywhere the design calls for `§ Foo`.
-   Pages can also use <span className="font-display italic"> if they
-   want the same look without this helper class. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Small label: Geist Mono, uppercase, muted. Used where older pages had
+   the italic `§ Foo` eyebrow. */
 .eyebrow {
-  font-family: var(--font-display, "Source Serif 4"), Georgia, serif;
-  font-style: italic;
-  font-weight: 400;
+  font-family: var(--font-mono), "Geist Mono", ui-monospace, monospace;
+  font-style: normal;
+  font-weight: 500;
   font-size: 12px;
-  letter-spacing: 0.02em;
-  color: var(--ink-soft);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .btn {
-  @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors;
+  @apply inline-flex items-center justify-center gap-2 px-4 text-sm font-medium transition-colors;
+  min-height: 40px;
+  border-radius: var(--radius-sm);
 }
 .btn-primary {
-  background: var(--accent); color: #fff;
+  background: var(--accent); color: var(--accent-ink);
   @apply btn;
 }
-.btn-primary:hover { background: var(--ink); }
+.btn-primary:hover { background: var(--accent-soft-text); color: var(--accent-ink); }
 .btn-secondary {
-  background: transparent; color: var(--ink); border: 1.5px solid var(--ink);
+  background: var(--surface); color: var(--ink); border: 1px solid var(--control);
   @apply btn;
 }
-.btn-secondary:hover { background: var(--ink); color: #fff; }
+.btn-secondary:hover { background: var(--sunk); color: var(--ink); }
 .btn-ghost {
-  background: transparent; color: var(--ink-soft);
+  background: transparent; color: var(--ink-2);
   @apply btn;
 }
-.btn-ghost:hover { background: var(--surface-alt); color: var(--ink); }
+.btn-ghost:hover { background: var(--sunk); color: var(--ink); }
+.btn-danger {
+  background: var(--surface); color: var(--danger); border: 1px solid var(--danger-line);
+  @apply btn;
+}
+.btn-danger:hover { background: var(--danger-soft); color: var(--danger); }
 
 .field {
-  @apply block w-full rounded-md border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2;
-  border-color: var(--line-strong);
+  @apply block w-full border px-3 text-sm focus:outline-none;
+  min-height: 42px;
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--control);
+  border-radius: var(--radius-sm);
 }
+textarea.field { padding-top: 10px; padding-bottom: 10px; }
 .field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 
-.label { @apply block text-sm font-medium mb-1; color: var(--ink); }
+.label { @apply block text-sm font-medium mb-1.5; color: var(--ink); }
 
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
-  @apply rounded-xl p-6 shadow-sm;
+  border-radius: var(--radius-md);
+  @apply p-6;
 }
 
-/* Dashed divider — used for KV pairs, member rows, advancement
-   requirements lists. */
+/* Divider between rows: KV pairs, member rows, requirement lists. */
 .dashed-divide > * + * {
-  border-top: 1px dashed var(--line);
+  border-top: 1px solid var(--divider);
   padding-top: 8px;
   margin-top: 8px;
 }
@@ -104,16 +115,14 @@ a:hover { color: var(--ink); }
 /* Tag / pill primitives shared across many surfaces. */
 .tag {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; font-weight: 500;
-  padding: 1px 6px; border-radius: 3px;
-  background: var(--surface-alt); color: var(--ink-soft);
-  border: 1px solid var(--line);
+  font-size: 12px; font-weight: 500;
+  padding: 2px 8px; border-radius: 6px;
+  background: var(--sunk); color: var(--ink-2);
 }
-.tag.mono { font-family: var(--font-mono, "JetBrains Mono"), ui-monospace, monospace; }
+.tag.mono { font-family: var(--font-mono), "Geist Mono", ui-monospace, monospace; }
 .pill {
   display: inline-flex; align-items: center; gap: 4px;
-  font-size: 11px; font-weight: 500;
-  padding: 2px 8px; border-radius: 999px;
-  background: var(--surface-alt); color: var(--ink-soft);
-  border: 1px solid var(--line);
+  font-size: 12px; font-weight: 500;
+  padding: 3px 10px; border-radius: 999px;
+  background: var(--sunk); color: var(--ink-2);
 }

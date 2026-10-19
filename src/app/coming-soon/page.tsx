@@ -58,7 +58,7 @@ export default function ComingSoonPage() {
       <header className="relative z-10 flex items-center justify-between px-8 py-7 md:px-14">
         <div className="flex items-center gap-3">
           <CompassMark size={26} />
-          <span className="font-display text-xl tracking-tight">
+          <span className="font-display font-semibold text-xl tracking-tight">
             Compass<span className="text-sky">.</span>
           </span>
         </div>
@@ -75,7 +75,7 @@ export default function ComingSoonPage() {
             Building with founding troops in private beta
           </span>
 
-          <h1 className="font-display text-[56px] font-normal leading-[0.98] tracking-[-0.03em] md:text-[84px]">
+          <h1 className="font-display text-[56px] font-semibold leading-[0.98] tracking-[-0.03em] md:text-[84px]">
             One place for your{" "}
             <em className="font-normal not-italic text-sky md:italic">whole troop.</em>
           </h1>
@@ -90,7 +90,7 @@ export default function ComingSoonPage() {
 
         {/* Invite-code card */}
         <div className="rounded-2xl bg-white p-8 text-slate-ink shadow-[0_24px_64px_rgba(0,0,0,0.35)] md:p-9">
-          <div className="mb-1 font-display text-2xl font-normal tracking-[-0.015em]">
+          <div className="mb-1 font-display text-2xl font-semibold tracking-[-0.015em]">
             Have an invite code?
           </div>
           <p className="mb-7 text-sm leading-[1.55] text-slate-muted">

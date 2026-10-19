@@ -45,13 +45,13 @@ export default async function SignupPage({
 
         <div className="relative flex items-center gap-3">
           <CompassMark size={26} />
-          <span className="font-display text-xl tracking-tight">
+          <span className="font-display font-semibold text-xl tracking-tight">
             Compass<span className="text-sky">.</span>
           </span>
         </div>
 
         <div className="relative max-w-[540px]">
-          <h1 className="font-display text-[44px] font-normal leading-[1.05] tracking-[-0.02em] text-balance md:text-[56px]">
+          <h1 className="font-display text-[44px] font-semibold leading-[1.05] tracking-[-0.02em] text-balance md:text-[56px]">
             Start with your first
             <br />
             <em className="font-normal not-italic text-sky md:italic">
@@ -76,7 +76,7 @@ export default async function SignupPage({
 
       <section className="flex flex-col justify-center px-6 py-14 md:px-16">
         <div className="mx-auto w-full max-w-md">
-          <h2 className="font-display text-3xl font-normal tracking-[-0.015em] md:text-4xl">
+          <h2 className="font-display text-3xl font-semibold tracking-[-0.015em] md:text-4xl">
             Create your account
           </h2>
           <p className="mt-2 text-sm text-slate-muted">

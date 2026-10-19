@@ -39,7 +39,7 @@ export default async function OrgPermissionSlipsPage({
       />
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">By event</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">By event</h2>
         <p className="mt-1 text-sm text-slate-muted">
           {byEvent.length === 0
             ? "No upcoming events require a slip."
@@ -92,7 +92,7 @@ export default async function OrgPermissionSlipsPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink">By scout</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink">By scout</h2>
         <p className="mt-1 text-sm text-slate-muted">
           {byScout.length === 0
             ? "Every yes-RSVP youth has a signed slip on file."

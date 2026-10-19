@@ -26,7 +26,7 @@ export default async function OrgLayout({
   if (org.suspendedAt) {
     return (
       <main className="mx-auto max-w-content px-6 py-16">
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-6">
+        <div className="rounded-xl border border-attention/30 bg-attention-soft p-6">
           <h1 className="font-display text-2xl font-semibold">This site is paused.</h1>
           <p className="mt-2 text-slate-muted">
             {org.suspendedReason ?? "Contact the unit's leaders."}

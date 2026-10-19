@@ -38,7 +38,7 @@ export default async function TrailsPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-2">Lantern trails</h1>
+      <h1 className="font-display font-semibold text-3xl mb-2">Lantern trails</h1>
       <p className="max-w-xl text-sm text-slate-muted">
         Every check mark, log, note and photo on your scouts&apos; trails is saved here in Compass and
         backed up every night. You can also keep your own copy, and put one back if anything ever goes
@@ -46,20 +46,20 @@ export default async function TrailsPage({
       </p>
 
       {done && (
-        <p role="status" className="mt-6 max-w-xl rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <p role="status" className="mt-6 max-w-xl rounded border border-done/30 bg-done-soft p-3 text-sm text-done-text">
           Imported into {done.name || "the scout"}: {plural(n("steps"), "check mark")},{" "}
           {plural(n("entries"), "log or note", "logs and notes")} and {plural(n("photos"), "photo")}.
           {n("skipped") > 0 && <> {plural(n("skipped"), "item")} were already there or couldn&apos;t be read.</>}
         </p>
       )}
       {q.error && (
-        <p role="alert" className="mt-6 max-w-xl rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <p role="alert" className="mt-6 max-w-xl rounded border border-danger-line bg-danger-soft p-3 text-sm text-danger">
           {ERRORS[q.error] ?? "That didn't work. Try again."}
         </p>
       )}
 
       <section className="mt-8 max-w-xl">
-        <h2 className="font-display text-xl mb-3">Download a copy</h2>
+        <h2 className="font-display font-semibold text-xl mb-3">Download a copy</h2>
         {scouts.length === 0 ? (
           <p className="text-sm text-slate-muted">
             No trails on this account yet. Sign in to Lantern on your phone and your scout&apos;s trail is
@@ -95,7 +95,7 @@ export default async function TrailsPage({
       </section>
 
       <section className="mt-10 max-w-xl">
-        <h2 className="font-display text-xl mb-3">Put a copy back</h2>
+        <h2 className="font-display font-semibold text-xl mb-3">Put a copy back</h2>
         <form action="/account/trails/import" method="post" encType="multipart/form-data" className="space-y-4">
           <CsrfTokenInput />
           <label className="block">
