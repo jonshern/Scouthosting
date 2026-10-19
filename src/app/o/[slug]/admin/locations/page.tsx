@@ -124,7 +124,7 @@ export default async function LocationsAdmin({
               )}
               <div className="p-4">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span className="font-display text-lg text-ink">{l.name}</span>
+                  <span className="font-display font-semibold text-lg text-ink">{l.name}</span>
                   <Pill tone="accent">{l.type}</Pill>
                 </div>
                 {l.address ? (
@@ -151,7 +151,7 @@ export default async function LocationsAdmin({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">
           New location
         </h2>
         <LocationForm orgSlug={slug} csrf={<CsrfTokenInput />} />

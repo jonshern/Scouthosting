@@ -267,7 +267,7 @@ export function AdvancedCanvasEditor({
                   <button
                     type="button"
                     onClick={() => remove(selected.id)}
-                    className="btn-secondary text-xs text-red-600"
+                    className="btn-secondary text-xs text-danger"
                   >
                     Delete
                   </button>
@@ -396,7 +396,7 @@ export function AdvancedCanvasEditor({
           type="button"
           disabled={pending}
           onClick={() => callAction(revertDraftBlocks)}
-          className="btn-secondary text-red-600"
+          className="btn-secondary text-danger"
         >
           Revert draft
         </button>

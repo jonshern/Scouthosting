@@ -11,7 +11,7 @@ export default async function PasswordPage() {
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Change password</h1>
+      <h1 className="font-display font-semibold text-3xl mb-6">Change password</h1>
       <form action={changePassword} className="space-y-4 max-w-md">
         <CsrfTokenInput />
         <label className="block">

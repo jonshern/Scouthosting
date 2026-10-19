@@ -128,7 +128,7 @@ export function CanvasEditor({ orgSlug, blocks: initial, csrf }: Props) {
                   <button
                     type="button"
                     onClick={() => remove(b.id)}
-                    className="btn-secondary text-xs text-red-600"
+                    className="btn-secondary text-xs text-danger"
                   >
                     Delete
                   </button>
@@ -263,7 +263,7 @@ export function CanvasEditor({ orgSlug, blocks: initial, csrf }: Props) {
           type="button"
           disabled={pending}
           onClick={() => callAction(revertDraftBlocks)}
-          className="btn-secondary text-red-600"
+          className="btn-secondary text-danger"
         >
           Revert draft
         </button>

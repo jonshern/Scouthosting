@@ -65,7 +65,7 @@ export default async function SurveyDetailPage({
       />
 
       <section className="mb-8">
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-3">
           Responses ({survey.responses.length})
         </h2>
         {survey.responses.length === 0 ? (
@@ -103,7 +103,7 @@ export default async function SurveyDetailPage({
       </section>
 
       <section>
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">Questions</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-3">Questions</h2>
         <ul className="text-sm space-y-1">
           {questions.map((q) => (
             <li key={q.id}>

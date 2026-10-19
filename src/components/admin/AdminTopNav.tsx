@@ -128,7 +128,7 @@ export function AdminTopNav({
         <div className="flex items-center gap-8">
           <Link
             href={`/o/${slug}`}
-            className="font-display text-base font-medium tracking-tight text-slate-ink"
+            className="font-display text-base font-semibold tracking-tight text-slate-ink"
           >
             Compass
           </Link>

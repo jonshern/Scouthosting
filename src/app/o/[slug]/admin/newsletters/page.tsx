@@ -93,7 +93,7 @@ export default async function NewslettersPage({
               </div>
               <span
                 className={`text-xs uppercase tracking-wide ${
-                  n.status === "sent" ? "text-emerald-700" : "text-amber-700"
+                  n.status === "sent" ? "text-done-text" : "text-attention-text"
                 }`}
               >
                 {n.status}

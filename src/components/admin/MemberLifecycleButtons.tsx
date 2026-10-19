@@ -32,7 +32,7 @@ export function MemberLifecycleButtons({
         <button type="submit" disabled={pending} className={isDeleted ? "btn-primary" : "btn-secondary"}>
           {pending ? "Saving…" : isDeleted ? "Restore" : "Remove"}
         </button>
-        {state?.error && <span className="text-xs text-red-700">{state.error}</span>}
+        {state?.error && <span className="text-xs text-danger">{state.error}</span>}
       </div>
     </form>
   );

@@ -95,7 +95,7 @@ export default async function EaglePage({
       </section>
       {scoutbookEagleRows.length > 0 ? (
         <section>
-          <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
+          <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-3">
             From Scoutbook
           </h2>
           <p className="text-xs text-slate-muted mb-3">
@@ -122,7 +122,7 @@ export default async function EaglePage({
       ) : null}
 
       <section>
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">Active Eagle projects</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-3">Active Eagle projects</h2>
         {projects.length === 0 ? (
           <p className="text-slate-soft text-sm">No active projects.</p>
         ) : (

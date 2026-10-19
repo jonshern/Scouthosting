@@ -35,7 +35,7 @@ export default async function FeedbackPage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-2">Feedback</h1>
+      <h1 className="font-display font-semibold text-3xl mb-2">Feedback</h1>
       <p className="text-ink-muted text-sm mb-6">
         Suggestions, bug reports, and requests for {org.displayName}. Vote on
         what matters to you; submit something new at the bottom.

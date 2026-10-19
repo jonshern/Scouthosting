@@ -49,7 +49,7 @@ export default async function StartPage() {
         <span className="inline-flex items-center gap-2 rounded-full bg-sky px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
           {TRIAL_DAYS} days free · no card required
         </span>
-        <h1 className="mt-6 font-display text-[44px] font-normal leading-[1.02] tracking-[-0.02em] md:text-[56px]">
+        <h1 className="mt-6 font-display text-[44px] font-semibold leading-[1.02] tracking-[-0.02em] md:text-[56px]">
           Set up your unit{" "}
           <em className="font-normal text-sky">in about five minutes.</em>
         </h1>
@@ -70,7 +70,7 @@ export default async function StartPage() {
       <div className="rounded-xl border border-line bg-white p-7">
         {!user ? (
           <>
-            <h2 className="font-display text-2xl font-normal">Create your account</h2>
+            <h2 className="font-display text-2xl font-semibold">Create your account</h2>
             <p className="mt-1 text-sm text-slate-muted">
               Already have one?{" "}
               <Link href={`/login?next=${encodeURIComponent(NEXT)}`} className="font-medium text-sky">
@@ -92,7 +92,7 @@ export default async function StartPage() {
           </>
         ) : !standing?.adultConfirmed ? (
           <>
-            <h2 className="font-display text-2xl font-normal">One quick check</h2>
+            <h2 className="font-display text-2xl font-semibold">One quick check</h2>
             <p className="mt-2 text-sm text-slate-soft">
               Units are run by adults. Confirm you&apos;re 18 or older to continue.
             </p>
@@ -102,7 +102,7 @@ export default async function StartPage() {
           </>
         ) : (
           <>
-            <h2 className="font-display text-2xl font-normal">Tell us about your unit</h2>
+            <h2 className="font-display text-2xl font-semibold">Tell us about your unit</h2>
             <p className="mt-1 text-sm text-slate-muted">
               Signed in as {user.email}. You&apos;ll be the unit&apos;s admin.
             </p>

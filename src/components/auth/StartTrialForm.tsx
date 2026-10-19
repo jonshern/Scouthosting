@@ -26,7 +26,7 @@ export function StartTrialForm({ csrf }: { csrf: React.ReactNode }) {
     const d = state.done;
     return (
       <div className="space-y-5" data-testid="start-trial-done">
-        <h2 className="font-display text-3xl font-normal tracking-[-0.015em]">
+        <h2 className="font-display text-3xl font-semibold tracking-[-0.015em]">
           {d.displayName} is set up.
         </h2>
         <p className="text-sm text-slate-soft">
@@ -115,7 +115,7 @@ export function StartTrialForm({ csrf }: { csrf: React.ReactNode }) {
         />
       </div>
       {state && "error" in state && (
-        <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">
+        <div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">
           {state.error}
         </div>
       )}

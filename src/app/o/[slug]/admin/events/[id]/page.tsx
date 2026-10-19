@@ -117,7 +117,7 @@ export default async function EditEventPage({
       />
 
       <div id="slots" className="border-t border-line pt-6 space-y-4">
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Sign-up slots</h2>
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">Sign-up slots</h2>
         {event.slots.length > 0 && (
           <table className="w-full text-sm">
             <thead className="text-left text-slate-muted">
@@ -156,7 +156,7 @@ export default async function EditEventPage({
 
       <div className="space-y-4">
         <div>
-          <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Staff</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">Staff</h2>
           <p className="text-sm text-slate-muted">
             Counselors, station staff and volunteers. Each gets an email with a private link to answer.
             {staff.length > 0 ? ` ${staffYes} of ${staff.length} confirmed.` : ""}
@@ -203,7 +203,7 @@ export default async function EditEventPage({
 
       <div className="space-y-4">
         <div>
-          <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">Messages</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">Messages</h2>
           <p className="text-sm text-slate-muted">
             Chat channels for staff, a single station, or attending families, plus email for anyone not on Compass.
           </p>
@@ -233,7 +233,7 @@ export default async function EditEventPage({
 
       {total > 0 && (
         <div>
-          <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">RSVPs</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-3">RSVPs</h2>
           <table className="w-full text-sm">
             <thead className="text-left text-slate-muted">
               <tr>

@@ -52,7 +52,7 @@ export default async function RefundsPage({
                 </div>
                 <span
                   className={`text-xs uppercase tracking-wide ${
-                    r.status === "issued" ? "text-emerald-700" : "text-red-600"
+                    r.status === "issued" ? "text-done-text" : "text-danger"
                   }`}
                 >
                   {r.status}

@@ -73,7 +73,7 @@ export function PasskeySignIn({
         {pending ? "Waiting for your passkey…" : mode === "sign-in" ? "Continue with a passkey" : "Use a passkey"}
       </button>
       {error && (
-        <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div role="alert" className="rounded border border-danger-line bg-danger-soft p-3 text-sm text-danger">
           {error}
         </div>
       )}
@@ -158,7 +158,7 @@ export function PasswordSignIn({
       </summary>
       <div className="mt-2 space-y-4">
         {error && (
-          <div role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <div role="alert" className="rounded border border-danger-line bg-danger-soft p-3 text-sm text-danger">
             {error}
           </div>
         )}

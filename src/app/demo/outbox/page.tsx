@@ -21,7 +21,7 @@ export default async function DemoOutboxPage() {
         <Link href="/demo" className="text-sm text-accent underline-offset-2 hover:underline">
           ← Back to the demo
         </Link>
-        <h1 className="mt-4 font-display text-4xl tracking-[-0.015em]">Demo outbox</h1>
+        <h1 className="mt-4 font-display font-semibold text-4xl tracking-[-0.015em]">Demo outbox</h1>
         <p className="mt-3 text-base leading-[1.6] text-ink-muted">
           In a real unit these would go out by email and text. In the demo they stop here. The newest 100 are shown, and
           the outbox empties when the demo resets.

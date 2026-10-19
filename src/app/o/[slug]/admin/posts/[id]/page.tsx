@@ -48,7 +48,7 @@ export default async function AdminPostEdit({
       </div>
       {post.comments.length > 0 && (
         <div>
-          <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-2">Comments</h2>
+          <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-2">Comments</h2>
           <ul className="space-y-3">
             {post.comments.map((c) => (
               <li key={c.id} className="card text-sm">
