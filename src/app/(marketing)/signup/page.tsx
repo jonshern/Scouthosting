@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { SignupForm } from "@/components/auth/SignupForm";
+import { SocialSignIn, socialSignInAvailable } from "@/components/auth/SocialSignIn";
 
 export const metadata = { title: "Sign up" };
 
@@ -87,26 +88,16 @@ export default async function SignupPage({
             .
           </p>
 
-          <div className="mt-8 grid gap-2.5">
-            <a
-              href={`/api/auth/google/begin${nextQuery}`}
-              className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"
-            >
-              Continue with Google
-            </a>
-            <a
-              href={`/api/auth/apple/begin${nextQuery}`}
-              className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"
-            >
-              Continue with Apple
-            </a>
-          </div>
-
-          <div className="mt-7 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-slate-muted">
-            <span className="h-px flex-1 bg-line" />
-            <span>Or with email</span>
-            <span className="h-px flex-1 bg-line" />
-          </div>
+          {socialSignInAvailable() && (
+            <>
+              <SocialSignIn next={next} className="mt-8" />
+              <div className="mt-7 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-slate-muted">
+                <span className="h-px flex-1 bg-line" />
+                <span>Or with email</span>
+                <span className="h-px flex-1 bg-line" />
+              </div>
+            </>
+          )}
 
           <div className="mt-6">
             <SignupForm csrf={<CsrfTokenInput />} next={next} />

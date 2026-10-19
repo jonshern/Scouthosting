@@ -29,6 +29,9 @@ export async function beginSocial(provider: SocialProvider, req: NextRequest): P
       errorCallbackURL: "/login",
       disableRedirect: true,
     },
+    // Headers only: Better Auth then builds the redirect URI from the Host
+    // with https, or http for localhost, the same rule
+    // withSignInScheme gives the callback.
     headers: req.headers,
     asResponse: true,
   });
@@ -40,7 +43,6 @@ export async function beginSocial(provider: SocialProvider, req: NextRequest): P
   }
   const { url } = (await res.json()) as { url: string };
   const out = NextResponse.redirect(url);
-  for (const c of res.headers.getSetCookie()) out.headers.append("set-cookie", c);
   const next = req.nextUrl.searchParams.get("next");
   if (isSafeNextPath(next)) {
     out.cookies.set(NEXT_COOKIE, next!, {
@@ -53,6 +55,10 @@ export async function beginSocial(provider: SocialProvider, req: NextRequest): P
   } else {
     out.cookies.delete(NEXT_COOKIE);
   }
+  // After out.cookies: it rewrites the Set-Cookie header from its own
+  // list, which would drop Better Auth's state cookie and fail every
+  // callback with state_mismatch.
+  for (const c of res.headers.getSetCookie()) out.headers.append("set-cookie", c);
   return out;
 }
 
@@ -60,5 +66,27 @@ export async function forwardCallback(provider: SocialProvider, req: NextRequest
   const url = new URL(req.url);
   url.pathname = `/api/auth/callback/${provider}`;
   const body = req.method === "POST" ? await req.arrayBuffer() : undefined;
-  return auth.handler(new Request(url, { method: req.method, headers: req.headers, body }));
+  return auth.handler(await withSignInScheme(new Request(url, { method: req.method, headers: req.headers, body })));
+}
+
+function isLoopbackHost(host: string): boolean {
+  const name = host.replace(/:\d+$/, "").replace(/^\[|\]$/g, "").toLowerCase();
+  return name === "localhost" || name.endsWith(".localhost") || name === "::1" || name.startsWith("127.");
+}
+
+/**
+ * The request with the scheme Better Auth should see: http for localhost,
+ * https for every other host. The provider's redirect URI is built from
+ * it, and must match the one sent at the start. The request's own scheme
+ * can't be trusted for that: behind the Mac's switch it's whatever
+ * X-Forwarded-Proto says, and `tailscale serve` may not send one.
+ */
+export async function withSignInScheme(req: Request): Promise<Request> {
+  const url = new URL(req.url);
+  const host = req.headers.get("host") ?? url.host;
+  const scheme = isLoopbackHost(host) ? "http:" : "https:";
+  if (url.protocol === scheme) return req;
+  url.protocol = scheme;
+  const body = req.method === "GET" || req.method === "HEAD" ? undefined : await req.arrayBuffer();
+  return new Request(url, { method: req.method, headers: req.headers, body, redirect: "manual" });
 }
