@@ -9,6 +9,7 @@ import { usePathname } from "next/navigation";
 const ITEMS = [
   { href: "/super-admin", label: "Overview" },
   { href: "/super-admin/orgs", label: "Units" },
+  { href: "/super-admin/usage", label: "Usage" },
   { href: "/super-admin/people", label: "People" },
   { href: "/super-admin/billing", label: "Billing" },
   { href: "/super-admin/inbox", label: "Inbox" },

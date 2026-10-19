@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { License, LicenseTone } from "@/lib/owner/license";
+import { USAGE_STATE_LABEL, type UsageState } from "@/lib/owner/usage";
 
 const TONE: Record<LicenseTone, string> = {
   good: "bg-done-soft text-done-text",
@@ -18,6 +19,12 @@ export function Pill({ tone, children }: { tone: LicenseTone; children: ReactNod
       {children}
     </span>
   );
+}
+
+const USAGE_TONE: Record<UsageState, LicenseTone> = { active: "good", quiet: "warn", dormant: "bad", not_started: "muted" };
+
+export function UsageStatePill({ state }: { state: UsageState }) {
+  return <Pill tone={USAGE_TONE[state]}>{USAGE_STATE_LABEL[state]}</Pill>;
 }
 
 export function LicensePill({ license }: { license: License }) {
