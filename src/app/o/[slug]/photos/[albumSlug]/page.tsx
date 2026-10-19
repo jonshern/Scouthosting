@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { roleInOrg } from "@/lib/auth/role";
 
+export const metadata = { title: "Photos" };
+
 // One page of photos at a time: a big campout album would otherwise
 // load every row (and every <img>) at once.
 const PAGE = 60;

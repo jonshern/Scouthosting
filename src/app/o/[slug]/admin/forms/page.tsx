@@ -9,6 +9,8 @@ import { deleteForm } from "@/server-actions/forms";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Forms" };
+
 export default async function FormsPage({
   params,
 }: {
@@ -35,7 +37,7 @@ export default async function FormsPage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader
         kicker="Forms"
         title="Forms"
@@ -90,6 +92,6 @@ export default async function FormsPage({
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

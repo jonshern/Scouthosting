@@ -7,6 +7,8 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { resendVerificationEmail, updateProfile } from "@/server-actions/account";
 
+export const metadata = { title: "Profile" };
+
 export default async function ProfilePage({
   searchParams,
 }: {
@@ -21,74 +23,68 @@ export default async function ProfilePage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display font-semibold text-3xl mb-6">Profile</h1>
+    <div className="max-w-xl space-y-6">
+      <header>
+        <h1 className="font-display text-3xl font-semibold">Profile</h1>
+        <p className="mt-1 text-sm text-muted">Your name and email, as your units see them.</p>
+      </header>
       {verified === "1" && u?.emailVerified && (
-        <p role="status" className="mb-4 max-w-md rounded border border-done/30 bg-done-soft p-3 text-sm text-done-text">
+        <p role="status" className="rounded-md border border-done/30 bg-done-soft p-3 text-sm text-done-text">
           Email confirmed.
         </p>
       )}
       {emailSent === "1" && (
-        <p role="status" className="mb-4 max-w-md rounded border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+        <p role="status" className="rounded-md border border-accent/20 bg-accent-soft p-3 text-sm text-accent-soft-text">
           We sent a link to your new address. Your email changes once you click it.
         </p>
       )}
-      <form action={updateProfile} className="space-y-4 max-w-md">
+      <form action={updateProfile} className="card space-y-4">
         <CsrfTokenInput />
-        <label className="block">
-          <span className="block text-sm">Display name</span>
+        <div>
+          <label className="label" htmlFor="profile-name">
+            Display name
+          </label>
           <input
+            id="profile-name"
             name="displayName"
             defaultValue={u?.displayName ?? ""}
-            className="input mt-1"
+            autoComplete="name"
+            className="field"
             required
           />
-        </label>
-        <label className="block">
-          <span className="block text-sm">Email</span>
+        </div>
+        <div>
+          <label className="label" htmlFor="profile-email">
+            Email
+          </label>
           <input
+            id="profile-email"
             name="email"
             type="email"
             defaultValue={u?.email ?? ""}
-            className="input mt-1"
+            autoComplete="email"
+            className="field"
             required
           />
           {!u?.emailVerified && (
-            <p className="mt-1 text-xs text-attention-text">
-              Email not yet verified.
-            </p>
+            <p className="mt-1.5 text-xs text-attention-text">Not confirmed yet.</p>
           )}
-        </label>
+        </div>
         <button type="submit" className="btn-primary">
           Save
         </button>
       </form>
       {!u?.emailVerified && (
-        <form action={resendVerificationEmail} className="mt-6 max-w-md">
+        <form action={resendVerificationEmail} className="card space-y-3">
           <CsrfTokenInput />
-          <p className="text-sm text-slate-muted">
+          <p className="text-sm text-ink-2">
             Confirm your email to connect your account to the unit that invited you.
           </p>
-          <button type="submit" className="btn-secondary mt-2">
+          <button type="submit" className="btn-secondary">
             {sent === "1" ? "Sent. Send again" : "Send confirmation email"}
           </button>
         </form>
       )}
-      <p className="mt-10 text-sm">
-        Lantern trails: <a href="/account/trails" className="underline">download a copy or put one back</a>.
-      </p>
-      <p className="mt-4 text-sm">
-        <a href="/account/delete" className="text-danger underline">
-          Delete my account
-        </a>
-      </p>
-      <p className="mt-4 text-sm text-slate-muted">
-        Signed-in phones and apps, and Claude:{" "}
-        <a href="/account/api-tokens" className="underline">
-          API tokens and Claude connections
-        </a>
-        .
-      </p>
-    </main>
+    </div>
   );
 }

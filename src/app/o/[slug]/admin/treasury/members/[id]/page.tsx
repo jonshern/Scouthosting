@@ -16,6 +16,8 @@ import {
 } from "@/lib/treasury/money";
 import { requireTreasuryPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Member account" };
+
 export default async function MemberTreasuryDetail({
   params,
 }: {

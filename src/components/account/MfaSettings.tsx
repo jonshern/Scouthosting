@@ -75,9 +75,9 @@ export function MfaSettings({
     return (
       <section className="card space-y-4">
         <header>
-          <h2 className="text-xl font-semibold">Two-factor authentication</h2>
+          <h2 className="text-xl font-semibold">Authenticator app</h2>
           <p className="text-sm text-ink-muted">
-            Add a one-time code from an authenticator app to every sign-in.
+            Ask for a six-digit code from an app like Google Authenticator or 1Password every time you sign in with a password.
           </p>
         </header>
         <form action={onEnrollSubmit} className="space-y-3">
@@ -88,7 +88,7 @@ export function MfaSettings({
             </div>
           )}
           <button type="submit" disabled={enrollPending} className="btn-primary">
-            {enrollPending ? "Generating…" : "Set up 2FA"}
+            {enrollPending ? "Generating…" : "Set up an authenticator app"}
           </button>
         </form>
       </section>
@@ -99,7 +99,7 @@ export function MfaSettings({
     return (
       <section className="card space-y-6">
         <header>
-          <h2 className="text-xl font-semibold">Finish setting up 2FA</h2>
+          <h2 className="text-xl font-semibold">Finish setting up your authenticator app</h2>
           <p className="text-sm text-ink-muted">
             Add this account to your authenticator app, save your backup codes, then enter a code to confirm.
           </p>
@@ -110,7 +110,7 @@ export function MfaSettings({
           <p className="text-xs text-ink-muted">Manual secret: <code className="font-mono">{enrollment.secret}</code></p>
         </div>
         <div className="space-y-2">
-          <h3 className="text-sm font-medium">Backup codes — save these now</h3>
+          <h3 className="text-sm font-medium">Backup codes: save these now</h3>
           <ul className="grid grid-cols-2 gap-2 text-sm font-mono bg-sunk border rounded p-3">
             {enrollment.backupCodes.map((c) => (<li key={c}>{c}</li>))}
           </ul>
@@ -125,11 +125,11 @@ export function MfaSettings({
             <div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">{confirmState.error}</div>
           )}
           {confirmState?.ok && (
-            <div role="status" className="text-sm text-done-text bg-done-soft border border-done/30 rounded p-3">2FA enabled.{" "}
+            <div role="status" className="text-sm text-done-text bg-done-soft border border-done/30 rounded p-3">Two-step sign-in is on.{" "}
               {next ? <a href={next} className="underline">Continue</a> : "Reload to see your settings."}
             </div>
           )}
-          <button type="submit" disabled={confirmPending} className="btn-primary">{confirmPending ? "Confirming…" : "Confirm and enable 2FA"}</button>
+          <button type="submit" disabled={confirmPending} className="btn-primary">{confirmPending ? "Confirming…" : "Confirm and turn on"}</button>
         </form>
       </section>
     );
@@ -138,8 +138,8 @@ export function MfaSettings({
   return (
     <section className="card space-y-6">
       <header>
-        <h2 className="text-xl font-semibold">Two-factor authentication</h2>
-        <p className="text-sm text-ink-muted">2FA is enabled on your account.</p>
+        <h2 className="text-xl font-semibold">Authenticator app</h2>
+        <p className="text-sm text-ink-muted">Your authenticator app is on. Each password sign-in asks for a code.</p>
       </header>
       <div className="space-y-3">
         <h3 className="text-sm font-medium">Regenerate backup codes</h3>
@@ -163,7 +163,7 @@ export function MfaSettings({
       </div>
       <hr />
       <div className="space-y-3">
-        <h3 className="text-sm font-medium">Disable 2FA</h3>
+        <h3 className="text-sm font-medium">Turn off the authenticator app</h3>
         <form action={disableAction} className="space-y-3">
           {csrf}
           <div>
@@ -171,8 +171,8 @@ export function MfaSettings({
             <input id="disable-code" name="code" inputMode="text" autoComplete="one-time-code" required maxLength={20} className="field" />
           </div>
           {disableState?.error && (<div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">{disableState.error}</div>)}
-          {disableState?.ok && (<div role="status" className="text-sm text-done-text bg-done-soft border border-done/30 rounded p-3">2FA disabled. Reload to see your settings.</div>)}
-          <button type="submit" disabled={disablePending} className="btn-secondary">{disablePending ? "Disabling…" : "Disable 2FA"}</button>
+          {disableState?.ok && (<div role="status" className="text-sm text-done-text bg-done-soft border border-done/30 rounded p-3">Authenticator app turned off. Reload to see your settings.</div>)}
+          <button type="submit" disabled={disablePending} className="btn-secondary">{disablePending ? "Disabling…" : "Turn off"}</button>
         </form>
       </div>
     </section>

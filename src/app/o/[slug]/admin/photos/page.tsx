@@ -6,6 +6,8 @@ import { AlbumForm } from "@/components/admin/AlbumForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Photo galleries" };
+
 export default async function AdminPhotosIndex({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   await requireAdminPage(slug);

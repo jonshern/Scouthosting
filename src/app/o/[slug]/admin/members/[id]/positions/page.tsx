@@ -9,6 +9,8 @@ import { decryptMemberPii } from "@/lib/members/crypto";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Positions" };
+
 export default async function MemberPositionsPage({
   params,
 }: {
@@ -54,7 +56,7 @@ export default async function MemberPositionsPage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader
         kicker="Roster"
         title={`${member.firstName} ${member.lastName}`}
@@ -76,6 +78,6 @@ export default async function MemberPositionsPage({
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

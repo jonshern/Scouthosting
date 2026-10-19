@@ -39,6 +39,10 @@ html, body {
 
 h1, h2, h3 { letter-spacing: -0.02em; }
 
+/* Fieldsets default to min-width: min-content, so a wide child pushed the
+   page sideways on a phone. */
+fieldset { min-width: 0; }
+
 a { color: var(--accent-text); }
 a:hover { color: var(--ink); }
 
@@ -85,7 +89,9 @@ a:hover { color: var(--ink); }
 }
 .btn-danger:hover { background: var(--danger-soft); color: var(--danger); }
 
-.field {
+@layer components {
+/* `.input` is the older name some forms still use. */
+.field, .input {
   @apply block w-full border px-3 text-sm focus:outline-none;
   min-height: 42px;
   background: var(--surface);
@@ -93,8 +99,9 @@ a:hover { color: var(--ink); }
   border-color: var(--control);
   border-radius: var(--radius-sm);
 }
-textarea.field { padding-top: 10px; padding-bottom: 10px; }
-.field:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+textarea.field, textarea.input { padding-top: 10px; padding-bottom: 10px; }
+.field:focus, .input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+}
 
 .label { @apply block text-sm font-medium mb-1.5; color: var(--ink); }
 
@@ -125,4 +132,31 @@ textarea.field { padding-top: 10px; padding-bottom: 10px; }
   font-size: 12px; font-weight: 500;
   padding: 3px 10px; border-radius: 999px;
   background: var(--sunk); color: var(--ink-2);
+}
+
+@layer components {
+/* Text people wrote: posts, custom pages, announcements, email previews.
+   Hand-rolled instead of @tailwindcss/typography; Tailwind's reset strips
+   headings, lists and paragraph spacing, so they come back here. */
+.prose { color: var(--ink-2); font-size: 15px; line-height: 1.65; max-width: 68ch; overflow-wrap: anywhere; }
+.prose > * + * { margin-top: 0.9em; }
+.prose h1, .prose h2, .prose h3, .prose h4 { color: var(--ink); font-weight: 600; line-height: 1.3; margin-top: 1.4em; }
+.prose > :first-child { margin-top: 0; }
+.prose h1 { font-size: 1.6em; }
+.prose h2 { font-size: 1.3em; }
+.prose h3 { font-size: 1.12em; }
+.prose h4 { font-size: 1em; }
+.prose strong { color: var(--ink); font-weight: 600; }
+.prose a { color: var(--accent-text); text-decoration: underline; text-underline-offset: 2px; }
+.prose ul { list-style: disc; padding-left: 1.4em; }
+.prose ol { list-style: decimal; padding-left: 1.4em; }
+.prose li + li { margin-top: 0.3em; }
+.prose blockquote { border-left: 3px solid var(--line); padding-left: 1em; color: var(--muted); }
+.prose code { font-family: var(--font-mono), "Geist Mono", ui-monospace, monospace; font-size: 0.9em; background: var(--sunk); padding: 1px 5px; border-radius: 4px; }
+.prose pre { background: var(--sunk); padding: 12px 14px; border-radius: var(--radius-sm); overflow-x: auto; }
+.prose pre code { background: none; padding: 0; }
+.prose hr { border: 0; border-top: 1px solid var(--line); }
+.prose img { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
+.prose table { width: 100%; border-collapse: collapse; font-size: 0.95em; }
+.prose th, .prose td { border-bottom: 1px solid var(--divider); padding: 6px 8px; text-align: left; }
 }

@@ -10,6 +10,13 @@ import { notFound } from "next/navigation";
 import { SiteHeader } from "@/components/site/SiteHeader";
 import { loadHomeSnapshot } from "@/lib/publish/snapshot";
 import { orgBasePath } from "@/lib/tenancy/base-path";
+import { unitName } from "@/lib/tenancy/unit-name";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const name = await unitName(slug);
+  return name ? { title: { default: name, template: `%s — ${name}` } } : {};
+}
 
 export default async function OrgLayout({
   children,

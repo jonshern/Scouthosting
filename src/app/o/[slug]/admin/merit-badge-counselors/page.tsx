@@ -6,6 +6,8 @@ import { getSession } from "@/lib/auth/session";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Merit badge counselors" };
+
 export default async function MeritBadgeCounselorsPage({
   params,
 }: {
@@ -31,7 +33,7 @@ export default async function MeritBadgeCounselorsPage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Roster" title="Merit badge counselors" />
       {counselors.length === 0 ? (
         <p className="text-slate-soft">No counselors yet.</p>
@@ -55,6 +57,6 @@ export default async function MeritBadgeCounselorsPage({
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

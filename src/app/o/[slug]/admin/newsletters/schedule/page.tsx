@@ -8,6 +8,8 @@ import { saveNewsletterSchedule } from "@/server-actions/newsletters";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Newsletter schedule" };
+
 export default async function NewsletterSchedulePage({
   params,
 }: {
@@ -38,7 +40,7 @@ export default async function NewsletterSchedulePage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader
         kicker="Messages"
         title="Newsletter schedule"
@@ -99,6 +101,6 @@ export default async function NewsletterSchedulePage({
           Save
         </button>
       </form>
-    </main>
+    </section>
   );
 }

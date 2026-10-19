@@ -29,6 +29,7 @@ import {
 } from "@/lib/usage/report";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Analytics" };
 
 const WINDOWS = [1, 7, 30, 90] as const;
 

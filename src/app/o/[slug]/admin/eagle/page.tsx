@@ -11,6 +11,8 @@ import { decryptMemberPii } from "@/lib/members/crypto";
 import { Pill } from "@/components/ui";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Eagle pipeline" };
+
 export default async function EaglePage({
   params,
 }: {
@@ -74,7 +76,7 @@ export default async function EaglePage({
   }
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12 space-y-10">
+    <section className="space-y-10">
       <AdminPageHeader kicker="Roster" title="Eagle pipeline" />
       <section>
         {scouts.length === 0 ? (
@@ -140,6 +142,6 @@ export default async function EaglePage({
           </ul>
         )}
       </section>
-    </main>
+    </section>
   );
 }

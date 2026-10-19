@@ -14,7 +14,7 @@ export const STACK_MANIFEST: ReadonlyArray<StackEntry> = [
   { layer: "Web framework", tool: "Next.js 16 (App Router)", why: "Server actions, RSC, file-based routing." },
   { layer: "UI", tool: "React 19 + Tailwind", why: "Concurrent rendering; utility CSS." },
   { layer: "ORM / DB", tool: "Prisma 5 + Postgres 16", why: "Type-safe queries; row-level encryption columns are bytea." },
-  { layer: "Auth", tool: "Lucia 3 + argon2id", why: "Session-based; password hashes parameterised in src/lib/auth/password.ts." },
+  { layer: "Auth", tool: "Better Auth + argon2id", why: "Sessions, password, Google/Apple, passkeys; Compass's own two-step in src/lib/auth/mfa-plugin.ts." },
   { layer: "Background jobs", tool: "pg-boss", why: "DB-backed queue, single deploy unit." },
   { layer: "Mail", tool: "Resend (lazy)", why: "Falls back to noop in dev; tracked via MailLog." },
   { layer: "Encryption", tool: "AES-256-GCM (node:crypto) + argon2id", why: "Per-org DEK envelope-encrypted with MASTER_KEY env; admin passphrase + recovery code." },

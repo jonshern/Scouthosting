@@ -11,6 +11,8 @@ import { unsuspendChannelAction, archiveChannelAction } from "@/server-actions/c
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Channels" };
+
 const UNSUSPEND_ERRORS: Record<string, string> = {
   "no-current-adults":
     "Can't turn messages back on: this channel has youth and no YPT-current adult leaders.",
@@ -57,7 +59,7 @@ export default async function ChannelsAdminPage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Messages" title="Channels" />
       {error ? (
         <p role="alert" className="card mb-4 text-sm">
@@ -112,6 +114,6 @@ export default async function ChannelsAdminPage({
           </li>
         ))}
       </ul>
-    </main>
+    </section>
   );
 }

@@ -1,4 +1,4 @@
-// /logout — flush the Lucia session cookie and bounce to the apex
+// /logout — end the session and bounce to the apex
 // home. Implemented as a Route Handler (not a server component page)
 // because Next 16 only allows cookie mutation from Route Handlers
 // and Server Actions.

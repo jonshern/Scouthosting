@@ -10,7 +10,7 @@ import { relyingPartyForRequest } from "@/lib/auth/passkeys";
 import { readCsrfToken } from "@/lib/security/csrf";
 import { removePasskey } from "@/server-actions/passkeys";
 
-export const metadata = { title: "Security" };
+export const metadata = { title: "Sign-in and security" };
 export const dynamic = "force-dynamic";
 
 const PASSKEY_NOTICES: Record<string, { tone: "ok" | "warn"; text: string }> = {
@@ -46,9 +46,9 @@ export default async function AccountSecurityPage({
   const notice = passkey ? PASSKEY_NOTICES[passkey] : undefined;
 
   return (
-    <section className="mx-auto max-w-2xl px-6 py-12 space-y-6">
+    <div className="max-w-2xl space-y-6">
       <header>
-        <h1 className="font-display text-3xl font-semibold">Security</h1>
+        <h1 className="font-display text-3xl font-semibold">Sign-in and security</h1>
         <p className="text-ink-muted text-sm">Manage passkeys and two-step sign-in for your account.</p>
       </header>
       {required === "1" && !secondStepOn && (
@@ -117,6 +117,6 @@ export default async function AccountSecurityPage({
       </section>
 
       <MfaSettings enrolled={enrolled} csrf={<CsrfTokenInput />} next={safeNext} />
-    </section>
+    </div>
   );
 }

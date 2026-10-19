@@ -16,6 +16,8 @@ import {
 import { Pill, Section, Stat, shortDate } from "@/components/owner/ConsoleBits";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Billing" };
+
 export const dynamic = "force-dynamic";
 
 export default async function OwnerBillingPage({

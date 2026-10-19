@@ -5,6 +5,8 @@ import { getSession } from "@/lib/auth/session";
 import { roleInOrg } from "@/lib/auth/role";
 import { PublicPageHeader } from "@/components/site/PublicPageHeader";
 
+export const metadata = { title: "News" };
+
 export default async function PublicPosts({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const org = await prisma.org.findUnique({ where: { slug } });

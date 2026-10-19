@@ -8,6 +8,8 @@ import { updateForm } from "@/server-actions/forms";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Form" };
+
 export default async function EditFormPage({
   params,
 }: {
@@ -33,7 +35,7 @@ export default async function EditFormPage({
   if (!form) return notFound();
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Forms" title={form.title} />
       <form
         action={updateForm}
@@ -103,6 +105,6 @@ export default async function EditFormPage({
           Save changes
         </button>
       </form>
-    </main>
+    </section>
   );
 }

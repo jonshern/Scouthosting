@@ -8,6 +8,8 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { CommentForm } from "@/components/posts/CommentForm";
 import { ReactionButton } from "@/components/posts/ReactionButton";
 
+export const metadata = { title: "News" };
+
 export default async function PublicPostDetail({
   params,
 }: {

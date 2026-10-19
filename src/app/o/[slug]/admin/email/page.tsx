@@ -6,6 +6,8 @@ import { EmailComposer } from "@/components/admin/EmailComposer";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Group email" };
+
 export default async function AdminEmail({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   await requireAdminPage(slug);

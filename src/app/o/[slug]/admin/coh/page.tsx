@@ -7,6 +7,8 @@ import { getSession } from "@/lib/auth/session";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Court of Honor" };
+
 export default async function CohPage({
   params,
 }: {
@@ -43,7 +45,7 @@ export default async function CohPage({
   }
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Calendar" title="Court of Honor" />
       {grouped.size === 0 ? (
         <p className="text-slate-soft">No awards recorded.</p>
@@ -69,6 +71,6 @@ export default async function CohPage({
           ))}
         </div>
       )}
-    </main>
+    </section>
   );
 }

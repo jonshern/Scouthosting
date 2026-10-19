@@ -11,6 +11,8 @@ import {
 } from "@/components/admin/FiscalYearForms";
 import { requireTreasuryPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Fiscal year" };
+
 export default async function FiscalYearDetail({
   params,
 }: {

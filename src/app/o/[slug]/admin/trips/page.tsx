@@ -8,6 +8,8 @@ import { getSession } from "@/lib/auth/session";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Trip planner" };
+
 export default async function TripsPage({
   params,
 }: {
@@ -40,7 +42,7 @@ export default async function TripsPage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Calendar" title="Trip planner" />
       {trips.length === 0 ? (
         <p className="text-slate-soft">
@@ -66,6 +68,6 @@ export default async function TripsPage({
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

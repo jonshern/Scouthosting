@@ -17,6 +17,8 @@ import { STAFF_ROLE_LABELS, type StaffRole } from "@/lib/events/staff";
 import { listEventChannels } from "@/lib/events/messaging";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Event" };
+
 export default async function EditEventPage({
   params,
 }: {

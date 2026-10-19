@@ -8,6 +8,8 @@ import { errorGroups, errorServices } from "@/lib/owner/errors";
 import { Pill, shortDate } from "@/components/owner/ConsoleBits";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Errors" };
+
 export const dynamic = "force-dynamic";
 
 const WINDOWS = [1, 7, 30] as const;

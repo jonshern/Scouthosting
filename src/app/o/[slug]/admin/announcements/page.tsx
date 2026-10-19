@@ -6,6 +6,8 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DeleteAnnouncementButton } from "@/components/admin/DeleteContentButtons";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Announcements" };
+
 export default async function AdminAnnouncements({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   await requireAdminPage(slug);

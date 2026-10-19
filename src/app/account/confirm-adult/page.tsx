@@ -24,7 +24,7 @@ export default async function ConfirmAdultPage({
   if ((await accountStanding(user.id)).adultConfirmed) redirect(safeNext);
 
   return (
-    <main className="mx-auto max-w-md px-6 py-12 space-y-6">
+    <div className="mx-auto max-w-md space-y-6 py-4">
       <header className="space-y-2">
         <h1 className="font-display text-3xl font-semibold">One more step</h1>
         <p className="text-sm text-ink-muted">
@@ -53,6 +53,6 @@ export default async function ConfirmAdultPage({
           I&apos;m under 18, sign me out
         </button>
       </form>
-    </main>
+    </div>
   );
 }

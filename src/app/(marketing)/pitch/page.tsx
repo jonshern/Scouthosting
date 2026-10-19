@@ -1,27 +1,27 @@
+import Link from "next/link";
+import { InfoCard, PageHero } from "@/components/marketing/PageHero";
+
 export const metadata = { title: "About" };
 
 export default function PitchPage() {
   return (
-    <section className="mx-auto max-w-content px-6 py-16 prose prose-stone max-w-3xl">
-      <h1 className="font-display text-4xl font-semibold">About Compass</h1>
-      <p className="text-ink-muted">
-        Compass is the planning and communication hub for Scout units. We
-        defer advancement tracking to Scoutbook (Scouting America&apos;s
-        official tool) and focus on every other piece of the operating
-        system: the calendar, the photos, the group email, the trip
-        planning, the parent on-ramp, and the leader transition story.
-      </p>
-      <h2>Why we&apos;re building it</h2>
-      <p>
-        Most volunteer leaders glue together six free tools and a paper
-        binder. Compass is the one thing that replaces all of them — and
-        the one thing the next scoutmaster doesn&apos;t need a 90-minute
-        Zoom call to take over.
-      </p>
-      <h2>Who it&apos;s for</h2>
-      <p>
-        Troops, packs, crews, ships, and posts. Council-level rollouts on
-        request.
+    <section className="mx-auto max-w-content px-6 py-16 md:py-20">
+      <PageHero
+        eyebrow="About"
+        title="About Compass"
+        lede="Compass is the planning and communication hub for Scout units: the calendar, photos, group email, trip planning, getting new parents set up, and handing the unit to the next leader. Advancement stays in Scoutbook, Scouting America's official tool."
+      />
+      <div className="mt-12 grid gap-4 md:grid-cols-2">
+        <InfoCard title="Why we're building it">
+          Most volunteer leaders glue together six free tools and a paper binder. Compass replaces all of them, and
+          the next scoutmaster doesn&apos;t need a 90-minute Zoom call to take over.
+        </InfoCard>
+        <InfoCard title="Who it's for">
+          Troops, packs, crews, ships and posts. Council-wide setups on request.
+        </InfoCard>
+      </div>
+      <p className="mt-10 text-sm text-muted">
+        Questions? <Link href="/contact">Get in touch</Link>.
       </p>
     </section>
   );

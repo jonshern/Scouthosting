@@ -10,6 +10,8 @@ import { AuditTable } from "@/components/admin/AuditTable";
 import { listAuditLogs, entityTypeOptions } from "@/lib/audit-query";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Activity log" };
+
 type Search = { entity?: string; action?: string; q?: string; before?: string };
 
 export default async function OrgAuditPage({

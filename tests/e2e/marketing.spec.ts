@@ -28,7 +28,7 @@ test.describe("apex marketing", () => {
     await page.goto("/security");
     await expect(page.getByRole("heading", { level: 1, name: /security/i })).toBeVisible();
     await expect(page.getByText(/Two-deep leadership/i)).toBeVisible();
-    await expect(page.getByText(/MFA for leaders/i)).toBeVisible();
+    await expect(page.getByText(/Two-step sign-in for leaders/i)).toBeVisible();
   });
 
   test("pitch and positioning render", async ({ page }) => {

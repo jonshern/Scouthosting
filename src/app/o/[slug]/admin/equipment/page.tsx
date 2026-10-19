@@ -20,6 +20,8 @@ import {
 import { Pill, Stat, StatRow } from "@/components/ui";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Equipment" };
+
 export default async function EquipmentPage({
   params,
 }: {

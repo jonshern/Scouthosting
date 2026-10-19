@@ -9,6 +9,8 @@ import { unwrapDekWithMaster, decryptField } from "@/lib/encryption";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Training" };
+
 export default async function TrainingPage({
   params,
 }: {
@@ -51,7 +53,7 @@ export default async function TrainingPage({
   const ninetyDays = 90 * 24 * 60 * 60 * 1000;
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Roster" title="Training" />
       {rows.length === 0 ? (
         <p className="text-slate-soft">No training rows yet.</p>
@@ -96,6 +98,6 @@ export default async function TrainingPage({
           </tbody>
         </table>
       )}
-    </main>
+    </section>
   );
 }

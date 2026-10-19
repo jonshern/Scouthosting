@@ -14,6 +14,8 @@ import { Pill } from "@/components/ui";
 import { centsToDollars } from "@/lib/treasury/money";
 import { requireTreasuryPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Bank reconciliation" };
+
 export default async function TreasuryReconcilePage({
   params,
 }: {

@@ -10,6 +10,8 @@ import { issueRefund } from "@/server-actions/refunds";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Issue refund" };
+
 export default async function NewRefundPage({
   params,
 }: {
@@ -26,7 +28,7 @@ export default async function NewRefundPage({
   }
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Money" title="Issue refund" />
       <form action={issueRefund} className="space-y-4 max-w-md">
         <CsrfTokenInput />
@@ -63,6 +65,6 @@ export default async function NewRefundPage({
           Issue refund
         </button>
       </form>
-    </main>
+    </section>
   );
 }

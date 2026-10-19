@@ -6,6 +6,8 @@ import { PhotoUploadForm } from "@/components/admin/PhotoUploadForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Album" };
+
 // Same paging as the public album page: a big campout album would
 // otherwise load every row (and every <img>) at once.
 const PAGE = 60;

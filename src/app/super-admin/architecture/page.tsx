@@ -13,6 +13,8 @@ import {
 import { masterKeyConfigured } from "@/lib/encryption";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Architecture and security" };
+
 export const dynamic = "force-dynamic";
 
 type CoverageRow = {

@@ -13,6 +13,8 @@ import { LedgerGrid, type LedgerRow } from "@/components/admin/LedgerGrid";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { requireTreasuryPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Ledger" };
+
 type Search = {
   fund?: string;
   member?: string;
@@ -146,12 +148,12 @@ export default async function TreasuryLedgerPage({
           /> Show reversed pairs
         </label>
         <button type="submit" className="btn-secondary">Apply</button>
-        <Link
+        <a
           href={`/o/${slug}/admin/treasury/ledger.csv${baseQuery.toString() ? `?${baseQuery}` : ""}`}
           className="text-sm text-slate-soft hover:text-sky"
         >
           Download CSV →
-        </Link>
+        </a>
       </form>
 
       <LedgerGrid

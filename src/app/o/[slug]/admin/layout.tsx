@@ -10,6 +10,7 @@ import { canManageBilling } from "@/lib/billing/access";
 import { billingBanner } from "@/lib/billing/state";
 import { isConfigured } from "@/lib/billing/stripe";
 import { billingSummary } from "@/lib/billing/trial";
+import { unitName } from "@/lib/tenancy/unit-name";
 
 function initials(email: string, displayName: string | null | undefined): string {
   const src = (displayName ?? email).trim();
@@ -17,6 +18,12 @@ function initials(email: string, displayName: string | null | undefined): string
   const parts = src.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) return (parts[0]![0]! + parts[parts.length - 1]![0]!).toUpperCase();
   return src.slice(0, 2).toUpperCase();
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const name = (await unitName(slug)) ?? "Compass";
+  return { title: { default: `Admin — ${name}`, template: `%s · Admin — ${name}` } };
 }
 
 export default async function AdminLayout({

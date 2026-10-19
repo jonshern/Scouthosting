@@ -15,6 +15,8 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { ManageBillingButton, SubscribeButton } from "@/components/admin/BillingForms";
 
+export const metadata = { title: "Billing" };
+
 export const dynamic = "force-dynamic";
 
 function day(iso: string | null): string {

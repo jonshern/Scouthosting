@@ -24,6 +24,8 @@ import { decryptMemberPii } from "@/lib/members/crypto";
 import { Pill } from "@/components/ui";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Members" };
+
 type Tab = "scouts" | "adults" | "counselors" | "patrols" | "pending";
 
 const TAB_LABELS: Record<Tab, string> = {

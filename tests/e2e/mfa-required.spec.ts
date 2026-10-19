@@ -54,11 +54,11 @@ test.describe("organizer two-step requirement", () => {
     expect(gated.path).toBe(`/account/security?required=1&next=${encodeURIComponent(begin)}`);
 
     // Turn it on from the page they were sent to.
-    await page.getByRole("button", { name: "Set up 2FA" }).click();
+    await page.getByRole("button", { name: "Set up an authenticator app" }).click();
     const secret = (await page.locator("p", { hasText: "Manual secret:" }).locator("code").textContent())!.trim();
     await page.getByLabel("Code from your authenticator").fill(totp(secret));
-    await page.getByRole("button", { name: /confirm and enable 2fa/i }).click();
-    const done = page.getByRole("status").filter({ hasText: "2FA enabled." });
+    await page.getByRole("button", { name: "Confirm and turn on" }).click();
+    const done = page.getByRole("status").filter({ hasText: "Two-step sign-in is on." });
     await expect(done).toBeVisible();
     await done.getByRole("link", { name: "Continue" }).click();
     await expect(page).toHaveURL(/\/o\/troop100\/admin$/);
@@ -72,12 +72,12 @@ test.describe("organizer two-step requirement", () => {
     // And two-step can't be switched off.
     await page.goto(`${MFA_APEX}/account/security`);
     await page.locator("#disable-code").fill(totp(secret, 1));
-    await page.getByRole("button", { name: "Disable 2FA" }).click();
+    await page.getByRole("button", { name: "Turn off" }).click();
     await expect(
       page.locator('div[role="alert"]').filter({ hasText: "Leaders and admins must keep two-step sign-in on." }),
     ).toBeVisible();
     await page.reload();
-    await expect(page.getByText("2FA is enabled on your account.")).toBeVisible();
+    await expect(page.getByText("Your authenticator app is on.")).toBeVisible();
     await ctx.close();
   });
 
@@ -112,11 +112,11 @@ test.describe("organizer two-step requirement", () => {
     // The unit's admin pages wait for two-step sign-in.
     await page.getByRole("link", { name: /go to your unit/i }).click();
     await expect(page).toHaveURL(/\/account\/security\?required=1/);
-    await page.getByRole("button", { name: "Set up 2FA" }).click();
+    await page.getByRole("button", { name: "Set up an authenticator app" }).click();
     const secret = (await page.locator("p", { hasText: "Manual secret:" }).locator("code").textContent())!.trim();
     await page.getByLabel("Code from your authenticator").fill(totp(secret));
-    await page.getByRole("button", { name: /confirm and enable 2fa/i }).click();
-    const done = page.getByRole("status").filter({ hasText: "2FA enabled." });
+    await page.getByRole("button", { name: "Confirm and turn on" }).click();
+    const done = page.getByRole("status").filter({ hasText: "Two-step sign-in is on." });
     await expect(done).toBeVisible();
     await done.getByRole("link", { name: "Continue" }).click();
     await expect(page).toHaveURL(new RegExp(`/o/troop${unitNumber}(-[a-z0-9-]+)?/admin$`));

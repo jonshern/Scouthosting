@@ -10,6 +10,8 @@ import { RosterImportForm } from "@/components/admin/RosterImportForm";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Roster import" };
+
 export default async function RosterImportPage({
   params,
 }: {
@@ -30,9 +32,9 @@ export default async function RosterImportPage({
   }
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Roster" title="Roster import" />
       <RosterImportForm orgSlug={slug} csrf={<CsrfTokenInput />} />
-    </main>
+    </section>
   );
 }

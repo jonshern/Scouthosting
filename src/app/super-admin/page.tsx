@@ -9,6 +9,8 @@ import { platformUsage } from "@/lib/owner/usage";
 import { LicensePill, Section, Stat, shortDate } from "@/components/owner/ConsoleBits";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Overview" };
+
 export const dynamic = "force-dynamic";
 
 function UnitList({ units, empty }: { units: UnitRow[]; empty: string }) {

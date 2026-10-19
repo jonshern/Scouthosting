@@ -7,6 +7,8 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { DeletePostButton } from "@/components/admin/DeleteContentButtons";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Post" };
+
 export default async function AdminPostEdit({
   params,
 }: {

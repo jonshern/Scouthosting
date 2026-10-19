@@ -8,6 +8,8 @@ import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { SetupChecklist } from "@/components/admin/SetupChecklist";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Setup" };
+
 export default async function AdminSetupPage({
   params,
 }: {

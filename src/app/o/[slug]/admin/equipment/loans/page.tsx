@@ -10,6 +10,8 @@ import { decryptMemberPii } from "@/lib/members/crypto";
 import { Pill } from "@/components/ui";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Loan history" };
+
 export default async function LoanHistoryPage({
   params,
 }: {

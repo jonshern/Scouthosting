@@ -12,6 +12,8 @@ import {
 } from "@/components/admin/StripeSettingsForms";
 import { requireTreasuryPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Online payments" };
+
 export default async function TreasurySettings({
   params,
 }: {

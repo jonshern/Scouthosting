@@ -26,7 +26,7 @@ export default async function DeleteAccountPage({
   const blockers = await deletionBlockers(user.id);
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <div className="max-w-xl">
       <h1 className="font-display font-semibold text-3xl mb-6">Delete account</h1>
       <div className="max-w-md space-y-4 text-sm">
         <p>Deleting your account signs you out everywhere, including the phone apps, and can&apos;t be undone.</p>
@@ -76,6 +76,6 @@ export default async function DeleteAccountPage({
           </form>
         )}
       </div>
-    </main>
+    </div>
   );
 }

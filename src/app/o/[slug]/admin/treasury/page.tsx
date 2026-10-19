@@ -15,6 +15,8 @@ import { Pill, Stat, StatRow } from "@/components/ui";
 import { centsToDollars, formatBalance } from "@/lib/treasury/money";
 import { requireTreasuryPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Treasury" };
+
 export default async function TreasuryHome({
   params,
 }: {

@@ -9,6 +9,8 @@ import { setReimbursementStatus } from "@/server-actions/reimbursements";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Reimbursements" };
+
 const STATUSES = ["pending", "approved", "denied", "paid"] as const;
 
 export default async function ReimbursementsPage({
@@ -33,7 +35,7 @@ export default async function ReimbursementsPage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader kicker="Money" title="Reimbursements" />
       {rows.length === 0 ? (
         <p className="text-slate-soft">No reimbursement requests yet.</p>
@@ -81,6 +83,6 @@ export default async function ReimbursementsPage({
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

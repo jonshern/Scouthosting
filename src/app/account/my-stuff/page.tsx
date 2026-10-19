@@ -13,7 +13,7 @@ import { MyStuffForm } from "@/components/account/MyStuffForm";
 import { SectionHeader, Pill } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "My Stuff" };
+export const metadata = { title: "My stuff" };
 
 export default async function MyStuffPage() {
   const { user } = await getSession();
@@ -51,10 +51,10 @@ export default async function MyStuffPage() {
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <div>
       <SectionHeader
         eyebrow="Account"
-        title="My Stuff"
+        title="My stuff"
         description="The things only you can fill in: skills, interests, allergies, shirt size. Editable per unit so a parent in two troops can keep them separate."
       />
 
@@ -97,6 +97,6 @@ export default async function MyStuffPage() {
           ))}
         </div>
       )}
-    </main>
+    </div>
   );
 }

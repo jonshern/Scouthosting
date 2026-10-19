@@ -30,6 +30,8 @@ import {
 } from "@/server-actions/super-admin";
 import { requireOwnerPage } from "@/lib/owner/guard";
 
+export const metadata = { title: "Sign-ups" };
+
 export const dynamic = "force-dynamic";
 
 const PRODUCTS: Product[] = ["compass", "waypoint", "lantern"];

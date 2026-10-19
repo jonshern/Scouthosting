@@ -8,6 +8,8 @@ import { getSession } from "@/lib/auth/session";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { ChatComposer } from "@/components/chat/ChatComposer";
 
+export const metadata = { title: "Chat" };
+
 export default async function ChatPage({
   params,
   searchParams,
@@ -28,7 +30,13 @@ export default async function ChatPage({
     where: { orgId: org.id, userId: user.id },
     select: { id: true },
   });
-  if (!membership) return <p className="p-12">Chat is for members of this unit.</p>;
+  if (!membership)
+    return (
+      <main className="mx-auto max-w-content px-6 py-12">
+        <h1 className="font-display font-semibold text-3xl mb-3">Chat</h1>
+        <p className="text-ink-2">Chat is for members of this unit.</p>
+      </main>
+    );
 
   const channels = await prisma.channel.findMany({
     where: {
@@ -71,20 +79,26 @@ export default async function ChatPage({
     : [];
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <main className="mx-auto max-w-content px-4 py-8 sm:px-6 sm:py-12">
       <h1 className="font-display font-semibold text-3xl mb-6">Chat</h1>
-      <div className="grid grid-cols-[200px_1fr] gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[200px_1fr]">
         <aside>
           <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted mb-2">
             Channels
           </h2>
-          <ul className="space-y-1">
+          {channels.length === 0 ? (
+            <p className="text-sm text-muted">You're not in any channels yet.</p>
+          ) : null}
+          <ul className="flex flex-wrap gap-1 md:block md:space-y-1">
             {channels.map((c) => (
               <li key={c.id}>
                 <Link
                   href={`/o/${slug}/chat?channel=${c.id}`}
-                  className={`block px-2 py-1 rounded text-sm ${
-                    c.id === activeChannel?.id ? "bg-accent-soft" : "hover:bg-ink-muted/5"
+                  aria-current={c.id === activeChannel?.id ? "page" : undefined}
+                  className={`block rounded-md px-2.5 py-1.5 text-sm no-underline ${
+                    c.id === activeChannel?.id
+                      ? "bg-accent-soft text-accent-soft-text"
+                      : "text-ink-2 hover:bg-sunk hover:text-ink"
                   }`}
                 >
                   {c.name}
@@ -96,9 +110,9 @@ export default async function ChatPage({
             ))}
           </ul>
         </aside>
-        <section>
+        <section className="min-w-0">
           {!activeChannel ? (
-            <p className="text-ink-muted">Pick a channel.</p>
+            <p className="text-muted">{channels.length ? "Pick a channel." : "When a leader adds you to a channel, it shows up here."}</p>
           ) : (
             <>
               <header className="mb-4 pb-3 border-b border-line">
@@ -109,6 +123,9 @@ export default async function ChatPage({
                   </p>
                 )}
               </header>
+              {messages.length === 0 ? (
+                <p className="mb-4 text-sm text-muted">No messages yet. Say hi.</p>
+              ) : null}
               <ul className="space-y-3" data-testid="chat-messages">
                 {messages.map((m) => (
                   <li key={m.id} className="text-sm" data-testid="chat-message">
@@ -124,7 +141,7 @@ export default async function ChatPage({
                     ) : (
                       <span className="text-xs text-ink-muted italic">system</span>
                     )}
-                    <p className="whitespace-pre-wrap">{m.body}</p>
+                    <p className="whitespace-pre-wrap break-words">{m.body}</p>
                   </li>
                 ))}
               </ul>

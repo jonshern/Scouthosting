@@ -8,6 +8,8 @@ import { canManageTreasury } from "@/lib/auth/treasury-access";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Refunds" };
+
 export default async function RefundsPage({
   params,
 }: {
@@ -30,7 +32,7 @@ export default async function RefundsPage({
   });
 
   return (
-    <main className="mx-auto max-w-content px-6 py-12">
+    <section>
       <AdminPageHeader
         kicker="Money"
         title="Refunds"
@@ -71,6 +73,6 @@ export default async function RefundsPage({
           ))}
         </ul>
       )}
-    </main>
+    </section>
   );
 }

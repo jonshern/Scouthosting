@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Custom pages" };
+
 export default async function AdminPagesIndex({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   await requireAdminPage(slug);

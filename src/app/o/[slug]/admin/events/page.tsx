@@ -13,6 +13,8 @@ import {
 } from "@/lib/calendar/month-grid";
 import { requireAdminPage } from "@/lib/admin/guard";
 
+export const metadata = { title: "Events" };
+
 type Search = { view?: string; ym?: string };
 
 function parseYm(ym: string | undefined): { year: number; month0: number } {
