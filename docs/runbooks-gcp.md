@@ -88,6 +88,8 @@ Nothing is broken for users: the deploy stopped before the new server took traff
 
 Backups: daily, kept 14 days, one more before every deploy's migrations (`scripts/deploy-api.sh`), plus point-in-time recovery for the last 7 days. If the instance is ever deleted, a final backup is kept for 30 days.
 
+Off the instance (`infra/backups.tf`): every night at 02:30 Central, `compass_prod` is exported to `gs://<project>-backups/compass_prod/compass_prod.sql.gz` in `us-east1`, and the prod uploads are copied to `uploads/` in the same bucket. Each night's export replaces the last; the older ones stay as versions for 30 days (`gcloud storage ls --all-versions gs://<project>-backups/compass_prod/`). The "Core nightly backup failed" alert fires if the export, its schedule or the uploads copy errors; run it by hand with `gcloud scheduler jobs run core-backup-prod --location us-central1` once the cause is fixed. These copies are what's left if `core-pg` itself is gone: create a new instance (apply), then import the newest export as the owner login (`gcloud sql import sql core-pg <export> --database compass_prod --user compass_prod`) and copy `uploads/` back into the uploads bucket. Uploads and every roster name in the export need the same `MASTER_KEY`, which lives in Secret Manager, not in the bucket.
+
 **Prefer repairing from a copy over replacing the live database**, so nothing written since the accident is lost:
 
 1. Make a copy as it was just before the accident (times in UTC):
@@ -98,6 +100,26 @@ Backups: daily, kept 14 days, one more before every deploy's migrations (`script
 3. Delete the copy when done: `gcloud sql instances delete core-pg-restore` (it costs about the same as the main database while it exists).
 
 To replace the whole database instead, restore a backup onto the live instance (console → Cloud SQL → Backups → *Restore*). This overwrites everything written since that backup.
+
+### Monthly restore drill
+
+The Mac drills its backups every Sunday; in the cloud, do this on the first of the month (about 15 minutes, a few cents). It proves both kinds of backup restore: the clone comes from Cloud SQL's own backups and logs, and the export is imported into it.
+
+```sh
+P=<project-id>
+gcloud sql instances clone core-pg core-pg-drill                     # from point-in-time logs
+SA=$(gcloud sql instances describe core-pg-drill --format 'value(serviceAccountEmailAddress)')
+gcloud storage buckets add-iam-policy-binding gs://$P-backups --member "serviceAccount:$SA" --role roles/storage.objectViewer
+gcloud sql databases create compass_drill --instance core-pg-drill
+gcloud sql import sql core-pg-drill gs://$P-backups/compass_prod/compass_prod.sql.gz --database compass_drill --user compass_prod
+```
+
+In Cloud SQL Studio on `core-pg-drill`, run the same count in `compass_prod` (the clone) and `compass_drill` (the export) and compare: `select (select count(*) from "Org") orgs, (select count(*) from "Member") members, (select count(*) from "User") users, (select count(*) from "JourneyProgress") steps;`. The export is up to a day older, so it may be a little behind, never ahead. Then clean up:
+
+```sh
+gcloud storage buckets remove-iam-policy-binding gs://$P-backups --member "serviceAccount:$SA" --role roles/storage.objectViewer
+gcloud sql instances delete core-pg-drill
+```
 
 ## Youth-protection alert
 

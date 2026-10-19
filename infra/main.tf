@@ -4,7 +4,9 @@
 locals {
   apis = [
     "artifactregistry.googleapis.com",
+    "certificatemanager.googleapis.com",
     "cloudscheduler.googleapis.com",
+    "compute.googleapis.com",
     "firebase.googleapis.com",
     "firebasehosting.googleapis.com",
     "iam.googleapis.com",
@@ -14,6 +16,7 @@ locals {
     "secretmanager.googleapis.com",
     "sqladmin.googleapis.com",
     "storage.googleapis.com",
+    "storagetransfer.googleapis.com",
   ]
 }
 

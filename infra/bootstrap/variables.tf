@@ -22,9 +22,9 @@ variable "billing_account_id" {
 }
 
 variable "monthly_budget_usd" {
-  description = "Alert when spend crosses 50%, 90% and (forecast) 100% of this."
+  description = "Alert when spend crosses 50%, 90% and (forecast) 100% of this. Launch scale with a custom domain is about $32/month (infra/COSTS.md)."
   type        = number
-  default     = 25
+  default     = 50
 }
 
 variable "web_repositories" {

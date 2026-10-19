@@ -11,6 +11,15 @@ alert_email = "you@example.org"
 #   prod    = { min_instances = 1, max_instances = 6 }
 # }
 
+# Custom domain for Compass, with <slug>.compass.example.org for every unit.
+# Adds a load balancer (~$18/month); `terraform output environments` then
+# lists the DNS records to add (edge_dns).
 # app_domains    = { prod = "compass.example.org" }  # matches bluecard marketing/landing/site.js
 # custom_domains = { prod = { landing = "example.org", waypoint = "waypoint.example.org", lantern = "lantern.example.org" } }
 # monitored_web_apps = ["waypoint"]
+
+# Bigger database once there are more than about 30 units (infra/COSTS.md):
+# db_tier = "db-g1-small"
+
+# Nightly export and uploads copy go to a bucket in another region:
+# backup_region = "us-east1"

@@ -53,6 +53,9 @@ locals {
     AUTH_TOKEN_SECRET  = "auth-token-secret"
     PERM_SLIP_SECRET   = "perm-slip-secret"
     TASKS_TOKEN        = "tasks-token"
+    # The load balancer sends it as X-Compass-Edge (edge.tf); harmless
+    # without one.
+    CLIENT_IP_EDGE_TOKEN = "edge-token"
   }
 
   # Created with a placeholder; set the real value by hand (runbooks.md).

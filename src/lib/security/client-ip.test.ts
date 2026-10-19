@@ -66,6 +66,28 @@ describe("clientIp", () => {
   });
 });
 
+describe("load balancer token", () => {
+  const token = "edge-token-0123456789abcdef";
+  const cfg = clientIpConfig({ K_SERVICE: "core-prod", CLIENT_IP_EDGE_TOKEN: token });
+
+  it("walks one more hop only for requests the balancer marked", () => {
+    expect(cfg).toMatchObject({ header: "x-forwarded-for", xffHops: 1, edgeHops: 2 });
+    const viaEdge = h({ "x-forwarded-for": "6.6.6.6, 203.0.113.7, 34.120.0.1", "x-compass-edge": token });
+    expect(clientIp(viaEdge, cfg)).toBe("203.0.113.7");
+  });
+
+  it("keeps the rightmost hop on the run.app URL, whatever the client typed", () => {
+    const direct = h({ "x-forwarded-for": "6.6.6.6, 203.0.113.8" });
+    expect(clientIp(direct, cfg)).toBe("203.0.113.8");
+    const forged = h({ "x-forwarded-for": "6.6.6.6, 203.0.113.8", "x-compass-edge": "guess" });
+    expect(clientIp(forged, cfg)).toBe("203.0.113.8");
+  });
+
+  it("ignores a token too short to be secret", () => {
+    expect(clientIpConfig({ K_SERVICE: "x", CLIENT_IP_EDGE_TOKEN: "short" }).edgeToken).toBeUndefined();
+  });
+});
+
 describe("clientIpFromHeaders", () => {
   afterEach(() => {
     delete process.env.TRUSTED_IP_HEADER;

@@ -13,6 +13,13 @@
 //   CLIENT_IP_HEADER=<other header>    e.g. cf-connecting-ip, x-real-ip,
 //                                      when a trusted proxy overwrites it.
 //
+// Behind Google's load balancer (infra/modules/environment/edge.tf) the
+// client is one hop further left, but the run.app URL stays reachable
+// for Firebase rewrites and blue-green checks, where that hop is
+// whatever the client typed. So the balancer adds X-Compass-Edge with
+// CLIENT_IP_EDGE_TOKEN, and only requests carrying it walk the extra
+// CLIENT_IP_EDGE_HOPS (default 2).
+//
 // TRUSTED_IP_HEADER / TRUSTED_PROXY_HOPS are accepted as aliases.
 //
 // Outside production with no platform detected (local dev, tests) the
@@ -20,6 +27,7 @@
 // configured, nothing is trusted and the result is null, so callers fall
 // back to a shared bucket rather than a spoofable one.
 
+import { timingSafeEqual } from "node:crypto";
 import { isIP } from "node:net";
 
 type HeaderSource = { get(name: string): string | null };
@@ -27,16 +35,35 @@ type HeaderSource = { get(name: string): string | null };
 export type ClientIpConfig = {
   header: string | null;
   xffHops: number;
+  /** Requests whose X-Compass-Edge equals this came through our load balancer. */
+  edgeToken?: string;
+  edgeHops?: number;
 };
+
+export const EDGE_HEADER = "x-compass-edge";
 
 export function clientIpConfig(env: Record<string, string | undefined> = process.env): ClientIpConfig {
   const rawHops = env.CLIENT_IP_XFF_HOPS ?? env.TRUSTED_PROXY_HOPS ?? "1";
   const hops = Math.max(1, Number.parseInt(rawHops, 10) || 1);
+  const edgeToken = env.CLIENT_IP_EDGE_TOKEN?.trim();
+  const edge =
+    edgeToken && edgeToken.length >= 16
+      ? { edgeToken, edgeHops: Math.max(1, Number.parseInt(env.CLIENT_IP_EDGE_HOPS ?? "2", 10) || 2) }
+      : {};
   const explicit = (env.CLIENT_IP_HEADER || env.TRUSTED_IP_HEADER)?.trim().toLowerCase();
-  if (explicit) return { header: explicit, xffHops: hops };
-  if (env.K_SERVICE) return { header: "x-forwarded-for", xffHops: hops };
-  if (env.NODE_ENV !== "production") return { header: "x-forwarded-for", xffHops: hops };
+  if (explicit) return { header: explicit, xffHops: hops, ...edge };
+  if (env.K_SERVICE) return { header: "x-forwarded-for", xffHops: hops, ...edge };
+  if (env.NODE_ENV !== "production") return { header: "x-forwarded-for", xffHops: hops, ...edge };
   return { header: null, xffHops: hops };
+}
+
+function cameThroughEdge(headers: HeaderSource, token: string | undefined): boolean {
+  if (!token) return false;
+  const sent = headers.get(EDGE_HEADER);
+  if (!sent) return false;
+  const a = Buffer.from(sent);
+  const b = Buffer.from(token);
+  return a.length === b.length && timingSafeEqual(a, b);
 }
 
 function normalise(raw: string | undefined | null): string | null {
@@ -58,7 +85,8 @@ export function clientIp(
   if (!value) return null;
   if (config.header !== "x-forwarded-for") return normalise(value);
   const parts = value.split(",").map((s) => s.trim()).filter(Boolean);
-  return normalise(parts[parts.length - config.xffHops]);
+  const hops = cameThroughEdge(headers, config.edgeToken) ? (config.edgeHops ?? 2) : config.xffHops;
+  return normalise(parts[parts.length - hops]);
 }
 
 /** clientIp() for callers that want a bucket key: "anon" when unknown. */
