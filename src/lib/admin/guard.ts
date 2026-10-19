@@ -55,3 +55,12 @@ export async function requireTreasuryPage(slug: string) {
   if (!(await canManageTreasury(a.user, a.org.id))) notFound();
   return a;
 }
+
+/**
+ * For admin route handlers (CSV exports): whether the user meets the
+ * two-step rule the admin pages enforce. Route handlers can't redirect to
+ * the setup page the way requireAdminPage does, so they answer 403.
+ */
+export async function organizerStandingOk(userId: string): Promise<boolean> {
+  return !requirementRedirect(await accountStanding(userId), { organizerSurface: true });
+}

@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth/session";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
 import { shirtSizeReport } from "@/lib/reports/roster";
 import { buildCsv, csvHeaders } from "@/lib/csv";
+import { organizerStandingOk } from "@/lib/admin/guard";
 
 export async function GET(
   _req: Request,
@@ -17,6 +18,9 @@ export async function GET(
   const role = await roleInOrg(user.id, org.id);
   if (!isLeaderRole(role) && !user.isSuperAdmin) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  if (!(await organizerStandingOk(user.id))) {
+    return NextResponse.json({ error: "two_step_required" }, { status: 403 });
   }
   const rows = await shirtSizeReport(org);
   const body = buildCsv(
