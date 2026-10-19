@@ -3,6 +3,7 @@
 // redirects.
 
 import { expect, test } from "@playwright/test";
+import { E2E_PORT } from "./helpers/ports";
 
 test.describe("public token routes", () => {
   test("/rsvp/<bad-token> renders the expired state", async ({ page }) => {
@@ -23,11 +24,11 @@ test.describe("public token routes", () => {
   // these paths must not redirect anywhere.
   test("/t/c and /t/o no longer exist", async ({ request }) => {
     const click = await request.get(
-      "http://localhost:3000/t/c/bogus?to=" + encodeURIComponent("https://example.com/"),
+      `http://localhost:${E2E_PORT}/t/c/bogus?to=` + encodeURIComponent("https://example.com/"),
       { maxRedirects: 0 },
     );
     expect(click.status()).toBe(404);
-    const open = await request.get("http://localhost:3000/t/o/bogus.png");
+    const open = await request.get(`http://localhost:${E2E_PORT}/t/o/bogus.png`);
     expect(open.status()).toBe(404);
   });
 });

@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { E2E_MFA_PORT, E2E_PORT } from "./tests/e2e/helpers/ports";
 
 // E2E_DATABASE_URL points the suite at another disposable database, e.g. a
 // second checkout sharing the same Postgres. global-setup.ts reads it too.
@@ -13,7 +14,7 @@ const SERVER_ENV: Record<string, string> = {
   NODE_ENV: "production",
   APEX_HOST: "localhost",
   SESSION_SECRET: "test-only-not-secret-replace-in-prod-0123456789abcdef",
-  PORT: "3000",
+  PORT: E2E_PORT,
   // Tests sign in as a seeded admin (scoutmaster). The policy gate
   // (lib/auth/policy.ts) blocks admin password login when
   // NODE_ENV=production unless this bypass is set — same convention
@@ -45,9 +46,14 @@ const SERVER_ENV: Record<string, string> = {
 // production sign-in rules are live: organizers need two-step sign-in,
 // and an admin's password alone isn't enough. Used only by
 // mfa-required.spec.ts.
-const MFA_SERVER_ENV: Record<string, string> = { ...SERVER_ENV, PORT: "3001" };
-delete MFA_SERVER_ENV.ALLOW_ADMIN_WITHOUT_MFA;
-delete MFA_SERVER_ENV.ALLOW_ADMIN_PASSWORD_LOGIN;
+// The bypasses are set to "0" rather than left out: Next fills unset
+// keys from the checkout's .env, which on the host Mac turns them on.
+const MFA_SERVER_ENV: Record<string, string> = {
+  ...SERVER_ENV,
+  PORT: E2E_MFA_PORT,
+  ALLOW_ADMIN_WITHOUT_MFA: "0",
+  ALLOW_ADMIN_PASSWORD_LOGIN: "0",
+};
 
 export default defineConfig({
   testDir: "./tests/e2e",
@@ -60,22 +66,22 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? "github" : [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: `http://localhost:${E2E_PORT}`,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command: "npm run start",
-      url: "http://localhost:3000/health",
+      command: `npx next start -H 0.0.0.0 -p ${E2E_PORT}`,
+      url: `http://localhost:${E2E_PORT}/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
       env: SERVER_ENV,
     },
     {
-      command: "npx next start -H 0.0.0.0 -p 3001",
-      url: "http://localhost:3001/health",
+      command: `npx next start -H 0.0.0.0 -p ${E2E_MFA_PORT}`,
+      url: `http://localhost:${E2E_MFA_PORT}/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
       env: MFA_SERVER_ENV,

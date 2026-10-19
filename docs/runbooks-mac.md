@@ -256,6 +256,17 @@ Compass only runs while you're signed in to the Mac: the launchd jobs are per-us
 2. Copy `.env` from the password manager or the old Mac (same `MASTER_KEY`, and `OFFSITE_PASSPHRASE` if the backup comes from the off-Mac copy: `scripts/host/offsite.sh --fetch` it first).
 3. `scripts/host/restore.sh --replace <latest backup>`, then `make host-install` and `make deploy`.
 
+## Browser tests on the Mac
+
+The live stack holds 3000 (the switch), 3001 (blue) and 3002 (green), and the demo uses 3100. Playwright reuses any server already answering on its ports, so a plain `npx playwright test` would test the live slots instead of a fresh build. Give it its own ports:
+
+```bash
+npm run build
+E2E_PORT=3200 E2E_MFA_PORT=3201 npx playwright test
+```
+
+The tests still use the `compass_test` database (`E2E_DATABASE_URL` picks another). The two-step tests' server turns `ALLOW_ADMIN_WITHOUT_MFA` and `ALLOW_ADMIN_PASSWORD_LOGIN` off itself, so the Mac's `.env` can keep them.
+
 ## Passkeys on the Mac
 
 Browsers only allow passkeys on `localhost` (and `*.localhost`) or over https. Signing in from the Mac's own browser at `localhost:3000` works with no setup. From a phone over Tailscale, serve Compass over https (`tailscale serve --bg 3000` gives `https://<mac>.<tailnet>.ts.net`) and add that name to `.env`:

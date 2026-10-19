@@ -4,6 +4,7 @@
 
 import { expect, test, type Page } from "@playwright/test";
 import { showPasswordSignIn } from "./helpers/flows";
+import { E2E_PORT } from "./helpers/ports";
 
 const EMAIL = "scoutmaster@example.invalid";
 const PASSWORD = "AdminPasswordTest123!";
@@ -31,12 +32,12 @@ async function mintToken(page: Page): Promise<string> {
 
 test.describe("mobile API", () => {
   test("rejects requests without a bearer token", async ({ request }) => {
-    const res = await request.get("http://localhost:3000/api/v1/auth/me");
+    const res = await request.get(`http://localhost:${E2E_PORT}/api/v1/auth/me`);
     expect(res.status()).toBe(401);
   });
 
   test("rejects requests with a malformed bearer token", async ({ request }) => {
-    const res = await request.get("http://localhost:3000/api/v1/auth/me", {
+    const res = await request.get(`http://localhost:${E2E_PORT}/api/v1/auth/me`, {
       headers: { authorization: "Bearer not_a_real_token" },
     });
     expect(res.status()).toBe(401);
@@ -44,7 +45,7 @@ test.describe("mobile API", () => {
 
   test("/api/v1/auth/me returns user + orgs with a valid token", async ({ page, request }) => {
     const raw = await mintToken(page);
-    const res = await request.get("http://localhost:3000/api/v1/auth/me", {
+    const res = await request.get(`http://localhost:${E2E_PORT}/api/v1/auth/me`, {
       headers: { authorization: `Bearer ${raw}` },
     });
     expect(res.status()).toBe(200);
@@ -61,7 +62,7 @@ test.describe("mobile API", () => {
   test("/api/v1/orgs/[slug]/events lists upcoming events", async ({ page, request }) => {
     const raw = await mintToken(page);
     const res = await request.get(
-      "http://localhost:3000/api/v1/orgs/troop100/events",
+      `http://localhost:${E2E_PORT}/api/v1/orgs/troop100/events`,
       { headers: { authorization: `Bearer ${raw}` } },
     );
     expect(res.status()).toBe(200);
@@ -72,7 +73,7 @@ test.describe("mobile API", () => {
   test("/api/v1/orgs/<unknown>/events 404s", async ({ page, request }) => {
     const raw = await mintToken(page);
     const res = await request.get(
-      "http://localhost:3000/api/v1/orgs/totally-fake/events",
+      `http://localhost:${E2E_PORT}/api/v1/orgs/totally-fake/events`,
       { headers: { authorization: `Bearer ${raw}` } },
     );
     expect(res.status()).toBe(404);
@@ -81,7 +82,7 @@ test.describe("mobile API", () => {
   test("DELETE /api/v1/auth/token/[id] revokes the token", async ({ page, request }) => {
     const raw = await mintToken(page);
     // First call works.
-    const ok = await request.get("http://localhost:3000/api/v1/auth/me", {
+    const ok = await request.get(`http://localhost:${E2E_PORT}/api/v1/auth/me`, {
       headers: { authorization: `Bearer ${raw}` },
     });
     expect(ok.status()).toBe(200);
@@ -101,7 +102,7 @@ test.describe("mobile API", () => {
   test("/api/v1/orgs/[slug]/photos returns albums", async ({ page, request }) => {
     const raw = await mintToken(page);
     const res = await request.get(
-      "http://localhost:3000/api/v1/orgs/troop100/photos",
+      `http://localhost:${E2E_PORT}/api/v1/orgs/troop100/photos`,
       { headers: { authorization: `Bearer ${raw}` } },
     );
     expect(res.status()).toBe(200);
@@ -111,7 +112,7 @@ test.describe("mobile API", () => {
 
   test("push register validates token presence", async ({ page, request }) => {
     const raw = await mintToken(page);
-    const res = await request.post("http://localhost:3000/api/v1/push/register", {
+    const res = await request.post(`http://localhost:${E2E_PORT}/api/v1/push/register`, {
       headers: { authorization: `Bearer ${raw}`, "content-type": "application/json" },
       data: {},
     });
@@ -121,7 +122,7 @@ test.describe("mobile API", () => {
   test("push register creates a PushDevice row", async ({ page, request }) => {
     const raw = await mintToken(page);
     const fakeToken = `ExponentPushToken[e2e-${Date.now()}]`;
-    const res = await request.post("http://localhost:3000/api/v1/push/register", {
+    const res = await request.post(`http://localhost:${E2E_PORT}/api/v1/push/register`, {
       headers: { authorization: `Bearer ${raw}`, "content-type": "application/json" },
       data: {
         token: fakeToken,
@@ -135,7 +136,7 @@ test.describe("mobile API", () => {
     expect(body.id).toBeTruthy();
 
     const unreg = await request.post(
-      "http://localhost:3000/api/v1/push/unregister",
+      `http://localhost:${E2E_PORT}/api/v1/push/unregister`,
       {
         headers: { authorization: `Bearer ${raw}`, "content-type": "application/json" },
         data: { token: fakeToken },
