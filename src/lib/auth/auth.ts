@@ -25,6 +25,7 @@ import { sendMail } from "@/lib/mail";
 import { captureError } from "@/lib/ops/error-tracker";
 import { hashPassword, verifyPassword } from "./password";
 import { claimOrgsForVerifiedEmail } from "./claim-orgs";
+import { joinUnitsByRosterEmail } from "@/lib/members/access";
 import { compassMfa } from "./mfa-plugin";
 import { appleConfig, extraSignInHostPatterns, googleConfig } from "./providers";
 import { clientIpConfig } from "@/lib/security/client-ip";
@@ -133,6 +134,7 @@ export const auth = betterAuth({
     },
     async afterEmailVerification(user) {
       await claimOrgsForVerifiedEmail(user.id, user.email);
+      await joinUnitsByRosterEmail(user.id, user.email);
     },
   },
 
@@ -177,7 +179,10 @@ export const auth = betterAuth({
           recordAction("account_created", { product: "compass", userId: user.id });
           // Google/Apple sign-ups arrive verified; password sign-ups claim
           // their unit only after confirming the email (above).
-          if (user.emailVerified) await claimOrgsForVerifiedEmail(user.id, user.email);
+          if (user.emailVerified) {
+            await claimOrgsForVerifiedEmail(user.id, user.email);
+            await joinUnitsByRosterEmail(user.id, user.email);
+          }
         },
       },
     },

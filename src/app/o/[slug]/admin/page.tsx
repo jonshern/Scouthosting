@@ -6,6 +6,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/db";
 import { requireAdminPage } from "@/lib/admin/guard";
+import { GettingStarted } from "@/components/admin/GettingStarted";
 
 // Icon wells in the activity feed: a soft fill with matching text.
 const WELL = {
@@ -187,6 +188,8 @@ export default async function AdminOverview({
           </Link>
         </div>
       </div>
+
+      <GettingStarted org={org} />
 
       {/* Stats: one joined strip */}
       <div className="grid grid-cols-1 gap-px overflow-hidden rounded-xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">

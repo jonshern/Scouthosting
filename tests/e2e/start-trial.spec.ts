@@ -41,6 +41,17 @@ test("a new leader signs up, creates a unit and starts a 3-month trial", async (
   await expect(page).toHaveURL(new RegExp(`/o/troop${unitNumber}(-[a-z0-9-]+)?/admin$`));
   await expect(page.getByTestId("billing-banner")).toContainText("90 days left in your free trial");
 
+  // A checklist on the admin home walks the new unit through its first steps.
+  const card = page.getByRole("region", { name: "Getting started" });
+  await expect(card).toContainText("0 of 6 done");
+  await card.getByRole("link", { name: "New event" }).click();
+  await expect(page).toHaveURL(/\/admin\/events\/new$/);
+  await page.goBack();
+  await card.getByRole("button", { name: "Hide" }).click();
+  await expect(card).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole("region", { name: "Getting started" })).toHaveCount(0);
+
   await page.getByTestId("billing-banner").getByRole("link", { name: /billing/i }).click();
   await expect(page.getByTestId("billing-status")).toContainText("90 days left in your free trial");
   await expect(page.getByTestId("billing-status")).toContainText("Billing isn't switched on");

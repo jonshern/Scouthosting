@@ -8,6 +8,9 @@ import { audit } from "@/lib/audit";
 import { UNIT_TYPES, type UnitType } from "@/lib/auth/org-roles";
 import { RESERVED_SLUGS, deriveSlug, provisionOrg } from "./provision-org";
 import { recordAction } from "@/lib/usage/collect";
+import { sendWelcome } from "./welcome-mail";
+import { refreshUnitChannels } from "@/lib/members/access";
+import { captureError } from "@/lib/ops/error-tracker";
 
 export const StartTrialSchema = z
   .object({
@@ -105,6 +108,14 @@ export async function startUnitTrial(
   });
 
   recordAction("unit_created", { product: "compass", userId: user.id, orgId: org.id });
+  await refreshUnitChannels(org.id);
+  const welcome = await sendWelcome({
+    to: user.email,
+    name: user.displayName || null,
+    org,
+    trialEndsAt: org.trialEndsAt,
+  });
+  if (!welcome.ok) await captureError(new Error(`welcome email failed: ${welcome.error}`));
 
   return { slug: org.slug, displayName: org.displayName, recoveryCode, trialEndsAt: org.trialEndsAt };
 }

@@ -377,6 +377,17 @@ the account, the Lantern trail and the scout retention purge; the
 privacy draft (`business/drafts/privacy-policy.md`) describes all this,
 so keep it in step.
 
+### 19. People join a unit through the roster
+
+Only the founder gets in at `/start`. Everyone else joins by email:
+an active adult `Member` whose email matches a confirmed account gets
+an `OrgMembership` with role `parent` (`src/lib/members/access.ts`,
+run after email confirmation, on Google/Apple sign-up, and on the
+unit's `/join` page). Leaders send the invite from the roster
+(`src/server-actions/unit-access.ts`); only admins raise someone to
+leader or admin, on that person's roster page. Never join on an
+unconfirmed email. Joining refreshes the unit's standing chats.
+
 ## Demo accounts (test DB)
 
 Password for all seeded accounts: `AdminPasswordTest123!`
