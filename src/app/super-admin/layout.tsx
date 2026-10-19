@@ -3,7 +3,7 @@
 // Waypoint and Lantern. Every route under this segment requires a User
 // with isSuperAdmin=true, which only `npm run owner:grant` sets.
 
-import Link from "next/link";
+import { OwnerNav } from "@/components/owner/OwnerNav";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getSession } from "@/lib/auth/session";
@@ -26,24 +26,24 @@ export default async function SuperLayout({ children }: { children: React.ReactN
   if (gate) redirect(withNext(gate, "/super-admin"));
 
   return (
-    <div className="mx-auto max-w-content px-6 py-10">
-      <header className="mb-8 border-b border-line pb-4">
-        <div className="font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">§ Compass · Waypoint · Lantern</div>
-        <h1 className="font-display text-3xl font-semibold">Owner console</h1>
-        <nav aria-label="Owner console" className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm">
-          <Link href="/super-admin">Overview</Link>
-          <Link href="/super-admin/orgs">Units</Link>
-          <Link href="/super-admin/people">People</Link>
-          <Link href="/super-admin/billing">Billing</Link>
-          <Link href="/super-admin/inbox">Inbox</Link>
-          <Link href="/super-admin/signups">Sign-ups</Link>
-          <Link href="/super-admin/errors">Errors</Link>
-          <Link href="/super-admin/audit">Audit log</Link>
-          <Link href="/super-admin/analytics">Analytics</Link>
-          <Link href="/super-admin/architecture">Architecture</Link>
-        </nav>
-      </header>
-      {children}
+    <div className="flex min-h-screen flex-col bg-bg md:flex-row">
+      <aside className="bg-ink px-3 py-5 text-white md:sticky md:top-0 md:h-screen md:w-[248px] md:shrink-0 md:overflow-y-auto">
+        <div className="flex items-center gap-2.5 px-2 pb-5">
+          <span className="flex gap-[3px]" aria-hidden>
+            <span className="h-[22px] w-2 rounded-[3px] bg-white" />
+            <span className="h-[22px] w-2 rounded-[3px] bg-accent" />
+            <span className="h-[22px] w-2 rounded-[3px] bg-muted" />
+          </span>
+          <div className="leading-tight">
+            <h1 className="text-[15px] font-semibold tracking-normal">Owner console</h1>
+            <div className="text-xs text-on-ink-muted">Compass · Waypoint · Lantern</div>
+          </div>
+        </div>
+        <OwnerNav />
+      </aside>
+      <div className="min-w-0 flex-1 px-4 py-8 sm:px-8">
+        <div className="mx-auto max-w-[1200px]">{children}</div>
+      </div>
     </div>
   );
 }

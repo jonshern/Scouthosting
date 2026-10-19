@@ -1,8 +1,5 @@
-// Admin chrome. Replaces the old sidebar with the AdminBalanced
-// top-nav from design_handoff_compass — Compass wordmark left, primary
-// section links + sky-blue underline for the active section, settings
-// links on the right. The page body is constrained to max-w-[1400px]
-// at 32–40px gutters per the design.
+// Admin chrome (Modern Clean, Admin board): AdminTopNav on top, the
+// billing banner under it, then the page body at max-w-[1400px].
 
 import Link from "next/link";
 import { adminAccess } from "@/lib/admin/guard";
@@ -36,8 +33,11 @@ export default async function AdminLayout({
   if (!access.ok) {
     return (
       <section className="mx-auto max-w-content px-6 py-16">
-        <h1 className="font-display text-2xl font-semibold">Not authorized</h1>
-        <p className="mt-2 text-slate-muted">Ask a leader to grant you admin access.</p>
+        <h1 className="text-2xl font-semibold">Not authorized</h1>
+        <p className="mt-2 text-muted">Ask a leader to grant you admin access.</p>
+        <p className="mt-4 text-sm">
+          <Link href={`/o/${slug}`}>Back to the unit&rsquo;s site</Link>
+        </p>
       </section>
     );
   }
@@ -64,26 +64,26 @@ export default async function AdminLayout({
           role="status"
           data-testid="billing-banner"
           className={
-            "border-b px-8 py-2.5 text-sm " +
+            "border-b px-4 py-2.5 text-sm sm:px-8 " +
             (banner.tone === "info"
-              ? "border-sky/20 bg-sky/5 text-slate-ink"
+              ? "border-accent/15 bg-accent-soft text-ink"
               : banner.tone === "warn"
-                ? "border-amber/30 bg-amber/10 text-slate-ink"
+                ? "border-attention/25 bg-attention-soft text-ink"
                 : "border-danger-line bg-danger-soft text-danger")
           }
         >
           <div className="mx-auto flex max-w-[1400px] flex-wrap items-center gap-x-3 gap-y-1">
             <strong className="font-semibold">{banner.headline}</strong>
-            <span className="text-slate-soft">{banner.body}</span>
+            <span className="text-ink-2">{banner.body}</span>
             {canManage && (
-              <Link href={`/o/${slug}/admin/billing`} className="font-semibold text-sky hover:text-slate-ink">
+              <Link href={`/o/${slug}/admin/billing`} className="font-semibold text-accent-text hover:text-ink">
                 Billing →
               </Link>
             )}
           </div>
         </div>
       )}
-      <main className="mx-auto max-w-[1400px] px-8 py-10">
+      <main className="mx-auto max-w-[1400px] px-4 py-8 sm:px-8 sm:py-10">
         <BillingGate slug={slug} locked={billing.locked} canManage={canManage}>
           {children}
         </BillingGate>
