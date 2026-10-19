@@ -26,7 +26,7 @@ export function PayBalanceForm({
       <input type="hidden" name="orgSlug" value={orgSlug} />
       <input type="hidden" name="memberId" value={memberId} />
       <div>
-        <label className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">
+        <label className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
           Amount ($)
         </label>
         <input
@@ -37,7 +37,7 @@ export function PayBalanceForm({
         />
       </div>
       <div className="flex-1 min-w-[180px]">
-        <label className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">
+        <label className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
           What for
         </label>
         <input

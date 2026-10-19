@@ -130,7 +130,7 @@ export default async function EditEventPage({
             </thead>
             <tbody>
               {event.slots.map((s) => (
-                <tr key={s.id} className="border-t border-ink-muted/15">
+                <tr key={s.id} className="border-t border-line">
                   <td className="py-2">{s.title}</td>
                   <td className="py-2 font-mono text-xs">{s.key ?? "—"}</td>
                   <td className="py-2">
@@ -174,7 +174,7 @@ export default async function EditEventPage({
             {[...staffByRole.entries()].map(([role, rows]) => (
               <tbody key={role}>
                 <tr>
-                  <td colSpan={4} className="pt-4 pb-1 text-xs uppercase tracking-wide text-slate-muted">
+                  <td colSpan={4} className="pt-4 pb-1 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                     {STAFF_ROLE_LABELS[role as StaffRole] ?? role} ({rows.length})
                   </td>
                 </tr>
@@ -245,7 +245,7 @@ export default async function EditEventPage({
             </thead>
             <tbody>
               {event.rsvps.map((r) => (
-                <tr key={r.id} className="border-t border-ink-muted/15">
+                <tr key={r.id} className="border-t border-line">
                   <td className="py-2">{r.name}</td>
                   <td className="py-2">{r.email ?? "—"}</td>
                   <td className="py-2">{r.response}</td>

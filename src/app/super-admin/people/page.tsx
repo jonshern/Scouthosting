@@ -35,7 +35,7 @@ export default async function OwnerPeoplePage({
 
   return (
     <section className="space-y-5">
-      <h2 className="font-display font-semibold text-2xl">People ({people.length})</h2>
+      <h2 className="text-[28px] font-semibold leading-tight tracking-[-0.03em]">People ({people.length})</h2>
 
       <form method="GET" className="flex flex-wrap items-end gap-2">
         {product ? <input type="hidden" name="product" value={product} /> : null}
@@ -51,12 +51,12 @@ export default async function OwnerPeoplePage({
         </button>
       </form>
 
-      <nav aria-label="Product filter" className="flex flex-wrap gap-3 text-sm">
-        <Link href={href(null)} className={!product ? "font-semibold underline" : ""}>
+      <nav aria-label="Product filter" className="flex flex-wrap items-center gap-2 text-sm">
+        <Link href={href(null)} className={!product ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
           Everyone
         </Link>
         {FILTERS.map((f) => (
-          <Link key={f.key} href={href(f.key)} className={product === f.key ? "font-semibold underline" : ""}>
+          <Link key={f.key} href={href(f.key)} className={product === f.key ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
             {f.label}
           </Link>
         ))}
@@ -64,7 +64,7 @@ export default async function OwnerPeoplePage({
 
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="border-b border-line text-left text-xs uppercase tracking-wide text-ink-muted">
+          <thead className="border-b border-line text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
             <tr>
               <th className="py-2 pr-3">Person</th>
               <th className="pr-3">Products</th>

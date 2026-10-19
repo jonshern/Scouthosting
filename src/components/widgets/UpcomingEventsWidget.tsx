@@ -86,7 +86,7 @@ export function UpcomingEventsWidget({ orgSlug }: { orgSlug: string }) {
         const c = colorForCategory(e.category);
         return (
           <li key={e.id} className="flex items-baseline gap-4 py-3">
-            <div className="w-20 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
+            <div className="w-20 eyebrow">
               {formatDate(e.startsAt)}
             </div>
             <span

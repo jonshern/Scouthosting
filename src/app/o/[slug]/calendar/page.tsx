@@ -118,7 +118,7 @@ export default async function PublicCalendar({
             {dow.map((d) => (
               <div
                 key={d}
-                className="bg-surface-alt text-[11px] uppercase tracking-[0.12em] text-slate-muted px-2 py-1.5 font-semibold"
+                className="bg-surface-alt font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted px-2 py-1.5 font-semibold"
               >
                 {d}
               </div>
@@ -276,7 +276,7 @@ export default async function PublicCalendar({
                   </div>
                 </div>
 
-                <div className="mt-4 border-t border-ink-muted/15 pt-3">
+                <div className="mt-4 border-t border-line pt-3">
                   <details>
                     <summary className="text-sm cursor-pointer font-medium">RSVP</summary>
                     <RsvpForm
@@ -289,7 +289,7 @@ export default async function PublicCalendar({
                 </div>
 
                 {ev.slots.length > 0 && (
-                  <div className="mt-3 border-t border-ink-muted/15 pt-3 space-y-3">
+                  <div className="mt-3 border-t border-line pt-3 space-y-3">
                     <h3 className="text-sm font-medium">Signup slots</h3>
                     <ul className="space-y-3">
                       {ev.slots.map((slot) => {
@@ -297,7 +297,7 @@ export default async function PublicCalendar({
                         const waitlistCount = slot.assignments.filter((a) => a.waitlisted).length;
                         const full = activeCount >= slot.capacity;
                         return (
-                          <li key={slot.id} className="rounded border border-ink-muted/15 p-3">
+                          <li key={slot.id} className="rounded border border-line p-3">
                             <div className="flex items-start justify-between gap-3">
                               <div>
                                 <div className="text-sm font-medium">{slot.title}</div>

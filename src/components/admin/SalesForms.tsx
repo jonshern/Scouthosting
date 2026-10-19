@@ -240,7 +240,7 @@ export function ManualOrderForm({
         </div>
       </div>
       <div>
-        <h4 className="text-[11px] uppercase tracking-[0.12em] text-slate-muted mb-2">Items</h4>
+        <h4 className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted mb-2">Items</h4>
         <div className="space-y-1 text-sm">
           {products.map((p) => (
             <label key={p.id} className="flex items-center gap-3 py-1">

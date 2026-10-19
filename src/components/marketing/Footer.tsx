@@ -15,7 +15,7 @@ export async function Footer() {
           </p>
         </div>
         <div>
-          <div className="mb-3 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">Product</div>
+          <div className="mb-3 eyebrow">Product</div>
           <ul className="space-y-2 text-ink-2 [&_a]:text-ink-2 [&_a]:no-underline [&_a:hover]:text-ink">
             <li><Link href={href("/plans")}>Pricing</Link></li>
             <li><Link href={href("/security")}>Security</Link></li>
@@ -23,7 +23,7 @@ export async function Footer() {
           </ul>
         </div>
         <div>
-          <div className="mb-3 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">Company</div>
+          <div className="mb-3 eyebrow">Company</div>
           <ul className="space-y-2 text-ink-2 [&_a]:text-ink-2 [&_a]:no-underline [&_a:hover]:text-ink">
             <li><Link href={href("/pitch")}>About</Link></li>
             <li><Link href={href("/contact")}>Contact</Link></li>
@@ -31,7 +31,7 @@ export async function Footer() {
           </ul>
         </div>
         <div>
-          <div className="mb-3 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">Legal</div>
+          <div className="mb-3 eyebrow">Legal</div>
           <ul className="space-y-2 text-ink-2 [&_a]:text-ink-2 [&_a]:no-underline [&_a:hover]:text-ink">
             <li>Not affiliated with Scouting America.</li>
           </ul>

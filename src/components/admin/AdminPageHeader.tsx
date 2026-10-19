@@ -16,7 +16,7 @@ export function AdminPageHeader({
 }) {
   return (
     <header className="mb-8">
-      <div className="mb-1.5 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">§ {kicker}</div>
+      <div className="mb-1.5 eyebrow">§ {kicker}</div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-2xl">
           <h1 className="text-[32px] font-semibold leading-[1.1] tracking-[-0.03em] text-ink md:text-[36px]">
