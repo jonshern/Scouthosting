@@ -50,6 +50,8 @@ export const color = {
   onInkMuted: "#C4C8CF",
   /** Lines on an ink panel. */
   onInkLine: "#2A2F38",
+  /** A filled row on an ink panel (the current item in a dark sidebar). */
+  onInkRaised: "#1F242C",
 } as const;
 
 /** 10 for controls, 16 for cards, 20 for hero panels. */

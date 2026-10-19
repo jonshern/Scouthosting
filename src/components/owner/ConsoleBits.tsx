@@ -5,16 +5,16 @@ import type { ReactNode } from "react";
 import type { License, LicenseTone } from "@/lib/owner/license";
 
 const TONE: Record<LicenseTone, string> = {
-  good: "bg-success-soft text-success",
-  info: "bg-accent-soft text-accent",
-  warn: "bg-warn-soft text-warn",
+  good: "bg-done-soft text-done-text",
+  info: "bg-accent-soft text-accent-soft-text",
+  warn: "bg-attention-soft text-attention-text",
   bad: "bg-danger-soft text-danger",
-  muted: "bg-line-soft text-ink-muted",
+  muted: "bg-sunk text-ink-2",
 };
 
 export function Pill({ tone, children }: { tone: LicenseTone; children: ReactNode }) {
   return (
-    <span className={`inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${TONE[tone]}`}>
+    <span className={`inline-block whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium leading-none ${TONE[tone]}`}>
       {children}
     </span>
   );
@@ -39,16 +39,16 @@ export function Stat({
 }) {
   const body = (
     <>
-      <div className="text-xs uppercase tracking-wide text-ink-muted">{label}</div>
-      <div className={`mt-1 font-display font-semibold text-3xl ${tone === "bad" ? "text-danger" : tone === "warn" ? "text-warn" : "text-ink"}`}>
+      <div className="text-[13px] text-muted">{label}</div>
+      <div className={`mt-1 text-[28px] font-semibold leading-tight tracking-[-0.02em] ${tone === "bad" ? "text-danger" : tone === "warn" ? "text-attention" : "text-ink"}`}>
         {value}
       </div>
-      {hint ? <div className="mt-1 text-xs text-ink-muted">{hint}</div> : null}
+      {hint ? <div className="mt-1 text-xs text-muted">{hint}</div> : null}
     </>
   );
-  const cls = "block rounded-lg border border-line bg-surface p-4";
+  const cls = "block rounded-xl border border-line bg-surface p-[18px] text-ink no-underline";
   return href ? (
-    <Link href={href} className={`${cls} hover:border-line-strong`}>
+    <Link href={href} className={`${cls} transition-colors hover:border-control hover:text-ink`}>
       {body}
     </Link>
   ) : (
@@ -60,7 +60,7 @@ export function Section({ title, action, children }: { title: string; action?: R
   return (
     <section className="space-y-3">
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="font-display font-semibold text-xl">{title}</h2>
+        <h2 className="text-[17px] font-semibold tracking-[-0.01em]">{title}</h2>
         {action}
       </div>
       {children}
@@ -71,7 +71,7 @@ export function Section({ title, action, children }: { title: string; action?: R
 export function Done({ message }: { message?: string }) {
   if (!message) return null;
   return (
-    <p role="status" className="rounded-md bg-success-soft px-3 py-2 text-sm text-success">
+    <p role="status" className="rounded-md bg-done-soft px-3 py-2 text-sm text-done-text">
       {message}
     </p>
   );

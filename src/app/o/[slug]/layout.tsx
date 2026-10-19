@@ -7,7 +7,7 @@
 // snapshot fallback only protects the public surface here.
 
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import { SiteHeader } from "@/components/site/SiteHeader";
 import { loadHomeSnapshot } from "@/lib/publish/snapshot";
 import { orgBasePath } from "@/lib/tenancy/base-path";
 
@@ -23,6 +23,8 @@ export default async function OrgLayout({
   if (!shell) notFound();
   const { org, customPages } = shell;
   const base = await orgBasePath(slug);
+  const where = [org.city, org.state].filter(Boolean).join(", ");
+  const place = [org.charterOrg, where].filter(Boolean).join(" · ") || null;
   if (org.suspendedAt) {
     return (
       <main className="mx-auto max-w-content px-6 py-16">
@@ -42,27 +44,12 @@ export default async function OrgLayout({
         ["--ember" as string]: org.accentColor ?? undefined,
       }}
     >
-      <header className="border-b border-line bg-white">
-        <div className="mx-auto flex max-w-content items-center justify-between px-6 py-4">
-          <Link href={base || "/"} className="font-display text-xl font-semibold">
-            {org.displayName}
-          </Link>
-          <nav
-            aria-label="Site"
-            className="flex flex-wrap items-center gap-6 text-sm"
-          >
-            <Link href={`${base}/calendar`}>Calendar</Link>
-            <Link href={`${base}/photos`}>Photos</Link>
-            <Link href={`${base}/posts`}>Posts</Link>
-            {customPages.map((p) => (
-              <Link key={p.slug} href={`${base}/p/${p.slug}`}>
-                {p.title}
-              </Link>
-            ))}
-            <Link href={`${base}/admin`}>Admin</Link>
-          </nav>
-        </div>
-      </header>
+      <SiteHeader
+        base={base}
+        name={org.displayName}
+        place={place}
+        customPages={customPages}
+      />
       <main>{children}</main>
     </div>
   );

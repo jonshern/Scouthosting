@@ -31,7 +31,7 @@ const config: Config = {
         attention: { DEFAULT: c.attention, soft: c.attentionSoft, text: c.attentionText },
         danger: { DEFAULT: c.danger, soft: c.dangerSoft, line: c.dangerLine },
         mark: c.mark,
-        "on-ink": { muted: c.onInkMuted, line: c.onInkLine },
+        "on-ink": { muted: c.onInkMuted, line: c.onInkLine, raised: c.onInkRaised },
 
         // Older names for the same tokens.
         success: { DEFAULT: c.done, soft: c.doneSoft, text: c.doneText },
