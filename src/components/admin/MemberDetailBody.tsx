@@ -11,6 +11,7 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { MemberForm } from "@/components/admin/MemberForm";
 import { MemberLifecycleButtons } from "@/components/admin/MemberLifecycleButtons";
+import { MemberAccessPanel } from "@/components/admin/MemberAccessPanel";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 import { Pill } from "@/components/ui";
@@ -244,6 +245,7 @@ export async function MemberDetailBody({
 
       {tab === "profile" && (
         <>
+          <MemberAccessPanel slug={slug} org={org} member={member} />
           <MemberForm
             orgSlug={slug}
             initial={{

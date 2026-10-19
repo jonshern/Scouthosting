@@ -18,6 +18,7 @@ import {
 import { MemberDrawerOverlay } from "@/components/admin/MemberDrawerOverlay";
 import { MembersGrid, type MemberGridRow } from "@/components/admin/MembersGrid";
 import { AdminPageHeader } from "@/components/admin/AdminPageHeader";
+import { InviteEveryoneButton } from "@/components/admin/AccessForms";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 import { Pill } from "@/components/ui";
@@ -260,12 +261,15 @@ export default async function AdminMembersIndex({
             : "Active roster: youth, adults, MB counselors, patrols, pending."
         }
         actions={
-          <Link
-            href={`/o/${slug}/admin/members${showTrash ? "" : "?trash=1"}`}
-            className="btn-secondary"
-          >
-            {showTrash ? "Active roster" : "View trash"}
-          </Link>
+          <div className="flex flex-wrap items-center gap-2">
+            {showTrash ? null : <InviteEveryoneButton orgSlug={slug} csrf={<CsrfTokenInput />} />}
+            <Link
+              href={`/o/${slug}/admin/members${showTrash ? "" : "?trash=1"}`}
+              className="btn-secondary"
+            >
+              {showTrash ? "Active roster" : "View trash"}
+            </Link>
+          </div>
         }
       />
 
