@@ -71,7 +71,7 @@ export default async function PatrolDetail({
       />
 
       <div>
-        <h2 className="font-display text-xl text-ink mb-3">
+        <h2 className="font-display font-semibold text-xl text-ink mb-3">
           Members ({assigned.length})
         </h2>
         {assigned.length === 0 ? (

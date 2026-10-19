@@ -88,7 +88,7 @@ export default async function PatrolsAdmin({
                 />
                 <div className="p-4">
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-display text-lg text-ink">{p.name}</span>
+                    <span className="font-display font-semibold text-lg text-ink">{p.name}</span>
                     <span className="font-mono text-xs text-slate-muted">{p.color}</span>
                   </div>
                   <p className="mt-1 text-xs text-slate-muted">
@@ -106,7 +106,7 @@ export default async function PatrolsAdmin({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">
           New patrol
         </h2>
         <PatrolForm orgSlug={slug} members={memberOptions} csrf={<CsrfTokenInput />} />

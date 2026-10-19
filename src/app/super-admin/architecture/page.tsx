@@ -83,14 +83,14 @@ export default async function ArchitecturePage() {
   return (
     <section className="space-y-10">
       <header>
-        <h2 className="font-display text-2xl">Architecture &amp; Security</h2>
+        <h2 className="font-display font-semibold text-2xl">Architecture &amp; Security</h2>
         <p className="text-ink-muted text-sm mt-1">
           Live view of what Compass runs on and how member data is protected.
         </p>
       </header>
 
       <section className="space-y-3">
-        <h3 className="font-display text-xl">Stack</h3>
+        <h3 className="font-display font-semibold text-xl">Stack</h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase tracking-wide text-ink-muted border-b border-ink-muted/15">
@@ -129,7 +129,7 @@ export default async function ArchitecturePage() {
       </section>
 
       <section className="space-y-4">
-        <h3 className="font-display text-xl">Security</h3>
+        <h3 className="font-display font-semibold text-xl">Security</h3>
 
         <div className="card flex items-center justify-between">
           <div>
@@ -141,7 +141,7 @@ export default async function ArchitecturePage() {
           <span
             className={
               "px-2 py-1 rounded text-xs font-medium " +
-              (masterKey ? "bg-green-50 text-green-800" : "bg-amber-50 text-amber-800")
+              (masterKey ? "bg-done-soft text-done-text" : "bg-attention-soft text-attention-text")
             }
           >
             {masterKey ? "configured" : "ephemeral / unset"}
@@ -217,7 +217,7 @@ export default async function ArchitecturePage() {
                       <span
                         className={
                           "px-2 py-0.5 rounded text-xs " +
-                          (c.hasVault ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800")
+                          (c.hasVault ? "bg-done-soft text-done-text" : "bg-danger-soft text-danger")
                         }
                       >
                         {c.hasVault ? "yes" : "missing"}

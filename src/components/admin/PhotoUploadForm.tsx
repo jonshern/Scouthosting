@@ -34,13 +34,13 @@ export function PhotoUploadForm({
         <p className="mt-1 text-xs text-ink-muted">JPEG, PNG, WebP, or GIF — up to 10 MB each.</p>
       </div>
       {state?.error && (
-        <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">{state.error}</div>
+        <div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">{state.error}</div>
       )}
       {state?.ok && (
-        <div role="status" className="text-sm text-green-700 bg-green-50 border border-green-200 rounded p-3">
+        <div role="status" className="text-sm text-done-text bg-done-soft border border-done/30 rounded p-3">
           Uploaded {state.count} photo{state.count === 1 ? "" : "s"}.
           {state.errors && state.errors.length > 0 && (
-            <ul className="mt-2 list-disc pl-5 text-amber-700">
+            <ul className="mt-2 list-disc pl-5 text-attention-text">
               {state.errors.map((e, i) => <li key={i}>{e}</li>)}
             </ul>
           )}

@@ -57,7 +57,7 @@ export default async function SelectOrgPage() {
     <main className="min-h-screen bg-bg">
       <header className="border-b border-line bg-white">
         <div className="mx-auto flex max-w-[840px] items-center justify-between px-6 py-5">
-          <span className="font-display text-xl tracking-tight">
+          <span className="font-display font-semibold text-xl tracking-tight">
             Compass<span className="text-sky">.</span>
           </span>
           <Link
@@ -70,8 +70,8 @@ export default async function SelectOrgPage() {
       </header>
 
       <section className="mx-auto max-w-[840px] px-6 py-12">
-        <div className="mb-1.5 font-display text-xs italic text-sky">§ Sign-in</div>
-        <h1 className="font-display text-4xl font-normal tracking-[-0.02em] md:text-5xl">
+        <div className="mb-1.5 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">§ Sign-in</div>
+        <h1 className="font-display text-4xl font-semibold tracking-[-0.02em] md:text-5xl">
           Which unit are we{" "}
           <em className="not-italic text-sky md:italic">opening today?</em>
         </h1>
@@ -92,14 +92,14 @@ export default async function SelectOrgPage() {
                 className="group flex items-center gap-5 rounded-xl border border-line bg-white p-5 transition-colors hover:border-slate-ink/40 hover:bg-surface-alt"
               >
                 <div
-                  className="grid h-14 w-14 shrink-0 place-items-center rounded-lg font-display text-base font-medium text-white"
+                  className="grid h-14 w-14 shrink-0 place-items-center rounded-lg font-display text-base font-semibold text-white"
                   style={{ background: c }}
                 >
                   {initials(m.org.unitNumber, m.org.displayName)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-baseline gap-2">
-                    <span className="font-display text-xl font-medium text-slate-ink">
+                    <span className="font-display text-xl font-semibold text-slate-ink">
                       {m.org.displayName}
                     </span>
                     <span className="rounded-full bg-surface-alt px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-soft">

@@ -41,7 +41,7 @@ export default async function OaPage({
           {elections.map((e) => (
             <li key={e.id} className="card">
               <div className="flex items-baseline justify-between">
-                <h2 className="font-display text-lg">
+                <h2 className="font-display font-semibold text-lg">
                   {e.electionDate.toLocaleDateString()}
                   {e.lodgeName ? ` · ${e.lodgeName}` : ""}
                 </h2>

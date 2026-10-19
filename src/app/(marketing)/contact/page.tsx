@@ -19,7 +19,7 @@ export default async function ContactPage({
 
   return (
     <section className="mx-auto max-w-xl px-6 py-16">
-      <h1 className="font-display text-4xl">Contact us</h1>
+      <h1 className="font-display font-semibold text-4xl">Contact us</h1>
       <p className="mt-2 text-ink-muted">
         A question, something that isn&apos;t working, or an idea. A real person reads every one and writes back.
       </p>

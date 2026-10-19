@@ -53,7 +53,7 @@ export default async function MyScoutsPage() {
             <article key={`${s.orgId}-${s.memberId}`} className="rounded-xl border border-line bg-surface p-6">
               <header className="flex flex-wrap items-baseline justify-between gap-3">
                 <div>
-                  <h2 className="font-display text-2xl text-ink">{s.scoutName || "Scout"}</h2>
+                  <h2 className="font-display font-semibold text-2xl text-ink">{s.scoutName || "Scout"}</h2>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-slate-muted">
                     <Pill tone="accent">{s.orgDisplayName}</Pill>
                     {s.patrol ? <span>· {s.patrol}</span> : null}
@@ -150,7 +150,7 @@ export default async function MyScoutsPage() {
                       Account balance
                     </h3>
                     <span
-                      className={`font-display text-xl ${
+                      className={`font-display font-semibold text-xl ${
                         s.balanceCents < 0 ? "text-danger" : "text-success"
                       }`}
                     >

@@ -67,12 +67,12 @@ export function EmailComposer({
       </div>
 
       {state && "error" in state && (
-        <div role="alert" className="text-sm text-red-700 bg-red-50 border border-red-200 rounded p-3">
+        <div role="alert" className="text-sm text-danger bg-danger-soft border border-danger-line rounded p-3">
           {state.error}
         </div>
       )}
       {state && "ok" in state && (
-        <div role="status" className="text-sm text-green-700 bg-green-50 border border-green-200 rounded p-3">
+        <div role="status" className="text-sm text-done-text bg-done-soft border border-done/30 rounded p-3">
           {state.dryRun
             ? `Would send to ${state.recipientCount} recipient${state.recipientCount === 1 ? "" : "s"}.`
             : state.status === "queued"

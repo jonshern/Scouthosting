@@ -68,11 +68,11 @@ export function PublicSalesCart({
 
       <div className="rounded-xl border border-line bg-surface-alt p-4 text-right">
         <span className="text-sm text-slate-muted">Total: </span>
-        <span className="font-display text-2xl text-ink">{centsToDollars(total)}</span>
+        <span className="font-display font-semibold text-2xl text-ink">{centsToDollars(total)}</span>
       </div>
 
       <fieldset className="grid gap-3 md:grid-cols-2">
-        <legend className="font-display text-lg text-ink mb-2 col-span-full">
+        <legend className="font-display font-semibold text-lg text-ink mb-2 col-span-full">
           Your details
         </legend>
         <div>

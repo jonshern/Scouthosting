@@ -55,7 +55,7 @@ export function ImportSlotsForm({
       <button type="submit" className="btn-primary" disabled={pending}>
         {pending ? "Importing…" : "Import stations and roles"}
       </button>
-      {state?.error && <p className="text-sm text-red-600">{state.error}</p>}
+      {state?.error && <p className="text-sm text-danger">{state.error}</p>}
       {state?.ok && (
         <p className="text-sm">
           Imported: {state.created} new, {state.updated} updated.
@@ -67,7 +67,7 @@ export function ImportSlotsForm({
           {state.signupsOpened && <> Sign-up required is now on, so families can sign up.</>}
         </p>
       )}
-      {state?.slugWarning && <p className="text-sm text-amber-700">{state.slugWarning}</p>}
+      {state?.slugWarning && <p className="text-sm text-attention-text">{state.slugWarning}</p>}
     </form>
   );
 }

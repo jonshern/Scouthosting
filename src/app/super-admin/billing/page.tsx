@@ -34,7 +34,7 @@ export default async function OwnerBillingPage({
   return (
     <div className="space-y-10">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="font-display text-2xl">Billing</h2>
+        <h2 className="font-display font-semibold text-2xl">Billing</h2>
         <div className="flex items-center gap-3 text-sm">
           <span className="text-ink-muted">Payments from Stripe</span>
           <Link href="/super-admin/billing?mode=live" className={mode === "live" ? "font-semibold underline" : ""}>

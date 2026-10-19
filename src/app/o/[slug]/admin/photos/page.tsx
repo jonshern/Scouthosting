@@ -30,14 +30,14 @@ export default async function AdminPhotosIndex({ params }: { params: Promise<{ s
       />
 
       <div className="space-y-3">
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">
           New album
         </h2>
         <AlbumForm orgSlug={slug} csrf={<CsrfTokenInput />} />
       </div>
 
       <div className="space-y-3">
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">
           Existing albums
         </h2>
         {org.albums.length === 0 ? (

@@ -26,6 +26,8 @@ these so we have one design vocabulary.
 
 ## Tokens
 
-All atoms read from the Tailwind palette in `tailwind.config.ts`
-(`ink`, `sky`, `accent`, `surface`, `surface-alt`, `line`, `success`,
-`danger`, `amber`, `teal`, `plum`). No inline hex literals.
+All atoms read the suite's Modern Clean tokens from
+`src/styles/tokens.ts` through the Tailwind palette (`bg`, `surface`,
+`sunk`, `ink`, `ink-2`, `muted`, `line`, `divider`, `control`, `accent`,
+`done`, `attention`, `danger`) or the matching CSS variables
+(`var(--accent)`). No inline hex literals.

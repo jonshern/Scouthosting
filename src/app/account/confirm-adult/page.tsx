@@ -33,7 +33,7 @@ export default async function ConfirmAdultPage({
         </p>
       </header>
       {error === "1" && (
-        <p role="alert" className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <p role="alert" className="rounded border border-danger-line bg-danger-soft p-3 text-sm text-danger">
           Tick the box to continue.
         </p>
       )}

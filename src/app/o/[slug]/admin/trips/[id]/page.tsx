@@ -98,7 +98,7 @@ export default async function TripDetailPage({
   return (
     <main className="mx-auto max-w-content px-6 py-12 space-y-6">
       <header>
-        <h1 className="font-display text-3xl">{trip.event.title}</h1>
+        <h1 className="font-display font-semibold text-3xl">{trip.event.title}</h1>
         <p className="text-ink-muted text-sm mt-1">
           {trip.event.startsAt.toLocaleDateString()}
           {trip.event.location ? ` · ${trip.event.location}` : ""}
@@ -112,7 +112,7 @@ export default async function TripDetailPage({
       </header>
 
       <section>
-        <h2 className="font-display text-xl mb-2">Meals</h2>
+        <h2 className="font-display font-semibold text-xl mb-2">Meals</h2>
         {trip.meals.length === 0 ? (
           <p className="text-ink-muted text-sm">No meals planned.</p>
         ) : (
@@ -130,7 +130,7 @@ export default async function TripDetailPage({
       </section>
 
       <section>
-        <h2 className="font-display text-xl mb-2">Shopping list</h2>
+        <h2 className="font-display font-semibold text-xl mb-2">Shopping list</h2>
         {groups.length === 0 ? (
           <p className="text-ink-muted text-sm">Add ingredients to see a shopping list.</p>
         ) : (
@@ -155,7 +155,7 @@ export default async function TripDetailPage({
       </section>
 
       <section>
-        <h2 className="font-display text-xl mb-2">Dietary flags</h2>
+        <h2 className="font-display font-semibold text-xl mb-2">Dietary flags</h2>
         {conflicts.length === 0 ? (
           <p className="text-ink-muted text-sm">No conflicts detected.</p>
         ) : (
@@ -172,7 +172,7 @@ export default async function TripDetailPage({
 
       {trip.gear.length > 0 && (
         <section>
-          <h2 className="font-display text-xl mb-2">Gear</h2>
+          <h2 className="font-display font-semibold text-xl mb-2">Gear</h2>
           <ul className="text-sm">
             {trip.gear.map((g) => (
               <li key={g.id}>

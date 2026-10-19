@@ -89,7 +89,7 @@ export default function MarketingHome() {
         </div>
 
         <div className="grid gap-12 md:grid-cols-[1.3fr_0.7fr] items-end">
-          <h1 className="font-display font-normal leading-[0.92] tracking-[-0.035em] text-[64px] md:text-[96px] lg:text-[116px]">
+          <h1 className="font-display font-semibold leading-[0.92] tracking-[-0.035em] text-[64px] md:text-[96px] lg:text-[116px]">
             Modern,
             <br />
             secure software
@@ -143,7 +143,7 @@ export default function MarketingHome() {
               className="pt-5 border-t-[3px]"
               style={{ borderColor: s.c }}
             >
-              <div className="font-display text-[44px] md:text-[56px] font-normal leading-none tracking-[-0.025em]">
+              <div className="font-display text-[44px] md:text-[56px] font-semibold leading-none tracking-[-0.025em]">
                 {s.n}
               </div>
               <div className="mt-2 text-xs uppercase tracking-[0.04em] text-white/70">
@@ -160,7 +160,7 @@ export default function MarketingHome() {
           <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
             § The Product
           </div>
-          <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-3xl">
+          <h2 className="font-display text-[40px] md:text-[56px] font-semibold leading-none tracking-[-0.025em] max-w-3xl">
             Built around the four things{" "}
             <em className="text-sky font-normal">volunteers actually need.</em>
           </h2>
@@ -190,12 +190,12 @@ export default function MarketingHome() {
               </div>
               <div className={reversed ? "md:order-1" : ""}>
                 <div
-                  className="font-display italic text-[64px] md:text-[88px] font-normal leading-[0.9] tracking-[-0.03em] mb-4"
+                  className="font-display text-[64px] md:text-[88px] font-semibold leading-[0.9] tracking-[-0.03em] mb-4"
                   style={{ color: f.accent }}
                 >
                   {f.num}
                 </div>
-                <h3 className="font-display text-[28px] md:text-[40px] font-normal leading-[1.1] tracking-[-0.02em] mb-4">
+                <h3 className="font-display text-[28px] md:text-[40px] font-semibold leading-[1.1] tracking-[-0.02em] mb-4">
                   {f.title}
                 </h3>
                 <p className="text-slate-soft text-base leading-relaxed">{f.body}</p>
@@ -212,7 +212,7 @@ export default function MarketingHome() {
             <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
               § Migration
             </div>
-            <h3 className="font-display text-[32px] md:text-[44px] font-normal leading-[1.05] tracking-[-0.025em] mb-4">
+            <h3 className="font-display text-[32px] md:text-[44px] font-semibold leading-[1.05] tracking-[-0.025em] mb-4">
               Bring your <em className="text-sky font-normal">18 years</em> of troop
               history with you.
             </h3>
@@ -243,7 +243,7 @@ export default function MarketingHome() {
           <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
             § Pricing
           </div>
-          <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-4xl">
+          <h2 className="font-display text-[40px] md:text-[56px] font-semibold leading-none tracking-[-0.025em] max-w-4xl">
             One price per unit — pack, troop, crew, ship, or post.{" "}
             <em className="text-sky font-normal">No per-scout</em> fees, ever.
           </h2>
@@ -251,16 +251,16 @@ export default function MarketingHome() {
 
         <div className="grid gap-4 md:grid-cols-[1fr_1.4fr]">
           <div className="rounded-xl border-2 border-line bg-surface-alt p-8 flex flex-col">
-            <div className="font-display italic text-[24px] text-sky mb-2">Every unit</div>
+            <div className="font-display font-semibold text-[24px] text-sky mb-2">Every unit</div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
+                <div className="font-display text-[56px] font-semibold leading-none tracking-[-0.03em]">
                   {PRICES.year.short}
                 </div>
                 <div className="text-xs text-slate-muted mt-1">per year · saves ${YEARLY_SAVINGS_USD}</div>
               </div>
               <div>
-                <div className="font-display text-[56px] font-normal leading-none tracking-[-0.03em]">
+                <div className="font-display text-[56px] font-semibold leading-none tracking-[-0.03em]">
                   {PRICES.month.short}
                 </div>
                 <div className="text-xs text-slate-muted mt-1">per month</div>
@@ -276,7 +276,7 @@ export default function MarketingHome() {
           </div>
 
           <div className="rounded-xl border-2 border-ink bg-surface-dark text-white p-8">
-            <div className="font-display italic text-[24px] text-sky mb-2">Everything included</div>
+            <div className="font-display font-semibold text-[24px] text-sky mb-2">Everything included</div>
             <ul className="grid gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
               {[
                 "Public website + custom subdomain",
@@ -314,7 +314,7 @@ export default function MarketingHome() {
             <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
               § The status quo
             </div>
-            <h2 className="font-display text-[40px] md:text-[56px] font-normal leading-none tracking-[-0.025em] max-w-3xl">
+            <h2 className="font-display text-[40px] md:text-[56px] font-semibold leading-none tracking-[-0.025em] max-w-3xl">
               The site your families see{" "}
               <em className="text-sky font-normal">is your front door.</em>
             </h2>
@@ -432,7 +432,7 @@ export default function MarketingHome() {
                 </div>
               </div>
               <p className="mt-3 text-xs leading-relaxed text-white/70">
-                <span className="font-bold text-red-500">●</span> Broken on
+                <span className="font-bold text-danger">●</span> Broken on
                 phones. No HTTPS-only enforcement. Tables for layout. Member
                 roster behind a single shared password. Photos uploaded to a
                 public Google Drive folder.
@@ -458,7 +458,7 @@ export default function MarketingHome() {
                 </div>
                 <div className="min-h-[280px] bg-bg p-4">
                   <div className="mb-3.5 flex items-center justify-between">
-                    <div className="font-display text-[16px] font-medium">
+                    <div className="font-display text-[16px] font-semibold">
                       Troop 12 ·{" "}
                       <span className="italic text-slate-soft">Anytown</span>
                     </div>
@@ -477,7 +477,7 @@ export default function MarketingHome() {
                     <div className="mb-1 text-[9px] font-bold uppercase tracking-[0.14em] text-sky">
                       This Friday
                     </div>
-                    <div className="mb-1.5 font-display text-[20px] font-normal leading-tight">
+                    <div className="mb-1.5 font-display text-[20px] font-semibold leading-tight">
                       Spring Campout —
                       <br />
                       Birch Lake State Park
@@ -532,7 +532,7 @@ export default function MarketingHome() {
         <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-sky text-white text-[11px] font-bold tracking-[0.14em] uppercase mb-6">
           First month free
         </span>
-        <h2 className="font-display text-[44px] md:text-[72px] font-normal leading-[0.98] tracking-[-0.03em] max-w-3xl mx-auto mb-8">
+        <h2 className="font-display text-[44px] md:text-[72px] font-semibold leading-[0.98] tracking-[-0.03em] max-w-3xl mx-auto mb-8">
           Set up your troop&apos;s home base{" "}
           <em className="text-sky font-normal">before next week&apos;s meeting.</em>
         </h2>

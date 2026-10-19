@@ -54,7 +54,7 @@ export default async function AdminEmail({ params }: { params: Promise<{ slug: s
       <EmailComposer orgSlug={slug} patrols={patrols} csrf={<CsrfTokenInput />} />
 
       <div className="space-y-3">
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">
           Recent broadcasts
         </h2>
         {recent.length === 0 ? (

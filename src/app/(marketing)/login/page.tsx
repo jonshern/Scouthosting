@@ -64,13 +64,13 @@ export default async function LoginPage({
 
         <div className="relative flex items-center gap-3">
           <CompassMark size={26} />
-          <span className="font-display text-xl tracking-tight">
+          <span className="font-display font-semibold text-xl tracking-tight">
             Compass<span className="text-sky">.</span>
           </span>
         </div>
 
         <div className="relative max-w-[540px]">
-          <h1 className="font-display text-[44px] font-normal leading-[1.05] tracking-[-0.02em] text-balance md:text-[56px]">
+          <h1 className="font-display text-[44px] font-semibold leading-[1.05] tracking-[-0.02em] text-balance md:text-[56px]">
             Welcome back.
             <br />
             <em className="font-normal not-italic text-sky md:italic">
@@ -96,7 +96,7 @@ export default async function LoginPage({
       {/* Auth card */}
       <section className="flex flex-col justify-center px-6 py-14 md:px-16">
         <div className="mx-auto w-full max-w-md">
-          <h2 className="font-display text-3xl font-normal tracking-[-0.015em] md:text-4xl">
+          <h2 className="font-display text-3xl font-semibold tracking-[-0.015em] md:text-4xl">
             Sign in
           </h2>
           <p className="mt-2 text-sm text-slate-muted">
@@ -111,7 +111,7 @@ export default async function LoginPage({
           </p>
 
           {ssoError && (
-            <div role="alert" className="mt-6 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div role="alert" className="mt-6 rounded border border-danger-line bg-danger-soft p-3 text-sm text-danger">
               {ssoError}
             </div>
           )}

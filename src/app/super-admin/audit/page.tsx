@@ -60,7 +60,7 @@ export default async function SuperAdminAuditPage({
   return (
     <section className="space-y-8">
       <header>
-        <h2 className="font-display text-2xl">Audit log</h2>
+        <h2 className="font-display font-semibold text-2xl">Audit log</h2>
         <p className="text-sm text-slate-muted">
           Cross-org activity stream. Filter by org to scope a single
           tenant.

@@ -42,7 +42,7 @@ export default async function TreasurySettings({
           currentLabel={org.treasuryStripeAccountLabel}
         />
         <div className="space-y-3">
-          <h3 className="font-display text-lg text-ink">How this works</h3>
+          <h3 className="font-display font-semibold text-lg text-ink">How this works</h3>
           <ol className="list-decimal pl-5 text-sm text-slate-soft space-y-2">
             <li>
               Create a <strong>restricted secret key</strong> in your Stripe

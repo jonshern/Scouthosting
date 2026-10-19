@@ -89,7 +89,7 @@ export default async function TreasuryHome({
       </StatRow>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Funds</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Funds</h2>
         <div className="overflow-hidden rounded-xl border border-line bg-surface">
           <table className="w-full text-sm">
             <thead className="bg-surface-alt text-left text-[11px] uppercase tracking-[0.08em] text-slate-muted">
@@ -119,7 +119,7 @@ export default async function TreasuryHome({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Health</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Health</h2>
         <p className="text-sm text-slate-muted mb-3">
           {recentCount} transaction{recentCount === 1 ? "" : "s"} on file. Cached
           balances are validated nightly; run a check on demand below.

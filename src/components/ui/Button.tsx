@@ -5,18 +5,18 @@ type Variant = "primary" | "secondary" | "ghost" | "danger";
 type Size = "sm" | "md";
 
 const base =
-  "inline-flex items-center justify-center rounded-md font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
+  "inline-flex items-center justify-center gap-2 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed";
 
 const sizes: Record<Size, string> = {
-  sm: "px-3 py-1.5 text-xs",
-  md: "px-4 py-2 text-sm",
+  sm: "h-[34px] px-3 text-[13px]",
+  md: "min-h-[40px] px-4 text-sm",
 };
 
 const variants: Record<Variant, string> = {
-  primary: "bg-ink text-white hover:bg-accent",
-  secondary: "border border-ink text-ink hover:bg-ink hover:text-white",
-  ghost: "text-ink hover:bg-surface-alt",
-  danger: "bg-danger text-white hover:bg-danger/90",
+  primary: "bg-accent text-accent-ink hover:bg-accent-soft-text",
+  secondary: "border border-control bg-surface text-ink hover:bg-sunk",
+  ghost: "bg-sunk text-ink hover:bg-line",
+  danger: "border border-danger-line bg-surface text-danger hover:bg-danger-soft",
 };
 
 type CommonProps = {

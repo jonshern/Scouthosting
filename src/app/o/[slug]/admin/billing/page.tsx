@@ -97,7 +97,7 @@ export default async function BillingPage({
       <AdminPageHeader kicker="Settings" title="Billing" description="Your unit's Compass subscription." />
 
       {checkout === "success" && (
-        <p role="status" className="mb-6 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <p role="status" className="mb-6 rounded-md border border-done/30 bg-done-soft p-3 text-sm text-done-text">
           Thanks! Your card is saved. It can take a few seconds for the status below to update.
         </p>
       )}
@@ -109,7 +109,7 @@ export default async function BillingPage({
 
       <div className="card space-y-4" data-testid="billing-status">
         <div>
-          <h2 className="font-display text-2xl">{headline}</h2>
+          <h2 className="font-display font-semibold text-2xl">{headline}</h2>
           <p className="mt-1 text-sm text-slate-soft">{body}</p>
           {canSubscribe && (
             <p className="mt-2 text-sm text-ink">

@@ -40,7 +40,7 @@ export default async function FiscalYearsAdmin({
       />
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Defined years</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Defined years</h2>
         {fys.length === 0 ? (
           <p className="text-sm text-slate-muted">No fiscal years yet — add one below.</p>
         ) : (
@@ -102,7 +102,7 @@ export default async function FiscalYearsAdmin({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">
           Add a fiscal year
         </h2>
         <FiscalYearForm orgSlug={slug} csrf={<CsrfTokenInput />} />

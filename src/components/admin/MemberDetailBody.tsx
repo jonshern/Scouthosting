@@ -63,7 +63,7 @@ export async function MemberDetailBody({
   if (!org) notFound();
   if (!org.encryptedDek) {
     return (
-      <div className="card text-sm text-red-700 bg-red-50 border border-red-200">
+      <div className="card text-sm text-danger bg-danger-soft border border-danger-line">
         This site doesn&apos;t have an encryption vault yet.
       </div>
     );
@@ -181,19 +181,19 @@ export async function MemberDetailBody({
           }
         >
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-accent italic font-display">
+            <div className="uppercase tracking-[0.16em] font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
               § Roster · {member.isYouth ? "Scout" : "Adult"}
             </div>
             <h1
               className={
-                (isDrawer ? "font-display text-3xl" : "font-display text-4xl") +
+                (isDrawer ? "font-display font-semibold text-3xl" : "font-display font-semibold text-4xl") +
                 " text-ink mt-1"
               }
             >
               {pii.firstName} {pii.lastName}
             </h1>
             {subline ? (
-              <p className="mt-1 italic font-display text-sm text-slate-soft">
+              <p className="mt-1 text-slate-soft font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
                 {subline}
               </p>
             ) : null}
@@ -271,7 +271,7 @@ export async function MemberDetailBody({
           {subaccount ? (
             <div className="rounded-xl border border-line bg-surface p-5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <h3 className="font-display text-lg text-ink">
+                <h3 className="font-display font-semibold text-lg text-ink">
                   Treasury subaccount
                 </h3>
                 <Link
@@ -305,12 +305,12 @@ export async function MemberDetailBody({
             <>
               <div className="rounded-xl border border-line bg-surface p-5">
                 <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <h3 className="font-display text-lg text-ink">Current rank</h3>
+                  <h3 className="font-display font-semibold text-lg text-ink">Current rank</h3>
                   <span className="text-xs text-slate-muted">
                     Synced {scoutbook.syncedAt.toLocaleDateString()}
                   </span>
                 </div>
-                <p className="mt-2 font-display text-3xl text-accent">
+                <p className="mt-2 font-display font-semibold text-3xl text-accent">
                   {scoutbook.rank ?? "Not on file"}
                 </p>
                 {scoutbook.rankAchievedAt ? (
@@ -321,7 +321,7 @@ export async function MemberDetailBody({
               </div>
 
               <div className="rounded-xl border border-line bg-surface p-5">
-                <h3 className="font-display text-lg text-ink mb-3">
+                <h3 className="font-display font-semibold text-lg text-ink mb-3">
                   Activity totals
                 </h3>
                 <div className="grid grid-cols-3 gap-4 text-center">
@@ -354,7 +354,7 @@ export async function MemberDetailBody({
 
               {scoutbook.meritBadges.length > 0 ? (
                 <div className="rounded-xl border border-line bg-surface p-5">
-                  <h3 className="font-display text-lg text-ink mb-3">
+                  <h3 className="font-display font-semibold text-lg text-ink mb-3">
                     Merit badges ({scoutbook.meritBadges.length})
                   </h3>
                   <ul className="grid gap-1 sm:grid-cols-2 text-sm">
@@ -383,7 +383,7 @@ export async function MemberDetailBody({
 
               {scoutbook.awards.length > 0 ? (
                 <div className="rounded-xl border border-line bg-surface p-5">
-                  <h3 className="font-display text-lg text-ink mb-3">
+                  <h3 className="font-display font-semibold text-lg text-ink mb-3">
                     Awards ({scoutbook.awards.length})
                   </h3>
                   <ul className="grid gap-1 sm:grid-cols-2 text-sm">
@@ -425,7 +425,7 @@ export async function MemberDetailBody({
 
       {tab === "parents" && (
         <div className="space-y-3">
-          <h3 className="font-display text-lg text-ink">
+          <h3 className="font-display font-semibold text-lg text-ink">
             Linked parents / guardians
           </h3>
           {parentCards.length === 0 ? (
@@ -446,7 +446,7 @@ export async function MemberDetailBody({
                   className="rounded-xl border border-line bg-surface p-4"
                 >
                   <div className="flex items-baseline justify-between gap-2">
-                    <span className="font-display text-lg text-ink">
+                    <span className="font-display font-semibold text-lg text-ink">
                       {p.name}
                     </span>
                     <Pill tone="accent">Linked</Pill>
@@ -470,7 +470,7 @@ export async function MemberDetailBody({
 
       {tab === "medical" && (
         <div className="space-y-4">
-          <h3 className="font-display text-lg text-ink">Medical & forms</h3>
+          <h3 className="font-display font-semibold text-lg text-ink">Medical & forms</h3>
           <dl className="grid gap-2 sm:grid-cols-2 dashed-divide">
             <div>
               <dt className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">
@@ -528,7 +528,7 @@ export async function MemberDetailBody({
 
       {tab === "activity" && (
         <div className="space-y-3">
-          <h3 className="font-display text-lg text-ink">Activity</h3>
+          <h3 className="font-display font-semibold text-lg text-ink">Activity</h3>
           {audit.length === 0 ? (
             <p className="text-sm text-slate-muted">No edits recorded yet.</p>
           ) : (

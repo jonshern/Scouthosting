@@ -25,7 +25,7 @@ export default async function PublicCampaignLanding({
         <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky">
           § Fundraiser
         </div>
-        <h1 className="mt-2 font-display text-4xl tracking-[-0.02em] text-ink">
+        <h1 className="mt-2 font-display font-semibold text-4xl tracking-[-0.02em] text-ink">
           {campaign.name}
         </h1>
         <p className="mt-1 text-sm text-slate-soft">
