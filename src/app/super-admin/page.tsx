@@ -6,6 +6,7 @@ import Link from "next/link";
 import { overview, type UnitRow } from "@/lib/owner/console";
 import { signupQueue } from "@/lib/owner/signups";
 import { LicensePill, Section, Stat, shortDate } from "@/components/owner/ConsoleBits";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ function UnitList({ units, empty }: { units: UnitRow[]; empty: string }) {
 }
 
 export default async function OwnerOverviewPage() {
+  await requireOwnerPage();
   const [o, signups] = await Promise.all([overview(), signupQueue()]);
   const paying = o.units.paid + o.units.canceling;
 

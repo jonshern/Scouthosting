@@ -10,6 +10,7 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { productsFor, PRODUCT_LABEL } from "@/lib/owner/console";
 import { Done, Pill, Section, shortDate } from "@/components/owner/ConsoleBits";
 import { disableAccountAction, enableAccountAction } from "@/server-actions/super-admin";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export default async function OwnerPersonPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ done?: string }>;
 }) {
+  await requireOwnerPage();
   const { id } = await params;
   const { done } = await searchParams;
   const { user: me } = await getSession();

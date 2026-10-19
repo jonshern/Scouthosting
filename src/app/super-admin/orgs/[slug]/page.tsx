@@ -17,6 +17,7 @@ import {
   restoreOrgAction,
   suspendOrgAction,
 } from "@/server-actions/super-admin";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,7 @@ export default async function OwnerUnitPage({
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ done?: string }>;
 }) {
+  await requireOwnerPage();
   const { slug } = await params;
   const { done } = await searchParams;
   const org = await prisma.org.findUnique({

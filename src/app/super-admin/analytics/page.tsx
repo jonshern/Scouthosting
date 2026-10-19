@@ -10,8 +10,10 @@ import {
   topOrgs,
   topPaths,
 } from "@/lib/tracking/analytics";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export default async function SuperAnalyticsPage() {
+  await requireOwnerPage();
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const [summary, paths, clicks, fetches, errors, byDay, orgs, funnel] = await Promise.all([
     summarize({ since }),

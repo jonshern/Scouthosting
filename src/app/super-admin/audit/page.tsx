@@ -6,6 +6,7 @@ import Link from "next/link";
 import { AuditTable } from "@/components/admin/AuditTable";
 import { listAuditLogs, entityTypeOptions } from "@/lib/audit-query";
 import { prisma } from "@/lib/db";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 type Search = {
   org?: string;
@@ -20,6 +21,7 @@ export default async function SuperAdminAuditPage({
 }: {
   searchParams: Promise<Search>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   const orgFilter = sp.org
     ? await prisma.org.findUnique({ where: { slug: sp.org } })

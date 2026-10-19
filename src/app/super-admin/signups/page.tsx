@@ -8,6 +8,7 @@ import { PRODUCT_LABEL } from "@/lib/owner/console";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { Done, LicensePill, Pill, shortDate } from "@/components/owner/ConsoleBits";
 import { markFollowedUpAction } from "@/server-actions/super-admin";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,7 @@ export default async function OwnerSignupsPage({
 }: {
   searchParams: Promise<{ all?: string; done?: string }>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   const all = sp.all === "1";
   const items = await signupQueue({ includeFollowedUp: all });
