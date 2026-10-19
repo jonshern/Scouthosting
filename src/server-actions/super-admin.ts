@@ -15,6 +15,9 @@ import { audit } from "@/lib/audit";
 import { extendedTrialEnd } from "@/lib/owner/license";
 import { disableAccount, enableAccount } from "@/lib/owner/access";
 import { replyToTicket, STATUSES } from "@/lib/owner/inbox";
+import { saveSignupReview, SIGNUP_STATUSES } from "@/lib/owner/signups";
+import { sendInvite, sendPlanReminder } from "@/lib/owner/signup-mail";
+import { auth } from "@/lib/auth/auth";
 
 const PLANS = new Set<Plan>(["patrol", "troop", "council"]);
 
@@ -327,24 +330,307 @@ export async function reopenErrorAction(formData: FormData): Promise<void> {
   redirect(`/super-admin/errors/${input.fingerprint}?done=${encodeURIComponent("Reopened.")}`);
 }
 
-const FollowUpSchema = z.object({
+// ── Sign-ups queue ──────────────────────────────────────────────────
+// Each write returns to the queue with its filters (the "back" field,
+// checked to stay on /super-admin/signups).
+
+const BACK = /^\/super-admin\/signups(\?[\w=&%.-]*)?$/;
+
+function signupsPage(formData: FormData, done: string): never {
+  const back = String(formData.get("back") ?? "");
+  const base = BACK.test(back) ? back : "/super-admin/signups";
+  redirect(`${base}${base.includes("?") ? "&" : "?"}done=${encodeURIComponent(done)}`);
+}
+
+const SignupRefSchema = z.object({
   entityType: z.enum(["Org", "User"]),
   entityId: z.string().min(1),
 });
 
+const optionalDay = z
+  .string()
+  .optional()
+  .transform((s, ctx) => {
+    if (!s) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) {
+      ctx.addIssue({ code: "custom", message: "Pick a follow-up day." });
+      return z.NEVER;
+    }
+    return new Date(`${s}T12:00:00.000Z`);
+  });
+
+const SaveSignupSchema = SignupRefSchema.extend({
+  // Declining turns the unit or account off, so it has its own action.
+  status: z.enum(SIGNUP_STATUSES).refine((s) => s !== "declined", "Use Decline to decline."),
+  note: z.string().trim().max(2000).optional().default(""),
+  followUpOn: optionalDay,
+});
+
+async function signupName(entityType: "Org" | "User", entityId: string): Promise<{ name: string; orgId: string | null }> {
+  if (entityType === "Org") {
+    const org = await orgOrThrow(entityId);
+    return { name: org.displayName, orgId: org.id };
+  }
+  const user = await prisma.user.findUnique({ where: { id: entityId }, select: { email: true } });
+  if (!user) throw new Error("Account not found.");
+  return { name: user.email, orgId: null };
+}
+
+export async function saveSignupAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(SaveSignupSchema, formData);
+  const { name, orgId } = await signupName(input.entityType, input.entityId);
+  const followUpOn = input.status === "follow_up" ? input.followUpOn : null;
+  await saveSignupReview(
+    input.entityType,
+    input.entityId,
+    { status: input.status, note: input.note || null, followUpOn },
+    owner.id,
+  );
+  audit({
+    orgId,
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    action: "signup.review",
+    summary: `${name}: ${input.status}${followUpOn ? ` by ${day(followUpOn)}` : ""}`,
+  });
+  signupsPage(formData, `Saved ${name}.`);
+}
+
+/** The old "Done" button: marks the sign-up done. */
 export async function markFollowedUpAction(formData: FormData): Promise<void> {
   const owner = await authorizeOwner(formData);
-  const input = parse(FollowUpSchema, formData);
-  // Written directly (not fire-and-forget): the queue reads this row.
-  await prisma.auditLog.create({
+  const input = parse(SignupRefSchema, formData);
+  const { name, orgId } = await signupName(input.entityType, input.entityId);
+  await saveSignupReview(input.entityType, input.entityId, { status: "done", followUpOn: null }, owner.id);
+  audit({
+    orgId,
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    action: "signup.review",
+    summary: `${name}: done`,
+  });
+  signupsPage(formData, "Taken off the queue.");
+}
+
+export async function approveSignupAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(SignupRefSchema, formData);
+  const { name, orgId } = await signupName(input.entityType, input.entityId);
+  const prior = await prisma.signupReview.findUnique({
+    where: { entityType_entityId: { entityType: input.entityType, entityId: input.entityId } },
+  });
+  // Approving a declined sign-up turns it back on.
+  let restored = false;
+  if (prior?.status === "declined") {
+    if (input.entityType === "Org") {
+      await prisma.org.update({ where: { id: input.entityId }, data: { suspendedAt: null, suspendedReason: null } });
+    } else {
+      await enableAccount(input.entityId);
+    }
+    restored = true;
+  }
+  await saveSignupReview(input.entityType, input.entityId, { status: "approved", followUpOn: null }, owner.id);
+  audit({
+    orgId,
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    action: "signup.approve",
+    summary: `${name}${restored ? " (turned back on)" : ""}`,
+  });
+  signupsPage(formData, restored ? `Approved ${name} and turned it back on.` : `Approved ${name}.`);
+}
+
+const DeclineSchema = SignupRefSchema.extend({
+  reason: z.string().trim().min(1, "Say why.").max(500),
+});
+
+export async function declineSignupAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(DeclineSchema, formData);
+  const { name, orgId } = await signupName(input.entityType, input.entityId);
+  if (input.entityType === "Org") {
+    await prisma.org.update({
+      where: { id: input.entityId },
+      data: { suspendedAt: new Date(), suspendedReason: `Sign-up declined: ${input.reason}` },
+    });
+  } else {
+    if (input.entityId === owner.id) throw new Error("You can't turn off your own account.");
+    await disableAccount(input.entityId, `Sign-up declined: ${input.reason}`);
+  }
+  await saveSignupReview(
+    input.entityType,
+    input.entityId,
+    { status: "declined", note: input.reason, followUpOn: null },
+    owner.id,
+  );
+  audit({
+    orgId,
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: input.entityType,
+    entityId: input.entityId,
+    action: "signup.decline",
+    summary: `${name}: ${input.reason}`,
+  });
+  signupsPage(formData, input.entityType === "Org" ? `Declined ${name}; the unit is suspended.` : `Declined ${name}; the account is off.`);
+}
+
+/** Trial to free access, from the queue. */
+export async function compSignupAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(CompSchema, formData);
+  if (input.until.getTime() <= Date.now()) throw new Error("Pick a date after today.");
+  const org = await orgOrThrow(input.orgId);
+  await prisma.org.update({
+    where: { id: org.id },
+    data: { compedUntil: input.until, compedNote: input.note || "Free access from sign-ups" },
+  });
+  const prior = await prisma.signupReview.findUnique({
+    where: { entityType_entityId: { entityType: "Org", entityId: org.id } },
+  });
+  if (!prior || prior.status === "new") await saveSignupReview("Org", org.id, { status: "approved" }, owner.id);
+  audit({
+    orgId: org.id,
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: "Org",
+    entityId: org.id,
+    action: "org.comp",
+    summary: `Free access until ${day(input.until)}${input.note ? `: ${input.note}` : ""} (from sign-ups)`,
+  });
+  signupsPage(formData, `${org.displayName} is free until ${day(input.until)}.`);
+}
+
+/** Trial to paying: emails the unit's owner a link to its billing page. Charges nothing. */
+export async function askToPayAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(OrgIdSchema, formData);
+  const org = await prisma.org.findUnique({
+    where: { id: input.orgId },
+    include: { owner: { select: { email: true, displayName: true } } },
+  });
+  if (!org) throw new Error("Unit not found.");
+  if (org.stripeSubscriptionId) signupsPage(formData, `${org.displayName} already pays.`);
+  const email = org.owner?.email ?? org.scoutmasterEmail;
+  if (!email) throw new Error("This unit has no email to write to.");
+  const sent = await sendPlanReminder({
+    email,
+    name: org.owner?.displayName ?? org.scoutmasterName ?? null,
+    org,
+    trialEndsAt: org.trialEndsAt,
+  });
+  if (!sent.ok) throw new Error(`The email didn't send: ${sent.error}`);
+  const followUpOn = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  await saveSignupReview("Org", org.id, { status: "follow_up", followUpOn }, owner.id);
+  audit({
+    orgId: org.id,
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: "Org",
+    entityId: org.id,
+    action: "signup.ask_to_pay",
+    summary: `Emailed ${email} a link to pick a plan`,
+  });
+  signupsPage(formData, `Asked ${email} to pick a plan; follow up by ${day(followUpOn)}.`);
+}
+
+/** Resends the confirm-your-email message to a new account (or a unit's owner). */
+export async function resendConfirmationAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(UserIdSchema, formData);
+  const user = await prisma.user.findUnique({
+    where: { id: input.userId },
+    select: { id: true, email: true, emailVerified: true },
+  });
+  if (!user) throw new Error("Account not found.");
+  if (user.emailVerified) signupsPage(formData, `${user.email} is already confirmed.`);
+  // No session headers: Better Auth then sends to this address rather
+  // than checking it against the signed-in owner's own email.
+  await auth.api.sendVerificationEmail({ body: { email: user.email, callbackURL: "/account/profile?verified=1" } });
+  audit({
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: "User",
+    entityId: user.id,
+    action: "signup.resend_confirmation",
+    summary: user.email,
+  });
+  signupsPage(formData, `Sent ${user.email} a new confirmation link.`);
+}
+
+const InviteSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter an email address.").max(254),
+  name: z.string().trim().max(120).optional().default(""),
+  product: z.enum(["compass", "waypoint", "lantern"]),
+  note: z.string().trim().max(1000).optional().default(""),
+});
+
+export async function inviteAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(InviteSchema, formData);
+  const existing = await prisma.user.findFirst({
+    where: { email: { equals: input.email, mode: "insensitive" } },
+    select: { id: true },
+  });
+  if (existing) signupsPage(formData, `${input.email} already has an account.`);
+  const sent = await sendInvite({
+    email: input.email,
+    name: input.name || null,
+    product: input.product,
+    note: input.note || null,
+  });
+  if (!sent.ok) throw new Error(`The invite didn't send: ${sent.error}`);
+  const invite = await prisma.ownerInvite.create({
     data: {
-      orgId: input.entityType === "Org" ? input.entityId : null,
-      userId: owner.id,
-      userDisplay: owner.displayName,
-      entityType: input.entityType,
-      entityId: input.entityId,
-      action: "signup.followed_up",
+      email: input.email,
+      name: input.name || null,
+      product: input.product,
+      note: input.note || null,
+      createdById: owner.id,
     },
   });
-  redirect(`/super-admin/signups?done=${encodeURIComponent("Taken off the queue.")}`);
+  audit({
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: "OwnerInvite",
+    entityId: invite.id,
+    action: "signup.invite",
+    summary: `${input.email} to ${input.product}`,
+  });
+  signupsPage(formData, `Invited ${input.email}.`);
+}
+
+const InviteIdSchema = z.object({ inviteId: z.string().min(1) });
+
+export async function resendInviteAction(formData: FormData): Promise<void> {
+  const owner = await authorizeOwner(formData);
+  const input = parse(InviteIdSchema, formData);
+  const invite = await prisma.ownerInvite.findUnique({ where: { id: input.inviteId } });
+  if (!invite) throw new Error("Invite not found.");
+  if (Date.now() - invite.lastSentAt.getTime() < 60_000) {
+    signupsPage(formData, `Sent to ${invite.email} under a minute ago.`);
+  }
+  const product = (["compass", "waypoint", "lantern"] as const).find((p) => p === invite.product) ?? "compass";
+  const sent = await sendInvite({ email: invite.email, name: invite.name, product, note: invite.note });
+  if (!sent.ok) throw new Error(`The invite didn't send: ${sent.error}`);
+  await prisma.ownerInvite.update({
+    where: { id: invite.id },
+    data: { sendCount: { increment: 1 }, lastSentAt: new Date() },
+  });
+  audit({
+    userId: owner.id,
+    userDisplay: owner.displayName,
+    entityType: "OwnerInvite",
+    entityId: invite.id,
+    action: "signup.invite_resend",
+    summary: invite.email,
+  });
+  signupsPage(formData, `Sent the invite to ${invite.email} again.`);
 }
