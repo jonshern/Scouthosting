@@ -1,4 +1,5 @@
-// /super-admin/analytics — who visits and what they do, across the
+// /super-admin/analytics — who visits and what they do (visits and actions;
+// what units make is /super-admin/usage), across the
 // landing page, Compass, Waypoint and Lantern (lib/usage). Filter by
 // time window and product. Signed-in adults are listed by name and
 // open to a timeline; signed-out visitors show only as a daily hash.
@@ -92,7 +93,11 @@ export default async function OwnerUsagePage({
   return (
     <div className="space-y-8">
       <div className="space-y-3">
-        <h2 className="text-[28px] font-semibold leading-tight tracking-[-0.03em]">Usage{product ? ` · ${PRODUCT_NAME[product]}` : ""}</h2>
+        <h2 className="text-[28px] font-semibold leading-tight tracking-[-0.03em]">Visits and actions{product ? ` · ${PRODUCT_NAME[product]}` : ""}</h2>
+        <p className="text-sm text-ink-muted">
+          Who opens the sites and apps and what they do there. What each unit makes (events, messages, sign-offs) is on{" "}
+          <Link href="/super-admin/usage">Usage</Link>.
+        </p>
         <nav aria-label="Usage filters" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           {WINDOWS.map((d) => (
             <Link key={d} href={href({ days: String(d) })} className={days === d ? CHIP_ON : CHIP_OFF}>
