@@ -75,6 +75,23 @@ curl -s localhost:3000/health  # {"ok":true,"version":"…","mail":"console"}
 
 `tailscale serve --bg 3000` keeps pointing at the switch; nothing changes for phones.
 
+Keep the switch on the Mac itself, so nothing else on the home network reaches Compass except through Caddy, `tailscale serve` or Lantern's web server (all of which connect to `localhost:3000`):
+
+```sh
+SWITCH_BIND=127.0.0.1
+```
+
+then `launchctl kickstart -k gui/$(id -u)/com.compass.switch`. Left unset, the switch listens on every interface.
+
+Leave `CLIENT_IP_HEADER` empty until `tailscale serve` fronts port 3000. Until then nothing off the Mac reaches Compass, and trusting a header that a client can set would let anyone pick their own rate-limit bucket. Once Tailscale is signed in and serving, set:
+
+```sh
+CLIENT_IP_HEADER=x-forwarded-for
+CLIENT_IP_XFF_HOPS=1
+```
+
+and `make deploy`.
+
 To let Waypoint's website sign in, add its address to `.env` and deploy again. It must be the exact https origin the browser shows for Waypoint (scheme, host and port), for example the `tailscale serve` address you gave it:
 
 ```sh
