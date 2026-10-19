@@ -242,3 +242,32 @@ resource "google_monitoring_alert_policy" "migration_failed" {
     mime_type = "text/markdown"
   }
 }
+
+resource "google_monitoring_alert_policy" "backup_failed" {
+  display_name = "Core nightly backup failed"
+  combiner     = "OR"
+
+  conditions {
+    display_name = "Export, its schedule or the uploads copy logged an error"
+    condition_matched_log {
+      filter = join(" OR ", [
+        "(resource.type=\"cloud_scheduler_job\" AND resource.labels.job_id=\"${google_cloud_scheduler_job.db_export.name}\" AND severity>=ERROR)",
+        "(protoPayload.methodName=\"cloudsql.instances.export\" AND severity>=ERROR)",
+        "(resource.type=\"storage_transfer_job\" AND severity>=ERROR)",
+      ])
+    }
+  }
+
+  alert_strategy {
+    notification_rate_limit {
+      period = "3600s"
+    }
+    auto_close = "86400s"
+  }
+
+  notification_channels = [google_monitoring_notification_channel.email.id]
+  documentation {
+    content   = "Last night's off-instance copy of production didn't finish. Cloud SQL's own backups are unaffected. See docs/runbooks-gcp.md#restore-the-database."
+    mime_type = "text/markdown"
+  }
+}

@@ -198,9 +198,13 @@ export const auth = betterAuth({
 
   advanced: {
     useSecureCookies: isProd(),
-    cookiePrefix: "compass",
+    // Browsers scope cookies by host, not port, so on one machine the
+    // main Compass, the demo and Waypoint's local server would share one
+    // "compass_session" cookie and sign each other out (or hand one
+    // server the other's token). Each deployment gets its own name.
+    cookiePrefix: env.COOKIE_PREFIX,
     cookies: {
-      session_token: { name: "compass_session" },
+      session_token: { name: `${env.COOKIE_PREFIX}_session` },
     },
     ...(env.COOKIE_DOMAIN
       ? { crossSubDomainCookies: { enabled: true, domain: env.COOKIE_DOMAIN } }

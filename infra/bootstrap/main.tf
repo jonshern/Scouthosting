@@ -44,10 +44,13 @@ locals {
   # roles/owner so the CI identity cannot, say, delete the project.
   deployer_roles = [
     "roles/artifactregistry.admin",
+    "roles/certificatemanager.owner",
     "roles/cloudscheduler.admin",
     "roles/cloudsql.admin",
+    "roles/compute.loadBalancerAdmin",
     "roles/firebase.admin",
     "roles/firebasehosting.admin",
+    "roles/iam.roleAdmin",
     "roles/iam.serviceAccountAdmin",
     "roles/iam.serviceAccountUser",
     "roles/logging.configWriter",
@@ -57,6 +60,7 @@ locals {
     "roles/secretmanager.admin",
     "roles/serviceusage.serviceUsageAdmin",
     "roles/storage.admin",
+    "roles/storagetransfer.admin",
   ]
 }
 

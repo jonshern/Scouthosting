@@ -20,7 +20,7 @@ variable "environments" {
 }
 
 variable "db_tier" {
-  description = "Cloud SQL machine type. db-f1-micro is the smallest shared-core tier; db-g1-small if it ever feels slow."
+  description = "Cloud SQL machine type. db-f1-micro (0.6 GB, ~$8/mo) to about 30 units; db-g1-small (1.7 GB, ~$26/mo) after that or when the memory alert fires; db-custom-1-3840 (dedicated core, SLA-covered, ~$50/mo) when customers need an SLA. infra/COSTS.md has the sums."
   type        = string
   default     = "db-f1-micro"
 }
@@ -38,7 +38,7 @@ variable "cron_schedule" {
 }
 
 variable "app_domains" {
-  description = "Optional custom host for the core service per environment, e.g. { prod = \"app.example.org\" }. Needs a Cloud Run domain mapping."
+  description = "Optional custom host for the core service per environment, e.g. { prod = \"compass.example.org\" }. Each one gets a load balancer with a Google-managed certificate for the host and *.host, so units get <slug>.<host> (about $18/mo for up to five such hosts; modules/environment/edge.tf). The edge_dns output lists the DNS records to add."
   type        = map(string)
   default     = {}
 }
@@ -88,4 +88,22 @@ variable "monitored_web_apps" {
   description = "Web apps whose prod site gets an uptime check. Add each one after its first publish."
   type        = list(string)
   default     = []
+}
+
+variable "backup_region" {
+  description = "Region of the backups bucket (nightly database export and a copy of prod uploads). Keep it away from var.region so one regional outage can't take both."
+  type        = string
+  default     = "us-east1"
+}
+
+variable "backup_schedule" {
+  description = "Cron (America/Chicago) for the nightly prod database export. 02:30 matches the Mac."
+  type        = string
+  default     = "30 2 * * *"
+}
+
+variable "backup_keep_days" {
+  description = "Days an export or a replaced/deleted upload copy stays in the backups bucket after a newer one replaces it. 30 matches the Mac."
+  type        = number
+  default     = 30
 }

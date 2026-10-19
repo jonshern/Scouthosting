@@ -65,7 +65,7 @@ variable "custom_domains" {
 }
 
 variable "app_domain" {
-  description = "Optional custom host for the server's own pages (admin, sign-in, RSVP links). Empty uses the run.app URL."
+  description = "Optional custom host for the server's own pages (admin, sign-in, RSVP links) and units' <slug>.<host> sites, served through a load balancer (edge.tf). Empty uses the run.app URL."
   type        = string
   default     = ""
 }

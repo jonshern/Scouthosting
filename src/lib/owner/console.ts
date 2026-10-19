@@ -40,12 +40,14 @@ export type UnitRow = Prisma.OrgGetPayload<{ select: typeof UNIT_BILLING_SELECT 
 };
 
 export async function listUnits(
-  { kind, q }: { kind?: LicenseKind | null; q?: string | null } = {},
+  { kind, q, orgId }: { kind?: LicenseKind | null; q?: string | null; orgId?: string } = {},
   now: Date = new Date(),
 ): Promise<UnitRow[]> {
   const term = q?.trim();
   const orgs = await prisma.org.findMany({
-    where: term
+    where: orgId
+      ? { id: orgId }
+      : term
       ? {
           OR: [
             { slug: { contains: term, mode: "insensitive" } },

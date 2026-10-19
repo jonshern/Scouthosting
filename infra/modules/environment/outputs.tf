@@ -36,3 +36,16 @@ output "app_url" {
   description = "The server's own pages: sign-in, admin, RSVP and permission-slip links."
   value       = "https://${local.app_host}"
 }
+
+output "edge_dns" {
+  description = "DNS records for the custom domain: the host and *.host point at the load balancer, and the CNAME lets Google issue the certificate. Empty without app_domain."
+  value = local.edge == 0 ? [] : [
+    { name = var.app_domain, type = "A", data = google_compute_global_address.edge[0].address },
+    { name = "*.${var.app_domain}", type = "A", data = google_compute_global_address.edge[0].address },
+    {
+      name = google_certificate_manager_dns_authorization.edge[0].dns_resource_record[0].name
+      type = google_certificate_manager_dns_authorization.edge[0].dns_resource_record[0].type
+      data = google_certificate_manager_dns_authorization.edge[0].dns_resource_record[0].data
+    },
+  ]
+}
