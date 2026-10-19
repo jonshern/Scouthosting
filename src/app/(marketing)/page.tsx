@@ -21,8 +21,8 @@ const FEATURES = [
   {
     num: "03",
     kw: "Security",
-    title: "Encryption, audit logs, and serious uptime.",
-    body: "AES-256 field-level encryption, per-org keys, argon2id for passphrases. Tamper-evident audit log on every admin action. Cloud-hosted with daily Postgres snapshots — no server in someone's basement, no Tuesday-night outage.",
+    title: "Encryption, audit logs, and tested backups.",
+    body: "AES-256 field-level encryption, per-org keys, argon2id for passphrases. Tamper-evident audit log on every admin action. Encrypted backups every day, plus one before every update, and we practice restoring them.",
   },
   {
     num: "04",
@@ -34,7 +34,7 @@ const FEATURES = [
 
 const STATS = [
   { n: "AES-256", l: "encryption at rest & in transit" },
-  { n: "99.9%", l: "uptime, US data residency" },
+  { n: "2-step", l: "sign-in for every leader and admin" },
   { n: "Daily", l: "encrypted off-site backups" },
   { n: PRICES.year.short, l: `per unit, per year (or ${PRICES.month.long})` },
 ];
