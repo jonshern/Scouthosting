@@ -3,6 +3,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { DemoBanner } from "@/components/demo/DemoBanner";
 import { isDemoMode } from "@/lib/demo/mode";
+import { UsageBeacon } from "@/components/usage/UsageBeacon";
 
 // Geist for words, Geist Mono for IDs, dates and small labels (the
 // suite's Modern Clean faces, see src/styles/tokens.ts). The font files
@@ -38,6 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="font-sans">
         {isDemoMode() ? <DemoBanner /> : null}
         {children}
+        <UsageBeacon />
       </body>
     </html>
   );

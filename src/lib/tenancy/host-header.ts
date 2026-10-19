@@ -16,4 +16,5 @@ export const TENANT_HOST_HEADER = "x-compass-tenant-host";
 //   posts), which name the org in the path.
 // /mcp, /.well-known/ — the Claude connector and its OAuth discovery
 //   documents (src/lib/mcp); not per-org.
-export const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/contact", "/api/events/", "/api/public/", "/staff-rsvp", "/account", "/mcp", "/.well-known/"];
+// /api/v1/usage — page views from a troop site's own pages (lib/usage).
+export const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/contact", "/api/events/", "/api/public/", "/api/v1/usage", "/staff-rsvp", "/account", "/mcp", "/.well-known/"];

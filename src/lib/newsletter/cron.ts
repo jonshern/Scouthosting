@@ -14,6 +14,7 @@ import { logger as defaultLogger, type Logger } from "@/lib/log";
 import { composeNewsletter } from "./index";
 import { sweepChannelTwoDeep } from "@/lib/chat";
 import { purgeExpiredScoutRecords } from "@/lib/retention/scouts";
+import { sweepUsage } from "@/lib/usage/collect";
 import { sendMail, type MailMessage } from "@/lib/mail";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptField } from "@/lib/encryption";
@@ -283,6 +284,7 @@ export type CronTickResult = {
   scoutRecordsPurged: number;
   channelsSuspended: number;
   authRowsPurged: number;
+  usageRowsPurged: number;
   trialReminders: number;
 };
 
@@ -400,6 +402,16 @@ export async function runCronTick(opts: {
     });
   }
 
+  // Usage tracking: rows older than 13 months, and old visitor salts.
+  let usageRowsPurged = 0;
+  try {
+    usageRowsPurged = await sweepUsage({ now, prismaClient });
+  } catch (err) {
+    logger.warn("usage sweep failed", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   // Youth-protection backstop: suspend channels that have drifted below
   // two-deep since their last post.
   let channelsSuspended = 0;
@@ -444,6 +456,7 @@ export async function runCronTick(opts: {
     scoutRecordsPurged,
     channelsSuspended,
     authRowsPurged,
+    usageRowsPurged,
     trialReminders,
   };
 }

@@ -225,6 +225,7 @@ model Org {
   requirementEvents    RequirementProgressEvent[]
   counselorMeetings    CounselorMeeting[]
   billingPayments      BillingPayment[]
+  usageEvents          UsageEvent[]
   owner                User?                      @relation("OrgOwner", fields: [ownerId], references: [id], onDelete: SetNull)
 
   @@index([plan])
@@ -300,6 +301,7 @@ model User {
   journeyScouts         JourneyScout[]
   mcpAuthCodes          McpAuthCode[]
   mcpTokens             McpToken[]
+  usageEvents           UsageEvent[]
 }
 
 // One-time-use 2FA backup codes. Generated at enrollment (10 per user),
@@ -1475,6 +1477,61 @@ model ErrorResolution {
   resolvedAt   DateTime @default(now())
   resolvedById String?
   note         String?
+}
+
+// Usage tracking for the owner console (lib/usage): one row per page or
+// screen view, or per key action, from the landing page, Compass,
+// Waypoint and Lantern. No cookies and no IP address: visitorHash is
+// sha256(that day's UsageSalt + IP + user agent), and the salt is
+// deleted the next day, so a visitor counts once a day but can't be
+// followed across days or traced back. Scout events never get a
+// visitorHash. Rows go after 13 months (runCronTick), with the account
+// (lib/account/delete.ts), with a Lantern trail, and with a scout's
+// records under the retention policy (lib/retention/scouts.ts).
+model UsageEvent {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  /// landing | compass | waypoint | lantern
+  product     String
+  /// web | ios | android, or server for an action the server recorded
+  platform    String
+  /// "view" for a page or screen view, otherwise the action (lib/usage/events.ts).
+  name        String
+  /// Path or screen, ids replaced by ":id", no query string.
+  path        String?
+  /// Host of the page the visitor came from, never the full URL.
+  referrer    String?
+  /// utm_source or ref on the landing URL.
+  source      String?
+  /// phone | tablet | desktop
+  device      String?
+  browser     String?
+  /// visitor (signed out) | adult | scout
+  role        String
+  visitorHash String?
+  props       Json?
+  userId      String?
+  orgId       String?
+  scoutId     String?
+
+  user  User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org   Org?          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  scout JourneyScout? @relation(fields: [scoutId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([product, createdAt])
+  @@index([userId, createdAt])
+  @@index([orgId, createdAt])
+  @@index([visitorHash, createdAt])
+  @@index([scoutId])
+}
+
+// One random salt per UTC day for UsageEvent.visitorHash. Deleted the
+// day after, which makes yesterday's hashes impossible to recompute.
+model UsageSalt {
+  day       String   @id
+  salt      String
+  createdAt DateTime @default(now())
 }
 
 // The owner console's state for one sign-up (a new unit or account):
@@ -3034,6 +3091,7 @@ model JourneyScout {
   devices  JourneyScoutDevice[]
   codes    JourneyPairCode[]
   entries  JourneyEntry[]
+  usage    UsageEvent[]
 
   @@index([ownerUserId])
   @@index([memberId])

@@ -34,6 +34,7 @@ const HOST_READERS = new Set([
   "src/lib/owner/guard.ts", // apex-only console
   "src/app/super-admin/billing/payments.csv/route.ts", // same, for the console's CSV export
   "src/lib/ops/request-owner.ts", // which unit an error happened in, for the owner console
+  "src/app/api/v1/usage/route.ts", // which unit a page view is from, and self-referrals
   "src/app/o/[slug]/admin/site/page.tsx", // preview iframe on the admin's own host
   "src/lib/auth/social-routes.ts", // http or https for Google/Apple's return address; Better Auth's allowedHosts checks the host
 ]);

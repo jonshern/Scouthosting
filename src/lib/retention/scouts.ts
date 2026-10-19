@@ -9,7 +9,7 @@
 // details records that each slip existed), trainings, position terms, loans,
 // sales links, subaccount), RSVPs and sign-up claims, and, when the
 // scout has their own login in this unit, their chat messages,
-// reactions, uploaded photos (database rows and stored files), channel
+// usage events (page views and actions) in the unit, reactions, uploaded photos (database rows and stored files), channel
 // seats and unit membership. A scout login left with no unit at all is
 // deleted too. Ledger transactions survive with the member link nulled
 // (the unit's books must still balance).
@@ -166,6 +166,8 @@ async function purgeOne(
       await tx.message.deleteMany({ where: { authorId: userId, ...orgChannel } });
       await tx.channelMember.deleteMany({ where: { userId, ...orgChannel } });
       await tx.orgMembership.deleteMany({ where: { userId, orgId: m.orgId, role: "scout" } });
+      // Their page views and actions in this unit (lib/usage).
+      await tx.usageEvent.deleteMany({ where: { userId, orgId: m.orgId } });
     }
     const who = [{ memberId: m.id }, ...(userId ? [{ userId }] : []), ...byEmail];
     await tx.rsvp.deleteMany({ where: { orgId: m.orgId, OR: who } });

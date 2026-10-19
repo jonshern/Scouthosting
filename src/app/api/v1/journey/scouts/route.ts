@@ -10,6 +10,7 @@
 import { LIMITS, json, readJson, v1Route } from "@/lib/api/v1";
 import { CreateScoutBody } from "@/lib/journey/schema";
 import { createScout, listScouts } from "@/lib/journey/store";
+import { recordAction } from "@/lib/usage/collect";
 
 export const runtime = "nodejs";
 
@@ -18,7 +19,9 @@ export const GET = v1Route(async (_req, { user }) => json({ scouts: await listSc
 export const POST = v1Route(
   async (req, { user }) => {
     const body = await readJson(req, CreateScoutBody);
-    return json({ scout: await createScout(user, body) }, { status: 201 });
+    const scout = await createScout(user, body);
+    recordAction("trail_added", { product: "lantern", userId: user.id });
+    return json({ scout }, { status: 201 });
   },
   { limits: [LIMITS.journey] },
 );

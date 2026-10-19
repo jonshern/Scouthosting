@@ -28,6 +28,7 @@ import { claimOrgsForVerifiedEmail } from "./claim-orgs";
 import { compassMfa } from "./mfa-plugin";
 import { appleConfig, extraSignInHostPatterns, googleConfig } from "./providers";
 import { clientIpConfig } from "@/lib/security/client-ip";
+import { recordAction } from "@/lib/usage/collect";
 
 function escapeHtml(s: string): string {
   return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -173,6 +174,7 @@ export const auth = betterAuth({
     user: {
       create: {
         async after(user) {
+          recordAction("account_created", { product: "compass", userId: user.id });
           // Google/Apple sign-ups arrive verified; password sign-ups claim
           // their unit only after confirming the email (above).
           if (user.emailVerified) await claimOrgsForVerifiedEmail(user.id, user.email);
