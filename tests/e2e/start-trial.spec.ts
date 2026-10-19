@@ -5,14 +5,14 @@
 
 import { expect, test } from "@playwright/test";
 
-test("a new leader signs up, creates a unit and starts a 30-day trial", async ({ page }) => {
+test("a new leader signs up, creates a unit and starts a 3-month trial", async ({ page }) => {
   const stamp = Date.now();
   const unitNumber = String(10000 + (stamp % 89999));
 
   await page.goto("/");
   await page.getByRole("link", { name: "Start a trial" }).click();
   await expect(page).toHaveURL(/\/start$/);
-  await expect(page.getByText(/30 days free/i).first()).toBeVisible();
+  await expect(page.getByText(/3 months free/i).first()).toBeVisible();
 
   await page.getByLabel("Your name").fill("Robin Leader");
   await page.getByLabel("Email").fill(`robin+${stamp}@example.invalid`);
@@ -31,7 +31,7 @@ test("a new leader signs up, creates a unit and starts a 30-day trial", async ({
   await page.getByLabel("Unit passphrase").fill("our-unit-passphrase-1");
   await page.getByLabel("Passphrase again").fill("our-unit-passphrase-1");
   await page.waitForTimeout(1700);
-  await page.getByRole("button", { name: /start my 30-day free trial/i }).click();
+  await page.getByRole("button", { name: /start my free trial/i }).click();
 
   await expect(page.getByTestId("start-trial-done")).toBeVisible();
   await expect(page.getByText(`Troop ${unitNumber} is set up.`)).toBeVisible();
@@ -39,9 +39,9 @@ test("a new leader signs up, creates a unit and starts a 30-day trial", async ({
 
   await page.getByRole("link", { name: /go to your unit/i }).click();
   await expect(page).toHaveURL(new RegExp(`/o/troop${unitNumber}(-[a-z0-9-]+)?/admin$`));
-  await expect(page.getByTestId("billing-banner")).toContainText("30 days left in your free trial");
+  await expect(page.getByTestId("billing-banner")).toContainText("90 days left in your free trial");
 
   await page.getByTestId("billing-banner").getByRole("link", { name: /billing/i }).click();
-  await expect(page.getByTestId("billing-status")).toContainText("30 days left in your free trial");
+  await expect(page.getByTestId("billing-status")).toContainText("90 days left in your free trial");
   await expect(page.getByTestId("billing-status")).toContainText("Billing isn't switched on");
 });

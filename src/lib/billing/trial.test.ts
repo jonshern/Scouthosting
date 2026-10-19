@@ -1,14 +1,41 @@
 import { describe, expect, it } from "vitest";
-import { TRIAL_DAYS, billingSummary, stripeTrialEnd, trialEndsAtFrom } from "./trial";
+import {
+  DEFAULT_TRIAL_DAYS,
+  TRIAL_DAYS,
+  billingSummary,
+  firstFreePeriod,
+  freePeriod,
+  parseTrialDays,
+  stripeTrialEnd,
+  trialEndsAtFrom,
+} from "./trial";
 
 const NOW = new Date("2026-10-12T12:00:00Z");
 const DAY = 24 * 60 * 60 * 1000;
 const at = (days: number) => new Date(NOW.getTime() + days * DAY);
 
 describe("trial", () => {
-  it("runs 30 days from sign-up", () => {
-    expect(TRIAL_DAYS).toBe(30);
-    expect(trialEndsAtFrom(NOW).toISOString()).toBe("2026-11-11T12:00:00.000Z");
+  it("runs 3 months (90 days) from sign-up unless TRIAL_DAYS says otherwise", () => {
+    expect(DEFAULT_TRIAL_DAYS).toBe(90);
+    expect(TRIAL_DAYS).toBe(parseTrialDays(process.env.TRIAL_DAYS));
+    expect(trialEndsAtFrom(NOW).getTime() - NOW.getTime()).toBe(TRIAL_DAYS * DAY);
+  });
+
+  it("reads TRIAL_DAYS, falling back to 90 for anything unusable", () => {
+    expect(parseTrialDays(undefined)).toBe(90);
+    expect(parseTrialDays("30")).toBe(30);
+    expect(parseTrialDays("0")).toBe(90);
+    expect(parseTrialDays("12.5")).toBe(90);
+    expect(parseTrialDays("lots")).toBe(90);
+    expect(parseTrialDays("400")).toBe(90);
+  });
+
+  it("names the free period for copy", () => {
+    expect(freePeriod(90)).toBe("3 months");
+    expect(firstFreePeriod(90)).toBe("first 3 months");
+    expect(freePeriod(30)).toBe("1 month");
+    expect(firstFreePeriod(30)).toBe("first month");
+    expect(freePeriod(45)).toBe("45 days");
   });
 
   it("carries the rest of the trial into Stripe only when it is over 48 hours away", () => {

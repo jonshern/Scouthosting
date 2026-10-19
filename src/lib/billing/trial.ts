@@ -5,7 +5,30 @@
 
 import { deriveBillingStatus, type BillingGate, type BillingStatus, type OrgLikeForBilling } from "./state";
 
-export const TRIAL_DAYS = 30;
+// New units get the first 3 months free while we see whether troops use
+// it (Jon, 2026-10-19). TRIAL_DAYS in env changes it (30 goes back to a
+// month); it applies to units made after the change, and the marketing
+// pages pick it up on their next build.
+export const DEFAULT_TRIAL_DAYS = 90;
+
+export function parseTrialDays(raw: string | undefined): number {
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 1 && n <= 365 ? n : DEFAULT_TRIAL_DAYS;
+}
+
+export const TRIAL_DAYS = parseTrialDays(process.env.TRIAL_DAYS);
+
+/** "3 months", "1 month" or "45 days", for copy. */
+export function freePeriod(days: number = TRIAL_DAYS): string {
+  if (days % 30 !== 0) return `${days} days`;
+  const months = days / 30;
+  return `${months} month${months === 1 ? "" : "s"}`;
+}
+
+/** "first 3 months" or "first month", for "… free". */
+export function firstFreePeriod(days: number = TRIAL_DAYS): string {
+  return days === 30 ? "first month" : `first ${freePeriod(days)}`;
+}
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 

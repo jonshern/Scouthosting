@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useActionState } from "react";
 import { startTrialAction, type StartTrialState } from "@/server-actions/start-trial";
-import { TRIAL_DAYS } from "@/lib/billing/trial";
 
 const UNIT_OPTIONS: Array<[value: string, label: string]> = [
   ["Troop", "Scouts BSA troop"],
@@ -120,7 +119,7 @@ export function StartTrialForm({ csrf }: { csrf: React.ReactNode }) {
         </div>
       )}
       <button type="submit" disabled={pending} className="btn-primary w-full">
-        {pending ? "Setting up your unit…" : `Start my ${TRIAL_DAYS}-day free trial`}
+        {pending ? "Setting up your unit…" : "Start my free trial"}
       </button>
       <p className="text-xs text-slate-muted">No card needed. Cancel any time.</p>
     </form>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { PRICES, PRICE_LINE, YEARLY_SAVINGS_USD } from "@/lib/billing/pricing";
+import { freePeriod } from "@/lib/billing/trial";
 import { supportEmail } from "@/lib/support";
 import { PhotoPlaceholder } from "@/components/ui/PhotoPlaceholder";
 
@@ -81,7 +82,7 @@ export default function MarketingHome() {
             </p>
             <div className="flex flex-wrap gap-3">
               <Link href="/start" className="btn-primary min-h-[48px] px-5 text-[15px]">
-                Start your free month →
+                Start free →
               </Link>
               <Link href="/plans" className="btn-secondary min-h-[48px] px-5 text-[15px]">
                 See every feature
@@ -204,11 +205,12 @@ export default function MarketingHome() {
               </div>
             </div>
             <p className="text-sm text-slate-soft mt-6 mb-7 pb-6 border-b border-line">
-              First month free, no card needed. Keep it and it renews automatically;
+              {freePeriod()} free, no card needed. Keep it and it renews automatically;
               cancel any time. One subscription covers Compass, Waypoint and Lantern.
+              Merit badge counselors use Waypoint free.
             </p>
             <Link href="/start" className="btn-primary w-full justify-center mt-auto">
-              Start your free month →
+              Start free →
             </Link>
           </div>
 
@@ -467,7 +469,7 @@ export default function MarketingHome() {
       {/* CTA */}
       <section className="mx-auto max-w-content px-6 py-24 text-center">
         <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-accent-soft text-accent-soft-text text-[13px] font-medium mb-6">
-          First month free
+          {freePeriod()} free
         </span>
         <h2 className="text-[36px] md:text-[52px] font-semibold leading-[1.05] tracking-[-0.035em] max-w-3xl mx-auto mb-8">
           Set up your troop&apos;s home base{" "}

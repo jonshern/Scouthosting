@@ -46,9 +46,11 @@ async function resolveCustomDomainSlug(domain: string): Promise<string | null | 
 
 const CSRF_COOKIE = "compass_csrf";
 
-// Pre-launch apex gate. Visitors without a valid `compass_invite`
-// cookie are bounced to /coming-soon. Set DISABLE_INVITE_GATE=1 in
-// .env to bypass the gate (used in dev + e2e tests).
+// Optional apex gate. Sign-up is open at go-live (Jon, 2026-10-19:
+// everything free for 3 months instead of an invite-only soft launch),
+// so the gate is off unless INVITE_GATE=1. With it on, visitors without
+// a valid `compass_invite` cookie are bounced to /coming-soon;
+// DISABLE_INVITE_GATE=1 still forces it off.
 //
 // Auth surfaces (/login, /logout, /signup, /auth/*) and the
 // /super-admin console stay reachable even without an invite — they
@@ -84,7 +86,7 @@ const APEX_INVITE_PREFIXES = [
 
 function inviteGateEnabled(): boolean {
   if (process.env.DISABLE_INVITE_GATE === "1") return false;
-  return true;
+  return process.env.INVITE_GATE === "1";
 }
 
 function pathBypassesInviteGate(pathname: string): boolean {

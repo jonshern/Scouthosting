@@ -232,10 +232,15 @@ recovery code is printed once during `npm run db:seed`.
 Email is **plaintext on purpose** so background email, magic links,
 and chat membership lookups don't need an unlock ceremony.
 
-### 9. Billing: 30-day trial, Stripe over plain fetch
+### 9. Billing: 3-month trial, Stripe over plain fetch
 
-`/start` creates an adult account and a unit with a 30-day trial and no
-card (`src/lib/provision/self-serve.ts`); `admin/billing` sends admins
+`/start` creates an adult account and a unit with a free trial and no
+card (`src/lib/provision/self-serve.ts`): 90 days, or `TRIAL_DAYS` from
+env, and the marketing copy follows it (`freePeriod()`). Owners get
+trial-end emails 7 days and 1 day out once Stripe is set up
+(`src/lib/billing/trial-reminders.ts`, from the cron tick). Waypoint's
+counselor tools are free for every adult and must never check a unit's
+billing (`src/lib/billing/entitlements.ts`, in `GET /api/v1/auth/me`); `admin/billing` sends admins
 to Stripe Checkout, which carries the rest of the trial over as
 `trial_end`. Prices ($99/yr, $10/mo) live in `src/lib/billing/pricing.ts`
 and must match `STRIPE_PRICE_YEARLY` / `_MONTHLY`. `src/lib/billing/stripe-rest.ts` calls Stripe's HTTPS API
@@ -366,8 +371,8 @@ Password for all seeded accounts: `AdminPasswordTest123!`
   E2E account (`prisma/seed.ts` seeds this user).
 - `super@example.invalid` — super-admin (`/super-admin`).
 
-Pre-launch invite codes (apex marketing site is gated behind these
-until launch — see `src/lib/invite/`):
+Invite codes (the apex Coming Soon gate is off unless `INVITE_GATE=1`;
+sign-up is open — see `src/lib/invite/`):
 - `EAGLE-EXPLORE-2026` — founders-batch-1, 50 uses
 - `TRAILBLAZER-VIP` — press / investors, unlimited
 - `PATROL-PREVIEW` — design partners, 25 uses

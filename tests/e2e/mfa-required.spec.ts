@@ -106,7 +106,7 @@ test.describe("organizer two-step requirement", () => {
     await page.getByLabel("Unit passphrase").fill("our-unit-passphrase-1");
     await page.getByLabel("Passphrase again").fill("our-unit-passphrase-1");
     await page.waitForTimeout(1700);
-    await page.getByRole("button", { name: /start my 30-day free trial/i }).click();
+    await page.getByRole("button", { name: /start my free trial/i }).click();
     await expect(page.getByTestId("start-trial-done")).toBeVisible();
 
     // The unit's admin pages wait for two-step sign-in.

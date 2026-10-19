@@ -1,10 +1,12 @@
 // The one price list, shared by the marketing pages and the billing
 // page. Each unit pays one of two ways for everything (Compass,
-// Waypoint, Lantern); the first month is the free trial either way. The
+// Waypoint, Lantern); the free trial (lib/billing/trial.ts) comes first
+// either way. Waypoint's counselor tools are free on their own
+// (lib/billing/entitlements.ts). The
 // Stripe Price IDs live in env (STRIPE_PRICE_YEARLY / _MONTHLY) and
 // must match these amounts (docs/billing.md).
 
-import { TRIAL_DAYS } from "./trial";
+import { firstFreePeriod, freePeriod } from "./trial";
 
 export type BillingInterval = "year" | "month";
 
@@ -15,9 +17,9 @@ export const PRICES: Record<BillingInterval, { usd: number; short: string; long:
 
 export const YEARLY_SAVINGS_USD = PRICES.month.usd * 12 - PRICES.year.usd;
 
-export const PRICE_LINE = `${PRICES.year.long} or ${PRICES.month.long}, first month free`;
+export const PRICE_LINE = `${PRICES.year.long} or ${PRICES.month.long}, ${firstFreePeriod()} free`;
 
-export const TRIAL_LINE = `${TRIAL_DAYS} days free, no card needed`;
+export const TRIAL_LINE = `${freePeriod()} free, no card needed`;
 
 export function stripePriceIdFor(interval: BillingInterval): string | null {
   const id = interval === "year" ? process.env.STRIPE_PRICE_YEARLY : process.env.STRIPE_PRICE_MONTHLY;

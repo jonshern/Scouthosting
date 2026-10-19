@@ -17,6 +17,8 @@ import { purgeExpiredScoutRecords } from "@/lib/retention/scouts";
 import { sendMail, type MailMessage } from "@/lib/mail";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptField } from "@/lib/encryption";
+import { runTrialReminderSweep } from "@/lib/billing/trial-reminders";
+import { isConfigured as stripeConfigured } from "@/lib/billing/stripe";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
@@ -281,6 +283,7 @@ export type CronTickResult = {
   scoutRecordsPurged: number;
   channelsSuspended: number;
   authRowsPurged: number;
+  trialReminders: number;
 };
 
 /** Delete expired sessions and verifications, and sign-in rate-limit
@@ -420,6 +423,18 @@ export async function runCronTick(opts: {
     });
   }
 
+  // Trial-end reminders to unit owners (7 days and 1 day out).
+  let trialReminders = 0;
+  try {
+    trialReminders = (
+      await runTrialReminderSweep({ prisma: prismaClient, stripeConfigured: stripeConfigured(), now })
+    ).reminded;
+  } catch (err) {
+    logger.warn("trial reminder sweep failed", {
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   return {
     schedulesDrafted,
     schedulesSkipped,
@@ -429,5 +444,6 @@ export async function runCronTick(opts: {
     scoutRecordsPurged,
     channelsSuspended,
     authRowsPurged,
+    trialReminders,
   };
 }

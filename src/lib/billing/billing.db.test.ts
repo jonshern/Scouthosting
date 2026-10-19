@@ -19,7 +19,7 @@ import { issueToken } from "@/lib/auth/api-token";
 import { startUnitTrial } from "@/lib/provision/self-serve";
 import { createCheckoutSession, setStripeClientForTests, syncFromStripeEvent } from "./stripe";
 import { createStripeRestClient } from "./stripe-rest";
-import { billingSummary } from "./trial";
+import { TRIAL_DAYS, billingSummary } from "./trial";
 import { applyStripeOnce, stripeKey } from "./stripe-idempotency";
 import * as subscription from "@/app/api/v1/orgs/[slug]/subscription/route";
 
@@ -73,7 +73,7 @@ describe.skipIf(!db)("self-serve trial and billing (Postgres)", () => {
     await prisma.user.deleteMany({ where: { id: { in: [f.owner?.id, f.outsider?.id].filter(Boolean) } } });
   });
 
-  it("creates the unit with a 30-day trial and makes the signer its admin and owner", async () => {
+  it("creates the unit with a TRIAL_DAYS trial and makes the signer its admin and owner", async () => {
     const before = Date.now();
     const res = await startUnitTrial(f.owner, input);
     const org = await prisma.org.findUniqueOrThrow({ where: { slug: res.slug } });
@@ -84,8 +84,8 @@ describe.skipIf(!db)("self-serve trial and billing (Postgres)", () => {
     expect(org.ownerId).toBe(f.owner.id);
     expect(org.scoutmasterEmail).toBe(f.owner.email);
     const days = (org.trialEndsAt!.getTime() - before) / DAY;
-    expect(days).toBeGreaterThan(29.99);
-    expect(days).toBeLessThan(30.01);
+    expect(days).toBeGreaterThan(TRIAL_DAYS - 0.01);
+    expect(days).toBeLessThan(TRIAL_DAYS + 0.01);
     expect(res.recoveryCode).toBeTruthy();
 
     const m = await prisma.orgMembership.findUnique({
@@ -167,7 +167,7 @@ describe.skipIf(!db)("self-serve trial and billing (Postgres)", () => {
     const org = await prisma.org.findUniqueOrThrow({ where: { id: f.orgIds[1] } });
     const ok = await getSubscription(org.slug, f.owner.token);
     expect(ok.status).toBe(200);
-    expect(ok.json.subscription).toMatchObject({ status: "trialing", trialDaysLeft: 30, locked: false, subscribed: false });
+    expect(ok.json.subscription).toMatchObject({ status: "trialing", trialDaysLeft: TRIAL_DAYS, locked: false, subscribed: false });
 
     const no = await getSubscription(org.slug, f.outsider.token);
     expect(no.status).toBe(403);

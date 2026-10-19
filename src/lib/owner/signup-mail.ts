@@ -5,6 +5,7 @@
 import { sendMail, type MailResult } from "@/lib/mail";
 import { apexPublicOrigin, orgPublicOrigin } from "@/lib/tenancy/resolve";
 import { PRICES } from "@/lib/billing/pricing";
+import { freePeriod } from "@/lib/billing/trial";
 import { PRODUCT_LABEL, type Product } from "./console";
 
 function escapeHtml(s: string): string {
@@ -17,8 +18,8 @@ export function inviteLink(product: Product, origin = apexPublicOrigin()): strin
 }
 
 const INVITE_PITCH: Record<Product, string> = {
-  compass: "Compass runs your unit's website, calendar, roster and messages in one place, free for 30 days.",
-  waypoint: "Waypoint is the merit badge counselor app: your badges, your scouts and badge days, on your phone.",
+  compass: `Compass runs your unit's website, calendar, roster and messages in one place, free for ${freePeriod()}.`,
+  waypoint: "Waypoint is the merit badge counselor app: your badges, your scouts and badge days, on your phone. It's free for counselors.",
   lantern: "Lantern keeps your scout's whole trail, ranks and merit badges, in one place you can check off together.",
 };
 

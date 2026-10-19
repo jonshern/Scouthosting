@@ -1,10 +1,32 @@
 # Sign-up, free trial and billing
 
-How a new unit finds Compass, tries it for 30 days, and keeps paying if
-it likes it. The price is **$99 a year or $10 a month per unit, first
-month free** (`src/lib/billing/pricing.ts`, which the marketing pages and
-the billing page read). One subscription covers the whole family:
-Compass, Waypoint and Lantern all read the same unit's status.
+How a new unit finds Compass, tries it free for 3 months, and keeps
+paying if it likes it. The price is **$99 a year or $10 a month per
+unit, first 3 months free** (`src/lib/billing/pricing.ts`, which the
+marketing pages and the billing page read). One subscription covers the
+whole family: Compass, Waypoint and Lantern all read the same unit's
+status.
+
+**Waypoint is free for merit badge counselors.** An adult account with
+no unit can sign up at `/signup`, sign in to Waypoint and use the
+counselor tools (badges, assigned scouts, meetings, staffing badge days)
+without a trial or a license. The rule lives in
+`src/lib/billing/entitlements.ts` and goes to Waypoint in
+`GET /api/v1/auth/me` as `entitlements.waypoint.counselorTools`
+(`"free"` for adults, `"none"` for scouts). No counselor route checks a
+unit's billing; only a unit's own admin pages lock.
+
+**Trial length.** 90 days by default (Jon, 2026-10-19: free for the
+first 3 months to see whether troops use it). Set `TRIAL_DAYS` (1-365)
+to change it, for example `TRIAL_DAYS=30` to go back to a month. It
+applies to units made after the change; existing trials keep their end
+date (extend one from the owner console). The marketing pages say
+"3 months free" or "first month free" from the same value and pick a
+change up on their next build.
+
+**Free access for a pilot unit.** Owner console → Units → the unit →
+"Give free access", pick the end date (a year out for a one-year pilot)
+and a note. The unit counts as paid until then; Stripe isn't touched.
 
 ## How it works
 
@@ -13,7 +35,7 @@ Compass, Waypoint and Lantern all read the same unit's status.
    `marketing/landing/`) goes to `/start`. The person creates an adult
    account (email, Google or Apple), then names their unit. That creates
    the unit with them as admin and owner, shows the unit's recovery code
-   once, and starts a 30-day trial with no card
+   once, and starts the free trial with no card
    (`src/lib/provision/self-serve.ts`, `TRIAL_DAYS` in
    `src/lib/billing/trial.ts`). Admins are then asked to turn on two-step
    sign-in, as for every admin.
@@ -23,10 +45,18 @@ Compass, Waypoint and Lantern all read the same unit's status.
    the trial, Checkout passes the trial's end date to Stripe as
    `trial_end`, so nothing is charged until the day the trial would have
    ended. (Stripe needs at least 48 hours of trial left; in the last two
-   days the first charge is immediate.)
+   days the first charge is immediate.) A unit with no card on file
+   gets an email to its owner 7 days and 1 day before the trial ends,
+   linking to Billing (`src/lib/billing/trial-reminders.ts`, run by the
+   hourly `/api/cron/run` tick; skipped while Stripe isn't set up, and
+   for comped, suspended and demo units).
 3. **Renewal.** Stripe bills the card every period and retries failed
    payments. **Manage billing** opens Stripe's customer portal for card
-   changes, invoices and canceling.
+   changes, invoices and canceling. Renewal and trial-ending reminders
+   for units that already subscribed are Stripe's own emails: in the
+   Stripe Dashboard, Settings → Billing → Subscriptions and emails, turn
+   on "Send emails about upcoming renewals" and "Send a reminder email
+   7 days before a free trial ends" (the terms promise both).
 4. **Trial ends unpaid, or the subscription is canceled.** The admin
    pages close (except Billing and Security) until someone subscribes.
    Nothing is deleted, and the public site and members' pages stay up.
