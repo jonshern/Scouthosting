@@ -68,12 +68,12 @@ export function RsvpForm({ orgSlug, eventId, signedIn, csrf }: Props) {
       </button>
 
       {state?.error && (
-        <p role="alert" className="text-xs text-red-600">
+        <p role="alert" className="text-xs text-danger">
           {state.error}
         </p>
       )}
       {state?.ok && (
-        <p className="text-xs text-emerald-700">Thanks — your RSVP was recorded.</p>
+        <p className="text-xs text-done-text">Thanks — your RSVP was recorded.</p>
       )}
     </form>
   );

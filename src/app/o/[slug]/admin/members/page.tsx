@@ -67,7 +67,7 @@ export default async function AdminMembersIndex({
     return (
       <section className="space-y-6">
         <AdminPageHeader kicker="Roster" title="Members" />
-        <div className="card border-red-200 bg-red-50 text-sm text-red-700">
+        <div className="card border-danger-line bg-danger-soft text-sm text-danger">
           This site doesn&apos;t have an encryption vault yet. Re-create the org or
           restore from a recovery code to view roster data.
         </div>
@@ -364,7 +364,7 @@ export default async function AdminMembersIndex({
           Includes the link-existing-adult picker. */}
       {tab === "scouts" && !showTrash ? (
         <div className="space-y-3 border-t border-line pt-8">
-          <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
+          <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">
             Add a member
           </h2>
           <AddMemberForm orgSlug={slug} orgId={org.id} dek={dek} />
@@ -470,7 +470,7 @@ function StatTile({
       <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted">
         {label}
       </div>
-      <div className={`font-display text-3xl font-normal mt-1 ${valueClass}`}>
+      <div className={`font-display text-3xl font-semibold mt-1 ${valueClass}`}>
         {value}
       </div>
       {sub ? <div className="mt-1 text-xs text-slate-muted">{sub}</div> : null}
@@ -502,7 +502,7 @@ function PatrolList({
           <Link href={`/o/${slug}/admin/patrols/${p.id}`} className="block">
             <div className="h-10" style={{ background: p.color }} aria-hidden />
             <div className="p-4">
-              <div className="font-display text-lg text-ink">{p.name}</div>
+              <div className="font-display font-semibold text-lg text-ink">{p.name}</div>
               <div className="mt-1 text-xs text-slate-muted">
                 {p.memberCount} member{p.memberCount === 1 ? "" : "s"}
                 {p.leaderName ? ` · led by ${p.leaderName}` : ""}

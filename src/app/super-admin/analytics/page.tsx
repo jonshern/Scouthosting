@@ -87,7 +87,7 @@ export default async function OwnerUsagePage({
   return (
     <div className="space-y-8">
       <div className="space-y-3">
-        <h2 className="font-display text-2xl">Usage{product ? ` · ${PRODUCT_NAME[product]}` : ""}</h2>
+        <h2 className="font-display font-semibold text-2xl">Usage{product ? ` · ${PRODUCT_NAME[product]}` : ""}</h2>
         <nav aria-label="Usage filters" className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
           {WINDOWS.map((d) => (
             <Link key={d} href={href({ days: String(d) })} className={days === d ? "font-semibold underline" : ""}>
@@ -165,7 +165,7 @@ export default async function OwnerUsagePage({
               <div className="text-xs text-ink-muted">
                 {i + 1}. {s.label}
               </div>
-              <div className="mt-1 font-display text-2xl">{fmt(s.count)}</div>
+              <div className="mt-1 font-display font-semibold text-2xl">{fmt(s.count)}</div>
               <div className="text-xs text-ink-muted">
                 {s.hint}
                 {i > 0 && funnel[i - 1].count > 0 ? ` · ${Math.round((s.count / funnel[i - 1].count) * 100)}% of step ${i}` : ""}

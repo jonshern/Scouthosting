@@ -1,8 +1,6 @@
-// Header treatment for public unit-site sub-pages (Calendar, Photos,
-// Posts, custom Pages). Mirrors AdminPageHeader's editorial style:
-// italic serif kicker (e.g. "§ Calendar") + serif display title +
-// optional muted lede + optional actions row. Per
-// design_handoff_compass_cms README.
+// Header for public unit-site sub-pages (Calendar, Photos, Posts,
+// custom Pages): mono kicker (e.g. "§ Calendar"), semibold title,
+// optional lede and actions. Modern Clean, like AdminPageHeader.
 
 import type { ReactNode } from "react";
 
@@ -18,17 +16,17 @@ export function PublicPageHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="mx-auto mb-10 max-w-content px-6 pt-12">
-      <div className="mb-1.5 font-display text-xs italic text-sky">
+    <header className="mx-auto mb-10 max-w-content px-6 pt-14">
+      <div className="mb-1.5 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
         {kicker.startsWith("§") ? kicker : `§ ${kicker}`}
       </div>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-2xl">
-          <h1 className="font-display text-[44px] font-normal leading-[1.05] tracking-[-0.02em] text-slate-ink md:text-[56px]">
+          <h1 className="text-[40px] font-semibold leading-[1.05] tracking-[-0.035em] text-ink md:text-[52px]">
             {title}
           </h1>
           {description ? (
-            <p className="mt-3 text-base text-slate-soft">{description}</p>
+            <p className="mt-3 text-[17px] leading-relaxed text-ink-2">{description}</p>
           ) : null}
         </div>
         {actions ? (

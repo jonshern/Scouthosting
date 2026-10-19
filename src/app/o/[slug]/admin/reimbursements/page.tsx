@@ -53,10 +53,10 @@ export default async function ReimbursementsPage({
                 <span
                   className={`text-xs uppercase tracking-wide ${
                     r.status === "approved" || r.status === "paid"
-                      ? "text-emerald-700"
+                      ? "text-done-text"
                       : r.status === "denied"
-                      ? "text-red-600"
-                      : "text-amber-700"
+                      ? "text-danger"
+                      : "text-attention-text"
                   }`}
                 >
                   {r.status}

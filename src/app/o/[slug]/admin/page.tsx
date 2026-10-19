@@ -167,7 +167,7 @@ export default async function AdminOverview({
         <span className="inline-flex items-center rounded-full bg-sky px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-white">
           {(org.unitType ?? "Org")} {org.unitNumber ?? ""} · This week
         </span>
-        <h1 className="mt-4 font-display text-5xl font-normal leading-[0.95] tracking-[-0.03em]">
+        <h1 className="mt-4 font-display text-5xl font-semibold leading-[0.95] tracking-[-0.03em]">
           {dayOfWeek(now)}
           <span className="italic text-sky">, {partOfDay(now)}.</span>
         </h1>
@@ -198,8 +198,8 @@ export default async function AdminOverview({
         className={
           "mt-6 inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-xs " +
           (vaultOk
-            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-            : "border-amber-200 bg-amber-50 text-amber-800")
+            ? "border-done/30 bg-done-soft text-done-text"
+            : "border-attention/30 bg-attention-soft text-attention-text")
         }
       >
         <span aria-hidden>{vaultOk ? "🔒" : "⚠"}</span>
@@ -223,7 +223,7 @@ export default async function AdminOverview({
             >
               {s.label}
             </div>
-            <div className="font-display text-5xl font-normal leading-none tracking-[-0.025em] text-slate-ink">
+            <div className="font-display text-5xl font-semibold leading-none tracking-[-0.025em] text-slate-ink">
               {s.value}
             </div>
             <div className="mt-2.5 text-xs text-slate-soft">{s.hint}</div>
@@ -234,9 +234,9 @@ export default async function AdminOverview({
       {/* Body grid: events + activity */}
       <div className="mt-10 grid grid-cols-1 gap-10 lg:grid-cols-[1.5fr_1fr]">
         <div>
-          <div className="mb-1.5 font-display text-xs italic text-sky">§ Calendar</div>
+          <div className="mb-1.5 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">§ Calendar</div>
           <div className="mb-5 flex items-baseline justify-between">
-            <h2 className="font-display text-3xl font-normal tracking-[-0.015em]">
+            <h2 className="font-display text-3xl font-semibold tracking-[-0.015em]">
               What&apos;s coming up.
             </h2>
             <Link
@@ -265,7 +265,7 @@ export default async function AdminOverview({
                   style={{ borderTopColor: accent }}
                 >
                   <div
-                    className="font-display text-2xl font-medium italic"
+                    className="font-display text-2xl font-semibold"
                     style={{ color: accent }}
                   >
                     {shortDate(e.startsAt)}
@@ -301,8 +301,8 @@ export default async function AdminOverview({
         </div>
 
         <div>
-          <div className="mb-1.5 font-display text-xs italic text-sky">§ Activity</div>
-          <h2 className="mb-5 font-display text-3xl font-normal tracking-[-0.015em]">
+          <div className="mb-1.5 font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">§ Activity</div>
+          <h2 className="mb-5 font-display text-3xl font-semibold tracking-[-0.015em]">
             The last few hours.
           </h2>
           {feed.length === 0 ? (

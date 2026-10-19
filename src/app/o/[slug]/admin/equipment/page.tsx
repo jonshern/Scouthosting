@@ -135,7 +135,7 @@ export default async function EquipmentPage({
       </StatRow>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">
           Active loans
         </h2>
         {activeLoanRows.length === 0 ? (
@@ -184,7 +184,7 @@ export default async function EquipmentPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">
           Inventory
         </h2>
         {categories.length === 0 ? (
@@ -236,7 +236,7 @@ export default async function EquipmentPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">
           Add equipment
         </h2>
         <EquipmentItemForm orgSlug={slug} csrf={<CsrfTokenInput />} />

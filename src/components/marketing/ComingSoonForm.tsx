@@ -35,7 +35,7 @@ export function ComingSoonForm() {
       {state?.error && (
         <div
           role="alert"
-          className="rounded-md border border-red-200 bg-red-50 p-2 text-sm text-red-700"
+          className="rounded-md border border-danger-line bg-danger-soft p-2 text-sm text-danger"
         >
           {state.error}
         </div>

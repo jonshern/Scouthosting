@@ -4,7 +4,10 @@
 
 import { toNextJsHandler } from "better-auth/next-js";
 import { auth } from "@/lib/auth/auth";
+import { withSignInScheme } from "@/lib/auth/social-routes";
 
 export const dynamic = "force-dynamic";
 
-export const { GET, POST } = toNextJsHandler(auth);
+const handler = toNextJsHandler(async (req: Request) => auth.handler(await withSignInScheme(req)));
+
+export const { GET, POST } = handler;

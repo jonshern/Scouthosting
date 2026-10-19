@@ -57,7 +57,7 @@ export default async function LocationDetail({
       />
 
       <div>
-        <h2 className="font-display text-xl text-ink mb-3">Events at this location</h2>
+        <h2 className="font-display font-semibold text-xl text-ink mb-3">Events at this location</h2>
         {location.events.length === 0 ? (
           <p className="text-sm text-slate-muted">None yet.</p>
         ) : (

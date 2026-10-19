@@ -65,7 +65,7 @@ export default async function OwnerUnitPage({
           ← Units
         </Link>
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="font-display text-3xl">{org.displayName}</h2>
+          <h2 className="font-display font-semibold text-3xl">{org.displayName}</h2>
           <LicensePill license={license} />
         </div>
         <p className="text-sm text-ink-muted">

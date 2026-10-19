@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { classifyHost } from "@/lib/tenancy/resolve";
-import { TENANT_HOST_HEADER } from "@/lib/tenancy/host-header";
+import { TENANT_HOST_HEADER, TENANT_PASSTHROUGH_PREFIXES } from "@/lib/tenancy/host-header";
 import { prisma } from "@/lib/db";
 import { logger } from "@/lib/log";
 import { INVITE_COOKIE, readInviteCookie } from "@/lib/invite";
@@ -44,20 +44,6 @@ async function resolveCustomDomainSlug(domain: string): Promise<string | null | 
   }
 }
 
-// Paths that should NOT be rewritten under a tenant subdomain.
-// /o/ — already org-scoped (avoid double-rewrite).
-// /login, /signup, /logout — apex marketing pages; reuse them for tenant sign-in.
-// /start — self-serve sign-up for a new unit; the marketing header links it.
-// /api/events/ — public event sign-ups (addressed by a global slug) and
-//   the event staff invite answer (POST /api/events/staff-rsvp).
-// /staff-rsvp — the staff invite page; the link may be built on whichever
-//   host the leader sent it from.
-// /account — the signed-in user's own pages (the admin avatar links here).
-// /contact — questions and feedback to the owner, from any unit's site too.
-// /mcp, /.well-known/ — the Claude connector and its OAuth discovery
-//   documents (src/lib/mcp); not per-org.
-// /api/v1/usage — page views from a troop site's own pages (lib/usage).
-const TENANT_PASSTHROUGH_PREFIXES = ["/o/", "/login", "/logout", "/signup", "/start", "/contact", "/api/events/", "/api/v1/usage", "/staff-rsvp", "/account", "/mcp", "/.well-known/"];
 const CSRF_COOKIE = "compass_csrf";
 
 // Pre-launch apex gate. Visitors without a valid `compass_invite`

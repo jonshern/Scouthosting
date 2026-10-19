@@ -79,7 +79,7 @@ export default async function AdminSite({
       {advanced ? (
         <div className="space-y-8">
           <div>
-            <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
+            <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-3">
               Hero
             </h2>
             <HeroForm
@@ -93,7 +93,7 @@ export default async function AdminSite({
           </div>
 
           <div>
-            <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
+            <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-3">
               Page canvas
             </h2>
             <p className="text-sm text-slate-soft mb-3">
@@ -108,7 +108,7 @@ export default async function AdminSite({
           </div>
 
           <div className="border-t border-line pt-6">
-            <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
+            <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-3">
               Live preview
             </h2>
             <PreviewPane src={previewSrc} />
@@ -118,7 +118,7 @@ export default async function AdminSite({
         <div className="grid gap-6 lg:grid-cols-[1.2fr_1fr]">
           <div className="space-y-8 min-w-0">
             <div>
-              <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
+              <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-3">
                 Hero
               </h2>
               <HeroForm
@@ -132,7 +132,7 @@ export default async function AdminSite({
             </div>
 
             <div>
-              <h2 className="font-display text-2xl font-normal tracking-[-0.015em] mb-3">
+              <h2 className="font-display text-2xl font-semibold tracking-[-0.015em] mb-3">
                 Page canvas
               </h2>
               <p className="text-sm text-slate-soft mb-3">

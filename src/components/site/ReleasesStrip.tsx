@@ -36,7 +36,7 @@ export async function ReleasesStrip({
       <div className={variant === "admin" ? "mx-auto max-w-[1400px]" : "mx-auto max-w-content"}>
         <div className="flex flex-wrap items-baseline justify-between gap-3">
           <div>
-            <span className="font-display italic text-sm text-accent">
+            <span className="font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
               § What&rsquo;s new
             </span>{" "}
             <span className="text-xs text-slate-muted">

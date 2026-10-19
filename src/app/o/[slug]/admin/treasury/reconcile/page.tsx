@@ -77,11 +77,11 @@ export default async function TreasuryReconcilePage({
 
       <div className="grid gap-6 md:grid-cols-2">
         <div>
-          <h2 className="font-display text-lg text-ink mb-3">Upload</h2>
+          <h2 className="font-display font-semibold text-lg text-ink mb-3">Upload</h2>
           <BankUploadForm orgSlug={slug} csrf={<CsrfTokenInput />} />
         </div>
         <div className="text-sm text-slate-soft">
-          <h3 className="font-display text-lg text-ink mb-2">Headers we recognize</h3>
+          <h3 className="font-display font-semibold text-lg text-ink mb-2">Headers we recognize</h3>
           <p>Any column containing one of these keywords:</p>
           <ul className="list-disc pl-5 mt-2 space-y-1 text-xs">
             <li>Date / Posted / Transaction Date</li>
@@ -96,7 +96,7 @@ export default async function TreasuryReconcilePage({
       </div>
 
       <div>
-        <h2 className="font-display text-lg text-ink mb-3">Recent uploads</h2>
+        <h2 className="font-display font-semibold text-lg text-ink mb-3">Recent uploads</h2>
         {imports.length === 0 ? (
           <p className="text-sm text-slate-muted">No imports yet.</p>
         ) : (
@@ -112,7 +112,7 @@ export default async function TreasuryReconcilePage({
       </div>
 
       <div>
-        <h2 className="font-display text-lg text-ink mb-3">Rows</h2>
+        <h2 className="font-display font-semibold text-lg text-ink mb-3">Rows</h2>
         {rows.length === 0 ? (
           <p className="text-sm text-slate-muted">Nothing to reconcile.</p>
         ) : (

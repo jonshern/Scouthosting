@@ -26,7 +26,7 @@ import { captureError } from "@/lib/ops/error-tracker";
 import { hashPassword, verifyPassword } from "./password";
 import { claimOrgsForVerifiedEmail } from "./claim-orgs";
 import { compassMfa } from "./mfa-plugin";
-import { appleConfig, googleConfig } from "./providers";
+import { appleConfig, extraSignInHostPatterns, googleConfig } from "./providers";
 import { clientIpConfig } from "@/lib/security/client-ip";
 import { recordAction } from "@/lib/usage/collect";
 
@@ -39,9 +39,11 @@ function baseURL() {
   const scheme = isProd() ? "https" : "http";
   const port = !isProd() && process.env.PORT ? `:${process.env.PORT}` : !isProd() ? ":3000" : "";
   return {
-    // Tenant sites are subdomains of the apex; OAuth always returns to the
-    // apex redirect URI registered with Google/Apple.
-    allowedHosts: [apex, `*.${apex}`, `${apex}${port}`, `*.${apex}${port}`],
+    // Tenant sites are subdomains of the apex; their Google/Apple buttons
+    // start on the apex (providers.ts#signInHref). PASSKEY_EXTRA_HOSTS (the
+    // Mac's Tailscale name) sign in on their own host, so a phone on the
+    // tailnet gets its callback there.
+    allowedHosts: [apex, `*.${apex}`, `${apex}${port}`, `*.${apex}${port}`, ...extraSignInHostPatterns()],
     fallback: `${scheme}://${apex}${port}`,
   };
 }

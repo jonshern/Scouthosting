@@ -23,7 +23,7 @@ export default async function AdminAnnouncements({ params }: { params: Promise<{
       />
       <AnnouncementForm orgSlug={slug} csrf={<CsrfTokenInput />} />
       <div className="space-y-4">
-        <h2 className="font-display text-2xl font-normal tracking-[-0.015em]">
+        <h2 className="font-display text-2xl font-semibold tracking-[-0.015em]">
           Recent
         </h2>
         {org.announcements.length === 0 ? (

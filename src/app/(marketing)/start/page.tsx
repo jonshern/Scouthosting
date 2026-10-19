@@ -11,6 +11,7 @@ import { TRIAL_DAYS } from "@/lib/billing/trial";
 import { PRICES } from "@/lib/billing/pricing";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { SignupForm } from "@/components/auth/SignupForm";
+import { SocialSignIn, socialSignInAvailable } from "@/components/auth/SocialSignIn";
 import { StartTrialForm } from "@/components/auth/StartTrialForm";
 
 export const metadata = { title: "Start your free trial" };
@@ -48,7 +49,7 @@ export default async function StartPage() {
         <span className="inline-flex items-center gap-2 rounded-full bg-sky px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white">
           {TRIAL_DAYS} days free · no card required
         </span>
-        <h1 className="mt-6 font-display text-[44px] font-normal leading-[1.02] tracking-[-0.02em] md:text-[56px]">
+        <h1 className="mt-6 font-display text-[44px] font-semibold leading-[1.02] tracking-[-0.02em] md:text-[56px]">
           Set up your unit{" "}
           <em className="font-normal text-sky">in about five minutes.</em>
         </h1>
@@ -69,7 +70,7 @@ export default async function StartPage() {
       <div className="rounded-xl border border-line bg-white p-7">
         {!user ? (
           <>
-            <h2 className="font-display text-2xl font-normal">Create your account</h2>
+            <h2 className="font-display text-2xl font-semibold">Create your account</h2>
             <p className="mt-1 text-sm text-slate-muted">
               Already have one?{" "}
               <Link href={`/login?next=${encodeURIComponent(NEXT)}`} className="font-medium text-sky">
@@ -77,30 +78,21 @@ export default async function StartPage() {
               </Link>
               .
             </p>
-            <div className="mt-6 grid gap-2.5">
-              <a
-                href={`/api/auth/google/begin?next=${encodeURIComponent(NEXT)}`}
-                className="inline-flex w-full items-center justify-center rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink hover:border-slate-ink/40"
-              >
-                Continue with Google
-              </a>
-              <a
-                href={`/api/auth/apple/begin?next=${encodeURIComponent(NEXT)}`}
-                className="inline-flex w-full items-center justify-center rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink hover:border-slate-ink/40"
-              >
-                Continue with Apple
-              </a>
-            </div>
-            <div className="my-6 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-slate-muted">
-              <span className="h-px flex-1 bg-line" />
-              <span>Or with email</span>
-              <span className="h-px flex-1 bg-line" />
-            </div>
+            {socialSignInAvailable() && (
+              <>
+                <SocialSignIn next={NEXT} className="mt-6" />
+                <div className="my-6 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-slate-muted">
+                  <span className="h-px flex-1 bg-line" />
+                  <span>Or with email</span>
+                  <span className="h-px flex-1 bg-line" />
+                </div>
+              </>
+            )}
             <SignupForm csrf={<CsrfTokenInput />} next={NEXT} />
           </>
         ) : !standing?.adultConfirmed ? (
           <>
-            <h2 className="font-display text-2xl font-normal">One quick check</h2>
+            <h2 className="font-display text-2xl font-semibold">One quick check</h2>
             <p className="mt-2 text-sm text-slate-soft">
               Units are run by adults. Confirm you&apos;re 18 or older to continue.
             </p>
@@ -110,7 +102,7 @@ export default async function StartPage() {
           </>
         ) : (
           <>
-            <h2 className="font-display text-2xl font-normal">Tell us about your unit</h2>
+            <h2 className="font-display text-2xl font-semibold">Tell us about your unit</h2>
             <p className="mt-1 text-sm text-slate-muted">
               Signed in as {user.email}. You&apos;ll be the unit&apos;s admin.
             </p>

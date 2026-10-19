@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 
-// Stat strip card — large display number, eyebrow label, optional sub-line.
-// Matches design-handoff/marketing-balanced.jsx stat blocks.
+// Stat tile: label, big number, optional sub-line (Admin board stat strip).
 export function Stat({
   label,
   value,
@@ -17,17 +16,17 @@ export function Stat({
     default: "text-ink",
     success: "text-success",
     danger: "text-danger",
-    accent: "text-sky",
+    accent: "text-accent-text",
   }[tone];
   return (
     <div className="rounded-xl border border-line bg-surface p-5">
-      <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted">
+      <div className="text-[13px] text-muted">
         {label}
       </div>
-      <div className={`font-display text-4xl font-normal tracking-[-0.02em] mt-2 ${valueTone}`}>
+      <div className={`text-[30px] font-semibold tracking-[-0.02em] mt-1.5 ${valueTone}`}>
         {value}
       </div>
-      {sub ? <div className="mt-1 text-xs text-slate-muted">{sub}</div> : null}
+      {sub ? <div className="mt-1 text-[13px] text-muted">{sub}</div> : null}
     </div>
   );
 }

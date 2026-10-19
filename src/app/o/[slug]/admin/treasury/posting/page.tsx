@@ -69,7 +69,7 @@ export default async function TreasuryPostingPage({
       />
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Post a transaction</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Post a transaction</h2>
         <PostTransactionForm
           orgSlug={slug}
           funds={funds}
@@ -80,12 +80,12 @@ export default async function TreasuryPostingPage({
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Bulk dues</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Bulk dues</h2>
         <BulkDuesForm orgSlug={slug} patrols={patrols} csrf={<CsrfTokenInput />} />
       </div>
 
       <div>
-        <h2 className="font-display text-2xl tracking-[-0.015em] text-ink mb-3">Transfer between funds</h2>
+        <h2 className="font-display font-semibold text-2xl tracking-[-0.015em] text-ink mb-3">Transfer between funds</h2>
         <TransferForm orgSlug={slug} funds={funds} csrf={<CsrfTokenInput />} />
       </div>
     </section>

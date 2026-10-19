@@ -96,7 +96,7 @@ export default function PlansPage() {
               <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-white" />
               30 days free · no card required
             </span>
-            <h1 className="font-display text-[44px] md:text-[72px] font-normal leading-[0.95] tracking-[-0.025em]">
+            <h1 className="font-display text-[44px] md:text-[72px] font-semibold leading-[0.95] tracking-[-0.025em]">
               One plan,{" "}
               <em className="text-sky font-normal">no commodity markups.</em>
             </h1>
@@ -150,7 +150,7 @@ export default function PlansPage() {
             </span>
             <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-white/55">Yearly</div>
             <div className="mt-6 flex items-baseline gap-2">
-              <span className="font-display text-[56px] font-normal tracking-[-0.02em] leading-[0.9]">
+              <span className="font-display text-[56px] font-semibold tracking-[-0.02em] leading-[0.9]">
                 {PRICES.year.short}
               </span>
               <span className="text-white/60 text-[14px]">/ year</span>
@@ -169,7 +169,7 @@ export default function PlansPage() {
           <div className="rounded-[14px] bg-white border border-line p-7 md:p-8 flex flex-col">
             <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-muted">Monthly</div>
             <div className="mt-6 flex items-baseline gap-2">
-              <span className="font-display text-[56px] font-normal tracking-[-0.02em] leading-[0.9]">
+              <span className="font-display text-[56px] font-semibold tracking-[-0.02em] leading-[0.9]">
                 {PRICES.month.short}
               </span>
               <span className="text-slate-muted text-[14px]">/ month</span>
@@ -206,7 +206,7 @@ export default function PlansPage() {
             <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
               § What's actually included
             </div>
-            <h3 className="font-display text-[32px] md:text-[40px] font-normal leading-[1.05] tracking-[-0.025em] mb-4">
+            <h3 className="font-display text-[32px] md:text-[40px] font-semibold leading-[1.05] tracking-[-0.025em] mb-4">
               The legacy hosts charge a markup{" "}
               <em className="text-sky font-normal">on basically everything.</em>
             </h3>

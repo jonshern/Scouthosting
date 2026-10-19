@@ -82,9 +82,9 @@ export default async function TrainingPage({
                   <td
                     className={`text-xs ${
                       expired
-                        ? "text-red-600"
+                        ? "text-danger"
                         : expiringSoon
-                        ? "text-amber-700"
+                        ? "text-attention-text"
                         : "text-slate-muted"
                     }`}
                   >

@@ -7,7 +7,7 @@ export function Card({
 }: { children: ReactNode } & HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={`rounded-xl border border-line bg-surface p-6 shadow-sm ${className}`}
+      className={`rounded-xl border border-line bg-surface p-6 ${className}`}
       {...rest}
     >
       {children}
@@ -27,15 +27,15 @@ export function CardHeader({
   return (
     <div className="mb-4">
       {eyebrow ? (
-        <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-2">
-          § {eyebrow}
+        <div className="eyebrow mb-2">
+          {eyebrow}
         </div>
       ) : null}
-      <h2 className="font-display text-2xl font-medium tracking-[-0.015em] text-ink">
+      <h2 className="text-lg font-semibold tracking-[-0.01em] text-ink">
         {title}
       </h2>
       {description ? (
-        <p className="mt-1 text-sm text-slate-muted">{description}</p>
+        <p className="mt-1 text-sm text-muted">{description}</p>
       ) : null}
     </div>
   );

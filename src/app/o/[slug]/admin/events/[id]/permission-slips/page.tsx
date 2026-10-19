@@ -76,7 +76,7 @@ export default async function EventSlipsPage({
 
       {event.requiresPermissionSlip ? (
         <div className="rounded-xl border border-line bg-surface p-6">
-          <h2 className="font-display text-lg text-ink">Send slips</h2>
+          <h2 className="font-display font-semibold text-lg text-ink">Send slips</h2>
           <p className="mt-1 text-sm text-slate-soft">
             Emails every linked parent of every yes-RSVP youth. Re-running
             is safe — each link upserts on (event, scout). Sends through

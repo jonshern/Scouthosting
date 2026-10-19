@@ -22,9 +22,9 @@ export default async function ProfilePage({
 
   return (
     <main className="mx-auto max-w-content px-6 py-12">
-      <h1 className="font-display text-3xl mb-6">Profile</h1>
+      <h1 className="font-display font-semibold text-3xl mb-6">Profile</h1>
       {verified === "1" && u?.emailVerified && (
-        <p role="status" className="mb-4 max-w-md rounded border border-green-200 bg-green-50 p-3 text-sm text-green-800">
+        <p role="status" className="mb-4 max-w-md rounded border border-done/30 bg-done-soft p-3 text-sm text-done-text">
           Email confirmed.
         </p>
       )}
@@ -54,7 +54,7 @@ export default async function ProfilePage({
             required
           />
           {!u?.emailVerified && (
-            <p className="mt-1 text-xs text-amber-700">
+            <p className="mt-1 text-xs text-attention-text">
               Email not yet verified.
             </p>
           )}
@@ -78,7 +78,7 @@ export default async function ProfilePage({
         Lantern trails: <a href="/account/trails" className="underline">download a copy or put one back</a>.
       </p>
       <p className="mt-4 text-sm">
-        <a href="/account/delete" className="text-red-700 underline">
+        <a href="/account/delete" className="text-danger underline">
           Delete my account
         </a>
       </p>

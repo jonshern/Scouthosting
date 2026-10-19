@@ -4,6 +4,7 @@
 import Link from "next/link";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { SignupForm } from "@/components/auth/SignupForm";
+import { SocialSignIn, socialSignInAvailable } from "@/components/auth/SocialSignIn";
 
 export const metadata = { title: "Sign up" };
 
@@ -45,13 +46,13 @@ export default async function SignupPage({
 
         <div className="relative flex items-center gap-3">
           <CompassMark size={26} />
-          <span className="font-display text-xl tracking-tight">
+          <span className="font-display font-semibold text-xl tracking-tight">
             Compass<span className="text-sky">.</span>
           </span>
         </div>
 
         <div className="relative max-w-[540px]">
-          <h1 className="font-display text-[44px] font-normal leading-[1.05] tracking-[-0.02em] text-balance md:text-[56px]">
+          <h1 className="font-display text-[44px] font-semibold leading-[1.05] tracking-[-0.02em] text-balance md:text-[56px]">
             Start with your first
             <br />
             <em className="font-normal not-italic text-sky md:italic">
@@ -76,7 +77,7 @@ export default async function SignupPage({
 
       <section className="flex flex-col justify-center px-6 py-14 md:px-16">
         <div className="mx-auto w-full max-w-md">
-          <h2 className="font-display text-3xl font-normal tracking-[-0.015em] md:text-4xl">
+          <h2 className="font-display text-3xl font-semibold tracking-[-0.015em] md:text-4xl">
             Create your account
           </h2>
           <p className="mt-2 text-sm text-slate-muted">
@@ -87,26 +88,16 @@ export default async function SignupPage({
             .
           </p>
 
-          <div className="mt-8 grid gap-2.5">
-            <a
-              href={`/api/auth/google/begin${nextQuery}`}
-              className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"
-            >
-              Continue with Google
-            </a>
-            <a
-              href={`/api/auth/apple/begin${nextQuery}`}
-              className="inline-flex w-full items-center justify-center gap-3 rounded-lg border border-line bg-white px-4 py-3 text-sm font-medium text-slate-ink transition-colors hover:border-slate-ink/40"
-            >
-              Continue with Apple
-            </a>
-          </div>
-
-          <div className="mt-7 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-slate-muted">
-            <span className="h-px flex-1 bg-line" />
-            <span>Or with email</span>
-            <span className="h-px flex-1 bg-line" />
-          </div>
+          {socialSignInAvailable() && (
+            <>
+              <SocialSignIn next={next} className="mt-8" />
+              <div className="mt-7 flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-slate-muted">
+                <span className="h-px flex-1 bg-line" />
+                <span>Or with email</span>
+                <span className="h-px flex-1 bg-line" />
+              </div>
+            </>
+          )}
 
           <div className="mt-6">
             <SignupForm csrf={<CsrfTokenInput />} next={next} />

@@ -1,7 +1,7 @@
 import { Mark } from "./Mark";
 
 export function Wordmark({
-  size = 22,
+  size = 20,
   light = false,
 }: {
   size?: number;
@@ -10,17 +10,12 @@ export function Wordmark({
   const inkClass = light ? "text-white" : "text-ink";
   return (
     <span className={`inline-flex items-center gap-2.5 ${inkClass}`}>
-      <Mark size={size + 8} />
+      <Mark size={Math.round(size * 1.6)} />
       <span
-        className="font-display"
-        style={{
-          fontSize: size,
-          fontWeight: 500,
-          letterSpacing: "-0.015em",
-          lineHeight: 1,
-        }}
+        className="font-semibold"
+        style={{ fontSize: size, letterSpacing: "-0.02em", lineHeight: 1 }}
       >
-        Compass<span className="text-sky">.</span>
+        Compass
       </span>
     </span>
   );
