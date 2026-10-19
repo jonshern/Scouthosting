@@ -5,6 +5,7 @@
 import Link from "next/link";
 import { overview, type UnitRow } from "@/lib/owner/console";
 import { signupQueue } from "@/lib/owner/signups";
+import { platformUsage } from "@/lib/owner/usage";
 import { LicensePill, Section, Stat, shortDate } from "@/components/owner/ConsoleBits";
 
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ function UnitList({ units, empty }: { units: UnitRow[]; empty: string }) {
 }
 
 export default async function OwnerOverviewPage() {
-  const [o, signups] = await Promise.all([overview(), signupQueue()]);
+  const [o, signups, usage] = await Promise.all([overview(), signupQueue(), platformUsage({ days: 30 })]);
   const paying = o.units.paid + o.units.canceling;
 
   return (
@@ -44,6 +45,13 @@ export default async function OwnerOverviewPage() {
           hint={`${o.units.trial_ended} trials ended unpaid`}
           href="/super-admin/orgs?kind=past_due"
           tone={o.units.past_due > 0 ? "bad" : undefined}
+        />
+        <Stat
+          label="Active units, last 30 days"
+          value={usage.units.active + usage.units.quiet}
+          hint={`${usage.units.dormant} dormant, ${usage.payingDormant.length} of them paying`}
+          href="/super-admin/usage"
+          tone={usage.payingDormant.length > 0 ? "warn" : undefined}
         />
         <Stat label="Accounts" value={o.accounts} hint={`${o.newAccounts7d} new this week`} href="/super-admin/people" />
         <Stat

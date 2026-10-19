@@ -8,7 +8,8 @@ import { prisma } from "@/lib/db";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { planLabel } from "@/lib/billing/plans";
 import { licenseFor } from "@/lib/owner/license";
-import { Done, LicensePill, Section, shortDate } from "@/components/owner/ConsoleBits";
+import { unitUsage, USAGE_COUNT_LABEL, type UsageCounts } from "@/lib/owner/usage";
+import { Done, LicensePill, Section, UsageStatePill, shortDate } from "@/components/owner/ConsoleBits";
 import {
   changeOrgPlanAction,
   compOrgAction,
@@ -38,7 +39,7 @@ export default async function OwnerUnitPage({
   if (!org) return notFound();
 
   const license = licenseFor(org);
-  const [members, memberships, history, errors, tickets] = await Promise.all([
+  const [members, memberships, history, errors, tickets, [usage]] = await Promise.all([
     prisma.member.groupBy({ by: ["isYouth"], where: { orgId: org.id }, _count: { _all: true } }),
     prisma.orgMembership.findMany({
       where: { orgId: org.id },
@@ -53,6 +54,7 @@ export default async function OwnerUnitPage({
     }),
     prisma.errorLog.count({ where: { orgId: org.id, createdAt: { gte: new Date(Date.now() - 7 * 86_400_000) } } }),
     prisma.supportTicket.count({ where: { orgId: org.id, status: { in: ["open", "acknowledged"] } } }),
+    unitUsage({ days: 30, orgId: org.id }),
   ]);
   const scouts = members.find((m) => m.isYouth)?._count._all ?? 0;
   const adultsOnRoster = members.find((m) => !m.isYouth)?._count._all ?? 0;
@@ -194,6 +196,27 @@ export default async function OwnerUnitPage({
           </div>
         </Section>
       </div>
+
+      {usage ? (
+        <Section title="Usage, last 30 days" action={<UsageStatePill state={usage.state} />}>
+          <dl className="card grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-4">
+            {(Object.keys(USAGE_COUNT_LABEL) as (keyof UsageCounts)[]).map((k) => (
+              <div key={k}>
+                <dt className="text-ink-muted">{USAGE_COUNT_LABEL[k]}</dt>
+                <dd className="font-medium tabular-nums">{usage.counts[k]}</dd>
+              </div>
+            ))}
+            <div>
+              <dt className="text-ink-muted">Events coming up</dt>
+              <dd className="font-medium tabular-nums">{usage.upcomingEvents}</dd>
+            </div>
+            <div>
+              <dt className="text-ink-muted">Last active</dt>
+              <dd className="font-medium">{usage.lastActiveAt ? shortDate(usage.lastActiveAt) : "never"}</dd>
+            </div>
+          </dl>
+        </Section>
+      ) : null}
 
       <Section title="Stripe">
         <dl className="card grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">

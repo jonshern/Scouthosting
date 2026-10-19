@@ -305,3 +305,40 @@ test("managing sign-ups: follow-up note, free access, ask to pay, decline and ap
     await db().user.delete({ where: { id: person.id } }).catch(() => {});
   }
 });
+
+test("usage shows what a unit made and marks it active", async ({ page }) => {
+  const name = `Usage E2E Troop ${stamp}`;
+  const org = await db().org.create({
+    data: {
+      slug: `usage-e2e-${stamp}`,
+      unitType: "Troop",
+      unitNumber: "5432",
+      displayName: name,
+      charterOrg: "Test Church",
+      city: "Anytown",
+      state: "MN",
+      scoutmasterName: "Usage Leader",
+      scoutmasterEmail: `usage-leader-${stamp}@example.invalid`,
+    },
+  });
+  try {
+    await db().event.create({ data: { orgId: org.id, title: "Campout", startsAt: new Date(Date.now() + 5 * DAY) } });
+    const channel = await db().channel.create({ data: { orgId: org.id, kind: "troop", name: "Troop" } });
+    await db().message.create({ data: { channelId: channel.id, body: "See you Saturday" } });
+
+    await signInOwner(page);
+    await expect(page.getByText("Active units, last 30 days")).toBeVisible();
+    await page.goto(`${APEX}/super-admin/usage?state=active`);
+    const row = page.getByRole("row", { name: new RegExp(name) });
+    await expect(row.getByText("Active", { exact: true })).toBeVisible();
+    await page.goto(`${APEX}/super-admin/usage?state=dormant`);
+    await expect(page.getByRole("link", { name })).toHaveCount(0);
+
+    await page.goto(`${APEX}/super-admin/orgs/${org.slug}`);
+    const usage = page.locator("section", { has: page.getByRole("heading", { name: "Usage, last 30 days" }) });
+    await expect(usage).toContainText("Chat messages1");
+    await expect(usage).toContainText("Events coming up1");
+  } finally {
+    await db().org.delete({ where: { id: org.id } }).catch(() => {});
+  }
+});
