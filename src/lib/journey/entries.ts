@@ -123,13 +123,22 @@ export async function applyEntries(
   const photosToDelete: string[] = [];
   await prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`journey-entries:${ref.id}`}))`;
+    // A scout's own device may change only what it wrote: a grown-up's
+    // log, note or photo stays theirs (and keeps saying it's theirs).
+    const own = who.role === "scout" ? { byRole: "scout" } : {};
+    if (who.role === "scout" && body.put.length) {
+      const theirs = await tx.journeyEntry.count({
+        where: { scoutId: ref.id, clientId: { in: body.put.map((e) => e.clientId) }, NOT: { byRole: "scout" } },
+      });
+      if (theirs) throw new ApiError(403, "not_your_entry");
+    }
     if (body.remove.length) {
       const gone = await tx.journeyEntry.findMany({
-        where: { scoutId: ref.id, clientId: { in: body.remove }, fileKey: { not: null } },
+        where: { scoutId: ref.id, clientId: { in: body.remove }, fileKey: { not: null }, ...own },
         select: { fileKey: true },
       });
       photosToDelete.push(...gone.map((g) => g.fileKey!));
-      await tx.journeyEntry.deleteMany({ where: { scoutId: ref.id, clientId: { in: body.remove } } });
+      await tx.journeyEntry.deleteMany({ where: { scoutId: ref.id, clientId: { in: body.remove }, ...own } });
     }
     // Last write per clientId wins within a batch.
     const byId = new Map(body.put.map((e) => [e.clientId, e]));
@@ -166,8 +175,9 @@ export async function addPhotoEntry(
 ): Promise<Entry> {
   const existing = await prisma.journeyEntry.findUnique({
     where: { scoutId_clientId: { scoutId: ref.id, clientId: e.clientId } },
-    select: { fileKey: true },
+    select: { fileKey: true, byRole: true },
   });
+  if (existing && who.role === "scout" && existing.byRole !== "scout") throw new ApiError(403, "not_your_entry");
   // Already uploaded (a retry): keep the first upload.
   if (existing?.fileKey) {
     const row = await prisma.journeyEntry.findUniqueOrThrow({

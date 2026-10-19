@@ -208,6 +208,13 @@ describe.skipIf(!db)("Lantern /api/v1/journey entries (Postgres)", () => {
       ["d2", "parent"],
       ["s1", "scout"],
     ]);
+
+    // It can't rewrite or remove what the grown-up wrote.
+    const edit = { put: [{ clientId: "d2", key: "rank:second-class#7a", kind: "note", text: "changed" }] };
+    expect((await call(myEntries.POST, { token, body: edit })).status).toBe(403);
+    await call(myEntries.POST, { token, body: { put: [], remove: ["d2", "s1"] } });
+    const after = await asJson(await call(entries.GET, { token: f.parent.token, params: params(), query: "?key=rank:second-class%237a" }));
+    expect(after.json.entries.map((e: { id: string }) => e.id)).toEqual(["d2"]);
   });
 
   it("goes away with the scout", async () => {

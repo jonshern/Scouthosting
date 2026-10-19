@@ -38,4 +38,9 @@ jobs:
           workload_identity_provider: ${{ vars.GCP_WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.GCP_DEPLOYER_SA }}
           region: ${{ vars.GCP_REGION || 'us-central1' }}
-      - run: ./scripts/rollback-api.sh "${{ inputs.environment }}" "${{ inputs.revision }}"
+      # Inputs go through env, never into the script text, so a revision
+      # name can't run its own shell.
+      - run: ./scripts/rollback-api.sh "$ROLLBACK_ENV" "$ROLLBACK_REVISION"
+        env:
+          ROLLBACK_ENV: ${{ inputs.environment }}
+          ROLLBACK_REVISION: ${{ inputs.revision }}

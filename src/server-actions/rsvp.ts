@@ -41,7 +41,9 @@ export async function submitRsvp(_prev: unknown, formData: FormData) {
   let memberId: string | null = null;
   try {
     if (user) {
-      memberId = await memberForUserInOrg({ orgId: org.id, userEmail: user.email });
+      // Confirmed email only: an account made with a roster parent's
+      // address must not post charges on that family's account.
+      memberId = user.emailVerified ? await memberForUserInOrg({ orgId: org.id, userEmail: user.email }) : null;
       const linkTo = memberId;
       await prisma.$transaction(async (tx) => {
         const existing = await tx.rsvp.findFirst({

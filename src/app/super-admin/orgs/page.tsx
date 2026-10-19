@@ -5,6 +5,7 @@ import Link from "next/link";
 import { listUnits } from "@/lib/owner/console";
 import { LICENSE_KINDS, type LicenseKind } from "@/lib/owner/license";
 import { LicensePill, shortDate } from "@/components/owner/ConsoleBits";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export default async function OwnerUnitsPage({
 }: {
   searchParams: Promise<{ kind?: string; q?: string }>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   const kind = sp.kind && KINDS.has(sp.kind) ? (sp.kind as LicenseKind) : null;
   const units = await listUnits({ kind, q: sp.q });

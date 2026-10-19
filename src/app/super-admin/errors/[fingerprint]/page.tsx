@@ -9,6 +9,7 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { isFixed } from "@/lib/owner/errors";
 import { Done, Pill, Section, shortDate } from "@/components/owner/ConsoleBits";
 import { markErrorFixedAction, reopenErrorAction } from "@/server-actions/super-admin";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function OwnerErrorPage({
   params: Promise<{ fingerprint: string }>;
   searchParams: Promise<{ done?: string }>;
 }) {
+  await requireOwnerPage();
   const { fingerprint } = await params;
   const { done } = await searchParams;
   if (!/^[0-9a-f]{40}$/.test(fingerprint)) return notFound();

@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/db";
 import { getSession } from "@/lib/auth/session";
 import { isLeaderRole, roleInOrg } from "@/lib/auth/role";
+import { canManageTreasury, TREASURY_FORBIDDEN } from "@/lib/auth/treasury-access";
 import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 import { ensureScoutSalesLink, settleSalesOrderAsPaid, slugify, unsettleSalesOrder } from "@/lib/sales";
@@ -26,6 +27,13 @@ async function authorizeLeader(orgSlug: string): Promise<AuthOk | AuthErr> {
   const role = await roleInOrg(user.id, org.id);
   if (!isLeaderRole(role) && !user.isSuperAdmin) return { error: "Not authorized." };
   return { user, org };
+}
+
+// Marking an order paid, taking a paid order back, or recording a booth
+// sale posts to the treasury ledger (and credits scout accounts), so it
+// needs the same access as the treasury itself (CLAUDE.md trap 13).
+async function canPostToLedger(auth: AuthOk): Promise<boolean> {
+  return canManageTreasury(auth.user, auth.org.id);
 }
 
 export type SalesState = { ok?: true; error?: string; campaignId?: string; orderId?: string } | null;
@@ -201,6 +209,7 @@ export async function createManualOrder(_prev: SalesState, formData: FormData): 
   const auth = await authorizeLeader(parsed.data.orgSlug);
   if ("error" in auth) return { error: auth.error };
   const d = parsed.data;
+  if (d.markPaid === "on" && !(await canPostToLedger(auth))) return { error: TREASURY_FORBIDDEN };
   const campaign = await prisma.salesCampaign.findUnique({ where: { id: d.campaignId } });
   if (!campaign || campaign.orgId !== auth.org.id) return { error: "Campaign not found." };
 
@@ -396,6 +405,11 @@ export async function updateOrderStatus(_prev: SalesState, formData: FormData): 
 
   const order = await prisma.salesOrder.findUnique({ where: { id: parsed.data.orderId } });
   if (!order || order.orgId !== auth.org.id) return { error: "Order not found." };
+  const wasPaid = order.status === "paid" || order.status === "delivered";
+  const movesMoney =
+    (parsed.data.status === "paid" && order.status !== "paid") ||
+    ((parsed.data.status === "cancelled" || parsed.data.status === "placed") && wasPaid);
+  if (movesMoney && !(await canPostToLedger(auth))) return { error: TREASURY_FORBIDDEN };
 
   if (parsed.data.status === "paid" && order.status !== "paid") {
     try {
@@ -459,6 +473,7 @@ export async function recordBoothSale(_prev: SalesState, formData: FormData): Pr
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input." };
   const auth = await authorizeLeader(parsed.data.orgSlug);
   if ("error" in auth) return { error: auth.error };
+  if (!(await canPostToLedger(auth))) return { error: TREASURY_FORBIDDEN };
   const d = parsed.data;
   const campaign = await prisma.salesCampaign.findUnique({ where: { id: d.campaignId } });
   if (!campaign || campaign.orgId !== auth.org.id) return { error: "Campaign not found." };

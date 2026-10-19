@@ -111,6 +111,14 @@ function isOAuthCallback(path: string | undefined): boolean {
   return !!path && path.startsWith("/callback/");
 }
 
+// POST /sign-in/social with a Google or Apple ID token signs in straight
+// away (no redirect, so no /callback/), and must ask for the second step
+// too. Without an ID token it only returns the provider's URL and makes
+// no session, so the hook below has nothing to do.
+export function signInNeedsSecondStepCheck(path: string | undefined): boolean {
+  return path === "/sign-in/email" || path === "/sign-in/social" || isOAuthCallback(path);
+}
+
 export const compassMfa = () =>
   ({
     id: "compass-mfa",
@@ -132,7 +140,7 @@ export const compassMfa = () =>
           }),
         },
         {
-          matcher: (ctx) => ctx.path === "/sign-in/email" || isOAuthCallback(ctx.path),
+          matcher: (ctx) => signInNeedsSecondStepCheck(ctx.path),
           handler: createAuthMiddleware(async (ctx) => {
             const data = ctx.context.newSession;
             if (!data) return;

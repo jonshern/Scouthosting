@@ -9,6 +9,7 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { KIND_NAMES, PRODUCT_NAMES, type InboxProduct } from "@/lib/owner/inbox";
 import { Done, Pill, Section, shortDate } from "@/components/owner/ConsoleBits";
 import { replyToTicketAction, setTicketStatusAction } from "@/server-actions/super-admin";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function OwnerInboxItemPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ done?: string }>;
 }) {
+  await requireOwnerPage();
   const { id } = await params;
   const { done } = await searchParams;
   const t = await prisma.supportTicket.findUnique({

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { KIND_NAMES, listInbox, PRODUCT_NAMES, PRODUCTS, STATUSES, type InboxProduct, type InboxStatus } from "@/lib/owner/inbox";
 import { Pill, Section, shortDate } from "@/components/owner/ConsoleBits";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,7 @@ export default async function OwnerInboxPage({
 }: {
   searchParams: Promise<{ status?: string; product?: string }>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   const status = ([...STATUSES, "all"] as string[]).includes(sp.status ?? "") ? (sp.status as InboxStatus | "all") : "open";
   const product = (PRODUCTS as readonly string[]).includes(sp.product ?? "") ? (sp.product as InboxProduct) : null;

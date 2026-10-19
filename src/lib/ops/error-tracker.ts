@@ -9,7 +9,17 @@ import { prisma } from "@/lib/db";
 
 const log = logger.child("error");
 
-const SENSITIVE_HEADERS = new Set(["authorization", "cookie", "set-cookie", "x-api-key"]);
+const SENSITIVE_HEADERS = new Set([
+  "authorization",
+  "proxy-authorization",
+  "cookie",
+  "set-cookie",
+  "x-api-key",
+  // Scheduler token and webhook signatures (api/cron, api/webhooks).
+  "x-tasks-token",
+  "stripe-signature",
+  "svix-signature",
+]);
 const AUTH_PATH_PREFIXES = ["/login", "/signup", "/forgot", "/reset", "/auth/", "/admin/login"];
 const SENSITIVE_BODY_KEYS = new Set([
   "password",
@@ -19,6 +29,42 @@ const SENSITIVE_BODY_KEYS = new Set([
   "token",
   "secret",
 ]);
+
+// Credentials that can turn up inside an error message, a stack or a URL:
+// app and connector tokens, bearer headers and ?token= links.
+const SECRET_PATTERNS: Array<[RegExp, string]> = [
+  [/\b(compass_pat_|lantern_scout_|compass_mcp_(?:code|at|rt)_)[A-Za-z0-9_-]+/g, "$1[scrubbed]"],
+  [/\b(Bearer\s+)[A-Za-z0-9._~+/=-]+/gi, "$1[scrubbed]"],
+  [/([?&#](?:token|code|access_token|refresh_token|id_token)=)[^&#\s"']+/gi, "$1[scrubbed]"],
+];
+const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+
+export function scrubSecrets(text: string, { emails = false } = {}): string {
+  let out = text;
+  for (const [re, sub] of SECRET_PATTERNS) out = out.replace(re, sub);
+  return emails ? out.replace(EMAIL, "[email]") : out;
+}
+
+// Signed links carry their token in the path (/rsvp/<token>,
+// /permission-slip/<token>/sign, /unsubscribe/<token>); the query string
+// can carry one too (/staff-rsvp?token=…). Neither belongs in a log.
+const TOKEN_PATHS = /^(\/(?:rsvp|permission-slip|unsubscribe)\/)[^/?#\s]+/;
+
+export function scrubPath(path: string): string {
+  const q = path.search(/[?#]/);
+  const bare = q === -1 ? path : path.slice(0, q);
+  // Keep any " (route …)" suffix instrumentation adds after the URL.
+  const rest = q === -1 ? "" : path.slice(q).replace(/^[?#][^\s]*/, "");
+  return scrubSecrets(bare.replace(TOKEN_PATHS, "$1[token]") + rest);
+}
+
+function scrubQuery(query: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(query)) {
+    out[k] = SENSITIVE_BODY_KEYS.has(k) || /token|code|secret/i.test(k) ? "[scrubbed]" : v;
+  }
+  return out;
+}
 
 function release(): string {
   return process.env.GIT_SHA || process.env.SOURCE_VERSION || "dev";
@@ -68,8 +114,8 @@ function requestContext(req: RequestLike) {
   if (!req) return undefined;
   return {
     method: req.method,
-    path: req.path,
-    query: req.query && Object.keys(req.query).length ? req.query : undefined,
+    path: req.path ? scrubPath(req.path) : req.path,
+    query: req.query && Object.keys(req.query).length ? scrubQuery(req.query) : undefined,
     body: scrubBody(req.path || "", req.body),
     headers: scrubHeaders(req.headers),
     ip: req.ip,
@@ -100,7 +146,7 @@ export function formatErrorEvent(
     serviceContext: { service, version: release(), resourceType: "next" },
     environment: environment(),
     release: release(),
-    error: { message: e.message, stack: e.stack, name: e.name },
+    error: { message: scrubSecrets(e.message), stack: e.stack && scrubSecrets(e.stack), name: e.name },
     request: requestContext(req),
   };
 }
@@ -123,11 +169,11 @@ async function persistError(
     await prisma.errorLog.create({
       data: {
         fingerprint: fingerprintError(err),
-        message: truncate(e.message || "(no message)", 2000) || "(no message)",
-        stack: truncate(e.stack || null, 8000) || null,
+        message: truncate(scrubSecrets(e.message || "(no message)"), 2000) || "(no message)",
+        stack: truncate(e.stack ? scrubSecrets(e.stack) : null, 8000) || null,
         errorName: truncate(e.name || null, 200) || null,
         method: req?.method || null,
-        path: truncate(req?.path || null, 500) || null,
+        path: truncate(req?.path ? scrubPath(req.path) : null, 500) || null,
         orgId,
         userId: req?.user?.id || null,
         requestId: event.request?.requestId || null,
@@ -174,6 +220,10 @@ export function installFatalHandlers({ service }: { service?: string } = {}): vo
   });
 }
 
+function scrubContext(context: Record<string, unknown>): object {
+  return JSON.parse(scrubSecrets(JSON.stringify(context), { emails: true }));
+}
+
 /**
  * A crash one of the apps reported (POST /api/v1/errors). Kept in the
  * same ErrorLog as server errors, under service "<product>-app", with
@@ -188,17 +238,20 @@ export async function recordAppError(input: {
   context?: Record<string, unknown> | null;
   ip?: string | null;
 }): Promise<{ fingerprint: string }> {
-  const e = new Error(input.message);
+  // Reports come from anyone's phone, scouts' included, signed in or not:
+  // keep tokens and email addresses out of what the owner console stores.
+  const message = scrubSecrets(input.message, { emails: true });
+  const e = new Error(message);
   e.name = input.name || "Error";
-  e.stack = input.stack || `${e.name}: ${input.message}`;
+  e.stack = input.stack ? scrubSecrets(input.stack, { emails: true }) : `${e.name}: ${message}`;
   // No stack frame to go on: group by name and message instead.
   const fingerprint = /\n\s*at /.test(e.stack)
     ? fingerprintError(e)
-    : crypto.createHash("sha1").update(`${input.product}|${e.name}|${input.message}`).digest("hex");
+    : crypto.createHash("sha1").update(`${input.product}|${e.name}|${message}`).digest("hex");
   await prisma.errorLog.create({
     data: {
       fingerprint,
-      message: input.message.slice(0, 2000),
+      message: message.slice(0, 2000),
       stack: e.stack.slice(0, 8000),
       errorName: e.name.slice(0, 200),
       userId: input.userId ?? null,
@@ -206,7 +259,7 @@ export async function recordAppError(input: {
       service: `${input.product}-app`,
       release: typeof input.context?.appVersion === "string" ? input.context.appVersion.slice(0, 50) : null,
       environment: "app",
-      ...(input.context ? { context: input.context as object } : {}),
+      ...(input.context ? { context: scrubContext(input.context) } : {}),
     },
   });
   return { fingerprint };

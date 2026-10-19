@@ -6,6 +6,7 @@ import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 import { buildCsv, csvHeaders } from "@/lib/csv";
 import { centsToDollars } from "@/lib/treasury/money";
+import { organizerStandingOk } from "@/lib/admin/guard";
 
 export async function GET(
   req: Request,
@@ -18,6 +19,9 @@ export async function GET(
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (!(await canManageTreasury(user, org.id))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
+  if (!(await organizerStandingOk(user.id))) {
+    return NextResponse.json({ error: "two_step_required" }, { status: 403 });
   }
   const url = new URL(req.url);
   const fund = url.searchParams.get("fund");

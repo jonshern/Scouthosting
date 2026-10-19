@@ -128,3 +128,21 @@ export function redirectAllowed(registered: string[], requested: string): boolea
     }
   });
 }
+
+// Registration is open (any app can name itself "Claude"), so the consent
+// page only takes a client's name at its word when the code goes back to
+// Claude itself or to this computer.
+const CLAUDE_HOSTS = ["claude.ai", "claude.com"];
+
+export function isKnownClaudeRedirect(redirectUri: string): boolean {
+  let u: URL;
+  try {
+    u = new URL(redirectUri);
+  } catch {
+    return false;
+  }
+  if (u.protocol === "http:") return isLoopback(u.hostname);
+  if (u.protocol !== "https:") return false;
+  const host = u.hostname.toLowerCase();
+  return CLAUDE_HOSTS.some((h) => host === h || host.endsWith(`.${h}`));
+}

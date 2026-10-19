@@ -6,6 +6,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/db";
 import { errorGroups, errorServices } from "@/lib/owner/errors";
 import { Pill, shortDate } from "@/components/owner/ConsoleBits";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function OwnerErrorsPage({
 }: {
   searchParams: Promise<{ org?: string; days?: string; service?: string; fixed?: string }>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   const days = WINDOWS.find((w) => String(w) === sp.days) ?? 7;
   const org = sp.org

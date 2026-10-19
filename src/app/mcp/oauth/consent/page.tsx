@@ -8,6 +8,7 @@ import { getSession } from "@/lib/auth/session";
 import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { AUTHORIZE_PARAMS, checkAuthorizeRequest, pickParams, toQuery } from "@/lib/mcp/oauth/authorize";
 import { SCOPE_WRITE } from "@/lib/mcp/config";
+import { isKnownClaudeRedirect } from "@/lib/mcp/oauth/clients";
 
 export const metadata = { title: "Connect Compass to Claude" };
 export const dynamic = "force-dynamic";
@@ -48,10 +49,22 @@ export default async function McpConsentPage({
     }
   })();
 
+  // Any app can register under any name; only Claude's own callback (or
+  // this computer) gets its name in the heading.
+  const known = isKnownClaudeRedirect(check.redirectUri);
+
   return (
     <main className="mx-auto max-w-md px-6 py-12 space-y-6">
       <header className="space-y-2">
-        <h1 className="font-display text-3xl font-semibold">Connect Compass to {check.client.clientName}?</h1>
+        <h1 className="font-display text-3xl font-semibold">
+          {known ? `Connect Compass to ${check.client.clientName}?` : `Connect Compass to an app at ${redirectHost}?`}
+        </h1>
+        {!known && (
+          <p className="text-sm font-semibold text-danger">
+            This isn&apos;t Claude. The app calls itself &ldquo;{check.client.clientName}&rdquo;, but it would send your
+            access to {redirectHost}. Cancel unless you set up that app yourself.
+          </p>
+        )}
         <p className="text-sm text-ink-muted">
           Signed in as <strong>{user.displayName || user.email}</strong>. Only allow this if you just added the
           Compass connector yourself.
