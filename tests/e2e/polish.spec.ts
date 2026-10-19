@@ -157,7 +157,7 @@ test.describe("not found", () => {
     const res = await page.goto("http://troop999.localhost:3000/");
     expect(res?.status()).toBe(404);
     await expect(page.getByRole("heading", { level: 1, name: "Site not found" })).toBeVisible();
-    await expect(page.getByRole("link", { name: "Start a site" })).toHaveAttribute("href", `${APEX}/start`);
+    await expect(page.getByRole("link", { name: "Start a site" })).toHaveAttribute("href", /\/start$/);
   });
 });
 

@@ -39,6 +39,10 @@ html, body {
 
 h1, h2, h3 { letter-spacing: -0.02em; }
 
+/* Fieldsets default to min-width: min-content, so a wide child pushed the
+   page sideways on a phone. */
+fieldset { min-width: 0; }
+
 a { color: var(--accent-text); }
 a:hover { color: var(--ink); }
 

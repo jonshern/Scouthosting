@@ -3,10 +3,14 @@
 import Link from "next/link";
 import { Wordmark } from "@/components/ui/Wordmark";
 import { AccountNav } from "@/components/account/AccountNav";
+import { headers } from "next/headers";
+import { TENANT_HOST_HEADER } from "@/lib/tenancy/host-header";
 
 export const metadata = { title: { default: "Your account", template: "%s — Compass" } };
 
-export default function AccountLayout({ children }: { children: React.ReactNode }) {
+export default async function AccountLayout({ children }: { children: React.ReactNode }) {
+  // /select-org only exists on the main site; on a unit's host, go back to its site.
+  const onUnitHost = !!(await headers()).get(TENANT_HOST_HEADER);
   const quiet = "rounded-lg px-3 py-2 text-ink-2 no-underline transition-colors hover:bg-sunk hover:text-ink";
   return (
     <div className="min-h-screen bg-bg">
@@ -16,8 +20,8 @@ export default function AccountLayout({ children }: { children: React.ReactNode 
             <Wordmark size={18} />
           </Link>
           <nav aria-label="Site" className="flex items-center gap-1 text-sm font-medium">
-            <Link href="/select-org" className={quiet}>
-              Your units
+            <Link href={onUnitHost ? "/" : "/select-org"} className={quiet}>
+              {onUnitHost ? "Back to the site" : "Your units"}
             </Link>
             <a href="/logout" className={quiet}>
               Sign out

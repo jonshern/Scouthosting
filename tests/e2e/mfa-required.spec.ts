@@ -57,7 +57,7 @@ test.describe("organizer two-step requirement", () => {
     await page.getByRole("button", { name: "Set up an authenticator app" }).click();
     const secret = (await page.locator("p", { hasText: "Manual secret:" }).locator("code").textContent())!.trim();
     await page.getByLabel("Code from your authenticator").fill(totp(secret));
-    await page.getByRole("button", { name: /confirm and enable 2fa/i }).click();
+    await page.getByRole("button", { name: "Confirm and turn on" }).click();
     const done = page.getByRole("status").filter({ hasText: "Two-step sign-in is on." });
     await expect(done).toBeVisible();
     await done.getByRole("link", { name: "Continue" }).click();
@@ -115,7 +115,7 @@ test.describe("organizer two-step requirement", () => {
     await page.getByRole("button", { name: "Set up an authenticator app" }).click();
     const secret = (await page.locator("p", { hasText: "Manual secret:" }).locator("code").textContent())!.trim();
     await page.getByLabel("Code from your authenticator").fill(totp(secret));
-    await page.getByRole("button", { name: /confirm and enable 2fa/i }).click();
+    await page.getByRole("button", { name: "Confirm and turn on" }).click();
     const done = page.getByRole("status").filter({ hasText: "Two-step sign-in is on." });
     await expect(done).toBeVisible();
     await done.getByRole("link", { name: "Continue" }).click();
