@@ -147,8 +147,12 @@ Logs, notes, proof photos and "ready" marks on a requirement are
 `entries/export`), addressed by the device's `clientId` so an offline
 retry never adds twice; note text and photos are encrypted per owner.
 
-Passkeys are the default sign-in, in that in-app browser too: `/login`
-leads with "Continue with a passkey", then Google/Apple, with email +
+Google and Apple lead `/login`, `/signup` and `/start` when their keys
+are set (`src/components/auth/SocialSignIn.tsx`, hidden otherwise;
+`docs/sign-in-providers.md`), each host using its own
+`/api/auth/callback/<provider>` unless `*_REDIRECT_URI` pins one.
+Passkeys come next, in that in-app browser too: `/login`
+shows "Continue with a passkey" after Google/Apple, with email +
 password folded behind "Use email and password instead" (open on
 browsers without passkeys; opening it starts passkey autofill in the
 email field). New accounts land on `/account/passkey`, which offers to
