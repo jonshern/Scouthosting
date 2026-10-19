@@ -55,7 +55,7 @@ export default async function SignupPage({
             Start with your first meeting on the calendar.
           </h2>
           <p className="max-w-[420px] text-[15px] leading-[1.55] text-ink-2">
-            Compass is invite-only during private beta. Your scoutmaster sets up
+            Compass is invite-only for now. Your scoutmaster sets up
             the unit, then sends you a link — no password to remember if you
             don&apos;t want one.
           </p>
