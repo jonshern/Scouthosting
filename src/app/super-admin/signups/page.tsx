@@ -28,6 +28,7 @@ import {
   resendInviteAction,
   saveSignupAction,
 } from "@/server-actions/super-admin";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -41,6 +42,7 @@ export default async function OwnerSignupsPage({
 }: {
   searchParams: Promise<{ view?: string; product?: string; days?: string; all?: string; done?: string }>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   // ?all=1 is the old "Show followed up too" link.
   const view: SignupView = isSignupView(sp.view) ? sp.view : sp.all === "1" ? "all" : "todo";
@@ -62,25 +64,25 @@ export default async function OwnerSignupsPage({
   return (
     <div className="space-y-10">
       <Section title={`Sign-ups, last ${days} days (${items.length})`}>
-        <nav aria-label="Status" className="flex flex-wrap gap-4 text-sm">
+        <nav aria-label="Status" className="flex flex-wrap items-center gap-2 text-sm">
           {(Object.keys(VIEW_LABEL) as SignupView[]).map((v) => (
-            <Link key={v} href={href(v, product, days)} className={view === v ? "font-semibold underline" : ""}>
+            <Link key={v} href={href(v, product, days)} className={view === v ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
               {VIEW_LABEL[v]}
             </Link>
           ))}
         </nav>
-        <nav aria-label="App" className="flex flex-wrap gap-4 text-sm">
-          <Link href={href(view, null, days)} className={!product ? "font-semibold underline" : ""}>
+        <nav aria-label="App" className="flex flex-wrap items-center gap-2 text-sm">
+          <Link href={href(view, null, days)} className={!product ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
             Every app
           </Link>
           {PRODUCTS.map((p) => (
-            <Link key={p} href={href(view, p, days)} className={product === p ? "font-semibold underline" : ""}>
+            <Link key={p} href={href(view, p, days)} className={product === p ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
               {PRODUCT_LABEL[p]}
             </Link>
           ))}
           <span className="text-ink-muted">·</span>
           {DAYS.map((d) => (
-            <Link key={d} href={href(view, product, d)} className={days === d ? "font-semibold underline" : ""}>
+            <Link key={d} href={href(view, product, d)} className={days === d ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
               {d} days
             </Link>
           ))}
@@ -89,7 +91,7 @@ export default async function OwnerSignupsPage({
         {items.length === 0 ? (
           <p className="text-sm text-ink-muted">Nobody here.</p>
         ) : (
-          <ul className="divide-y divide-line rounded-lg border border-line bg-surface">
+          <ul className="divide-y divide-divider rounded-xl border border-line bg-surface">
             {items.map((i) => (
               <SignupRow key={`${i.kind}:${i.id}`} item={i} back={back} today={today} inAMonth={inAMonth} />
             ))}
@@ -118,7 +120,7 @@ export default async function OwnerSignupsPage({
           </div>
         </form>
         {invites.length ? (
-          <ul className="divide-y divide-line rounded-lg border border-line bg-surface text-sm">
+          <ul className="divide-y divide-divider rounded-xl border border-line bg-surface text-sm">
             {invites.map((inv) => (
               <li key={inv.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2">
                 <div>

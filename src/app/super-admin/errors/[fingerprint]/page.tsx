@@ -9,6 +9,7 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { isFixed } from "@/lib/owner/errors";
 import { Done, Pill, Section, shortDate } from "@/components/owner/ConsoleBits";
 import { markErrorFixedAction, reopenErrorAction } from "@/server-actions/super-admin";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function OwnerErrorPage({
   params: Promise<{ fingerprint: string }>;
   searchParams: Promise<{ done?: string }>;
 }) {
+  await requireOwnerPage();
   const { fingerprint } = await params;
   const { done } = await searchParams;
   if (!/^[0-9a-f]{40}$/.test(fingerprint)) return notFound();
@@ -51,7 +53,7 @@ export default async function OwnerErrorPage({
           ← Errors
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-display font-semibold text-2xl">
+          <h2 className="text-[28px] font-semibold leading-tight tracking-[-0.03em]">
             {latest.errorName || "Error"}: {latest.message.slice(0, 200)}
           </h2>
           <Pill tone="muted">{latest.service ?? "compass"}</Pill>

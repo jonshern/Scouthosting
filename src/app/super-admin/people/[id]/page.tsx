@@ -10,6 +10,7 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { productsFor, PRODUCT_LABEL } from "@/lib/owner/console";
 import { Done, Pill, Section, shortDate } from "@/components/owner/ConsoleBits";
 import { disableAccountAction, enableAccountAction } from "@/server-actions/super-admin";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export default async function OwnerPersonPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ done?: string }>;
 }) {
+  await requireOwnerPage();
   const { id } = await params;
   const { done } = await searchParams;
   const { user: me } = await getSession();
@@ -90,7 +92,7 @@ export default async function OwnerPersonPage({
           ← People
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-display font-semibold text-3xl">{user.displayName}</h2>
+          <h2 className="text-[32px] font-semibold leading-tight tracking-[-0.03em]">{user.displayName}</h2>
           {user.disabledAt ? <Pill tone="bad">Turned off</Pill> : null}
           {user.isSuperAdmin ? <Pill tone="info">Owner</Pill> : null}
           {products.map((p) => (

@@ -162,7 +162,7 @@ export function AdvancedCanvasEditor({
       <div className="grid gap-4 lg:grid-cols-[200px_1fr_320px]">
         {/* PALETTE */}
         <aside className="rounded-xl border border-line bg-surface p-3 space-y-2 self-start">
-          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted px-1">
+          <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted px-1">
             Palette
           </div>
           {PALETTE.map((p) => (
@@ -181,7 +181,7 @@ export function AdvancedCanvasEditor({
         {/* CANVAS */}
         <div className="rounded-xl border border-line bg-surface p-3 space-y-2 min-h-[280px]">
           <div className="flex items-baseline justify-between px-1">
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted">
+            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
               Canvas
             </div>
             <div className="text-xs text-slate-muted">
@@ -229,7 +229,7 @@ export function AdvancedCanvasEditor({
 
         {/* INSPECTOR */}
         <aside className="rounded-xl border border-line bg-surface p-3 space-y-3 self-start">
-          <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted px-1">
+          <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted px-1">
             Inspector
           </div>
           {!selected ? (
@@ -239,7 +239,7 @@ export function AdvancedCanvasEditor({
           ) : (
             <div className="space-y-3">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs uppercase tracking-wide text-slate-muted">
+                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                   {selected.type}
                 </span>
                 <div className="flex gap-1">

@@ -54,7 +54,7 @@ export function RecentPhotosWidget({
         {Array.from({ length: count }).map((_, i) => (
           <div
             key={i}
-            className="aspect-square animate-pulse rounded bg-line-soft"
+            className="aspect-square animate-pulse rounded-lg bg-sunk"
             aria-hidden
           />
         ))}
@@ -77,7 +77,7 @@ export function RecentPhotosWidget({
         <a
           key={p.id}
           href={p.album ? `/photos/${p.album.slug}` : "#"}
-          className="block aspect-square overflow-hidden rounded bg-line-soft"
+          className="block aspect-square overflow-hidden rounded-lg bg-sunk"
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img

@@ -14,6 +14,7 @@ import {
   type Mode,
 } from "@/lib/owner/billing-report";
 import { Pill, Section, Stat, shortDate } from "@/components/owner/ConsoleBits";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,7 @@ export default async function OwnerBillingPage({
 }: {
   searchParams: Promise<{ mode?: string }>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   const mode: Mode = sp.mode === "live" || sp.mode === "test" ? sp.mode : await defaultMode();
   const [units, payments, events] = await Promise.all([listUnits(), paymentReport(mode), billingEvents()]);
@@ -32,13 +34,13 @@ export default async function OwnerBillingPage({
   return (
     <div className="space-y-10">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className="font-display font-semibold text-2xl">Billing</h2>
+        <h2 className="text-[28px] font-semibold leading-tight tracking-[-0.03em]">Billing</h2>
         <div className="flex items-center gap-3 text-sm">
           <span className="text-ink-muted">Payments from Stripe</span>
-          <Link href="/super-admin/billing?mode=live" className={mode === "live" ? "font-semibold underline" : ""}>
+          <Link href="/super-admin/billing?mode=live" className={mode === "live" ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
             live
           </Link>
-          <Link href="/super-admin/billing?mode=test" className={mode === "test" ? "font-semibold underline" : ""}>
+          <Link href="/super-admin/billing?mode=test" className={mode === "test" ? "rounded-full bg-ink px-3 py-1 font-medium text-white no-underline hover:text-white" : "rounded-full border border-line bg-surface px-3 py-1 text-ink-2 no-underline hover:border-control hover:text-ink"}>
             test mode
           </Link>
           <a href={`/super-admin/billing/payments.csv?mode=${mode}`}>Download CSV</a>
@@ -104,7 +106,7 @@ export default async function OwnerBillingPage({
         {payments.recent.length === 0 ? (
           <p className="text-sm text-ink-muted">No payments recorded yet.</p>
         ) : (
-          <ul className="divide-y divide-line rounded-lg border border-line bg-surface text-sm">
+          <ul className="divide-y divide-divider rounded-xl border border-line bg-surface text-sm">
             {payments.recent.map((p) => (
               <li key={p.id} className="flex flex-wrap justify-between gap-2 px-4 py-2">
                 <span>

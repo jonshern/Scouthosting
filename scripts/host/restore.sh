@@ -24,6 +24,8 @@
 # plus photos added since).
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# Backups and their scratch copies hold every unit's data: owner-only.
+umask 077
 
 usage() { sed -n '2,8p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 

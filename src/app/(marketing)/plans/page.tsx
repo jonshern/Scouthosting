@@ -83,7 +83,7 @@ export default function PlansPage() {
     <main>
       {/* Header band */}
       <section className="mx-auto max-w-content px-6 pt-10 pb-12">
-        <div className="border-t-2 border-ink pt-4 grid md:grid-cols-2 gap-2 text-[11px] uppercase tracking-[0.12em] text-slate-soft mb-10">
+        <div className="grid md:grid-cols-2 gap-2 font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted mb-10">
           <span>§ Plans & pricing</span>
           <span className="md:text-right">
             No per-scout fees. No platform cut. Cancel anytime.
@@ -92,15 +92,15 @@ export default function PlansPage() {
 
         <div className="grid md:grid-cols-[1.4fr_0.6fr] gap-12 items-start">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full bg-sky text-white px-3 py-1.5 text-[11px] font-bold tracking-[0.14em] uppercase mb-6">
-              <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-white" />
+            <span className="inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] text-ink-2 mb-6">
+              <span aria-hidden className="h-2 w-2 rounded-full bg-done" />
               30 days free · no card required
             </span>
-            <h1 className="font-display text-[44px] md:text-[72px] font-semibold leading-[0.95] tracking-[-0.025em]">
+            <h1 className="text-[44px] md:text-[60px] font-semibold leading-[1.02] tracking-[-0.035em]">
               One plan,{" "}
-              <em className="text-sky font-normal">no commodity markups.</em>
+              <span className="text-muted">no commodity markups.</span>
             </h1>
-            <p className="mt-6 max-w-2xl text-slate-soft text-[16px] leading-[1.65]">
+            <p className="mt-6 max-w-2xl text-ink-2 text-[17px] leading-[1.6]">
               {PRICES.year.long} or {PRICES.month.long} per unit, and your first month is
               free. Custom domains, BYO email, 15 GB photo storage, messaging, and the
               Waypoint and Lantern apps are{" "}
@@ -109,8 +109,8 @@ export default function PlansPage() {
             </p>
           </div>
 
-          <div className="bg-white border border-line rounded-xl p-5">
-            <div className="text-[11px] uppercase tracking-[0.08em] text-slate-muted font-bold mb-3">
+          <div className="bg-surface border border-line rounded-xl p-5">
+            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted mb-3">
               What's settled
             </div>
             {[
@@ -144,13 +144,13 @@ export default function PlansPage() {
       {/* Two ways to pay for the same plan */}
       <section className="mx-auto max-w-content px-6 pb-20">
         <div className="grid md:grid-cols-2 gap-5 items-stretch">
-          <div className="relative rounded-[14px] bg-surface-dark text-white p-7 md:p-8 flex flex-col border-2 border-amber">
-            <span className="absolute -top-3 left-7 bg-amber text-white text-[10px] font-bold tracking-[0.08em] uppercase px-2.5 py-1 rounded">
+          <div className="relative rounded-xl bg-ink text-white p-7 md:p-8 flex flex-col">
+            <span className="absolute -top-3 left-7 rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-white">
               Saves ${YEARLY_SAVINGS_USD}
             </span>
-            <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-white/55">Yearly</div>
+            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-on-ink-muted">Yearly</div>
             <div className="mt-6 flex items-baseline gap-2">
-              <span className="font-display text-[56px] font-semibold tracking-[-0.02em] leading-[0.9]">
+              <span className="text-[52px] font-semibold tracking-[-0.035em] leading-[0.9]">
                 {PRICES.year.short}
               </span>
               <span className="text-white/60 text-[14px]">/ year</span>
@@ -160,16 +160,16 @@ export default function PlansPage() {
             </div>
             <Link
               href="/start"
-              className="mt-5 inline-flex items-center justify-center w-full rounded-md bg-amber text-white px-4 py-3 text-[14px] font-semibold hover:opacity-90"
+              className="btn-primary mt-5 w-full no-underline"
             >
               Start your free month →
             </Link>
           </div>
 
-          <div className="rounded-[14px] bg-white border border-line p-7 md:p-8 flex flex-col">
-            <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-muted">Monthly</div>
+          <div className="rounded-xl bg-white border border-line p-7 md:p-8 flex flex-col">
+            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">Monthly</div>
             <div className="mt-6 flex items-baseline gap-2">
-              <span className="font-display text-[56px] font-semibold tracking-[-0.02em] leading-[0.9]">
+              <span className="text-[52px] font-semibold tracking-[-0.035em] leading-[0.9]">
                 {PRICES.month.short}
               </span>
               <span className="text-slate-muted text-[14px]">/ month</span>
@@ -179,15 +179,15 @@ export default function PlansPage() {
             </div>
             <Link
               href="/start"
-              className="mt-5 inline-flex items-center justify-center w-full rounded-md border-[1.5px] border-ink text-ink px-4 py-3 text-[14px] font-semibold hover:bg-ink hover:text-white transition-colors"
+              className="btn-secondary mt-5 w-full no-underline"
             >
               Start your free month →
             </Link>
           </div>
         </div>
 
-        <div className="mt-8 rounded-[14px] bg-white border border-line p-7 md:p-8">
-          <div className="text-[12px] font-bold uppercase tracking-[0.08em] text-slate-muted">
+        <div className="mt-8 rounded-xl bg-white border border-line p-7 md:p-8">
+          <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
             Both include everything
           </div>
           <ul className="list-none p-0 mt-4 grid md:grid-cols-2 gap-x-10">
@@ -203,12 +203,12 @@ export default function PlansPage() {
       <section className="bg-surface-alt border-y border-line">
         <div className="mx-auto max-w-content px-6 py-16 grid md:grid-cols-[1fr_1.4fr] gap-12 items-start">
           <div>
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-sky mb-3">
+            <div className="eyebrow mb-3">
               § What's actually included
             </div>
             <h3 className="font-display text-[32px] md:text-[40px] font-semibold leading-[1.05] tracking-[-0.025em] mb-4">
               The legacy hosts charge a markup{" "}
-              <em className="text-sky font-normal">on basically everything.</em>
+              <span className="text-muted">on basically everything.</span>
             </h3>
             <p className="text-slate-soft text-[15px] leading-[1.65]">
               Custom domains cost $0.02/yr at the registry. Email-on-your-domain costs

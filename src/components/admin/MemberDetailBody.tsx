@@ -181,7 +181,7 @@ export async function MemberDetailBody({
           }
         >
           <div>
-            <div className="uppercase tracking-[0.16em] font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
+            <div className="eyebrow">
               § Roster · {member.isYouth ? "Scout" : "Adult"}
             </div>
             <h1
@@ -193,7 +193,7 @@ export async function MemberDetailBody({
               {pii.firstName} {pii.lastName}
             </h1>
             {subline ? (
-              <p className="mt-1 text-slate-soft font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
+              <p className="mt-1 text-slate-soft eyebrow">
                 {subline}
               </p>
             ) : null}
@@ -329,7 +329,7 @@ export async function MemberDetailBody({
                     <div className="font-mono text-2xl">
                       {scoutbook.serviceHours}
                     </div>
-                    <div className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">
+                    <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                       Service hours
                     </div>
                   </div>
@@ -337,7 +337,7 @@ export async function MemberDetailBody({
                     <div className="font-mono text-2xl">
                       {scoutbook.campingNights}
                     </div>
-                    <div className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">
+                    <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                       Camping nights
                     </div>
                   </div>
@@ -345,7 +345,7 @@ export async function MemberDetailBody({
                     <div className="font-mono text-2xl">
                       {scoutbook.hikingMiles}
                     </div>
-                    <div className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">
+                    <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                       Hiking miles
                     </div>
                   </div>
@@ -473,7 +473,7 @@ export async function MemberDetailBody({
           <h3 className="font-display font-semibold text-lg text-ink">Medical & forms</h3>
           <dl className="grid gap-2 sm:grid-cols-2 dashed-divide">
             <div>
-              <dt className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">
+              <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 Allergies / dietary
               </dt>
               <dd className="mt-1 text-ink">
@@ -491,7 +491,7 @@ export async function MemberDetailBody({
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">
+              <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 Shirt size
               </dt>
               <dd className="mt-1 text-ink">
@@ -499,7 +499,7 @@ export async function MemberDetailBody({
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">
+              <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 Birthdate
               </dt>
               <dd className="mt-1 text-ink">
@@ -511,7 +511,7 @@ export async function MemberDetailBody({
               </dd>
             </div>
             <div>
-              <dt className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">
+              <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                 Notes
               </dt>
               <dd className="mt-1 whitespace-pre-line text-slate-soft text-sm">

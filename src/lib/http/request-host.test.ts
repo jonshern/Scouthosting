@@ -31,7 +31,7 @@ const HOST_READERS = new Set([
   "src/lib/security/csrf.ts", // Origin must match Host
   "src/lib/security/same-origin.ts", // same
   "src/lib/auth/passkeys.ts", // which site's passkeys apply; the signed origin must match
-  "src/app/super-admin/layout.tsx", // apex-only console
+  "src/lib/owner/guard.ts", // apex-only console
   "src/app/super-admin/billing/payments.csv/route.ts", // same, for the console's CSV export
   "src/lib/ops/request-owner.ts", // which unit an error happened in, for the owner console
   "src/app/o/[slug]/admin/site/page.tsx", // preview iframe on the admin's own host

@@ -38,6 +38,10 @@ export async function updateMyStuff(
 
   const { user } = await getSession();
   if (!user) return { error: "Not signed in." };
+  // The roster row is matched by email, so the email must be confirmed:
+  // otherwise anyone could sign up with a parent's address and change
+  // that family's allergy and diet notes.
+  if (!user.emailVerified) return { error: "Confirm your email address first." };
 
   // Verify the target Member row belongs to *this* user, by email.
   const target = await prisma.member.findUnique({

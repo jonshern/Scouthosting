@@ -4,26 +4,10 @@
 // with isSuperAdmin=true, which only `npm run owner:grant` sets.
 
 import { OwnerNav } from "@/components/owner/OwnerNav";
-import { redirect } from "next/navigation";
-import { headers } from "next/headers";
-import { getSession } from "@/lib/auth/session";
-import { classifyHost } from "@/lib/tenancy/resolve";
-import { accountStanding, requirementRedirect, withNext } from "@/lib/auth/requirements";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export default async function SuperLayout({ children }: { children: React.ReactNode }) {
-  const h = await headers();
-  const host = h.get("host");
-  const cls = classifyHost(host);
-  if (cls.kind !== "apex") {
-    redirect("/");
-  }
-
-  const { user } = await getSession();
-  if (!user || !user.isSuperAdmin) {
-    redirect("/login?next=/super-admin");
-  }
-  const gate = requirementRedirect(await accountStanding(user.id), { organizerSurface: true });
-  if (gate) redirect(withNext(gate, "/super-admin"));
+  await requireOwnerPage();
 
   return (
     <div className="flex min-h-screen flex-col bg-bg md:flex-row">

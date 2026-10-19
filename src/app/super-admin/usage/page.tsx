@@ -15,6 +15,7 @@ import {
   type UsageState,
 } from "@/lib/owner/usage";
 import { LicensePill, Section, Stat, UsageStatePill, shortDate } from "@/components/owner/ConsoleBits";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -54,6 +55,7 @@ export default async function OwnerUsagePage({
 }: {
   searchParams: Promise<{ days?: string; state?: string }>;
 }) {
+  await requireOwnerPage();
   const sp = await searchParams;
   const days = DAYS.find((d) => String(d) === sp.days) ?? 30;
   const state = USAGE_STATES.find((s) => s === sp.state) ?? null;

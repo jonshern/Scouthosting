@@ -31,6 +31,8 @@
 # --drill (make restore-drill) after changing anything here.
 
 source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# Backups and their scratch copies hold every unit's data: owner-only.
+umask 077
 
 DEST_ROOT="$(backup_dir)"
 REASON="${1:-scheduled}"

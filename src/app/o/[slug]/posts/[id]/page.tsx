@@ -39,6 +39,10 @@ export default async function PublicPostDetail({
     );
   }
 
+  // Comments are for the unit's members, even on a public post: they tend
+  // to name scouts ("great job Jane and Tommy").
+  const comments = isMember ? post.comments : [];
+
   const likes = post.reactions.filter((r) => r.kind === "like").length;
   const bookmarks = post.reactions.filter((r) => r.kind === "bookmark").length;
   const liked = user ? post.reactions.some((r) => r.userId === user.id && r.kind === "like") : false;
@@ -89,15 +93,17 @@ export default async function PublicPostDetail({
       )}
 
       <div>
-        <h2 className="font-display text-xl font-semibold mb-3">Comments ({post.comments.length})</h2>
+        <h2 className="font-display text-xl font-semibold mb-3">Comments ({comments.length})</h2>
         <ul className="space-y-3 mb-6">
-          {post.comments.map((c) => (
+          {comments.map((c) => (
             <li key={c.id} className="card text-sm">
               <div className="text-ink-muted">{new Date(c.createdAt).toLocaleString()}</div>
               <p className="mt-1 whitespace-pre-wrap">{c.body}</p>
             </li>
           ))}
-          {post.comments.length === 0 && <li className="text-ink-muted">No comments yet.</li>}
+          {comments.length === 0 && (
+            <li className="text-ink-muted">{isMember ? "No comments yet." : "Comments are for members of this unit."}</li>
+          )}
         </ul>
         {user && isMember ? (
           <CommentForm orgSlug={slug} postId={post.id} csrf={<CsrfTokenInput />} />

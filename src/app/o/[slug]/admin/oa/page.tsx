@@ -45,7 +45,7 @@ export default async function OaPage({
                   {e.electionDate.toLocaleDateString()}
                   {e.lodgeName ? ` · ${e.lodgeName}` : ""}
                 </h2>
-                <span className="text-xs uppercase tracking-wide text-slate-muted">
+                <span className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
                   {e.status}
                 </span>
               </div>

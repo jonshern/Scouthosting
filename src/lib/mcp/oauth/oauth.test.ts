@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { mcpOrigin, normaliseScope, DEFAULT_SCOPE } from "../config";
-import { redirectAllowed, validateRegistration, validRedirectUri } from "./clients";
+import { isKnownClaudeRedirect, redirectAllowed, validateRegistration, validRedirectUri } from "./clients";
 import { pkceMatches, validChallenge } from "./tokens";
 
 describe("redirect URIs", () => {
@@ -71,5 +71,19 @@ describe("PKCE", () => {
     expect(pkceMatches(`${verifier}x`, challenge)).toBe(false);
     expect(pkceMatches("short", challenge)).toBe(false);
     expect(validChallenge("plain-text")).toBe(false);
+  });
+});
+
+describe("isKnownClaudeRedirect", () => {
+  it("trusts Claude's own callback and this computer", () => {
+    expect(isKnownClaudeRedirect("https://claude.ai/api/mcp/auth_callback")).toBe(true);
+    expect(isKnownClaudeRedirect("https://app.claude.com/cb")).toBe(true);
+    expect(isKnownClaudeRedirect("http://127.0.0.1:33418/callback")).toBe(true);
+  });
+
+  it("doesn't trust anywhere else, whatever the app calls itself", () => {
+    expect(isKnownClaudeRedirect("https://attacker.example/cb")).toBe(false);
+    expect(isKnownClaudeRedirect("https://claude.ai.attacker.example/cb")).toBe(false);
+    expect(isKnownClaudeRedirect("http://claude.ai/cb")).toBe(false);
   });
 });

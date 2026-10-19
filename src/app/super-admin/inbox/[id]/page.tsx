@@ -9,6 +9,7 @@ import { CsrfTokenInput } from "@/components/auth/CsrfTokenInput";
 import { KIND_NAMES, PRODUCT_NAMES, type InboxProduct } from "@/lib/owner/inbox";
 import { Done, Pill, Section, shortDate } from "@/components/owner/ConsoleBits";
 import { replyToTicketAction, setTicketStatusAction } from "@/server-actions/super-admin";
+import { requireOwnerPage } from "@/lib/owner/guard";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,7 @@ export default async function OwnerInboxItemPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ done?: string }>;
 }) {
+  await requireOwnerPage();
   const { id } = await params;
   const { done } = await searchParams;
   const t = await prisma.supportTicket.findUnique({
@@ -52,7 +54,7 @@ export default async function OwnerInboxItemPage({
           ← Inbox
         </Link>
         <div className="flex flex-wrap items-center gap-2">
-          <h2 className="font-display font-semibold text-3xl">{t.subject}</h2>
+          <h2 className="text-[32px] font-semibold leading-tight tracking-[-0.03em]">{t.subject}</h2>
           <Pill tone={t.status === "closed" ? "muted" : t.status === "answered" ? "good" : "warn"}>{t.status}</Pill>
         </div>
         <p className="text-sm text-ink-muted">

@@ -42,7 +42,7 @@ export function ChatComposer({ channelId, csrf, disabled, disabledReason }: Prop
     <form
       ref={formRef}
       action={action}
-      className="mt-4 flex flex-col gap-2 border-t border-ink-muted/15 pt-3"
+      className="mt-4 flex flex-col gap-2 border-t border-line pt-3"
     >
       {csrf}
       <input type="hidden" name="channelId" value={channelId} />

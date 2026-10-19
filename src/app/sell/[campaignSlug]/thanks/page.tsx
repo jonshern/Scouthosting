@@ -37,7 +37,7 @@ export default async function ThanksPage({
         <strong>{order.buyerEmail ?? "you"}</strong>.
       </p>
       <div className="mt-8 rounded-xl border border-line bg-surface p-6">
-        <h2 className="text-[11px] uppercase tracking-[0.12em] text-slate-muted">Order</h2>
+        <h2 className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">Order</h2>
         <ul className="mt-3 divide-y divide-line">
           {order.items.map((it) => (
             <li key={it.id} className="flex items-baseline justify-between py-2 text-sm">

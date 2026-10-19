@@ -8,7 +8,9 @@ services:
       POSTGRES_PASSWORD: compass
       POSTGRES_DB: compass
     ports:
-      - "5432:5432"
+      # This Mac only: the default compass/compass superuser must not be
+      # reachable from the Wi-Fi or the tailnet.
+      - "127.0.0.1:5432:5432"
     volumes:
       - compass-pgdata:/var/lib/postgresql/data
     healthcheck:

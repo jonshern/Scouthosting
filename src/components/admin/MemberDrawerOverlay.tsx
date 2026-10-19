@@ -87,7 +87,7 @@ export function MemberDrawerOverlay({
         onMouseDown={(e) => e.stopPropagation()}
       >
         <div className="sticky top-0 z-10 flex items-center justify-between bg-bg/90 backdrop-blur border-b border-line px-6 py-3">
-          <span className="font-mono text-[12px] font-medium uppercase tracking-[0.08em] text-muted">
+          <span className="eyebrow">
             § Member detail
           </span>
           <button

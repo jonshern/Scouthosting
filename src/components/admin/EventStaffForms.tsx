@@ -148,7 +148,7 @@ export function StaffRow({
   const [rmState, rmAction, rmPending] = useActionState<EventStaffState, FormData>(removeEventStaff, null);
   const [confirming, setConfirming] = useState(false);
   return (
-    <tr className="border-t border-ink-muted/15 align-top">
+    <tr className="border-t border-line align-top">
       <td className="py-2 pr-3">
         <div>{staff.name}</div>
         <div className="text-xs text-slate-muted">{staff.email}</div>

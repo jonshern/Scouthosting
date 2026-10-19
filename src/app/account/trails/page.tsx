@@ -66,7 +66,7 @@ export default async function TrailsPage({
             saved here.
           </p>
         ) : (
-          <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
+          <ul className="divide-y divide-divider rounded-xl border border-line bg-surface">
             {scouts.map((s) => (
               <li key={s.id} className="p-4">
                 <div className="font-semibold">{s.name || "Scout"}</div>

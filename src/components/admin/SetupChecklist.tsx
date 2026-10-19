@@ -287,7 +287,7 @@ export function SetupChecklist({ orgSlug }: { orgSlug: string }) {
             </div>
           </div>
           <div className="border-l border-line pl-5">
-            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-slate-muted">
+            <div className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
               Steps
             </div>
             <div className="font-display font-semibold text-2xl text-ink">

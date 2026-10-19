@@ -31,6 +31,7 @@ const config: Config = {
         attention: { DEFAULT: c.attention, soft: c.attentionSoft, text: c.attentionText },
         danger: { DEFAULT: c.danger, soft: c.dangerSoft, line: c.dangerLine },
         mark: c.mark,
+        photo: { sky: c.photoSky, hill: c.photoHill, near: c.photoHillNear, sun: c.photoSun },
         "on-ink": { muted: c.onInkMuted, line: c.onInkLine, raised: c.onInkRaised },
 
         // Older names for the same tokens.
