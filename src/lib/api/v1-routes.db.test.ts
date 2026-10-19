@@ -235,6 +235,13 @@ describe.skipIf(!db)("/api/v1 (Postgres)", () => {
       expect(r.json.user).toMatchObject({ id: f.parent.id });
     });
 
+    it("gives adults Waypoint's counselor tools free and scouts none", async () => {
+      const adult = await call(me.GET as Handler, { token: f.parent.token });
+      expect(adult.json.entitlements).toEqual({ waypoint: { counselorTools: "free" } });
+      const scout = await call(me.GET as Handler, { token: f.scout.token });
+      expect(scout.json.entitlements).toEqual({ waypoint: { counselorTools: "none" } });
+    });
+
     it("lets you revoke your own token but not someone else's", async () => {
       const t = await issueToken(f.parent.id, "spare", prisma);
       const other = await call(tokenById.DELETE as Handler, { method: "DELETE", token: f.leader.token, params: { id: t.id } });

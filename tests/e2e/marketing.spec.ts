@@ -20,8 +20,8 @@ test.describe("apex marketing", () => {
     for (const name of ["Yearly", "Monthly", "$99", "$10"]) {
       await expect(page.getByText(name, { exact: true }).first()).toBeVisible();
     }
-    // 30-day free trial chip is present.
-    await expect(page.getByText(/30 days free/i).first()).toBeVisible();
+    // The free-trial chip (3 months) is present.
+    await expect(page.getByText(/3 months free/i).first()).toBeVisible();
   });
 
   test("security page lists trust pillars", async ({ page }) => {

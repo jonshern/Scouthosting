@@ -60,7 +60,7 @@ flowchart LR
 | Staging | `core-staging` | `compass_staging` | every merge to `main` |
 | Production | `core-prod`, or a custom domain | `compass_prod` | after staging passes; add a required reviewer on the `production` environment for a one-click promote |
 
-Staging and previews skip the pre-launch invite gate and let admins in without two-step sign-in; production requires both. Previews never migrate staging; the PR's migrations run on staging when it merges.
+Staging and previews let admins in without two-step sign-in; production requires it. Sign-up is open everywhere: the invite gate is off unless `INVITE_GATE=1`. Previews never migrate staging; the PR's migrations run on staging when it merges.
 
 ## Blue-green deploys
 

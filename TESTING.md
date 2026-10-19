@@ -47,9 +47,10 @@ Demo passphrase for the encrypted vault: `compass-demo-passphrase-12`
 — recovery code is printed once to stdout when the seed first
 provisions the vault.
 
-## Pre-launch invite codes
+## Invite codes (gate off by default)
 
-The apex marketing site (`/`) is gated behind a Coming Soon page until
+Sign-up is open, so the apex marketing site has no gate unless
+`INVITE_GATE=1` is set. With it on, `/` shows a Coming Soon page until
 a visitor presents one of these. Seeded by `prisma/seed.ts`:
 
 | Code                  | Label              | Max uses |
@@ -58,9 +59,8 @@ a visitor presents one of these. Seeded by `prisma/seed.ts`:
 | `TRAILBLAZER-VIP`     | press / investors  | unlimited |
 | `PATROL-PREVIEW`      | design partners    | 25       |
 
-E2E tests bypass the gate via `DISABLE_INVITE_GATE=1`
-(`playwright.config.ts:42`). For manual testing on staging, paste any
-of the codes into the Coming Soon form.
+E2E tests also set `DISABLE_INVITE_GATE=1` (`playwright.config.ts`),
+which forces the gate off even if `INVITE_GATE=1` is set.
 
 ## Running E2E
 
@@ -81,7 +81,7 @@ set (see `playwright.config.ts`):
   email+password sign-in for admins when `NODE_ENV=production`.
   See `CLAUDE.md` trap #3.
 - `JOBS_DISABLED=1` — pg-boss worker doesn't spin up
-- `DISABLE_INVITE_GATE=1` — bypass apex Coming Soon
+- `DISABLE_INVITE_GATE=1` — force the apex Coming Soon gate off (it is off unless `INVITE_GATE=1`)
 - `APEX_HOST=localhost`
 
 `tests/e2e/global-setup.ts` runs `prisma migrate deploy` then
