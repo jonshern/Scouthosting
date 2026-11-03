@@ -17,6 +17,7 @@ import { RootNavigator } from './src/navigation/RootNavigator';
 import { linking } from './src/navigation/linking';
 import { AuthProvider, useAuth } from './src/state/AuthContext';
 import SignInScreen from './src/screens/SignInScreen';
+import { OfflineBanner } from './src/components/OfflineBanner';
 
 export default function App() {
   return (
@@ -43,10 +44,16 @@ function AuthGate() {
   if (state.status === 'signed-out') {
     return <SignInScreen />;
   }
-  return <RootNavigator />;
+  return (
+    <View style={styles.fill}>
+      <RootNavigator />
+      <OfflineBanner />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
+  fill: { flex: 1 },
   loading: {
     flex: 1,
     backgroundColor: palette.bg,

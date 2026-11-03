@@ -23,7 +23,7 @@ jobs:
   migrations:
     name: Expand-only migrations
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latest became 26.04: Playwright has no Chromium for it, and its pg_dump is newer than the Postgres 16 service
     timeout-minutes: 5
     services:
       postgres:
@@ -47,7 +47,7 @@ jobs:
 
   mobile:
     name: Phone app typecheck, lint, tests, bundle
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latest became 26.04: Playwright has no Chromium for it, and its pg_dump is newer than the Postgres 16 service
     timeout-minutes: 15
     defaults:
       run:
@@ -72,7 +72,7 @@ jobs:
 
   check:
     name: Typecheck, lint, unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latest became 26.04: Playwright has no Chromium for it, and its pg_dump is newer than the Postgres 16 service
     timeout-minutes: 15
     services:
       postgres:
@@ -126,7 +126,7 @@ jobs:
 
   e2e:
     name: Browser tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04  # ubuntu-latest became 26.04: Playwright has no Chromium for it, and its pg_dump is newer than the Postgres 16 service
     timeout-minutes: 30
     services:
       postgres:

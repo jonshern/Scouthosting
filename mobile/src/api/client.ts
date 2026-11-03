@@ -3,6 +3,7 @@
 // into typed ApiError instances so callers can branch on `error.code`.
 
 import { hostForOrg, DEFAULT_API_CONFIG, type ApiConfig } from "./config";
+import { isUnreachable, markOffline, markOnline, saveAnswer, savedAnswer } from "./offline";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -26,6 +27,8 @@ export type ClientOptions = {
   config?: ApiConfig;
   /** Optional fetch override for tests. */
   fetchImpl?: typeof fetch;
+  /** Skip the saved copy (offline.ts): don't save answers or fall back to them. */
+  noOfflineCopy?: boolean;
 };
 
 export type RequestOptions = {
@@ -62,12 +65,28 @@ export async function apiRequest<T = unknown>(
   };
   if (reqOpts.body !== undefined) headers["Content-Type"] = "application/json";
 
-  const res = await fetchImpl(url.toString(), {
-    method: reqOpts.method || "GET",
-    headers,
-    body: reqOpts.body !== undefined ? JSON.stringify(reqOpts.body) : undefined,
-    signal: reqOpts.signal,
-  });
+  const method = reqOpts.method || "GET";
+  const offlineCopy = method === "GET" && !options.noOfflineCopy;
+  let res: Response;
+  try {
+    res = await fetchImpl(url.toString(), {
+      method,
+      headers,
+      body: reqOpts.body !== undefined ? JSON.stringify(reqOpts.body) : undefined,
+      signal: reqOpts.signal,
+    });
+  } catch (err) {
+    // No answer at all from the server: show what was saved last time, if anything (offline.ts).
+    if (offlineCopy && isUnreachable(err)) {
+      const saved = await savedAnswer(url.toString());
+      markOffline(saved ? saved.savedAt : null);
+      if (saved) return saved.body as T;
+      throw new ApiError(0, "offline", "offline");
+    }
+    if (isUnreachable(err)) markOffline(null);
+    throw err;
+  }
+  markOnline();
 
   // Empty 204s come back without a body; preserve them.
   if (res.status === 204) return undefined as unknown as T;
@@ -84,5 +103,6 @@ export async function apiRequest<T = unknown>(
     const code = String(data.error || `http_${res.status}`);
     throw new ApiError(res.status, code, code, data);
   }
+  if (offlineCopy) await saveAnswer(url.toString(), payload);
   return payload as T;
 }
