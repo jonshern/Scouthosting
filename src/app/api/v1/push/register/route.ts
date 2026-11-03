@@ -8,7 +8,7 @@ import { LIMITS, json, readJson, v1Route } from "@/lib/api/v1";
 export const runtime = "nodejs";
 
 const Body = z.object({
-  token: z.string({ required_error: "missing_token" }).trim().min(1, "missing_token").max(512),
+  token: z.string({ error: (iss) => (iss.input === undefined ? "missing_token" : undefined) }).trim().min(1, "missing_token").max(512),
   provider: z.enum(["expo", "webpush", "apns", "fcm"]).catch("expo").default("expo"),
   deviceLabel: z.string().trim().max(80).optional().nullable(),
   platform: z.string().trim().max(16).optional().nullable(),

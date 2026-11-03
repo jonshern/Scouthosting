@@ -17,11 +17,11 @@ import { PRODUCTS, trimContext } from "@/lib/owner/inbox";
 export const runtime = "nodejs";
 
 const Body = z.object({
-  product: z.enum(PRODUCTS, { errorMap: () => ({ message: "bad_product" }) }),
-  message: z.string({ required_error: "missing_fields" }).trim().min(1, "missing_fields").max(2000),
+  product: z.enum(PRODUCTS, { error: "bad_product" }),
+  message: z.string({ error: (iss) => (iss.input === undefined ? "missing_fields" : undefined) }).trim().min(1, "missing_fields").max(2000),
   name: z.string().trim().max(200).optional(),
   stack: z.string().max(8000).optional(),
-  context: z.record(z.unknown()).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const POST = v1PublicRoute(

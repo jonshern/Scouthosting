@@ -61,7 +61,7 @@ const signInPasskeyKey = (id: string) => `passkey-auth-${id}`;
 
 
 
-const PasskeyBody = z.object({ response: z.record(z.unknown()) });
+const PasskeyBody = z.object({ response: z.record(z.string(), z.unknown()) });
 
 // Better Auth's endpoint context, as its own helpers take it.
 type AuthCtx = Parameters<typeof setSessionCookie>[0];

@@ -14,9 +14,7 @@ import { captureError } from "@/lib/ops/error-tracker";
 
 export const StartTrialSchema = z
   .object({
-    unitType: z.enum(UNIT_TYPES, {
-      errorMap: () => ({ message: "Pick your unit type." }),
-    }),
+    unitType: z.enum(UNIT_TYPES, { error: "Pick your unit type." }),
     unitNumber: z
       .string()
       .trim()

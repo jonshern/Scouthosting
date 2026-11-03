@@ -40,11 +40,11 @@ const Event = z.object({
   path: z.string().max(500).nullish(),
   referrer: z.string().max(500).nullish(),
   source: z.string().max(100).nullish(),
-  props: z.record(z.unknown()).nullish(),
+  props: z.record(z.string(), z.unknown()).nullish(),
 });
 
 const Body = z.object({
-  product: z.enum(USAGE_PRODUCTS, { errorMap: () => ({ message: "bad_product" }) }),
+  product: z.enum(USAGE_PRODUCTS, { error: "bad_product" }),
   platform: z.enum(USAGE_PLATFORMS).default("web"),
   role: z.literal("scout").optional(),
   events: z.array(Event).min(1).max(20),

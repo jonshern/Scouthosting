@@ -256,9 +256,9 @@ const FileShape = z.object({
   scout: z.object({
     name: z.string().optional(),
     path: z.array(z.unknown()).max(MAX_PATH * 2).default([]),
-    custom: z.record(z.unknown()).default({}),
-    progress: z.record(z.unknown()).default({}),
-    checkedBy: z.record(z.unknown()).default({}),
+    custom: z.record(z.string(), z.unknown()).default({}),
+    progress: z.record(z.string(), z.unknown()).default({}),
+    checkedBy: z.record(z.string(), z.unknown()).default({}),
   }),
   entries: z.array(z.unknown()).max(MAX_ENTRIES_PER_SCOUT).default([]),
 });
