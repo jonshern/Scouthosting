@@ -32,7 +32,7 @@ export const GET = v1Route<{ id: string }>(async (req, { user, params }) => {
 });
 
 const Body = z.object({
-  body: z.string({ required_error: "empty" }).trim().min(1, "empty").max(8000, "too_long"),
+  body: z.string({ error: (iss) => (iss.input === undefined ? "empty" : undefined) }).trim().min(1, "empty").max(8000, "too_long"),
   // Attachments aren't accepted from mobile yet; tolerated and ignored.
   attachment: z.unknown().optional(),
 });

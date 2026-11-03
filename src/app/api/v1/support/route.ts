@@ -17,10 +17,10 @@ import { PRODUCTS, trimContext } from "@/lib/owner/inbox";
 export const runtime = "nodejs";
 
 const Body = z.object({
-  subject: z.string({ required_error: "missing_fields" }).trim().min(1, "missing_fields").max(200),
-  body: z.string({ required_error: "missing_fields" }).trim().min(1, "missing_fields").max(8000),
+  subject: z.string({ error: (iss) => (iss.input === undefined ? "missing_fields" : undefined) }).trim().min(1, "missing_fields").max(200),
+  body: z.string({ error: (iss) => (iss.input === undefined ? "missing_fields" : undefined) }).trim().min(1, "missing_fields").max(8000),
   orgId: IdSchema.optional(),
-  context: z.record(z.unknown()).optional(),
+  context: z.record(z.string(), z.unknown()).optional(),
   category: z.enum(["question", "bug", "billing", "abuse", "feature", "other"]).optional(),
   product: z.enum(PRODUCTS).optional(),
 });

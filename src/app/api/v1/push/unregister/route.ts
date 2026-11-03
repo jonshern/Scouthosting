@@ -6,7 +6,7 @@ import { LIMITS, json, notFound, readJson, v1Route } from "@/lib/api/v1";
 
 export const runtime = "nodejs";
 
-const Body = z.object({ token: z.string({ required_error: "missing_token" }).trim().min(1, "missing_token").max(512) });
+const Body = z.object({ token: z.string({ error: (iss) => (iss.input === undefined ? "missing_token" : undefined) }).trim().min(1, "missing_token").max(512) });
 
 export const POST = v1Route(
   async (req, { user }) => {
