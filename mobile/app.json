@@ -122,7 +122,8 @@
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"
         }
-      ]
+      ],
+      "./plugins/with-ios-scene"
     ]
   }
 }

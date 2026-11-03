@@ -5,6 +5,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "../api/client";
+import { clearSaved } from "../api/offline";
 import {
   deleteAccount as deleteAccountFlow,
   fetchMe,
@@ -120,6 +121,7 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
         await fetchMe({ orgSlug: activeOrg.orgSlug, token });
       } catch (e) {
         if (!cancelled && e instanceof ApiError && e.status === 401) {
+          await clearSaved();
           await storage.clearToken();
           await storage.clearProfile();
           setState({ status: "signed-out" });
@@ -182,6 +184,7 @@ export function AuthProvider({ children, storage: storageOverride }: ProviderPro
       await unregisterPushToken(client);
       await signOutFlow(client, storage);
     } else {
+      await clearSaved();
       await storage.clearToken();
       await storage.clearProfile();
     }

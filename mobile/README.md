@@ -27,6 +27,12 @@ npx expo start
 
 Press `i` for the iOS simulator or `a` for Android.
 
+## On your own iPhone, free
+
+`mobile/scripts/ios.sh` builds the app with Xcode on the Mac and installs it
+on the plugged-in iPhone with a free Apple ID; see [docs/ios.md](../docs/ios.md).
+It opens with no signal too, showing the last saved copy (`src/api/offline.ts`).
+
 ## Build (EAS)
 
 Everything a store build needs is checked in: `app.json` (name, bundle

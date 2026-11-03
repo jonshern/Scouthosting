@@ -55,6 +55,8 @@ for all three apps.
      `mobile/scripts/phone.sh app` on the Mac, then open the
      `exp://100.x.y.z:8081` link it prints (or scan its QR code with the
      Camera).
+   - **Installed app, free.** `mobile/scripts/ios.sh` builds it with
+     Xcode and installs it on the plugged-in iPhone; see [ios.md](ios.md).
    - **Installed app (needs the Apple Developer Program).** From
      `mobile/`: `npx eas-cli build --profile preview --platform ios`.
      See "Build (EAS)" in [mobile/README.md](../mobile/README.md).

@@ -13,6 +13,7 @@
 // drops all locally-stored creds.
 
 import { ApiError, apiRequest, type ClientOptions } from "./client";
+import { clearSaved } from "./offline";
 import { apexBaseUrl, type ApiConfig } from "./config";
 import type { MeDto } from "./types";
 import type { SecureStorage, StoredProfile } from "./storage";
@@ -122,6 +123,7 @@ export async function signOut(opts: ClientOptions, storage: SecureStorage): Prom
     // Best-effort — even if the server is unreachable we want the
     // local creds cleared so the user can sign in fresh.
   }
+  await clearSaved();
   await storage.clearToken();
   await storage.clearProfile();
 }
@@ -146,6 +148,7 @@ export async function deleteAccount(
     }
     throw e;
   }
+  await clearSaved();
   await storage.clearToken();
   await storage.clearProfile();
   return null;
