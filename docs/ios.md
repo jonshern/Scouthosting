@@ -21,6 +21,8 @@ With a free Apple ID the copy stops opening after 7 days: run the script again (
 
 A free Apple ID can't sign an app that receives push notifications, so the script leaves them out (`COMPASS_IOS_NO_PUSH=1`, see `mobile/app.config.js`) and the app simply never registers for them. With the paid Apple Developer team: `APPLE_TEAM_ID=<team> COMPASS_IOS_PUSH=1 mobile/scripts/ios.sh`. That copy lasts a year. EAS and store builds are untouched; they always include push.
 
+TestFlight (no cable, updates by themselves, for other leaders and parents too): `APPLE_TEAM_ID=<team> mobile/scripts/testflight.sh` builds on the Mac and uploads to App Store Connect ([testflight.md](testflight.md)).
+
 ## With no signal
 
 Every page the app loads is saved on the phone (`mobile/src/api/offline.ts`). When the server can't be reached (airplane mode, Tailscale off, the Mac asleep), the app shows the last copy of home, the calendar, event pages, chat channels and messages, photos and the scout list, with a note at the top saying how old it is. RSVPs, posts, uploads and anything else that changes something still need the server and say so. The saved copy is wiped on sign-out. Errors the server actually sends (a sign-in that's been revoked, a page you can't see) are never covered up by the saved copy.

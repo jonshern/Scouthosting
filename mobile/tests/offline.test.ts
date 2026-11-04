@@ -79,4 +79,19 @@ describe('free-team builds', () => {
     expect(named(make({ config: base }))).toContain('./plugins/with-ios-scene');
     expect(make.dropPushEntitlement({ 'aps-environment': 'development', other: 1 })).toEqual({ other: 1 });
   });
+
+  it('sign push for production for TestFlight and keep the build number', () => {
+    const push = (c: { plugins: unknown[] }) =>
+      c.plugins.find((p) => Array.isArray(p) && p[0] === 'expo-notifications') as [string, Record<string, unknown>];
+    process.env.COMPASS_IOS_PUSH_MODE = 'production';
+    process.env.IOS_BUILD_NUMBER = '202611040500';
+    const built = make({ config: base });
+    expect(push(built)[1]).toMatchObject({ mode: 'production', color: '#1d4ed8' });
+    expect(built.ios.buildNumber).toBe('202611040500');
+    delete process.env.COMPASS_IOS_PUSH_MODE;
+    delete process.env.IOS_BUILD_NUMBER;
+    const plain = make({ config: base });
+    expect(push(plain)[1].mode).toBeUndefined();
+    expect(plain.ios.buildNumber).toBeUndefined();
+  });
 });
