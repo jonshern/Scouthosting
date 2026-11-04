@@ -111,7 +111,12 @@
           "color": "#1d4ed8"
         }
       ],
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-status-bar",
       "expo-web-browser",
       [
