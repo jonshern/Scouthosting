@@ -11,6 +11,7 @@ import { verifyCsrf, verifyOrigin } from "@/lib/security/csrf";
 import { audit } from "@/lib/audit";
 import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii, encryptMemberPii } from "@/lib/members/crypto";
+import { parseHealthDate } from "@/lib/members/health-forms";
 import { ownedIds } from "@/lib/tenancy/owned";
 import { changesTreasurerAccess, TREASURER_CHANGE_FORBIDDEN } from "@/lib/auth/treasury-access";
 
@@ -53,6 +54,8 @@ const MemberInput = z.object({
   // The UI sends these from a checkbox group on the form so sibling
   // registrations don't retype the same parents.
   parentIds: z.string().trim().max(2000).optional().or(z.literal("")),
+  healthFormOn: z.string().trim().max(10).optional(),
+  healthExamOn: z.string().trim().max(10).optional(),
 });
 
 export type MemberState = { error?: string; ok?: true } | null;
@@ -71,8 +74,17 @@ export async function upsertMember(_prev: MemberState, formData: FormData): Prom
   if (vaultMissing(auth.org)) {
     return { error: "Org encryption vault is not provisioned. Re-create the org or restore from recovery." };
   }
-  const dek = unwrapDekWithMaster(auth.org);
   const d = parsed.data;
+  // Health form dates: only when the form sent the field, so another
+  // caller of this action never clears them by leaving it out.
+  const health: { healthFormOn?: Date | null; healthExamOn?: Date | null } = {};
+  for (const k of ["healthFormOn", "healthExamOn"] as const) {
+    if (!formData.has(k)) continue;
+    const v = parseHealthDate(d[k]);
+    if (v === "invalid") return { error: "Check the health form dates (they can't be in the future)." };
+    health[k] = v;
+  }
+  const dek = unwrapDekWithMaster(auth.org);
   const enc = encryptMemberPii(
     {
       firstName: d.firstName,
@@ -103,6 +115,7 @@ export async function upsertMember(_prev: MemberState, formData: FormData): Prom
     commPreference: d.commPreference,
     status: d.status,
     shirtSize: d.shirtSize?.trim() || null,
+    ...health,
     dietaryFlags: (d.dietaryFlags ?? "")
       .split(",")
       .map((s) => s.trim().toLowerCase())

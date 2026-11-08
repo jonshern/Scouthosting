@@ -22,8 +22,8 @@ export default function PositioningPage() {
           real website, email list and calendar.
         </InfoCard>
         <InfoCard title="vs. Scoutbook">
-          Scoutbook handles advancement and we don&apos;t compete with it. Compass links to it instead of asking you
-          to type the same thing twice.
+          Scoutbook stays the official advancement record. Compass imports your Scoutbook export so you don&apos;t
+          type the same thing twice.
         </InfoCard>
         <InfoCard title="vs. the old troop hosting sites">
           They work, but they look and feel like 2008. Compass works on a phone, it&apos;s quick, and it&apos;s

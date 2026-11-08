@@ -16,6 +16,7 @@ import {
 import { STAFF_ROLE_LABELS, type StaffRole } from "@/lib/events/staff";
 import { listEventChannels } from "@/lib/events/messaging";
 import { requireAdminPage } from "@/lib/admin/guard";
+import { eventHealthGaps } from "@/lib/members/health-forms";
 
 export const metadata = { title: "Event" };
 
@@ -47,7 +48,7 @@ export default async function EditEventPage({
   ]);
   if (!event) notFound();
 
-  const [staff, stations, counselors, channels] = await Promise.all([
+  const [staff, stations, counselors, channels, health] = await Promise.all([
     prisma.eventStaff.findMany({
       where: { eventId: event.id },
       orderBy: [{ role: "asc" }, { name: "asc" }],
@@ -64,6 +65,7 @@ export default async function EditEventPage({
       select: { id: true, name: true, email: true },
     }),
     listEventChannels(event.id, { userId: "", isLeader: true }),
+    eventHealthGaps(org, event),
   ]);
   const staffYes = staff.filter((s) => s.status === "yes").length;
   const staffByRole = new Map<string, typeof staff>();
@@ -89,6 +91,31 @@ export default async function EditEventPage({
           Permission slips →
         </Link>
       </div>
+      {health.gaps.length > 0 ? (
+        <div role="status" className="rounded-xl border border-attention/30 bg-attention-soft p-5">
+          <h2 className="text-base font-semibold text-ink">
+            {health.gaps.length} of {health.checked} going {health.checked === 1 ? "isn't" : "aren't"} covered by a health form
+          </h2>
+          <p className="mt-1 text-sm text-ink-2">
+            {health.needsExam
+              ? "This event runs over 72 hours, so everyone needs parts A and B and a doctor's exam (part C) good through the last day."
+              : "Everyone going needs parts A and B good through the last day."}
+          </p>
+          <ul className="mt-3 space-y-1 text-sm">
+            {health.gaps.map((g) => (
+              <li key={g.memberId} className="flex flex-wrap gap-x-2">
+                <Link href={`/o/${slug}/admin/members/${g.memberId}?tab=medical`} className="font-medium">
+                  {g.name}
+                </Link>
+                <span className="text-ink-2">{g.problem}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-ink-2">
+            Only counts yes RSVPs linked to the roster. <Link href={`/o/${slug}/admin/reports#health`}>Health form report →</Link>
+          </p>
+        </div>
+      ) : null}
       <EventForm
         orgSlug={slug}
         initial={{

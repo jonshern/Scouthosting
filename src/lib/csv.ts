@@ -5,7 +5,11 @@
 
 export function csvEscape(value: unknown): string {
   if (value === null || value === undefined) return "";
-  const s = String(value);
+  let s = String(value);
+  // Spreadsheet formula injection: a cell starting with = + @ (or - not
+  // followed by a number) runs as a formula in Excel and Sheets. Names
+  // and notes can come from public forms, so make those plain text.
+  if (typeof value === "string" && /^(?:[=+@\t\r]|-(?![\d.]))/.test(s)) s = `'${s}`;
   if (/[",\r\n]/.test(s)) {
     return `"${s.replace(/"/g, '""')}"`;
   }

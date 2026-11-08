@@ -22,6 +22,7 @@ import { AnnouncementsWidget } from "@/components/widgets/AnnouncementsWidget";
 import { loadHomeSnapshot } from "@/lib/publish/snapshot";
 import { orgBasePath } from "@/lib/tenancy/base-path";
 import { PhotoPlaceholder } from "@/components/ui/PhotoPlaceholder";
+import { unitWord } from "@/lib/members/interest-mail";
 
 // Render the homepage as ISR — Next caches the response for 60s and
 // background-revalidates. With the widgets fetching live data
@@ -79,7 +80,10 @@ export default async function OrgHome({ params }: { params: Promise<{ slug: stri
             />
           )}
           <div className="flex flex-wrap gap-3">
-            <Link href={`${base}/calendar`} className="btn-primary min-h-[48px] px-5 text-[15px]">
+            <Link href={`${base}/interest`} className="btn-primary min-h-[48px] px-5 text-[15px]">
+              Join our {unitWord(org.unitType)}
+            </Link>
+            <Link href={`${base}/calendar`} className="btn-secondary min-h-[48px] px-5 text-[15px]">
               See the calendar
             </Link>
           </div>

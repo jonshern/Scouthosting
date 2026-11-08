@@ -54,7 +54,7 @@ export default async function StartPage() {
           <span className="text-muted">in about five minutes.</span>
         </h1>
         <p className="mt-6 text-[16px] leading-[1.6] text-slate-soft">
-          One account covers the whole family: Compass for your troop or pack&apos;s site and
+          One account covers the whole family: Compass for your troop&apos;s site and
           calendar, Waypoint for merit badge counselors and badge days, and Lantern for each
           scout&apos;s path. Nothing is charged for the {firstFreePeriod()}. If it works for your unit, keep it for{" "}
           {PRICES.year.long} or {PRICES.month.long}, billed automatically after the trial. If
