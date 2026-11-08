@@ -11,35 +11,20 @@ type Feature = [label: string, value: React.ReactNode | null, inherited?: boolea
 
 // Everything is in the one plan (lib/billing/pricing.ts).
 const INCLUDED: Feature[] = [
-  ["Public site", "Unlimited pages, six themes, custom domain at no markup."],
-  ["Calendar & events", "Unlimited. RSVP, permission slips, payment links."],
-  ["Members & roster", "Unlimited. Two-deep YPT enforced on messaging."],
-  [
-    "Group email",
-    <>
-      Per-org sender aligned with your domain — emails come from{" "}
-      <strong className="text-ink">scoutmaster@yourtroop.org</strong>, not ours.
-    </>,
-  ],
-  [
-    "Photo library",
-    <>
-      <strong className="text-ink">15 GB included</strong> — auto-resize on upload, ~7,500
-      web-quality images. Per-scout privacy controls.
-    </>,
-  ],
-  ["Trip + meal planner", "Headcount-driven recipe scaling and printable shopping lists."],
+  ["Public site", "Your own pages, a Join our troop form, and your own domain at no markup."],
+  ["Calendar & events", "Unlimited. RSVPs, sign-up slots with waitlists, permission slips signed online."],
+  ["Members & roster", "Unlimited. Contact details encrypted, health form dates checked against each trip."],
+  ["Advancement", "Every scout's rank and badges, sign-offs on the web, and a court of honor list."],
+  ["Email & texts", "Announcements, scheduled newsletters, and texts to families who opt in."],
+  ["Photo albums", "Public or members-only, with photo files encrypted."],
+  ["Money", "Ledger, budgets, bank import, scout accounts, dues paid online, fundraiser selling pages."],
   ["Custom forms", "Permission slips, sign-ups, surveys."],
-  ["Migration", "White-glove import from TroopWebHost, ScoutLander, TroopTrack, CSVs."],
-  [
-    "Push + DMs",
-    "Native push notifications + 1:1 messaging in the parent mobile app.",
-  ],
+  ["Roster import", "CSV or Excel with a preview first. Scoutbook advancement exports too."],
   [
     "Channels",
-    "Patrol, den, parents, leaders. Two-deep audit on every leader↔youth thread.",
+    "Patrol, parents, leaders. Two-deep rules on every leader and youth chat.",
   ],
-  ["Waypoint", "Merit badge counseling, worksheets, and badge days with staff rosters."],
+  ["Waypoint", "Merit badge counseling, meeting plans, and badge days with staff rosters."],
   ["Lantern", "Each scout's own path to Eagle, with a grown-up mode for parents."],
 ];
 
@@ -103,7 +88,7 @@ export default function PlansPage() {
             </h1>
             <p className="mt-6 max-w-2xl text-ink-2 text-[17px] leading-[1.6]">
               {PRICES.year.long} or {PRICES.month.long} per unit, with the {firstFreePeriod()}
-              free. Merit badge counselors use Waypoint free, no unit needed. Custom domains, BYO email, 15 GB photo storage, messaging, and the
+              free. Merit badge counselors use Waypoint free, no unit needed. Custom domains, photo albums, messaging, and the
               Waypoint and Lantern apps are{" "}
               <strong className="text-ink">all included</strong> — we don't charge $25
               extra for the things our hosts charge us pennies for.
@@ -118,7 +103,6 @@ export default function PlansPage() {
               `${freePeriod()} free, no card needed`,
               "Waypoint free for merit badge counselors",
               "Custom domain, no markup",
-              "White-glove migration included",
               "Stripe fees passed through at cost",
             ].map((s) => (
               <div
@@ -158,7 +142,7 @@ export default function PlansPage() {
               <span className="text-white/60 text-[14px]">/ year</span>
             </div>
             <div className="text-[12px] text-white/75 mt-2 leading-[1.5]">
-              Flat per unit — pack, troop, crew, ship, or post. {freePeriod()} free. Cancel anytime.
+              One price for your troop. {freePeriod()} free. Cancel anytime. Parents, scouts and counselors never pay.
             </div>
             <Link
               href="/start"
@@ -177,7 +161,7 @@ export default function PlansPage() {
               <span className="text-slate-muted text-[14px]">/ month</span>
             </div>
             <div className="text-[12px] text-slate-soft mt-2 leading-[1.5]">
-              Flat per unit. {freePeriod()} free. Cancel anytime.
+              One price for your troop. {freePeriod()} free. Cancel anytime.
             </div>
             <Link
               href="/start"
@@ -213,9 +197,8 @@ export default function PlansPage() {
               <span className="text-muted">on basically everything.</span>
             </h3>
             <p className="text-slate-soft text-[15px] leading-[1.65]">
-              Custom domains cost $0.02/yr at the registry. Email-on-your-domain costs
-              ~$9/yr at Postmark. Most platforms charge $25/yr extra for each. Compass
-              passes them through free.
+              Some hosts charge extra to use your own domain, or charge for each scout.
+              Compass doesn&apos;t. You pay your registrar for the domain, and that&apos;s it.
             </p>
           </div>
           <div className="bg-white border border-line rounded-xl overflow-hidden">
@@ -229,11 +212,10 @@ export default function PlansPage() {
               </thead>
               <tbody className="divide-y divide-line-soft">
                 {[
-                  ["Use your own domain", "+$25/yr", "Included"],
-                  ["Email on your domain", "+$9–25/yr", "Included"],
-                  ["Photo storage", "10 GB", "15 GB"],
-                  ["Per-scout fees", "$0–$3/yr", "None"],
-                  ["Migration", "DIY", "White-glove"],
+                  ["Use your own domain", "Often extra", "Included"],
+                  ["Per-scout fees", "Some charge", "None"],
+                  ["Parents and scouts", "Some charge", "Free"],
+                  ["Merit badge counselors", "Need a unit", "Free, no unit needed"],
                 ].map(([k, l, c]) => (
                   <tr key={k}>
                     <td className="px-4 py-3 font-medium text-ink">{k}</td>

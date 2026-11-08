@@ -41,6 +41,7 @@ function buildPrimary(slug: string): NavItem[] {
       label: "Roster",
       match: [
         `${o}/admin/members`,
+        `${o}/admin/advancement`,
         `${o}/admin/training`,
         `${o}/admin/eagle`,
         `${o}/admin/oa`,

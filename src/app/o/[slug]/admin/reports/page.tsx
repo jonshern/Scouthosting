@@ -14,6 +14,8 @@ import {
   scoutsByAgeReport,
 } from "@/lib/reports/roster";
 import { Pill, PrintButton } from "@/components/ui";
+import { HealthPill } from "@/components/admin/HealthPill";
+import { healthFormReport, healthFormExpires, monthYear } from "@/lib/members/health-forms";
 import { requireAdminPage } from "@/lib/admin/guard";
 
 export const metadata = { title: "Roster reports" };
@@ -28,12 +30,15 @@ export default async function ReportsPage({
   const org = await prisma.org.findUnique({ where: { slug } });
   if (!org) notFound();
 
-  const [dietary, birthdays, shirts, ages] = await Promise.all([
+  const [health, dietary, birthdays, shirts, ages] = await Promise.all([
+    healthFormReport(org),
     dietaryReport(org),
     birthdayReport(org),
     shirtSizeReport(org),
     scoutsByAgeReport(org),
   ]);
+
+  const healthNeedsLook = health.filter((r) => r.form !== "current").length;
 
   // Age bucket distribution for a quick at-a-glance summary.
   const ageBuckets = new Map<string, number>();
@@ -63,6 +68,9 @@ export default async function ReportsPage({
       />
 
       <nav className="flex flex-wrap gap-3 text-sm print:hidden">
+        <Link href="#health" className="rounded-md border border-line px-3 py-1.5 hover:border-sky">
+          Health forms ({healthNeedsLook} to look at)
+        </Link>
         <Link href="#dietary" className="rounded-md border border-line px-3 py-1.5 hover:border-sky">
           Allergies / dietary ({dietary.length})
         </Link>
@@ -76,6 +84,21 @@ export default async function ReportsPage({
           Scouts by age ({ages.length})
         </Link>
       </nav>
+
+      <Section
+        id="health"
+        title="Health forms"
+        empty="No one is on the active roster yet."
+        csv={`/o/${slug}/admin/reports/health-forms.csv`}
+        rows={health}
+        columns={[
+          { header: "Name", cell: (r) => <Link href={`/o/${slug}/admin/members/${r.memberId}?tab=medical`}>{r.name}</Link> },
+          { header: "Type", cell: (r) => (r.isYouth ? "Youth" : "Adult") },
+          { header: "Patrol", cell: (r) => r.patrol ?? "—" },
+          { header: "Parts A and B", cell: (r) => <HealthCell on={r.formOn} state={r.form} /> },
+          { header: "Doctor's exam", cell: (r) => <HealthCell on={r.examOn} state={r.exam} /> },
+        ]}
+      />
 
       <Section
         id="dietary"
@@ -265,5 +288,14 @@ function Section<T>({
         </div>
       )}
     </div>
+  );
+}
+
+function HealthCell({ on, state }: { on: Date | null; state: Parameters<typeof HealthPill>[0]["state"] }) {
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      <HealthPill state={state} />
+      {on ? <span className="text-xs text-muted">through {monthYear(healthFormExpires(on))}</span> : null}
+    </span>
   );
 }

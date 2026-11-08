@@ -482,6 +482,14 @@ model Member {
   // member directory to that Scout's Scoutbook record. We don't store
   // any advancement data; that lives in Scoutbook.
   scoutbookUserId   String?
+  // Annual health form (BSA Annual Health and Medical Record), dates
+  // only: Compass never stores the form or anything medical on it.
+  // healthFormOn is the date on parts A and B (every event);
+  // healthExamOn is the provider's exam, part C (events over 72 hours,
+  // summer camp, high adventure). Each is good through the end of the
+  // 12th month after its date (lib/members/health-forms.ts).
+  healthFormOn      DateTime? @db.Date
+  healthExamOn      DateTime? @db.Date
   // Family linkage. Each row points to its parent Members (typically the
   // youth's mom/dad/guardian); the inverse relation gives parents their
   // children. Postgres array of Member IDs keeps schema simple — no join

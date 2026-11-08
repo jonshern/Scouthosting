@@ -28,6 +28,9 @@ export function MemberForm({
     shirtSize?: string | null;
     dietaryFlags?: string[] | null;
     parentIds?: string[];
+    /** YYYY-MM-DD, for the date inputs. */
+    healthFormOn?: string;
+    healthExamOn?: string;
   };
   /** Adults already on the roster — picker source for parent linking. */
   availableAdults?: { id: string; name: string; email: string | null; childCount: number }[];
@@ -131,6 +134,24 @@ export function MemberForm({
           />
         </div>
       </div>
+
+      <fieldset className="space-y-2">
+        <legend className="label">Annual health form</legend>
+        <div className="grid gap-4 md:grid-cols-2">
+          <div>
+            <label className="label" htmlFor="healthFormOn">Parts A and B dated</label>
+            <input id="healthFormOn" name="healthFormOn" type="date" defaultValue={m.healthFormOn ?? ""} className="field" />
+          </div>
+          <div>
+            <label className="label" htmlFor="healthExamOn">Doctor&apos;s exam (part C) dated</label>
+            <input id="healthExamOn" name="healthExamOn" type="date" defaultValue={m.healthExamOn ?? ""} className="field" />
+          </div>
+        </div>
+        <p className="text-xs text-muted">
+          Just the dates. Keep the forms themselves the way your unit does today. Each one is good through the end
+          of the same month next year. The exam is needed for events over 72 hours.
+        </p>
+      </fieldset>
 
       <div className="grid gap-4 md:grid-cols-2">
         <div>

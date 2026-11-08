@@ -151,7 +151,7 @@ export default async function AdminMembersIndex({
   let memberRows: { id: string; firstName: string; lastName: string; patrol: string | null; position: string | null; email: string | null; isYouth: boolean; status: string }[] = [];
   let patrolRows: { id: string; name: string; color: string; leaderName: string | null; memberCount: number }[] = [];
   let counselorRows: { id: string; name: string; inTroop: boolean; badges: string[] }[] = [];
-  let pendingRows: { id: string; firstName: string; lastName: string; email: string | null; prospectSource: string | null; firstContactedAt: Date | null }[] = [];
+  let pendingRows: { id: string; firstName: string; lastName: string; email: string | null; prospectSource: string | null; prospectNote: string | null; isYouth: boolean; createdAt: Date; firstContactedAt: Date | null }[] = [];
 
   if (tab === "scouts" || tab === "adults") {
     const isYouth = tab === "scouts";
@@ -239,6 +239,9 @@ export default async function AdminMembersIndex({
         lastName: pii.lastName,
         email: p.email,
         prospectSource: p.prospectSource,
+        prospectNote: p.prospectNote,
+        isYouth: p.isYouth,
+        createdAt: p.createdAt,
         firstContactedAt: p.firstContactedAt,
       };
     });
@@ -588,25 +591,26 @@ function PendingList({
   rows,
   slug,
 }: {
-  rows: { id: string; firstName: string; lastName: string; email: string | null; prospectSource: string | null; firstContactedAt: Date | null }[];
+  rows: { id: string; firstName: string; lastName: string; email: string | null; prospectSource: string | null; prospectNote: string | null; isYouth: boolean; createdAt: Date; firstContactedAt: Date | null }[];
   slug: string;
 }) {
   if (rows.length === 0) {
     return (
       <p className="text-sm text-slate-muted">
-        No pending prospects. Add a lead from the leads page or via a public sign-up form.
+        No one waiting. Families who send the Join form on your site show up here.
       </p>
     );
   }
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-surface">
-      <table className="w-full text-sm">
+    <div className="overflow-x-auto rounded-xl border border-line bg-surface">
+      <table className="w-full min-w-[720px] text-sm">
         <thead className="bg-surface-alt text-left font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">
           <tr>
             <th className="px-4 py-2 font-semibold">Name</th>
             <th className="px-4 py-2 font-semibold">Email</th>
             <th className="px-4 py-2 font-semibold">Source</th>
-            <th className="px-4 py-2 font-semibold">First contacted</th>
+            <th className="px-4 py-2 font-semibold">Note</th>
+            <th className="px-4 py-2 font-semibold">Added</th>
             <th className="px-4 py-2 font-semibold"></th>
           </tr>
         </thead>
@@ -615,13 +619,17 @@ function PendingList({
             <tr key={p.id}>
               <td className="px-4 py-3 font-medium text-ink">
                 {p.firstName} {p.lastName}
+                {p.isYouth ? <span className="ml-1 text-xs font-normal text-muted">scout</span> : null}
               </td>
               <td className="px-4 py-3 text-slate-soft">{p.email ?? "—"}</td>
               <td className="px-4 py-3 text-slate-soft text-xs">
-                {p.prospectSource ?? "—"}
+                {p.prospectSource === "web-form" ? "Join form" : (p.prospectSource ?? "—")}
+              </td>
+              <td className="max-w-[280px] px-4 py-3 text-slate-soft text-xs whitespace-pre-line">
+                {p.prospectNote ?? "—"}
               </td>
               <td className="px-4 py-3 text-slate-soft text-xs">
-                {p.firstContactedAt ? p.firstContactedAt.toLocaleDateString() : "—"}
+                {p.createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </td>
               <td className="px-4 py-3">
                 <div className="flex items-center gap-3 text-xs">

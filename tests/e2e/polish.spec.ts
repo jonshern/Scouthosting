@@ -130,8 +130,12 @@ test("a post's paragraphs keep their spacing", async ({ page }) => {
   const title = `Spacing ${uid()}`;
   await page.getByLabel("Title (optional)").fill(title);
   await page.getByLabel("Body").fill("First paragraph.\n\nSecond paragraph.");
-  await page.getByRole("button", { name: /publish post/i }).click();
-  await page.waitForURL("**/admin/posts");
+  // The form posts back to the page it's on, so waitForURL alone returns
+  // before the post is saved. Wait for the server action's response.
+  await Promise.all([
+    page.waitForResponse((r) => r.request().method() === "POST" && r.url().includes("/admin/posts")),
+    page.getByRole("button", { name: /publish post/i }).click(),
+  ]);
   await page.goto(`${TENANT}/posts`);
   await page.getByRole("link", { name: title }).click();
   const second = page.locator(".prose p", { hasText: "Second paragraph." });

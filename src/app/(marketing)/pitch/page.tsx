@@ -17,7 +17,7 @@ export default function PitchPage() {
           the next scoutmaster doesn&apos;t need a 90-minute Zoom call to take over.
         </InfoCard>
         <InfoCard title="Who it's for">
-          Troops, packs, crews, ships and posts. Council-wide setups on request.
+          Scouts BSA troops, for now. Packs and crews come once their advancement is in. Council-wide setups on request.
         </InfoCard>
       </div>
       <p className="mt-10 text-sm text-muted">

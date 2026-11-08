@@ -10,47 +10,37 @@ const FEATURES = [
   {
     num: "01",
     kw: "Calendar",
-    title: "A calendar that handles RSVPs, money, and rides.",
-    body: "Publish a campout, attach the permission slip, accept payment, and assign carpools — without a single PDF email.",
+    title: "A calendar that handles RSVPs, slips and sign-ups.",
+    body: "Post a campout, collect RSVPs, and have parents sign the permission slip online. Sign-up slots fill with a waitlist, and the emergency contact list and health form check come from who said yes.",
   },
   {
     num: "02",
     kw: "Website",
     title: "A public homepage that recruits new families.",
-    body: "Pick from six templates, drop in your troop number, and you're live on a custom subdomain. Scouts can edit it during a Tuesday meeting.",
+    body: "Your calendar, photos and news on your own subdomain or domain, with pages you edit yourself. A Join our troop form puts interested families straight onto your roster.",
   },
   {
     num: "03",
     kw: "Security",
     title: "Encryption, audit logs, and tested backups.",
-    body: "AES-256 field-level encryption, per-org keys, argon2id for passphrases. Tamper-evident audit log on every admin action. Encrypted backups every day, plus one before every update, and we practice restoring them.",
+    body: "Names, phone numbers and addresses are encrypted with your unit's own key. Two-step sign-in for every leader, and an audit log of admin changes. Encrypted backups before every update, and we practice restoring them.",
   },
   {
     num: "04",
     kw: "Communication",
-    title: "Email, push, and text — one composer.",
-    body: "Send a Sunday email digest, a mobile push for the 7am cancellation, or an SMS broadcast when a campout reroutes. Threaded replies, two-deep enforced, every message logged. No more “did you get the flier?”",
+    title: "Email, newsletters, chat and texts.",
+    body: "Send announcements and scheduled newsletters, or text the families who opted in. Chats for patrols, leaders and parents pause if they lose their second adult, and every message is logged.",
   },
 ];
 
 const STATS = [
   { n: "AES-256", l: "encryption at rest & in transit" },
   { n: "2-step", l: "sign-in for every leader and admin" },
-  { n: "Daily", l: "encrypted off-site backups" },
+  { n: "Backups", l: "encrypted, before every update" },
   { n: PRICES.year.short, l: `per unit, per year (or ${PRICES.month.long})` },
 ];
 
-const IMPORT_SOURCES = [
-  "TroopWebHost",
-  "ScoutLander",
-  "TroopTrack",
-  "Wix / Squarespace",
-  "Google Sites",
-  "CSV / Excel",
-  "Scoutbook export",
-  "Internet Advancement",
-  "A shared Drive folder",
-];
+const IMPORT_SOURCES = ["CSV file", "Excel file", "Scoutbook export"];
 
 export default function MarketingHome() {
   return (
@@ -68,17 +58,16 @@ export default function MarketingHome() {
           <div className="flex flex-col gap-6">
             <span className="inline-flex items-center gap-2 self-start rounded-full border border-line bg-surface px-3 py-1.5 text-[13px] text-ink-2">
               <span aria-hidden className="h-2 w-2 rounded-full bg-done" />
-              Security · ease of use · every feature you need
+              Security · ease of use
             </span>
             <h1 className="text-[44px] font-semibold leading-[1.02] tracking-[-0.035em] md:text-[64px]">
               Modern, secure software{" "}
               <span className="text-muted">for your scouting unit.</span>
             </h1>
             <p className="max-w-[540px] text-[19px] leading-[1.55] text-ink-2">
-              A calendar, public site, photo library, and parent app — designed
-              for the volunteer leaders who keep things running. Sign in with
-              Google or Apple, encrypted by default, and built to play nicely
-              with Scouting.org and Scoutbook.
+              A calendar, public site, photo albums and chat for the volunteer
+              leaders who keep a troop running. Encrypted by default. Your roster
+              comes in from a spreadsheet, and advancement from Scoutbook.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link href="/start" className="btn-primary min-h-[48px] px-5 text-[15px]">
@@ -151,14 +140,13 @@ export default function MarketingHome() {
               § Migration
             </div>
             <h3 className="text-[28px] md:text-[36px] font-semibold leading-[1.1] tracking-[-0.03em] mb-4">
-              Bring your <span className="text-muted">18 years</span> of troop
-              history with you.
+              Bring your roster{" "}
+              <span className="text-muted">with you.</span>
             </h3>
             <p className="text-slate-soft text-[15px] leading-relaxed">
-              We import from TroopWebHost, ScoutLander, TroopTrack, and a folder
-              of CSVs you found on the old committee chair&apos;s laptop.
-              White-glove migration is included on every plan — book a 30-minute
-              call and we&apos;ll have you running by Sunday.
+              Upload a CSV or Excel file of scouts and families and check the
+              preview before anything is saved. Your Scoutbook advancement export
+              imports too.
             </p>
           </div>
           <div className="grid gap-3 grid-cols-2 md:grid-cols-3">
@@ -182,8 +170,8 @@ export default function MarketingHome() {
             § Pricing
           </div>
           <h2 className="text-[32px] md:text-[44px] font-semibold leading-[1.05] tracking-[-0.03em] max-w-4xl">
-            One price per unit — pack, troop, crew, ship, or post.{" "}
-            <span className="text-muted">No per-scout</span> fees, ever.
+            One price for your troop.{" "}
+            <span className="text-muted">Parents, scouts and counselors never pay.</span>
           </h2>
         </div>
 
@@ -219,17 +207,18 @@ export default function MarketingHome() {
             <ul className="grid gap-x-6 gap-y-2.5 text-sm sm:grid-cols-2">
               {[
                 "Public website + custom subdomain",
-                "Calendar with RSVPs, permission slips, and Stripe payments",
-                "Email digests sent from your domain",
-                "Photo library (15 GB) with per-scout privacy",
-                "Carpool & ride coordination",
-                "Forms, surveys & online dues",
-                "Group chat for dens, patrols, and committees",
+                "Calendar with RSVPs, sign-ups and permission slips",
+                "Announcements, newsletters and texts",
+                "Photo albums, public or members-only",
+                "Forms, surveys and dues families pay online",
+                "Group chat for patrols and committees",
+                "Advancement for the whole troop, signed off on the web",
+                "Health form dates checked against every trip",
+                "A Join our troop form on your site",
                 "Two-deep enforced on every message",
-                "Push notifications and the family app",
                 "Merit badge counseling and badge days (Waypoint)",
                 "Each scout's path to Eagle (Lantern)",
-                "White-glove migration from your old site",
+                "Roster import from a spreadsheet, advancement from Scoutbook",
               ].map((f) => (
                 <li key={f} className="flex gap-2.5 leading-snug text-white">
                   <span className="text-on-ink-muted font-semibold shrink-0">✓</span>
@@ -458,8 +447,7 @@ export default function MarketingHome() {
               <p className="mt-3 text-xs leading-relaxed text-white/85">
                 <span className="font-bold text-sky">●</span> Mobile-first.
                 HTTPS-only. Encrypted at rest & in transit. Daily encrypted
-                backups. Role-based access with audit logs. Migrates from your
-                old hosting in an afternoon.
+                backups. Role-based access with audit logs.
               </p>
             </div>
           </div>

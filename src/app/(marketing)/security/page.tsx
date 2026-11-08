@@ -38,7 +38,7 @@ export default function SecurityPage() {
           read it any time.
         </InfoCard>
         <InfoCard title="Backups we actually test">
-          Encrypted backups every day and before every update, kept off-site, and we practice restoring them.
+          Encrypted backups before every update, with a copy kept off-site, and we practice restoring them.
         </InfoCard>
       </div>
       <p className="mt-10 text-sm text-muted">

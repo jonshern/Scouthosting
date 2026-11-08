@@ -14,14 +14,8 @@
 import { prisma } from "@/lib/db";
 import { ApiError, forbidden, json, notFound, parseId, readJson, requireOrgAccessForResource, v1Route } from "@/lib/api/v1";
 import { findScout, orgDecryptor, scoutRelation, scoutView } from "@/lib/counselor/access";
-import {
-  ProgressPutBody,
-  canReadRequirement,
-  relatesAtAll,
-  writeRefusal,
-  type ProgressStatus,
-  type ScoutRelation,
-} from "@/lib/counselor/ids";
+import { ProgressPutBody, canReadRequirement, relatesAtAll, type ScoutRelation } from "@/lib/counselor/ids";
+import { ProgressRefused, writeProgress } from "@/lib/counselor/progress-write";
 
 export const runtime = "nodejs";
 
@@ -63,79 +57,14 @@ export const PUT = v1Route<{ id: string }>(async (req, { user, params }) => {
   const { scout, rel } = await load(params.id, user, true);
   const { items } = await readJson(req, ProgressPutBody);
 
-  const now = new Date();
-  await prisma.$transaction(async (tx) => {
-    // One writer per scout at a time. The permission check depends on
-    // the current status (family can't undo a sign-off), so it must see
-    // the row as it is when we write, not as it was a moment before: a
-    // scout's "done" racing a counselor's sign-off would otherwise land
-    // second and quietly undo it. Locking the scout covers rows that
-    // don't exist yet, which a row lock can't.
-    await tx.$queryRaw`SELECT id FROM "Member" WHERE id = ${scout.id} FOR NO KEY UPDATE`;
-    const existing = await tx.requirementProgress.findMany({
-      where: { memberId: scout.id, requirementId: { in: items.map((i) => i.requirementId) } },
-    });
-    const current = new Map(existing.map((r) => [r.requirementId, r]));
-
-    // Check every item before writing any.
-    for (const item of items) {
-      const from = (current.get(item.requirementId)?.status ?? null) as ProgressStatus | null;
-      const reason = writeRefusal(rel, item.requirementId, from, item.status);
-      if (reason) throw new ApiError(403, "forbidden", { reason, requirementId: item.requirementId });
+  try {
+    await writeProgress(scout, rel, user, items);
+  } catch (err) {
+    if (err instanceof ProgressRefused) {
+      throw new ApiError(403, "forbidden", { reason: err.reason, requirementId: err.requirementId });
     }
-
-    for (const item of items) {
-      const prev = current.get(item.requirementId);
-      const fromStatus = prev?.status ?? null;
-      const note = item.note === undefined ? (prev?.note ?? null) : item.note || null;
-      if (prev && prev.status === item.status && prev.note === note) continue;
-
-      const signOff =
-        item.status === "signed_off"
-          ? prev?.status === "signed_off"
-            ? { signedOffById: prev.signedOffById, signedOffAt: prev.signedOffAt }
-            : { signedOffById: user.id, signedOffAt: now }
-          : { signedOffById: null, signedOffAt: null };
-
-      const row = await tx.requirementProgress.upsert({
-        where: { memberId_requirementId: { memberId: scout.id, requirementId: item.requirementId } },
-        create: {
-          orgId: scout.orgId,
-          memberId: scout.id,
-          requirementId: item.requirementId,
-          status: item.status,
-          note,
-          updatedById: user.id,
-          ...signOff,
-        },
-        update: { status: item.status, note, updatedById: user.id, ...signOff },
-      });
-      await tx.requirementProgressEvent.create({
-        data: {
-          orgId: scout.orgId,
-          memberId: scout.id,
-          requirementId: item.requirementId,
-          fromStatus,
-          toStatus: item.status,
-          note,
-          actorUserId: user.id,
-        },
-      });
-      if ((item.status === "signed_off") !== (fromStatus === "signed_off")) {
-        await tx.auditLog.create({
-          data: {
-            orgId: scout.orgId,
-            userId: user.id,
-            userDisplay: user.displayName,
-            entityType: "RequirementProgress",
-            entityId: row.id,
-            action: item.status === "signed_off" ? "sign_off" : "undo_sign_off",
-            summary: `${item.requirementId} ${fromStatus ?? "none"} → ${item.status}`,
-          },
-        });
-      }
-    }
-  });
+    throw err;
+  }
 
   return json(await progressBody(scout, rel));
 });

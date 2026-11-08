@@ -16,6 +16,8 @@ import { unwrapDekWithMaster } from "@/lib/encryption";
 import { decryptMemberPii } from "@/lib/members/crypto";
 import { Pill } from "@/components/ui";
 import { formatBalance } from "@/lib/treasury/money";
+import { HealthPill } from "@/components/admin/HealthPill";
+import { dateInputValue, healthFormExpires, monthYear } from "@/lib/members/health-forms";
 
 export type MemberTab =
   | "profile"
@@ -266,6 +268,8 @@ export async function MemberDetailBody({
               shirtSize: member.shirtSize,
               dietaryFlags: member.dietaryFlags,
               parentIds: member.parentIds,
+              healthFormOn: dateInputValue(member.healthFormOn),
+              healthExamOn: dateInputValue(member.healthExamOn),
             }}
             csrf={<CsrfTokenInput />}
             availableAdults={availableAdults}
@@ -521,10 +525,17 @@ export async function MemberDetailBody({
               </dd>
             </div>
           </dl>
-          <p className="text-xs text-slate-muted">
-            Annual health forms (A/B/C) live outside Compass for now — leaders
-            track them per-trip via the existing trip plan attachments.
-          </p>
+          <div className="rounded-xl border border-line bg-surface p-5">
+            <h3 className="font-display font-semibold text-lg text-ink">Annual health form</h3>
+            <dl className="mt-3 grid gap-3 sm:grid-cols-2">
+              <HealthDate label="Parts A and B" on={member.healthFormOn} />
+              <HealthDate label="Doctor's exam (part C)" on={member.healthExamOn} />
+            </dl>
+            <p className="mt-3 text-xs text-muted">
+              Compass keeps only the dates. Change them on the{" "}
+              <Link href={buildTabHref("profile")}>Profile</Link> tab.
+            </p>
+          </div>
         </div>
       )}
 
@@ -572,5 +583,24 @@ export async function MemberDetailBody({
         </div>
       )}
     </section>
+  );
+}
+
+function HealthDate({ label, on }: { label: string; on: Date | null }) {
+  return (
+    <div>
+      <dt className="font-mono text-[11px] font-medium uppercase tracking-[0.06em] text-muted">{label}</dt>
+      <dd className="mt-1 flex flex-wrap items-center gap-2 text-ink">
+        {on ? (
+          <span>
+            {on.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}
+            <span className="text-muted"> · good through {monthYear(healthFormExpires(on))}</span>
+          </span>
+        ) : (
+          <span className="text-muted">Not on file</span>
+        )}
+        <HealthPill on={on} />
+      </dd>
+    </div>
   );
 }
